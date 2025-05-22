@@ -1,0 +1,12 @@
+# Apps Script
+
+.clasp.json
+.clasprc.json
+
+# Local Testing
+
+/local_testing
+
+# Credentials
+
+creds.json
