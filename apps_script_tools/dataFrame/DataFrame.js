@@ -448,6 +448,12 @@ var DataFrame = class DataFrame {
     }
 
     const rows = this.toArrays(this.columns);
+    if (rows.length === 0) {
+      const header = this.columns.join(' | ');
+      const separator = this.columns.map(column => '-'.repeat(String(column).length)).join('-|-');
+      return `${header}\n${separator}`;
+    }
+
     const colWidths = rows[0].map((_, idx) => {
       return Math.max(...rows.map(row => String(row[idx] ?? '').length));
     });

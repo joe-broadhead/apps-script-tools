@@ -22,3 +22,20 @@ test('DataFrame.toMarkdown renders headers and data', () => {
   assert.match(markdown, /Alice/);
   assert.match(markdown, /Bob/);
 });
+
+test('DataFrame.toMarkdown handles empty DataFrame with defined columns', () => {
+  const context = createGasContext({
+    loadDatabricksTable: () => {},
+    loadBigQueryTable: () => {}
+  });
+
+  loadCoreDataContext(context);
+
+  const df = new context.DataFrame({
+    id: new context.Series([], 'id'),
+    name: new context.Series([], 'name')
+  });
+
+  const markdown = df.toMarkdown();
+  assert.equal(markdown, 'id | name\n---|-----');
+});

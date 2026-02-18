@@ -60,7 +60,17 @@ function loadBigQueryTable(config) {
   const csvBlob = Utilities.newBlob(csvRows.join('\n'), 'text/csv', `${tablePart}.csv`);
   const schemaFields = Object.entries(tableSchema).map(([name, type]) => ({ name, type }));
 
-  const writeDisposition = mode === 'overwrite' ? 'WRITE_TRUNCATE' : 'WRITE_APPEND';
+  let writeDisposition;
+  switch (mode) {
+    case 'insert':
+      writeDisposition = 'WRITE_APPEND';
+      break;
+    case 'overwrite':
+      writeDisposition = 'WRITE_TRUNCATE';
+      break;
+    default:
+      throw new Error(`Invalid BigQuery load mode '${mode}'. Expected one of: insert, overwrite`);
+  }
   const loadJob = {
     configuration: {
       load: {
@@ -80,9 +90,12 @@ function loadBigQueryTable(config) {
   };
 
   const job = BigQuery.Jobs.insert(loadJob, projectId, csvBlob);
+  if (job.status && job.status.errorResult) {
+    throw new Error(`BigQuery load failed: ${JSON.stringify(job.status.errorResult)}`);
+  }
   const jobId = job.jobReference.jobId;
 
-  let status = job.status.state;
+  let status = job.status ? job.status.state : 'PENDING';
   while (status !== 'DONE') {
     Utilities.sleep(1000);
     const latest = BigQuery.Jobs.get(projectId, jobId);
