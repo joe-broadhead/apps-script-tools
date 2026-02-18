@@ -5,6 +5,7 @@
 - `AST.Series`
 - `AST.DataFrame`
 - `AST.GroupBy`
+- `AST.Utils.*`
 - `AST.Utils.arraySum(array)`
 - `AST.Utils.dateAdd(date, interval, unit)`
 - `AST.Utils.toSnakeCase(value)`
@@ -19,6 +20,7 @@
 ## SQL
 
 - `AST.Sql.run(request)`
+- `AST.DataFrame.fromQuery(request)` (same request contract as `AST.Sql.run`)
 
 Request contract:
 
@@ -31,3 +33,8 @@ Request contract:
   options: { allowUnsafePlaceholders: false }
 }
 ```
+
+## DataFrame Notes
+
+- `dropDuplicates()` uses all columns by default.
+- `dropDuplicates(['colA', 'colB'])` deduplicates using only the provided subset.

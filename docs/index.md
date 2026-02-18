@@ -11,6 +11,7 @@
 - `AST.GroupBy`: grouped aggregations and custom group transforms
 - `AST.Sheets` and `AST.Drive`: workspace interoperability
 - `AST.Sql`: Databricks and BigQuery query execution
+- `AST.Utils`: public utility helpers (for example `arraySum`, `dateAdd`, `toSnakeCase`)
 
 ## Release
 
@@ -29,4 +30,5 @@ AST.GroupBy
 AST.Sheets
 AST.Drive
 AST.Sql
+AST.Utils
 ```

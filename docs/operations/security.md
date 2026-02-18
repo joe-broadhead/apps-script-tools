@@ -5,6 +5,7 @@
 - No dynamic string predicate execution in `Series.query`.
 - SQL request validation is mandatory.
 - Placeholder interpolation is disabled unless explicitly enabled.
+- Apps Script execution API access is scoped to `MYSELF` (not public).
 
 ## Secret Management
 

@@ -10,6 +10,7 @@
 - Build from records/arrays/sheets/SQL.
 - Transform via `select`, `assign`, `merge`, `pivot`, `sort`, `groupBy`.
 - Export via `toArrays`, `toSheet`, `toJson`, `toTable`, `toMarkdown`.
+- `dropDuplicates()` considers all columns unless a subset is explicitly provided.
 
 ## `AST.Sql.run`
 
