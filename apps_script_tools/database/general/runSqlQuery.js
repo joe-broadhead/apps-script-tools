@@ -3,23 +3,29 @@
  * @description Executes a SQL query on the specified data provider (`databricks` or `bigquery`). 
  *              Delegates query execution to the appropriate provider function and handles query 
  *              parameter replacements.
- * @param {String} query - The SQL query to execute.
- * @param {String} provider - The data provider to execute the query on. Must be `"databricks"` or `"bigquery"`.
- * @param {Object} parameters - Connection parameters specific to the selected provider.
- * @param {Object} [placeholders={}] - Optional placeholders to replace in the query before execution.
+ * @param {Object} request - SQL request.
+ * @param {String} request.provider - The data provider to execute the query on. Must be `"databricks"` or `"bigquery"`.
+ * @param {String} request.sql - The SQL query to execute.
+ * @param {Object} request.parameters - Connection parameters specific to the selected provider.
+ * @param {Object} [request.placeholders={}] - Optional placeholders to replace in the query before execution.
+ * @param {Object} [request.options={}] - Extra options.
  * @returns {DataFrame|null} A DataFrame containing the query results or `null` if the query fails.
  * 
  * @example
- * const query = "SELECT * FROM users WHERE region = {{region}}";
- * const parameters = {
+ * const request = {
+ *   provider: 'databricks',
+ *   sql: "SELECT * FROM users WHERE region = {{region}}",
+ *   parameters: {
  *   host: 'databricks-instance.cloud.databricks.com',
  *   sqlWarehouseId: '12345',
  *   schema: 'sales',
  *   token: 'abcdef123456'
+ *   },
+ *   placeholders: { region: 'North' },
+ *   options: { allowUnsafePlaceholders: true }
  * };
- * const placeholders = { region: 'North' };
  * 
- * const dataFrame = runSqlQuery(query, 'databricks', parameters, placeholders);
+ * const dataFrame = runSqlQuery(request);
  * console.log(dataFrame);
  * 
  * @note
@@ -33,12 +39,15 @@
  * @see runDatabricksSql - Executes the query on Databricks.
  * @see runBigQuerySql - Executes the query on BigQuery.
  */
-function runSqlQuery(query, provider, parameters, placeholders = {}) {
+function runSqlQuery(request = {}) {
+  const normalizedRequest = validateSqlRequest(request);
+  const { provider, sql, parameters, placeholders } = normalizedRequest;
+
   switch (provider) {
     case 'databricks':
-      return runDatabricksSql(query, parameters, placeholders);
+      return runDatabricksSql(sql, parameters, placeholders);
     case 'bigquery':
-      return runBigQuerySql(query, parameters, placeholders);
+      return runBigQuerySql(sql, parameters, placeholders);
     default:
       throw new Error('Provider must be one of: databricks, bigquery');
   };

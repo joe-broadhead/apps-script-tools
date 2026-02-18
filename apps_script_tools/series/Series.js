@@ -8,7 +8,7 @@
  * @class Series
  * @description A class representing a Series, providing methods to transform data using the array data structure.
  */
-class Series {
+var Series = class Series {
   constructor(array = [], name = null, type = null, index = null, options = { useUTC: false }) {
     if (index && index.length !== array.length) {
       throw new Error('Index length must match array length.');
@@ -622,67 +622,23 @@ class Series {
    *     3. `i` (`number`): The index of the current element.
    *     Example: `(s, value, i) => value > 10 && i % 2 === 0`
    *
-   *   - If a `string`: The string is dynamically evaluated as a condition for each element.
-   *     The string can reference:
-   *       - `value`: The current element value.
-   *       - `i`: The index of the current element.
-   *       - Methods on the Series object (`s`) such as `s.str.startsWith` or `s.dt.year`.
-   *     Example: `"s.str.startsWith('a') || value > 20"`
-   *
-   *     The following transformations are applied automatically to Series methods in the string:
-   *       - `s.method(args)` becomes `elementWise(s.method(args))`, ensuring the method is applied
-   *         element-wise for the current index.
-   *
    * @returns {Series} A new Series containing only the elements that satisfy the condition.
    *
-   * @throws {Error} If the condition is not a valid function or string, or if the condition
-   * evaluates incorrectly (e.g., syntax errors or invalid method calls).
+   * @throws {Error} If the condition is not a valid function.
    *
-   * @example Using a string-based condition
+   * @example Using a function condition
    * const series = new Series([10, 15, 25, 30, 35], 'numbers');
-   * 
-   * // Query: Keep values greater than 20
-   * const result = series.query("value > 20");
-   * console.log(result.array); // Output: [25, 30, 35]
-   * 
-   * // Query: Keep values greater than 15 at even indices
-   * const indexedResult = series.query("value > 15 && i % 2 === 0");
-   * console.log(indexedResult.array); // Output: [25, 35]
-   *
-   * @example Using a string-based condition
-   * const stringSeries = new Series(['apple', 'banana', 'strawberry', 'kiwi'], 'fruits');
-   * const result = stringSeries.query("s.str.startsWith('s') || value.length > 5");
-   * console.log(result.array); // Output: ['banana', 'strawberry']
-   *
-   * @example Combining index and value logic
-   * const mixedSeries = new Series([10, 'apple', 30, 'strawberry'], 'mixed');
-   * const result = mixedSeries.query("(typeof value === 'number' && value > 20) || s.str.startsWith('s')");
-   * console.log(result.array); // Output: [30, 'strawberry']
+   * const result = series.query((s, value, i) => value > 20 && i % 2 === 0);
+   * console.log(result.array); // Output: [25, 35]
    * 
    * @see Series#filter ////////// TODO: Add Time Complexity
    */
   query(condition) {
-    let evalCondition;
-
-    switch (typeof condition) {
-      case 'function':
-        evalCondition = (s, i, value) => condition(s, value, i);
-        break;
-
-      case 'string':
-        evalCondition = new Function('s', 'i', 'value', `
-          const elementWise = (method) => method instanceof Series ? method.array[i] : method;
-          return (${condition.replace(/s\.(\w+(\.\w+)*)\((.*?)\)/g, (a, method, b, args) =>
-            `elementWise(s.${method}(${args}))`
-          )});
-        `);
-        break;
-
-      default:
-        throw new Error('Condition must be a function or a valid string');
+    if (typeof condition !== 'function') {
+      throw new Error('Condition must be a function');
     };
 
-    return this.filter((value, index) => evalCondition(this, index, value));
+    return this.filter((value, index) => condition(this, value, index));
   }
 
   /**
@@ -2263,4 +2219,6 @@ class Series {
   }
 };
 
+const __astSeriesRoot = typeof globalThis !== 'undefined' ? globalThis : this;
+__astSeriesRoot.Series = Series;
 this.Series = Series;

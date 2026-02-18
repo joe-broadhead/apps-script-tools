@@ -27,7 +27,10 @@
 function replacePlaceHoldersInQuery(query, placeholders) {
   let queryWithReplacements = query;
   for (const key in placeholders) {
-    const value = typeof placeholders[key] === 'string' ? `'${placeholders[key]}'` : placeholders[key];
+    const rawValue = placeholders[key];
+    const value = typeof rawValue === 'string'
+      ? `'${rawValue.replace(/'/g, "''")}'`
+      : rawValue;
     queryWithReplacements = queryWithReplacements.replace(new RegExp(`{{${key}}}`, 'g'), value);
   };
   return queryWithReplacements;

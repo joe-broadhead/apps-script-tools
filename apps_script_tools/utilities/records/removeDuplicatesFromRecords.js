@@ -46,8 +46,10 @@ function removeDuplicatesFromRecords(records, keys = []) {
   const seen = new Set();
 
   return records.filter(item => {
-    const keysToUse = keys.length > 0 ? keys : Object.keys(item).sort(); // Sort for consistent order
-    const compositeKey = JSON.stringify(keysToUse.map(key => [key, item[key]]));
+    const keysToUse = keys.length > 0 ? keys : Object.keys(item).sort();
+    const compositeKey = JSON.stringify(
+      keysToUse.map(key => [key, normalizeRecordValue(item[key])])
+    );
 
     if (seen.has(compositeKey)) {
       return false;
@@ -57,3 +59,24 @@ function removeDuplicatesFromRecords(records, keys = []) {
     return true;
   });
 };
+
+function normalizeRecordValue(value) {
+  if (value === undefined) return { __ast_type: "undefined" };
+  if (value === null) return null;
+  if (value instanceof Date) return { __ast_type: "date", value: value.toISOString() };
+  if (typeof value === "number" && Number.isNaN(value)) return { __ast_type: "nan" };
+  if (typeof value === "bigint") return { __ast_type: "bigint", value: value.toString() };
+
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeRecordValue(item));
+  }
+
+  if (typeof value === "object") {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = normalizeRecordValue(value[key]);
+      return acc;
+    }, {});
+  }
+
+  return value;
+}
