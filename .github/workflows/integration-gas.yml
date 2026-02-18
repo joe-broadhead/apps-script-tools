@@ -1,0 +1,62 @@
+name: Apps Script Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gas-tests:
+    runs-on: ubuntu-latest
+    env:
+      SCRIPT_ID: 1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_
+      CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+      CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+      CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Configure clasp auth
+        run: |
+          test -n "$CLASP_CLIENT_ID"
+          test -n "$CLASP_CLIENT_SECRET"
+          test -n "$CLASP_REFRESH_TOKEN"
+          cat > ~/.clasprc.json <<JSON
+          {
+            "token": {
+              "access_token": "",
+              "refresh_token": "${CLASP_REFRESH_TOKEN}",
+              "scope": "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform",
+              "token_type": "Bearer",
+              "expiry_date": 0
+            },
+            "oauth2ClientSettings": {
+              "clientId": "${CLASP_CLIENT_ID}",
+              "clientSecret": "${CLASP_CLIENT_SECRET}",
+              "redirectUri": "http://localhost"
+            },
+            "isLocalCreds": false
+          }
+          JSON
+
+      - name: Configure script binding
+        run: |
+          cat > .clasp.json <<JSON
+          {
+            "scriptId": "${SCRIPT_ID}",
+            "rootDir": "apps_script_tools"
+          }
+          JSON
+
+      - name: Push and execute integration tests
+        run: |
+          clasp status
+          clasp push
+          clasp run runAllTests

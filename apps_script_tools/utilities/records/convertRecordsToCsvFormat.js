@@ -5,7 +5,10 @@ function convertRecordsToCsvFormat(records) {
 
   const headers = Object.keys(records[0]);
   const csvRows = records.reduce((acc, record) => {
-    const row = headers.map(header => JSON.stringify(record[header] || ""));
+    const row = headers.map(header => {
+      const value = record[header];
+      return JSON.stringify(value === null || value === undefined ? "" : value);
+    });
     acc.push(row.join(','));
     return acc;
   }, [headers.join(',')]);

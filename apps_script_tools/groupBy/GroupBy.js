@@ -7,7 +7,7 @@
 *                       |_|            |___/ 
 */
 
-class GroupBy {
+var GroupBy = class GroupBy {
     constructor(df, keys) {
       this.df = df;
       this.keys = keys;
@@ -22,7 +22,7 @@ class GroupBy {
       const results = [];
   
       for (const group of Object.values(this.groups)) {
-        const groupKeys = group.select(this.keys).dropDuplicates();
+        const groupKeys = group.dropDuplicates(this.keys).select(this.keys);
         const output = {};
   
         for (const [colName, aggFuncs] of Object.entries(aggregations)) {
@@ -66,4 +66,8 @@ class GroupBy {
         yield [key, group];
       }
     }
-  }
+  };
+
+const __astGroupByRoot = typeof globalThis !== 'undefined' ? globalThis : this;
+__astGroupByRoot.GroupBy = GroupBy;
+this.GroupBy = GroupBy;

@@ -29,7 +29,6 @@ function sha256Hash(input) {
 
   if (typeof input === 'object' && input !== null) {
     inputString = JSON.stringify(input);
-    console.log(inputString);
   } else {
     inputString = String(input);
   }

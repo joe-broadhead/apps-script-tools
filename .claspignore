@@ -1,0 +1,18 @@
+# Secrets
+creds.json
+client_secret.json
+.clasp.json
+.clasprc.json
+.claspignore
+
+# Local-only
+local_testing/**
+node_modules/**
+
+# Tooling/docs (not part of Apps Script source)
+docs/**
+tests/**
+scripts/**
+.github/**
+mkdocs.yml
+package.json

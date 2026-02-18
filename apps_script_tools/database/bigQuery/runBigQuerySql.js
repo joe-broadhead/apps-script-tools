@@ -59,7 +59,11 @@ function runBigQuerySql(query, parameters, placeholders = {}) {
 
   if (!rows) {
     Logger.log('No rows returned.');
-    return [headers];
+    const emptyFrame = headers.reduce((acc, header) => {
+      acc[header] = new Series([], header);
+      return acc;
+    }, {});
+    return new DataFrame(emptyFrame);
   };
 
   const records = rows.map(row => {

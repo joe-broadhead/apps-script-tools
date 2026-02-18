@@ -43,5 +43,5 @@ function dateSub(date, interval, unit = 'days') {
     throw new Error(`Unsupported unit: ${unit}. Please use 'days', 'hours', 'minutes', 'seconds', or 'milliseconds'.`);
   }
 
-  return new Date(convertDateToUnixTimestamp(date) + durationInMilliseconds);
+  return new Date(convertDateToUnixTimestamp(date) - durationInMilliseconds);
 };

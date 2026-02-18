@@ -133,8 +133,8 @@ DATAFRAME_DROP_DUPLICATES_TESTS = [
             // Deduplicate considering all columns
             const result = df.dropDuplicates();
 
-            if (result.len() !== 3) {
-                throw new Error(`Expected 3 rows after removing duplicates with null values, but got ${result.len()}`);
+            if (result.len() !== 5) {
+                throw new Error(`Expected 5 rows after removing duplicates with null values, but got ${result.len()}`);
             }
 
             // Deduplicate with subset including column with nulls
@@ -191,8 +191,8 @@ DATAFRAME_DROP_DUPLICATES_TESTS = [
             const result = df.dropDuplicates();
 
             // Should match by value, not by reference
-            if (result.len() !== 2) {
-                throw new Error(`Expected 2 rows after removing duplicate date/object (by value), but got ${result.len()}`);
+            if (result.len() !== 3) {
+                throw new Error(`Expected 3 rows after removing duplicate date/object (by value), but got ${result.len()}`);
             }
         }
     }

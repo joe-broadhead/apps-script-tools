@@ -1,11 +1,14 @@
-function runAllTests() {
+async function runAllTests() {
   const suite = new TestingFramework();
 
   const tests = [
     {
       description: "Default Test Case - This should allways pass",
-      test: test = () => true
+      test: () => true
     },
+
+    // AST namespace tests
+    ...AST_UTILS_TESTS,
 
     // dataFrame/DataFrame Tests
 
@@ -27,6 +30,8 @@ function runAllTests() {
     ...DATAFRAME_SCHEMA_TESTS,
     ...DATAFRAME_SELECT_TESTS,
     ...DATAFRAME_SORT_TESTS,
+    ...DATAFRAME_TO_MARKDOWN_TESTS,
+    ...DATAFRAME_TO_TABLE_TESTS,
     ...DATAFRAME_UNION_TESTS,
 
     // series/Series Tests
@@ -35,6 +40,7 @@ function runAllTests() {
     ...SERIES_FROM_VALUE_TESTS,
     ...SERIES_FROM_ARRAY_TESTS,
     ...SERIES_FROM_RANGE_TESTS,
+    ...SERIES_QUERY_TESTS,
     ...SERIES_LEN_TESTS,
     ...SERIES_EMPTY_TESTS,
     ...SERIES_RENAME_TESTS,
@@ -195,6 +201,7 @@ function runAllTests() {
     ...RECORDS_APPLY_SCHEMA_TO_RECORDS_TESTS,
     ...RECORDS_APPLY_TRANSFORMATIONS_TO_RECORDS_TESTS,
     ...RECORDS_CHECK_RECORDS_ARE_CONSISTENT_TESTS,
+    ...RECORDS_CONVERT_RECORDS_TO_CSV_FORMAT_TESTS,
     ...RECORDS_GROUP_RECORDS_ON_KEYS_TESTS,
     ...RECORDS_JOIN_RECORDS_ON_KEYS_TESTS,
     ...RECORDS_NEWLINEJSONTORECORDS_TESTS,
@@ -224,13 +231,20 @@ function runAllTests() {
     ...STRING_TO_SNAKE_CASE_TESTS,
     ...STRING_TO_TITLE_CASE_TESTS,
     ...STRING_ZFILL_TESTS,
+
+    // database Tests
+
+    ...DATABASE_RUN_SQL_QUERY_TESTS,
   ];
 
   tests.forEach(test => suite.addTest(test.description, test.test));
 
-  suite.run()
-  // .then(() => {
-  //   const results = suite.exportResults();
-  //   console.log("Exported Results:", JSON.stringify(results, null, 2));
-  // });
+  await suite.run();
+  const results = suite.exportResults();
+
+  if (results.failed > 0) {
+    throw new Error(`${results.failed} tests failed.`);
+  }
+
+  return results;
 };

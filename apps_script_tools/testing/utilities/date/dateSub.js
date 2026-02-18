@@ -3,7 +3,7 @@ DATE_DATE_SUB_TESTS = [
     description: "dateSub() should subtract days from a given date",
     test: () => {
       const date = new Date("2023-11-19T00:00:00Z");
-      const result = dateSub(date, -2, "days");
+      const result = dateSub(date, 2, "days");
       const expected = new Date("2023-11-17T00:00:00Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
@@ -14,7 +14,7 @@ DATE_DATE_SUB_TESTS = [
     description: "dateSub() should subtract hours from a given date",
     test: () => {
       const date = new Date("2023-11-19T12:00:00Z");
-      const result = dateSub(date, -12, "hours");
+      const result = dateSub(date, 12, "hours");
       const expected = new Date("2023-11-19T00:00:00Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
@@ -25,7 +25,7 @@ DATE_DATE_SUB_TESTS = [
     description: "dateSub() should subtract minutes from a given date",
     test: () => {
       const date = new Date("2023-11-19T00:30:00Z");
-      const result = dateSub(date, -30, "minutes");
+      const result = dateSub(date, 30, "minutes");
       const expected = new Date("2023-11-19T00:00:00Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
@@ -36,7 +36,7 @@ DATE_DATE_SUB_TESTS = [
     description: "dateSub() should subtract seconds from a given date",
     test: () => {
       const date = new Date("2023-11-19T00:00:10Z");
-      const result = dateSub(date, -10, "seconds");
+      const result = dateSub(date, 10, "seconds");
       const expected = new Date("2023-11-19T00:00:00Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
@@ -47,7 +47,7 @@ DATE_DATE_SUB_TESTS = [
     description: "dateSub() should subtract milliseconds from a given date",
     test: () => {
       const date = new Date("2023-11-19T00:00:00.500Z");
-      const result = dateSub(date, -500, "milliseconds");
+      const result = dateSub(date, 500, "milliseconds");
       const expected = new Date("2023-11-19T00:00:00.000Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
@@ -55,10 +55,10 @@ DATE_DATE_SUB_TESTS = [
     },
   },
   {
-    description: "dateSub() should handle positive intervals and add time",
+    description: "dateSub() should handle negative intervals and add time",
     test: () => {
       const date = new Date("2023-11-19T00:00:00Z");
-      const result = dateSub(date, 2, "days");
+      const result = dateSub(date, -2, "days");
       const expected = new Date("2023-11-21T00:00:00Z");
       if (result.getTime() !== expected.getTime()) {
         throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);

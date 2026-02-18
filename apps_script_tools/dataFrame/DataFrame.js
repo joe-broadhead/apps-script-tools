@@ -1,4 +1,4 @@
-class DataFrame {
+var DataFrame = class DataFrame {
   constructor(data, index = null) {
     this.data = data;
     this.columns = this.getColumns();
@@ -54,8 +54,8 @@ class DataFrame {
     return DataFrame.fromRecords(records);
   }
 
-  static fromQuery(query, provider, parameters, placeholders = {}) {
-    return runSqlQuery(query, provider, parameters, placeholders);
+  static fromQuery(request = {}) {
+    return runSqlQuery(request);
   }
 
   static concat(dataFrames, distinct = false) {
@@ -174,7 +174,15 @@ class DataFrame {
   }
 
   dropDuplicates(subset = []) {
-    return DataFrame.fromRecords(removeDuplicatesFromRecords(this.toRecords(), subset))
+    const requestedSubset = Array.isArray(subset) ? subset : [subset];
+    const dedupeKeys = requestedSubset.length > 0 ? requestedSubset : [...this.columns];
+
+    const invalidKeys = dedupeKeys.filter(key => !this.columns.includes(key));
+    if (invalidKeys.length > 0) {
+      throw new Error(`dropDuplicates received unknown columns: ${invalidKeys.join(', ')}`);
+    }
+
+    return DataFrame.fromRecords(removeDuplicatesFromRecords(this.toRecords(), dedupeKeys));
   }
 
   drop(columns) {
@@ -326,6 +334,14 @@ class DataFrame {
     return new DataFrame(data);
   }
 
+  groupBy(keys = []) {
+    const normalizedKeys = Array.isArray(keys) ? keys : [keys];
+    if (normalizedKeys.length === 0) {
+      throw new Error('groupBy requires at least one key');
+    }
+    return new GroupBy(this, normalizedKeys);
+  }
+
   toRecords() {
     if (this.columns.length === 0) return [];
     const series = this.columns.map(col => this.data[col]);
@@ -379,15 +395,34 @@ class DataFrame {
     return createFileInDrive(fileType, fileName, { content: this.toRecords(), destinationFolder });
   }
 
-  toTable(provider, config, headerOrder = []) {
-    const arrays = this.toArrays(headerOrder || Object.values(config.tableSchema));
-    config.arrays = arrays;
+  toTable(request = {}) {
+    if (request == null || typeof request !== 'object' || Array.isArray(request)) {
+      throw new Error('toTable requires an object request');
+    }
+
+    const {
+      provider,
+      config = {},
+      headerOrder = []
+    } = request;
+
+    if (!config.tableSchema || typeof config.tableSchema !== 'object') {
+      throw new Error('toTable requires config.tableSchema');
+    }
+
+    const columnOrder = Array.isArray(headerOrder) && headerOrder.length > 0
+      ? headerOrder
+      : Object.keys(config.tableSchema);
+
+    const arrays = this.toArrays(columnOrder);
+    const tableConfig = { ...config, arrays };
 
     switch (provider) {
       case 'databricks':
-        loadDatabricksTable(config);
+        loadDatabricksTable(tableConfig);
         return this;
       case 'bigquery':
+        loadBigQueryTable(tableConfig);
         return this;
       default:
         throw new Error('Provider must be one of: databricks, bigquery');
@@ -402,7 +437,29 @@ class DataFrame {
   }
 
   toMarkdown() {
-    // Once implimentd use in .show(n = 20)
+    if (this.columns.length === 0) {
+      return 'Empty DataFrame';
+    }
+
+    const rows = this.toArrays(this.columns);
+    if (rows.length === 0) {
+      const header = this.columns.join(' | ');
+      const separator = this.columns.map(column => '-'.repeat(String(column).length)).join('-|-');
+      return `${header}\n${separator}`;
+    }
+
+    const colWidths = rows[0].map((_, idx) => {
+      return Math.max(...rows.map(row => String(row[idx] ?? '').length));
+    });
+
+    const formattedRows = rows.map(row => {
+      return row
+        .map((cell, idx) => String(cell ?? '').padEnd(colWidths[idx]))
+        .join(' | ');
+    });
+
+    const separator = colWidths.map(width => '-'.repeat(width)).join('-|-');
+    return `${formattedRows[0]}\n${separator}\n${formattedRows.slice(1).join('\n')}`;
   }
 
   sort(by, ascending = true, compareFunction = null) {
@@ -479,6 +536,8 @@ class DataFrame {
     // Preserve original column order
     return sortedDf.select(this.columns);
   }
-}
+};
 
+const __astDataFrameRoot = typeof globalThis !== 'undefined' ? globalThis : this;
+__astDataFrameRoot.DataFrame = DataFrame;
 this.DataFrame = DataFrame;
