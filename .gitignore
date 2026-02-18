@@ -10,3 +10,9 @@
 # Credentials
 
 creds.json
+client_secret.json
+
+# Tooling
+
+node_modules/
+site/
