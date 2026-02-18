@@ -1,6 +1,30 @@
-# apps-script-tools
+# 🚀 apps-script-tools
 
-A production-focused Google Apps Script data toolkit.
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Google Apps Script Library](https://img.shields.io/badge/Google%20Apps%20Script-library-34A853?logo=google&logoColor=white)](https://script.google.com/)
+[![Docs](https://img.shields.io/badge/docs-mkdocs%20material-blue.svg?logo=materialformkdocs&logoColor=white)](https://joe-broadhead.github.io/apps-script-tools/)
+[![Release](https://img.shields.io/github/v/release/joe-broadhead/apps-script-tools?label=release&logo=github)](https://github.com/joe-broadhead/apps-script-tools/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/joe-broadhead/apps-script-tools/ci.yml?branch=master&label=CI)](https://github.com/joe-broadhead/apps-script-tools/actions/workflows/ci.yml)
+
+</div>
+
+```text
+    _    ____  ____  ____    ____   ____ ____  ____ ___ ____ _____
+   / \  |  _ \|  _ \/ ___|  / ___| / ___|  _ \|_ _|_ _|  _ \_   _|
+  / _ \ | |_) | |_) \___ \  \___ \| |   | |_) || | | || |_) || |
+ / ___ \|  __/|  __/ ___) |  ___) | |___|  _ < | | | ||  __/ | |
+/_/   \_\_|   |_|   |____/  |____/ \____|_| \_\___|___|_|    |_|
+
+ _____ ___   ___  _     ____
+|_   _/ _ \ / _ \| |   / ___|
+  | || | | | | | | |   \___ \
+  | || |_| | |_| | |___ ___) |
+  |_| \___/ \___/|_____|____/
+
+     Practical data workflows for Google Apps Script.
+```
 
 `apps-script-tools` provides a unified `AST` namespace for:
 
