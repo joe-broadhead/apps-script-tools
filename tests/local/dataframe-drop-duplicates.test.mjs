@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
-test('DataFrame.dropDuplicates ignores id by default when other columns exist', () => {
+test('DataFrame.dropDuplicates uses all columns by default', () => {
   const context = createGasContext({
     loadDatabricksTable: () => {},
     loadBigQueryTable: () => {}
@@ -19,13 +19,13 @@ test('DataFrame.dropDuplicates ignores id by default when other columns exist', 
   ]);
 
   const result = df.dropDuplicates();
-  assert.equal(result.len(), 3);
+  assert.equal(result.len(), 5);
 
   const resultSubset = df.dropDuplicates(['name', 'age']);
   assert.equal(resultSubset.len(), 3);
 });
 
-test('DataFrame.dropDuplicates compares Date/object values by content', () => {
+test('DataFrame.dropDuplicates compares Date/object values by content for subset keys', () => {
   const context = createGasContext({
     loadDatabricksTable: () => {},
     loadBigQueryTable: () => {}
@@ -40,5 +40,8 @@ test('DataFrame.dropDuplicates compares Date/object values by content', () => {
   ]);
 
   const result = df.dropDuplicates();
-  assert.equal(result.len(), 2);
+  assert.equal(result.len(), 3);
+
+  const subsetResult = df.dropDuplicates(['date', 'nested']);
+  assert.equal(subsetResult.len(), 2);
 });

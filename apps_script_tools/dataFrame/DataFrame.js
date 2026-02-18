@@ -175,13 +175,7 @@ var DataFrame = class DataFrame {
 
   dropDuplicates(subset = []) {
     const requestedSubset = Array.isArray(subset) ? subset : [subset];
-    const dedupeKeys = requestedSubset.length > 0
-      ? requestedSubset
-      : (
-        this.columns.includes('id') && this.columns.length > 1
-          ? this.columns.filter(column => column !== 'id')
-          : [...this.columns]
-      );
+    const dedupeKeys = requestedSubset.length > 0 ? requestedSubset : [...this.columns];
 
     const invalidKeys = dedupeKeys.filter(key => !this.columns.includes(key));
     if (invalidKeys.length > 0) {
