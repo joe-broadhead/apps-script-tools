@@ -7,6 +7,7 @@ Initial public release candidate for `apps-script-tools`.
 ### Added
 
 - Stable public namespace: `AST`.
+- Utility namespace: `AST.Utils` (includes helpers like `arraySum`).
 - `DataFrame.groupBy(keys)` API.
 - BigQuery table load support.
 - Local Node-based test harness and CI checks.

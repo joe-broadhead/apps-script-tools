@@ -5,6 +5,9 @@
 - `AST.Series`
 - `AST.DataFrame`
 - `AST.GroupBy`
+- `AST.Utils.arraySum(array)`
+- `AST.Utils.dateAdd(date, interval, unit)`
+- `AST.Utils.toSnakeCase(value)`
 
 ## Workspace
 

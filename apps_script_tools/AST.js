@@ -1,5 +1,80 @@
 const AST = {};
 const AST_GLOBAL = typeof globalThis !== 'undefined' ? globalThis : this;
+const AST_UTILITY_NAMES = Object.freeze([
+  'addValues',
+  'applySchemaToObject',
+  'applySchemaToRecords',
+  'applyTransformationsToObject',
+  'applyTransformationsToRecords',
+  'arrayApply',
+  'arrayAstype',
+  'arrayChunk',
+  'arrayClip',
+  'arrayCumsum',
+  'arrayDifference',
+  'arrayFromRange',
+  'arrayIntersect',
+  'arrayLen',
+  'arrayMax',
+  'arrayMean',
+  'arrayMedian',
+  'arrayMin',
+  'arrayMode',
+  'arrayNunique',
+  'arrayProduct',
+  'arrayRange',
+  'arrayRank',
+  'arrayRolling',
+  'arraySort',
+  'arrayStandardDeviation',
+  'arraySum',
+  'arrayTranspose',
+  'arrayUnion',
+  'arrayUnique',
+  'arrayValueCounts',
+  'arrayVariance',
+  'checkRecordsAreConsistent',
+  'clipValues',
+  'coerceValues',
+  'concatValues',
+  'convertDateToUnixTimestamp',
+  'convertIntervalToDurationInMilliseconds',
+  'convertMillisecondsToInterval',
+  'convertRecordsToCsvFormat',
+  'dateAdd',
+  'dateDiff',
+  'dateSub',
+  'decrypt',
+  'divideValues',
+  'encrypt',
+  'flattenObject',
+  'getValueAtPath',
+  'groupRecordsOnKeys',
+  'joinRecordsOnKeys',
+  'multiplyValues',
+  'newlineJsonToRecords',
+  'normalizeValues',
+  'pad',
+  'recordsToNewlineJson',
+  'removeDuplicatesFromRecords',
+  'removeKeysFromObject',
+  'renameKeysInObject',
+  'renameKeysInRecords',
+  'selectKeysFromObject',
+  'sha256Hash',
+  'standardizeArrays',
+  'standardizeRecords',
+  'subtractValues',
+  'toCapitalCase',
+  'toSnakeCase',
+  'toTitleCase',
+  'unzipObjectIntoArrays',
+  'unzipRecordsIntoArrays',
+  'zfill',
+  'zipArraysIntoObject',
+  'zipArraysIntoRecords'
+]);
+const AST_UTILS = {};
 
 function resolveAstBinding(name, lexicalResolver) {
   if (typeof lexicalResolver === 'function') {
@@ -10,6 +85,15 @@ function resolveAstBinding(name, lexicalResolver) {
   }
   return AST_GLOBAL[name];
 }
+
+AST_UTILITY_NAMES.forEach(name => {
+  Object.defineProperty(AST_UTILS, name, {
+    get: () => resolveAstBinding(name, () => AST_GLOBAL[name]),
+    enumerable: true
+  });
+});
+
+Object.freeze(AST_UTILS);
 
 Object.defineProperties(AST, {
   VERSION: {
@@ -49,6 +133,10 @@ Object.defineProperties(AST, {
     get: () => ({
       run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery))
     }),
+    enumerable: true
+  },
+  Utils: {
+    value: AST_UTILS,
     enumerable: true
   }
 });

@@ -15,3 +15,9 @@
 
 - Validates provider, SQL string, and parameter payloads.
 - Placeholder interpolation is blocked by default for safety.
+
+## `AST.Utils`
+
+- Exposes utility helpers directly from the library namespace.
+- Example: `AST.Utils.arraySum([1, 2, 3])` returns `6`.
+- Example: `AST.Utils.dateAdd(new Date(), 7, 'days')`.

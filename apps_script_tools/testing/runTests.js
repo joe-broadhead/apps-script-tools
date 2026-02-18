@@ -7,6 +7,9 @@ async function runAllTests() {
       test: () => true
     },
 
+    // AST namespace tests
+    ...AST_UTILS_TESTS,
+
     // dataFrame/DataFrame Tests
 
     ...DATAFRAME_ASSIGN_TESTS,

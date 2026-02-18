@@ -9,6 +9,7 @@ A production-focused Google Apps Script data toolkit.
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.Sql`: Databricks/BigQuery query execution
+- `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
 ## Install As Apps Script Library
 
@@ -31,6 +32,10 @@ function demoAstLibrary() {
   });
 
   Logger.log(enriched.toMarkdown());
+
+  // Utility helpers are also available
+  const total = AST.Utils.arraySum([1, 2, 3, 4]);
+  Logger.log(total); // 10
 }
 ```
 
