@@ -33,7 +33,10 @@
  * @see convertDateToUnixTimestamp - Used to get the Unix timestamp of the `Date` object.
  */
 function dateSub(date, interval, unit = 'days') {
-  if (!(date instanceof Date)) {
+  let timestamp;
+  try {
+    timestamp = convertDateToUnixTimestamp(date);
+  } catch (error) {
     throw new Error("Both inputs must be valid Date objects.");
   }
 
@@ -43,5 +46,5 @@ function dateSub(date, interval, unit = 'days') {
     throw new Error(`Unsupported unit: ${unit}. Please use 'days', 'hours', 'minutes', 'seconds', or 'milliseconds'.`);
   }
 
-  return new Date(convertDateToUnixTimestamp(date) - durationInMilliseconds);
+  return new Date(timestamp - durationInMilliseconds);
 };

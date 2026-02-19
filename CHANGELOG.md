@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.1
+
+### Fixed
+
+- Date utilities now accept cross-context `Date` objects when called from consumer Apps Script projects.
+- `dateAdd`, `dateSub`, and `dateDiff` now validate via `convertDateToUnixTimestamp` instead of realm-specific `instanceof` checks.
+
+### Tests
+
+- Added local regression coverage for cross-context `Date` handling.
+- Added Apps Script regression cases for `convertDateToUnixTimestamp` and `dateAdd` with Date-like inputs.
+
 ## v0.0.0
 
 Initial public release candidate for `apps-script-tools`.

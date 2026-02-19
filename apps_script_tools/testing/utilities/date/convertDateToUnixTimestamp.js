@@ -55,6 +55,20 @@ DATE_CONVERT_DATE_TO_UNIX_TIMESTAMP_TESTS = [
     },
   },
   {
+    description: "convertDateToUnixTimestamp() should accept cross-context Date-like values",
+    test: () => {
+      const base = new Date(Date.UTC(2023, 10, 19, 0, 0, 0));
+      const dateLike = {
+        getTime: () => base.getTime(),
+        [Symbol.toStringTag]: "Date"
+      };
+      const result = convertDateToUnixTimestamp(dateLike);
+      if (result !== base.getTime()) {
+        throw new Error(`Expected ${base.getTime()}, but got ${result}`);
+      }
+    },
+  },
+  {
     description: "convertDateToUnixTimestamp() should throw an error for invalid Date objects",
     test: () => {
       const invalidDate = new Date("invalid-date");
