@@ -55,6 +55,21 @@ DATE_DATE_ADD_TESTS = [
     },
   },
   {
+    description: "dateAdd() should accept cross-context Date-like values",
+    test: () => {
+      const base = new Date("2023-11-19T00:00:00Z");
+      const dateLike = {
+        getTime: () => base.getTime(),
+        [Symbol.toStringTag]: "Date"
+      };
+      const result = dateAdd(dateLike, 2, "days");
+      const expected = new Date("2023-11-21T00:00:00Z");
+      if (result.getTime() !== expected.getTime()) {
+        throw new Error(`Expected ${expected.toISOString()}, but got ${result.toISOString()}`);
+      }
+    },
+  },
+  {
     description: "dateAdd() should handle negative intervals for subtraction",
     test: () => {
       const date = new Date("2023-11-19T00:00:00Z");

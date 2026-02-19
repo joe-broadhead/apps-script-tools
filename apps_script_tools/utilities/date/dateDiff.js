@@ -35,11 +35,16 @@
  * @see convertMillisecondsToInterval - Used to convert the time difference into the specified unit.
  */
 function dateDiff(dateA, dateB, unit = 'days') {
-  if (!(dateA instanceof Date) || !(dateB instanceof Date)) {
+  let timestampA;
+  let timestampB;
+  try {
+    timestampA = convertDateToUnixTimestamp(dateA);
+    timestampB = convertDateToUnixTimestamp(dateB);
+  } catch (error) {
     throw new Error("Both inputs must be valid Date objects.");
   }
 
-  const diffInMilliseconds = convertDateToUnixTimestamp(dateA) - convertDateToUnixTimestamp(dateB);
+  const diffInMilliseconds = timestampA - timestampB;
   const diffInUnit = convertMillisecondsToInterval(diffInMilliseconds, unit);
 
   if (diffInUnit === undefined) {

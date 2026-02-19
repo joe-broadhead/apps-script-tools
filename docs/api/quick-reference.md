@@ -1,28 +1,62 @@
 # API Quick Reference
 
-## Core
+## Namespace
 
-- `AST.Series`
-- `AST.DataFrame`
-- `AST.GroupBy`
-- `AST.Utils.*`
-- `AST.Utils.arraySum(array)`
-- `AST.Utils.dateAdd(date, interval, unit)`
-- `AST.Utils.toSnakeCase(value)`
+```javascript
+ASTX.VERSION
+ASTX.Series
+ASTX.DataFrame
+ASTX.GroupBy
+ASTX.Sheets
+ASTX.Drive
+ASTX.Sql
+ASTX.Utils
+```
 
-## Workspace
+## `DataFrame` essentials
 
-- `AST.Sheets.openById(spreadsheetId)`
-- `AST.Sheets.openByUrl(spreadsheetUrl)`
-- `AST.Drive.read(fileId, type, options)`
-- `AST.Drive.create(type, fileName, options)`
+```javascript
+ASTX.DataFrame.fromRecords(records)
+ASTX.DataFrame.fromArrays(arrays, options)
+ASTX.DataFrame.fromSheet(sheet, headerRow)
+ASTX.DataFrame.fromQuery(request)
+```
 
-## SQL
+```javascript
+df.select(columns)
+df.assign(map)
+df.sort(by, ascending)
+df.merge(other, how, options)
+df.groupBy(keys)
+df.dropDuplicates(subset)
+df.toRecords()
+df.toArrays(headerOrder)
+df.toJson(options)
+df.toMarkdown()
+df.toTable(request)
+```
 
-- `AST.Sql.run(request)`
-- `AST.DataFrame.fromQuery(request)` (same request contract as `AST.Sql.run`)
+## `Series` essentials
 
-Request contract:
+```javascript
+ASTX.Series.fromArray(values, name)
+ASTX.Series.fromValue(value, length, name)
+ASTX.Series.fromRange(start, end, step, name)
+```
+
+```javascript
+series.query((s, value, i) => boolean) // function predicate only
+series.filter(predicate)
+series.apply(fn)
+series.sum()
+series.mean()
+series.median()
+series.valueCounts()
+series.str.*
+series.dt.*
+```
+
+## SQL request contract
 
 ```javascript
 {
@@ -30,11 +64,25 @@ Request contract:
   sql: 'select ...',
   parameters: { ... },
   placeholders: { ... },
-  options: { allowUnsafePlaceholders: false }
+  options: {
+    allowUnsafePlaceholders: false
+  }
 }
 ```
 
-## DataFrame Notes
+## Workspace helpers
 
+```javascript
+ASTX.Sheets.openById(spreadsheetId)
+ASTX.Sheets.openByUrl(spreadsheetUrl)
+ASTX.Drive.read(fileId, fileType, options)
+ASTX.Drive.create(fileType, fileName, options)
+```
+
+## High-signal behavior notes
+
+- `Series.query` rejects string predicates.
 - `dropDuplicates()` uses all columns by default.
-- `dropDuplicates(['colA', 'colB'])` deduplicates using only the provided subset.
+- `dropDuplicates(['a', 'b'])` uses only the provided subset.
+- `Sql.run` validates provider/request shape before execution.
+- Placeholder interpolation is blocked unless explicitly enabled.

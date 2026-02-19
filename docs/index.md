@@ -2,33 +2,49 @@
 
 <span class="subtitle">A production-focused Google Apps Script data toolkit</span>
 
-`apps-script-tools` provides a unified `AST` namespace for working with tabular data in Apps Script projects.
+`apps-script-tools` is a library-first toolkit for tabular data workflows in Google Apps Script. It exposes a single public namespace (`AST`) for dataframe-style transforms, SQL execution, and Apps Script workspace IO.
 
-## Highlights
+## Who this is for
 
-- `AST.Series`: vector-style transformations and aggregations
-- `AST.DataFrame`: record/array/sheet query workflows
-- `AST.GroupBy`: grouped aggregations and custom group transforms
-- `AST.Sheets` and `AST.Drive`: workspace interoperability
-- `AST.Sql`: Databricks and BigQuery query execution
-- `AST.Utils`: public utility helpers (for example `arraySum`, `dateAdd`, `toSnakeCase`)
+- Teams building Apps Script automations that need more than raw 2D arrays.
+- Projects that need a consistent API across Sheets, Drive, BigQuery, and Databricks.
+- Library consumers who want a typed interface (`Series`, `DataFrame`, `GroupBy`) in Apps Script.
 
-## Release
+## Core surfaces
 
-Current public release target: `v0.0.0`.
+- `AST.Series`: vector-style operations over one column.
+- `AST.DataFrame`: tabular transforms, joins, grouping, sorting, output.
+- `AST.GroupBy`: grouped aggregations and grouped transforms.
+- `AST.Sheets`: sheet open helpers and enhanced sheet classes.
+- `AST.Drive`: read/write helpers for drive-backed file workflows.
+- `AST.Sql`: validated SQL execution for Databricks and BigQuery.
+- `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    A[Consumer Script] --> B[AST Namespace]
+    B --> C[Series/DataFrame/GroupBy]
+    B --> D[AST.Sql]
+    B --> E[AST.Sheets / AST.Drive]
+    D --> F[BigQuery]
+    D --> G[Databricks SQL API]
+    C --> H[Records / Arrays / Sheets]
+```
+
+## Public release
+
+- Current release: `v0.0.0`
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
-- Site: <https://joe-broadhead.github.io/apps-script-tools/>
+- Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 
-## Public API
+## Import pattern
+
+In consumer projects, use the library identifier you configured (recommended: `ASTLib`) and normalize once:
 
 ```javascript
-AST.VERSION
-AST.Series
-AST.DataFrame
-AST.GroupBy
-AST.Sheets
-AST.Drive
-AST.Sql
-AST.Utils
+const ASTX = ASTLib.AST || ASTLib;
 ```
+
+Then use `ASTX.DataFrame`, `ASTX.Series`, `ASTX.Utils`, and so on.

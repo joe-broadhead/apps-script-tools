@@ -18,7 +18,12 @@
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/getTime | Date.prototype.getTime} - Used to get the Unix timestamp in milliseconds.
  */
 function convertDateToUnixTimestamp(date) {
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
+  if (
+    date == null ||
+    typeof date.getTime !== 'function' ||
+    Object.prototype.toString.call(date) !== '[object Date]' ||
+    isNaN(date.getTime())
+  ) {
     throw new Error("Input must be a valid Date object.");
   }
   return date.getTime();

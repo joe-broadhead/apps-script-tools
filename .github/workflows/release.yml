@@ -77,6 +77,7 @@ jobs:
             Docs: https://joe-broadhead.github.io/apps-script-tools/
 
             Apps Script library mapping:
-            - `v0.0.0` -> Apps Script version `1`
+            - Add the exact Apps Script version number created by `clasp version "<tag>"`.
+            - Keep this mapping in sync with `RELEASE.md`.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
