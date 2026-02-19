@@ -51,6 +51,7 @@ Dispatch options:
 
 - `suite=functional` -> runs `runAllTests`
 - `suite=perf` -> runs `runPerformanceBenchmarks`
+- functional suite includes AI namespace/tool smoke tests
 
 Or locally with configured `clasp` auth:
 
@@ -60,6 +61,11 @@ clasp push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
 ```
+
+Optional live-provider smoke workflow:
+
+- `.github/workflows/integration-ai-live.yml` (manual dispatch only)
+- executes `runAiLiveSmoke(provider, prompt, model)` against configured provider credentials in script properties
 
 ## Consumer smoke test
 

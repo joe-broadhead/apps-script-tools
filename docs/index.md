@@ -17,6 +17,7 @@
 - `AST.GroupBy`: grouped aggregations and grouped transforms.
 - `AST.Sheets`: sheet open helpers and enhanced sheet classes.
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
+- `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -28,15 +29,17 @@ flowchart LR
     B --> C[Series/DataFrame/GroupBy]
     B --> D[AST.Sql]
     B --> E[AST.Sheets / AST.Drive]
+    B --> I[AST.AI]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
+    I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     C --> H[Records / Arrays / Sheets]
 ```
 
 ## Public release
 
 - Current published release: `v0.0.1`
-- Next release target on `master`: `v0.0.2` (release candidate, not tagged yet)
+- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 

@@ -88,6 +88,21 @@ function quickstartUtils() {
 }
 ```
 
+## AI text workflow
+
+```javascript
+function quickstartAi() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const response = ASTX.AI.text({
+    provider: 'openai',
+    input: 'Write a one-line summary of this week\\'s metrics.'
+  });
+
+  Logger.log(response.output.text);
+}
+```
+
 ## Large dataset best practices
 
 - prefer `DataFrame.fromColumns(...)` when data is already columnar.

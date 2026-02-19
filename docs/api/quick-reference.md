@@ -17,6 +17,7 @@ ASTX.DataFrame
 ASTX.GroupBy
 ASTX.Sheets
 ASTX.Drive
+ASTX.AI
 ASTX.Sql
 ASTX.Utils
 ```
@@ -80,6 +81,18 @@ series.dt.*
 }
 ```
 
+## `AI` essentials
+
+```javascript
+ASTX.AI.run(request)
+ASTX.AI.text(request)
+ASTX.AI.structured(request)
+ASTX.AI.tools(request)
+ASTX.AI.image(request)
+ASTX.AI.providers()
+ASTX.AI.capabilities(provider)
+```
+
 ## Workspace helpers
 
 ```javascript
@@ -97,3 +110,5 @@ ASTX.Drive.create(fileType, fileName, options)
 - key-based comparisons canonicalize object/date values and normalize null/undefined/missing.
 - `Sql.run` validates provider/request shape before execution.
 - placeholder interpolation is blocked unless explicitly enabled.
+- AI tool loops are bounded by `options.maxToolRounds` (default `3`).
+- unsupported AI provider/operation combinations throw typed capability errors.

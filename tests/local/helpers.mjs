@@ -46,6 +46,16 @@ export function createGasContext(overrides = {}) {
       }
     },
     UrlFetchApp: { fetch: () => ({ getContentText: () => '{}' }) },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: () => null,
+        getProperties: () => ({}),
+        setProperties: () => {}
+      })
+    },
+    ScriptApp: {
+      getOAuthToken: () => 'test-oauth-token'
+    },
     SpreadsheetApp: {},
     DriveApp: {},
     DocumentApp: {},

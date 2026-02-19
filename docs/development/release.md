@@ -8,7 +8,7 @@
 ## Current state
 
 - Published release: `v0.0.1`
-- Next release target on `master`: `v0.0.2` (release candidate, not tagged yet)
+- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
 
 ## Pre-release checks
 
@@ -26,6 +26,7 @@ clasp status
 clasp push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
+clasp run runAiLiveSmoke --params '[\"openai\",\"Reply with OK\",\"\"]' # optional
 ```
 
 Consumer validation (recommended):
