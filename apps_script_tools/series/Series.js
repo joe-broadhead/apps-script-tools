@@ -1450,6 +1450,58 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the resulting products.
    */
   multiply(other) {
+    const length = this.len();
+
+    if (typeof other === 'number' && this.type === 'number') {
+      const resultArray = new Array(length);
+      let hasNull = false;
+
+      if (Number.isNaN(other)) {
+        for (let idx = 0; idx < length; idx++) {
+          resultArray[idx] = null;
+        }
+        hasNull = true;
+      } else {
+        for (let idx = 0; idx < length; idx++) {
+          const leftValue = this.array[idx];
+
+          if (Number.isNaN(leftValue)) {
+            resultArray[idx] = null;
+            hasNull = true;
+            continue;
+          }
+
+          resultArray[idx] = leftValue * other;
+        }
+      }
+
+      return new Series(resultArray, this.name, hasNull ? null : 'number');
+    }
+
+    if (other instanceof Series && this.type === 'number' && other.type === 'number') {
+      if (other.len() !== length) {
+        throw new Error("All elements in seriesArray must be Series of the same length as the base Series.");
+      }
+
+      const resultArray = new Array(length);
+      let hasNull = false;
+
+      for (let idx = 0; idx < length; idx++) {
+        const leftValue = this.array[idx];
+        const rightValue = other.array[idx];
+
+        if (Number.isNaN(leftValue) || Number.isNaN(rightValue)) {
+          resultArray[idx] = null;
+          hasNull = true;
+          continue;
+        }
+
+        resultArray[idx] = leftValue * rightValue;
+      }
+
+      return new Series(resultArray, this.name, hasNull ? null : 'number');
+    }
+
     return this.transform(
       values => values.reduce((a, b) => multiplyValues(a, b)),
       [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
