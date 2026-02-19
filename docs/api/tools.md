@@ -14,12 +14,17 @@ Key capabilities:
 Important contract:
 
 - `query` accepts function predicates only.
-- String evaluation is intentionally not supported.
+- string evaluation is intentionally not supported.
 
 ```javascript
 const s = ASTX.Series.fromArray([1, 2, 3, 4, 5], 'numbers');
 const odd = s.query((_series, value) => value % 2 === 1);
 ```
+
+Complexity notes:
+
+- arithmetic/boolean transforms are linear in series length (`O(n)`).
+- `query` and `filter` are linear scans (`O(n)`).
 
 ## `ASTX.DataFrame`
 
@@ -28,6 +33,7 @@ const odd = s.query((_series, value) => value % 2 === 1);
 Creation:
 
 - `fromRecords(records)`
+- `fromColumns(columns, options)`
 - `fromArrays(arrays, options)`
 - `fromSheet(sheet, headerRow)`
 - `fromQuery(request)`
@@ -35,16 +41,32 @@ Creation:
 Transform:
 
 - `select`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`.
-- `dropDuplicates(subset = [])` with clear subset semantics.
+- `dropDuplicates(subset = [])` with explicit subset semantics.
 
 Output:
 
+- `toColumns(options)`
 - `toRecords`, `toArrays`, `toJson`, `toMarkdown`, `toSheet`, `toTable`.
 
 ```javascript
-const df = ASTX.DataFrame.fromRecords([{ id: 1, amount: 10 }]);
-const out = df.assign({ amount_x2: f => f.amount.multiply(2) });
+const df = ASTX.DataFrame.fromColumns({
+  id: [1, 2],
+  amount: [10, 20]
+});
+
+const out = df.assign({ amount_x2: frame => frame.amount.multiply(2) });
 ```
+
+High-signal behavior:
+
+- key comparisons normalize `null`, `undefined`, and missing values to the same key state.
+- object/date subset keys are compared canonically by value.
+
+Complexity guidance:
+
+- `sort`: `O(n log n)`
+- `dropDuplicates`: `O(n * k)` where `k` is subset key count
+- hash-join style `merge` is approximately `O(n + m + matches)`
 
 ## `ASTX.GroupBy`
 
@@ -61,9 +83,9 @@ const grouped = df.groupBy(['region']).agg({ amount: ['sum', 'mean'] });
 
 Executes SQL against supported providers with request validation.
 
-- Providers: `databricks`, `bigquery`.
-- Input validation: provider/sql/parameters/placeholder/options shape.
-- Unsafe placeholder interpolation is disabled by default.
+- providers: `databricks`, `bigquery`.
+- validates provider/sql/parameters/placeholders/options shape.
+- unsafe placeholder interpolation is disabled by default.
 
 See [SQL Contracts](sql-contracts.md) for provider-specific request details.
 
@@ -74,11 +96,9 @@ Workspace interoperability surfaces:
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
-These helpers are useful for moving between Apps Script services and `DataFrame`/record flows.
-
 ## `ASTX.Utils`
 
-`Utils` exposes public helpers from utility modules.
+`Utils` exposes public utility helpers.
 
 Examples:
 
@@ -86,4 +106,4 @@ Examples:
 - `ASTX.Utils.dateAdd(new Date(), 1, 'days')`
 - `ASTX.Utils.toSnakeCase('Hello World')`
 
-For release stability, prefer calling through `ASTX.Utils` rather than relying on global utility symbols.
+For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.

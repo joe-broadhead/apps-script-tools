@@ -228,5 +228,30 @@ DATAFRAME_MERGE_TESTS = [
         throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(result)}`);
       }
     },
+  },
+  {
+    description: 'DataFrame.merge() should match null and undefined join keys',
+    test: () => {
+      const dfL = DataFrame.fromRecords([
+        { id: 'L1', key: null },
+        { id: 'L2', key: undefined },
+      ]);
+      const dfR = DataFrame.fromRecords([
+        { key: undefined, value: 'U' },
+        { key: null, value: 'N' },
+      ]);
+
+      const result = dfL.merge(dfR, 'inner', { on: 'key' }).toRecords();
+      const expected = [
+        { key: null, id: 'L1', value: 'U' },
+        { key: null, id: 'L1', value: 'N' },
+        { key: null, id: 'L2', value: 'U' },
+        { key: null, id: 'L2', value: 'N' },
+      ];
+
+      if (JSON.stringify(result) !== JSON.stringify(expected)) {
+        throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(result)}`);
+      }
+    },
   }
 ];

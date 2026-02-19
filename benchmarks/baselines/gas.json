@@ -1,0 +1,14 @@
+{
+  "generatedAt": null,
+  "mode": "baseline",
+  "runtime": "apps-script",
+  "rows": 20000,
+  "results": {
+    "fromRecords": null,
+    "sort": null,
+    "dropDuplicates": null,
+    "mergeInner": null,
+    "groupByAgg": null,
+    "suiteMs": null
+  }
+}

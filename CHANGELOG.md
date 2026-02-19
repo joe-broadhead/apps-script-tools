@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.0.2 (unreleased)
+
+### Added
+
+- `DataFrame.fromColumns(columns, options)` for high-throughput columnar construction.
+- `DataFrame.toColumns(options)` for column-oriented export paths.
+- Local Node performance harness under `tests/perf` with benchmark runners and threshold checks.
+- Apps Script performance suite entrypoint: `runPerformanceBenchmarks`.
+- Performance documentation section (architecture, benchmarks, optimization playbook).
+
+### Changed
+
+- `DataFrame.fromRecords` now builds columns in a single pass before constructing `Series`.
+- `DataFrame.sort` and `DataFrame.dropDuplicates` use index/key strategies that avoid mandatory row materialization.
+- `DataFrame.toArrays` now reads column arrays directly.
+- Join and dedupe key handling canonicalizes object/date values and normalizes null/undefined/missing comparisons.
+- Set-like utilities (`arrayUnion`, `arrayDifference`, `arrayIntersect`) now use canonical key semantics.
+
+### CI / Release
+
+- Added report-only performance benchmark job to `CI` workflow.
+- Added performance threshold gate (`npm run test:perf:check`) to release validation.
+- Extended Apps Script integration workflow dispatch to support functional/perf suite selection.
+
 ## v0.0.1
 
 ### Fixed

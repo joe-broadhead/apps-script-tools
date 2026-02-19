@@ -18,6 +18,20 @@ function patternSelectAssignSort(ASTX) {
 }
 ```
 
+## Fast construction with `fromColumns`
+
+```javascript
+function patternFromColumns(ASTX) {
+  return ASTX.DataFrame.fromColumns({
+    id: [1, 2, 3, 4],
+    region: ['east', 'west', 'east', 'west'],
+    amount: [10, 15, 25, 30]
+  });
+}
+```
+
+Use this when your source data is already column-oriented.
+
 ## Dedupe with explicit subset
 
 ```javascript
@@ -32,6 +46,27 @@ function patternDedupe(ASTX) {
   const byRegionOnly = df.dropDuplicates(['region']);
 
   return { byAllColumns, byRegionOnly };
+}
+```
+
+## Join with explicit key mapping
+
+```javascript
+function patternMerge(ASTX) {
+  const users = ASTX.DataFrame.fromRecords([
+    { user_id: 1, name: 'Alice' },
+    { user_id: 2, name: 'Bob' }
+  ]);
+
+  const scores = ASTX.DataFrame.fromRecords([
+    { uid: 1, score: 88 },
+    { uid: 2, score: 91 }
+  ]);
+
+  return users.merge(scores, 'inner', {
+    leftOn: 'user_id',
+    rightOn: 'uid'
+  });
 }
 ```
 
@@ -68,14 +103,11 @@ function patternOutput(ASTX) {
 }
 ```
 
-## SQL to DataFrame
+## Large dataset checklist
 
-```javascript
-function patternQuery(ASTX) {
-  return ASTX.DataFrame.fromQuery({
-    provider: 'bigquery',
-    sql: 'select 1 as ok',
-    parameters: { projectId: 'my-project' }
-  });
-}
-```
+For large workloads:
+
+- prefer `fromColumns` for construction.
+- prefer `toColumns`/`toArrays` when row objects are not required.
+- call `dropDuplicates` with minimal subset keys.
+- avoid repeated `toRecords()` materialization inside loops.

@@ -9,7 +9,12 @@
  * @description A class representing a Series, providing methods to transform data using the array data structure.
  */
 var Series = class Series {
-  constructor(array = [], name = null, type = null, index = null, options = { useUTC: false }) {
+  constructor(array = [], name = null, type = null, index = null, options = { useUTC: false, allowComplexValues: false }) {
+    const {
+      useUTC = false,
+      allowComplexValues = false
+    } = options || {};
+
     if (index && index.length !== array.length) {
       throw new Error('Index length must match array length.');
     };
@@ -18,23 +23,42 @@ var Series = class Series {
       throw new Error("A Series must be constructed from an array.");
     };
 
-    if (array.some(item => {
-      if (Array.isArray(item)) return true;
-      if (item !== null && typeof item === 'object' && !(item instanceof Date)) return true;
-      return false;
-    })) {
-      throw new Error("A Series cannot contain arrays or objects.");
-    };
+    if (!allowComplexValues) {
+      if (array.some(item => {
+        if (Array.isArray(item)) return true;
+        if (item !== null && typeof item === 'object' && !(item instanceof Date)) return true;
+        return false;
+      })) {
+        throw new Error("A Series cannot contain arrays or objects.");
+      };
+    }
     
     this.array = this._initializeArray(array, type);
     this.name = name ? toSnakeCase(name) : 'series';
-    this.type = type || this.getType();
     this.index = this._initializeIndex(array, index);
+
+    this._typeDirty = false;
+    this._type = type || this.getType();
+    Object.defineProperty(this, 'type', {
+      get: () => {
+        if (this._typeDirty) {
+          this._type = this.getType();
+          this._typeDirty = false;
+        }
+        return this._type;
+      },
+      set: value => {
+        this._type = value;
+        this._typeDirty = false;
+      },
+      enumerable: true,
+      configurable: true
+    });
 
     this.str = new StringMethods(this);
 
-    this.useUTC = options.useUTC || false;
-    this.dt = new DateMethods(this, options.useUTC);
+    this.useUTC = useUTC;
+    this.dt = new DateMethods(this, useUTC);
   }
 
   /**
@@ -437,9 +461,14 @@ var Series = class Series {
    */
   append(...values) {
     const flattenedValues = values.flat();
+    const baseLength = this.array.length;
+
     this.array.push(...flattenedValues);
-    flattenedValues.forEach(_ => this.index.push(this.index.length));
-    this.type = this.getType();
+    for (let idx = 0; idx < flattenedValues.length; idx++) {
+      this.index.push(baseLength + idx);
+    }
+
+    this._typeDirty = true;
     return this;
   }
 
@@ -1996,12 +2025,21 @@ var Series = class Series {
       throw new Error('All arguments must be Series of the same length');
     };
 
-    return this.array.map((_, index) => {
-      return allSeries.reduce((record, series) => {
-        record[series.name] = series.at(index);
-        return record;
-      }, {})
-    });
+    const allNames = allSeries.map(series => series.name);
+    const allArrays = allSeries.map(series => series.array);
+    const rows = new Array(this.len());
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const record = {};
+
+      for (let colIdx = 0; colIdx < allArrays.length; colIdx++) {
+        record[allNames[colIdx]] = allArrays[colIdx][rowIdx];
+      }
+
+      rows[rowIdx] = record;
+    }
+
+    return rows;
   }
 
   /**

@@ -10,6 +10,7 @@
 ```bash
 npm run lint
 npm run test:local
+npm run test:perf:check
 mkdocs build --strict
 ```
 
@@ -19,13 +20,14 @@ Apps Script runtime validation:
 clasp status
 clasp push
 clasp run runAllTests
+clasp run runPerformanceBenchmarks
 ```
 
 Consumer validation (recommended):
 
-- Install library in a clean Apps Script project.
-- Select target library version.
-- Run smoke script covering namespace, utils, dataframe, groupby, series query.
+- install library in a clean Apps Script project
+- select target library version
+- run smoke script covering namespace/utils/dataframe/groupby/series query
 
 ## Publish Apps Script version
 
@@ -52,15 +54,16 @@ Tag push triggers:
 
 Include:
 
-- Script ID
-- Library identifier
-- Exact mapping: tag -> Apps Script version number
-- Key changes
-- Migration notes (if any)
-- Docs URL
+- script ID
+- library identifier
+- exact mapping: `tag -> Apps Script version number`
+- key changes
+- migration notes (if any)
+- docs URL
+- before/after benchmark highlights for major perf releases
 
 ## Post-release checks
 
-- Verify GitHub release is published for the tag.
-- Verify docs site build/deploy succeeded.
-- Verify consumer install works with released version.
+- verify GitHub release is published for the tag
+- verify docs site build/deploy succeeded
+- verify consumer install works with released version

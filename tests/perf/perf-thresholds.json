@@ -1,0 +1,34 @@
+{
+  "node20": {
+    "maxMs": {
+      "dataframe.fromRecords_100000_10": 2200,
+      "dataframe.sort_numeric_100000": 1800,
+      "dataframe.dropDuplicates_subset_100000": 1600,
+      "dataframe.merge_inner_100000": 2600,
+      "dataframe.groupBy_agg_100000": 900,
+      "dataframe.toRecords_100000_10": 1400,
+      "series.multiply_100000": 120,
+      "utilities.removeDuplicates_records_100000": 1600,
+      "utilities.joinRecords_inner_100000": 2600
+    },
+    "maxHeapDeltaBytes": {
+      "dataframe.fromRecords_100000_10": 180000000,
+      "dataframe.sort_numeric_100000": 160000000,
+      "dataframe.dropDuplicates_subset_100000": 140000000,
+      "dataframe.merge_inner_100000": 220000000,
+      "dataframe.groupBy_agg_100000": 120000000,
+      "dataframe.toRecords_100000_10": 180000000
+    },
+    "maxCounters": {
+      "dataframe.sort_numeric_100000": {
+        "toRecords": 0
+      },
+      "dataframe.dropDuplicates_subset_100000": {
+        "toRecords": 0
+      },
+      "dataframe.toRecords_100000_10": {
+        "toRecords": 1
+      }
+    }
+  }
+}
