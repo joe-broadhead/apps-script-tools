@@ -459,6 +459,35 @@ function astAiBuildGeminiContents(messages) {
   return contents;
 }
 
+function astAiExtractGeminiSystemInstruction(messages, explicitSystem) {
+  if (typeof explicitSystem === 'string' && explicitSystem.trim().length > 0) {
+    return explicitSystem.trim();
+  }
+
+  const systemParts = [];
+
+  if (!Array.isArray(messages)) {
+    return null;
+  }
+
+  messages.forEach(message => {
+    if (!message || message.role !== 'system') {
+      return;
+    }
+
+    const text = astAiNormalizeTextContent(message.content);
+    if (text) {
+      systemParts.push(text);
+    }
+  });
+
+  if (systemParts.length === 0) {
+    return null;
+  }
+
+  return systemParts.join('\n').trim();
+}
+
 function astAiExtractGeminiOutput(responseJson) {
   const candidate = responseJson && responseJson.candidates && responseJson.candidates[0]
     ? responseJson.candidates[0]

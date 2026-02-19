@@ -93,6 +93,50 @@ test('runGemini normalizes text output', () => {
   assert.equal(output.provider, 'gemini');
 });
 
+test('runGemini forwards system messages as systemInstruction when request.system is omitted', () => {
+  let capturedPayload = null;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (_url, options) => {
+        capturedPayload = JSON.parse(options.payload);
+        return asResponse({
+          candidates: [{
+            finishReason: 'STOP',
+            content: {
+              parts: [{ text: 'ok' }]
+            }
+          }],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2
+          }
+        });
+      }
+    }
+  });
+
+  loadAiScripts(context);
+
+  const request = Object.assign(baseRequest('text'), {
+    provider: 'gemini',
+    messages: [
+      { role: 'system', content: 'Follow strict JSON policy.' },
+      { role: 'user', content: 'hello' }
+    ]
+  });
+
+  context.runGemini(request, {
+    provider: 'gemini',
+    apiKey: 'key',
+    model: 'gemini-2.0-flash'
+  });
+
+  assert.equal(capturedPayload.systemInstruction.parts[0].text, 'Follow strict JSON policy.');
+  assert.equal(capturedPayload.contents.length, 1);
+});
+
 test('runVertexGemini normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
@@ -129,6 +173,52 @@ test('runVertexGemini normalizes text output', () => {
   assert.equal(output.output.text, 'hello from vertex');
   assert.equal(output.usage.totalTokens, 10);
   assert.equal(output.provider, 'vertex_gemini');
+});
+
+test('runVertexGemini forwards system messages as systemInstruction when request.system is omitted', () => {
+  let capturedPayload = null;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (_url, options) => {
+        capturedPayload = JSON.parse(options.payload);
+        return asResponse({
+          candidates: [{
+            finishReason: 'STOP',
+            content: {
+              parts: [{ text: 'ok' }]
+            }
+          }],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2
+          }
+        });
+      }
+    }
+  });
+
+  loadAiScripts(context);
+
+  const request = Object.assign(baseRequest('text'), {
+    provider: 'vertex_gemini',
+    messages: [
+      { role: 'system', content: 'Use terse responses.' },
+      { role: 'user', content: 'hello' }
+    ]
+  });
+
+  context.runVertexGemini(request, {
+    provider: 'vertex_gemini',
+    projectId: 'p',
+    location: 'us-central1',
+    model: 'gemini-2.0-flash',
+    oauthToken: 'oauth'
+  });
+
+  assert.equal(capturedPayload.systemInstruction.parts[0].text, 'Use terse responses.');
+  assert.equal(capturedPayload.contents.length, 1);
 });
 
 test('runOpenRouter normalizes text output', () => {

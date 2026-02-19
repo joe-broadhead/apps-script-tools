@@ -35,9 +35,11 @@ function runGemini(request, config) {
     generationConfig: {}
   }, astGeminiProviderOptions(request.providerOptions, ['endpoint']));
 
-  if (typeof request.system === 'string' && request.system.trim().length > 0) {
+  const systemInstruction = astAiExtractGeminiSystemInstruction(request.messages, request.system);
+
+  if (systemInstruction) {
     payload.systemInstruction = {
-      parts: [{ text: request.system.trim() }]
+      parts: [{ text: systemInstruction }]
     };
   }
 
