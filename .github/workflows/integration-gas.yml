@@ -2,6 +2,15 @@ name: Apps Script Integration
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "Integration suite to run"
+        required: true
+        default: functional
+        type: choice
+        options:
+          - functional
+          - perf
 
 jobs:
   gas-tests:
@@ -59,4 +68,8 @@ jobs:
         run: |
           clasp status
           clasp push
-          clasp run runAllTests
+          if [ "${{ inputs.suite }}" = "perf" ]; then
+            clasp run runPerformanceBenchmarks
+          else
+            clasp run runAllTests
+          fi

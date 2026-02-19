@@ -1,11 +1,14 @@
 {
   "name": "apps-script-tools",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.2",
   "description": "Google Apps Script data toolkit",
   "scripts": {
     "lint": "node scripts/lint.mjs",
     "test:local": "node --test tests/local/*.test.mjs",
+    "test:perf": "node tests/perf/run-perf.mjs --mode report",
+    "test:perf:check": "node tests/perf/run-perf.mjs --mode check",
+    "test:perf:baseline": "node tests/perf/run-perf.mjs --mode baseline --out benchmarks/baselines/node20.json",
     "test": "npm run lint && npm run test:local"
   }
 }

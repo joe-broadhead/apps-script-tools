@@ -10,10 +10,12 @@ Use semantic tags:
 
 1. `npm run lint`
 2. `npm run test:local`
-3. `mkdocs build --strict`
-4. `clasp push`
-5. `clasp run runAllTests`
-6. Validate library from a clean consumer Apps Script project.
+3. `npm run test:perf:check`
+4. `mkdocs build --strict`
+5. `clasp push`
+6. `clasp run runAllTests`
+7. `clasp run runPerformanceBenchmarks`
+8. validate library from a clean consumer Apps Script project
 
 ## Apps Script Publish (`clasp`)
 
@@ -55,8 +57,9 @@ Tag push matching `v*` triggers:
 
 Include:
 
-- Script ID
-- Library identifier (`AST`)
-- Exact mapping (`vX.Y.Z -> Apps Script version N`)
-- Breaking changes and migration guidance
-- Docs URL
+- script ID
+- library identifier (`AST`)
+- exact mapping (`vX.Y.Z -> Apps Script version N`)
+- key changes and migration guidance
+- docs URL
+- benchmark highlights for perf-sensitive releases

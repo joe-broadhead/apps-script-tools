@@ -17,6 +17,7 @@ ASTX.Utils
 
 ```javascript
 ASTX.DataFrame.fromRecords(records)
+ASTX.DataFrame.fromColumns(columns, options)
 ASTX.DataFrame.fromArrays(arrays, options)
 ASTX.DataFrame.fromSheet(sheet, headerRow)
 ASTX.DataFrame.fromQuery(request)
@@ -29,6 +30,7 @@ df.sort(by, ascending)
 df.merge(other, how, options)
 df.groupBy(keys)
 df.dropDuplicates(subset)
+df.toColumns(options)
 df.toRecords()
 df.toArrays(headerOrder)
 df.toJson(options)
@@ -84,5 +86,6 @@ ASTX.Drive.create(fileType, fileName, options)
 - `Series.query` rejects string predicates.
 - `dropDuplicates()` uses all columns by default.
 - `dropDuplicates(['a', 'b'])` uses only the provided subset.
+- key-based comparisons canonicalize object/date values and normalize null/undefined/missing.
 - `Sql.run` validates provider/request shape before execution.
-- Placeholder interpolation is blocked unless explicitly enabled.
+- placeholder interpolation is blocked unless explicitly enabled.

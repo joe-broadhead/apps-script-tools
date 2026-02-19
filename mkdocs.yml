@@ -105,6 +105,10 @@ nav:
     - Tools: api/tools.md
     - SQL Contracts: api/sql-contracts.md
     - DataFrame Patterns: api/dataframe-patterns.md
+  - Performance:
+    - Architecture: performance/architecture.md
+    - Benchmarks: performance/benchmarks.md
+    - Optimization Playbook: performance/optimization-playbook.md
   - Operations:
     - Security: operations/security.md
     - Testing: operations/testing.md

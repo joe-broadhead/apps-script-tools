@@ -195,5 +195,36 @@ DATAFRAME_DROP_DUPLICATES_TESTS = [
                 throw new Error(`Expected 3 rows after removing duplicate date/object (by value), but got ${result.len()}`);
             }
         }
+    },
+
+    {
+        description: 'DataFrame.dropDuplicates() should treat null, undefined, and missing as equal in subset keys',
+        test: () => {
+            const df = DataFrame.fromRecords([
+                { id: 1, group: 'A', marker: null },
+                { id: 2, group: 'A', marker: undefined },
+                { id: 3, group: 'A' }
+            ]);
+
+            const result = df.dropDuplicates(['group', 'marker']);
+            if (result.len() !== 1) {
+                throw new Error(`Expected 1 row after deduplicating null/undefined/missing, but got ${result.len()}`);
+            }
+        }
+    },
+
+    {
+        description: 'DataFrame.dropDuplicates() should canonicalize object key order in subset keys',
+        test: () => {
+            const df = DataFrame.fromRecords([
+                { id: 1, payload: { a: 1, b: 2 } },
+                { id: 2, payload: { b: 2, a: 1 } }
+            ]);
+
+            const result = df.dropDuplicates(['payload']);
+            if (result.len() !== 1) {
+                throw new Error(`Expected 1 row after canonical object dedupe, but got ${result.len()}`);
+            }
+        }
     }
 ];

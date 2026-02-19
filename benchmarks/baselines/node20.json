@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-02-19T10:27:25.142Z",
+  "mode": "baseline",
+  "nodeVersion": "v25.4.0",
+  "rows": 100000,
+  "samples": 1,
+  "results": [
+    {
+      "name": "dataframe.fromRecords_100000_10",
+      "bestMs": 54.771,
+      "medianMs": 54.771,
+      "maxHeapDeltaBytes": 14118608,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 1,
+        "fromColumns": 1,
+        "toRecords": 0,
+        "toArrays": 0
+      },
+      "outputType": "DataFrame"
+    },
+    {
+      "name": "dataframe.toRecords_100000_10",
+      "bestMs": 7.889,
+      "medianMs": 7.889,
+      "maxHeapDeltaBytes": 16804072,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 0,
+        "fromColumns": 0,
+        "toRecords": 1,
+        "toArrays": 0
+      },
+      "outputType": "Array"
+    },
+    {
+      "name": "dataframe.sort_numeric_100000",
+      "bestMs": 32.217,
+      "medianMs": 32.217,
+      "maxHeapDeltaBytes": 30361616,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 0,
+        "fromColumns": 1,
+        "toRecords": 0,
+        "toArrays": 0
+      },
+      "outputType": "DataFrame"
+    },
+    {
+      "name": "dataframe.dropDuplicates_subset_100000",
+      "bestMs": 108.85,
+      "medianMs": 108.85,
+      "maxHeapDeltaBytes": 28202480,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 0,
+        "fromColumns": 1,
+        "toRecords": 0,
+        "toArrays": 0
+      },
+      "outputType": "DataFrame"
+    },
+    {
+      "name": "dataframe.merge_inner_100000",
+      "bestMs": 343.435,
+      "medianMs": 343.435,
+      "maxHeapDeltaBytes": 95126312,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 1,
+        "fromColumns": 1,
+        "toRecords": 2,
+        "toArrays": 0
+      },
+      "outputType": "DataFrame"
+    },
+    {
+      "name": "dataframe.groupBy_agg_100000",
+      "bestMs": 185.005,
+      "medianMs": 185.005,
+      "maxHeapDeltaBytes": 0,
+      "samples": 1,
+      "counters": {
+        "fromRecords": 0,
+        "fromColumns": 149,
+        "toRecords": 0,
+        "toArrays": 0
+      },
+      "outputType": "DataFrame"
+    },
+    {
+      "name": "series.multiply_100000",
+      "bestMs": 106.273,
+      "medianMs": 106.273,
+      "maxHeapDeltaBytes": 0,
+      "samples": 1,
+      "outputType": "Series"
+    },
+    {
+      "name": "utilities.removeDuplicates_records_100000",
+      "bestMs": 141.49,
+      "medianMs": 141.49,
+      "maxHeapDeltaBytes": 29353320,
+      "samples": 1,
+      "outputType": "Array"
+    },
+    {
+      "name": "utilities.joinRecords_inner_100000",
+      "bestMs": 312.44,
+      "medianMs": 312.44,
+      "maxHeapDeltaBytes": 40115952,
+      "samples": 1,
+      "outputType": "Array"
+    }
+  ]
+}

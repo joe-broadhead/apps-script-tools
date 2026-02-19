@@ -23,6 +23,22 @@ function quickstartDataFrame() {
 }
 ```
 
+## Column-first workflow (fast path)
+
+```javascript
+function quickstartFromColumns() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const df = ASTX.DataFrame.fromColumns({
+    id: [1, 2, 3],
+    region: ['east', 'west', 'east'],
+    amount: [10, 25, 5]
+  });
+
+  Logger.log(df.toMarkdown());
+}
+```
+
 ## Grouped aggregation
 
 ```javascript
@@ -71,3 +87,10 @@ function quickstartUtils() {
   Logger.log(nextWeek);   // 2026-01-08T00:00:00.000Z
 }
 ```
+
+## Large dataset best practices
+
+- prefer `DataFrame.fromColumns(...)` when data is already columnar.
+- avoid repeated `toRecords()` inside loops.
+- use `dropDuplicates(['key1', 'key2'])` instead of full-row dedupe when possible.
+- run `npm run test:perf` before large refactors that affect dataframe internals.

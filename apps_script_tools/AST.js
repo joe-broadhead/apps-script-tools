@@ -97,7 +97,7 @@ Object.freeze(AST_UTILS);
 
 Object.defineProperties(AST, {
   VERSION: {
-    value: '0.0.0',
+    value: '0.0.2',
     enumerable: true
   },
   Series: {

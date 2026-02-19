@@ -11,11 +11,39 @@ var GroupBy = class GroupBy {
     constructor(df, keys) {
       this.df = df;
       this.keys = keys;
-      this.groups = groupRecordsOnKeys(
-        df.toRecords(),
-        keys,
-        group => DataFrame.fromRecords(group)
-      );
+      this.groups = this._buildGroups();
+    }
+
+    _buildGroups() {
+      const groups = {};
+      const groupedIndexes = new Map();
+      const keyColumns = this.keys.map(key => {
+        if (!this.df.columns.includes(key)) {
+          throw new Error(`Column '${key}' not found in DataFrame`);
+        }
+        return this.df.data[key].array;
+      });
+
+      for (let rowIdx = 0; rowIdx < this.df.len(); rowIdx++) {
+        const keyValues = new Array(keyColumns.length);
+        for (let keyIdx = 0; keyIdx < keyColumns.length; keyIdx++) {
+          keyValues[keyIdx] = keyColumns[keyIdx][rowIdx];
+        }
+
+        const groupKey = astBuildValuesKey(keyValues);
+
+        if (!groupedIndexes.has(groupKey)) {
+          groupedIndexes.set(groupKey, []);
+        }
+
+        groupedIndexes.get(groupKey).push(rowIdx);
+      }
+
+      for (const [groupKey, rowIndexes] of groupedIndexes.entries()) {
+        groups[groupKey] = this.df._buildFromRowIndexes(rowIndexes, true);
+      }
+
+      return groups;
     }
   
     agg(aggregations) {
