@@ -39,7 +39,7 @@
 
 1. In your Apps Script project, open **Libraries**.
 2. Add script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`.
-3. Select version `v0.0.0` release mapping from this repo's release notes.
+3. Select version `v0.0.1` release mapping from this repo's release notes.
 4. Use identifier: `AST`.
 
 ## Quickstart
