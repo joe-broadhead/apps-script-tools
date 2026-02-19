@@ -38,13 +38,13 @@
 Current release state:
 
 - Published: `v0.0.1`
-- Current `master` hardening target: `v0.0.2` (unreleased)
+- Next release target on `master`: `v0.0.2` (release candidate, not tagged yet)
 
 ## Install As Apps Script Library
 
 1. In your Apps Script project, open **Libraries**.
 2. Add script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`.
-3. Select version `v0.0.1` release mapping from this repo's release notes.
+3. Select the latest published version from this repo's release notes.
 4. Use identifier: `AST`.
 
 ## Quickstart

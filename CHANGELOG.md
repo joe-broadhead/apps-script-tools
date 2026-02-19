@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.2 (unreleased)
+## v0.0.2 (release candidate)
 
 ### Added
 

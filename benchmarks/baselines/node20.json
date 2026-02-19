@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-02-19T12:24:53.724Z",
+  "generatedAt": "2026-02-19T18:56:56.407Z",
   "mode": "baseline",
-  "nodeVersion": "v25.4.0",
+  "nodeVersion": "v20.20.0",
   "rows": 100000,
   "samples": 1,
   "results": [
     {
       "name": "dataframe.fromRecords_100000_10",
-      "bestMs": 53.881,
-      "medianMs": 53.881,
-      "maxHeapDeltaBytes": 14545472,
+      "bestMs": 161.494,
+      "medianMs": 161.494,
+      "maxHeapDeltaBytes": 28510104,
       "samples": 1,
       "counters": {
         "fromRecords": 1,
@@ -21,9 +21,9 @@
     },
     {
       "name": "dataframe.toRecords_100000_10",
-      "bestMs": 8.475,
-      "medianMs": 8.475,
-      "maxHeapDeltaBytes": 16804040,
+      "bestMs": 30.276,
+      "medianMs": 30.276,
+      "maxHeapDeltaBytes": 7293088,
       "samples": 1,
       "counters": {
         "fromRecords": 0,
@@ -35,9 +35,9 @@
     },
     {
       "name": "dataframe.sort_numeric_100000",
-      "bestMs": 31.9,
-      "medianMs": 31.9,
-      "maxHeapDeltaBytes": 30361616,
+      "bestMs": 90.466,
+      "medianMs": 90.466,
+      "maxHeapDeltaBytes": 15027896,
       "samples": 1,
       "counters": {
         "fromRecords": 0,
@@ -49,9 +49,9 @@
     },
     {
       "name": "dataframe.dropDuplicates_subset_100000",
-      "bestMs": 105.793,
-      "medianMs": 105.793,
-      "maxHeapDeltaBytes": 28202480,
+      "bestMs": 289.011,
+      "medianMs": 289.011,
+      "maxHeapDeltaBytes": 11938952,
       "samples": 1,
       "counters": {
         "fromRecords": 0,
@@ -63,9 +63,9 @@
     },
     {
       "name": "dataframe.merge_inner_100000",
-      "bestMs": 344.661,
-      "medianMs": 344.661,
-      "maxHeapDeltaBytes": 105476624,
+      "bestMs": 988.923,
+      "medianMs": 988.923,
+      "maxHeapDeltaBytes": 84510936,
       "samples": 1,
       "counters": {
         "fromRecords": 1,
@@ -77,8 +77,8 @@
     },
     {
       "name": "dataframe.groupBy_agg_100000",
-      "bestMs": 181.175,
-      "medianMs": 181.175,
+      "bestMs": 521.075,
+      "medianMs": 521.075,
       "maxHeapDeltaBytes": 0,
       "samples": 1,
       "counters": {
@@ -91,25 +91,25 @@
     },
     {
       "name": "series.multiply_100000",
-      "bestMs": 94.35,
-      "medianMs": 94.35,
-      "maxHeapDeltaBytes": 0,
+      "bestMs": 37.957,
+      "medianMs": 37.957,
+      "maxHeapDeltaBytes": 1601920,
       "samples": 1,
       "outputType": "Series"
     },
     {
       "name": "utilities.removeDuplicates_records_100000",
-      "bestMs": 114.521,
-      "medianMs": 114.521,
-      "maxHeapDeltaBytes": 29353320,
+      "bestMs": 331.94,
+      "medianMs": 331.94,
+      "maxHeapDeltaBytes": 8118368,
       "samples": 1,
       "outputType": "Array"
     },
     {
       "name": "utilities.joinRecords_inner_100000",
-      "bestMs": 310.759,
-      "medianMs": 310.759,
-      "maxHeapDeltaBytes": 71226160,
+      "bestMs": 849.179,
+      "medianMs": 849.179,
+      "maxHeapDeltaBytes": 47255272,
       "samples": 1,
       "outputType": "Array"
     }

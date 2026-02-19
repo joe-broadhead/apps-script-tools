@@ -1,14 +1,14 @@
 {
-  "generatedAt": null,
+  "generatedAt": "2026-02-19T19:04:41.769Z",
   "mode": "baseline",
   "runtime": "apps-script",
   "rows": 20000,
   "results": {
-    "fromRecords": null,
-    "sort": null,
-    "dropDuplicates": null,
-    "mergeInner": null,
-    "groupByAgg": null,
-    "suiteMs": null
+    "fromRecords": 61,
+    "sort": 29,
+    "dropDuplicates": 26,
+    "mergeInner": 179,
+    "groupByAgg": 68,
+    "suiteMs": 473
   }
 }
