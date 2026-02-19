@@ -32,13 +32,14 @@
 - `AST.DataFrame`: tabular transformations and IO
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
+- `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.Sql`: Databricks/BigQuery query execution
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
 Current release state:
 
 - Published: `v0.0.1`
-- Next release target on `master`: `v0.0.2` (release candidate, not tagged yet)
+- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
 
 ## Install As Apps Script Library
 
@@ -51,7 +52,9 @@ Current release state:
 
 ```javascript
 function demoAstLibrary() {
-  const df = AST.DataFrame.fromRecords([
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const df = ASTX.DataFrame.fromRecords([
     { id: 1, amount: 10 },
     { id: 2, amount: 20 }
   ]);
@@ -63,8 +66,21 @@ function demoAstLibrary() {
   Logger.log(enriched.toMarkdown());
 
   // Utility helpers are also available
-  const total = AST.Utils.arraySum([1, 2, 3, 4]);
+  const total = ASTX.Utils.arraySum([1, 2, 3, 4]);
   Logger.log(total); // 10
+}
+```
+
+```javascript
+function demoAstAi() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const response = ASTX.AI.text({
+    provider: 'openai',
+    input: 'Write a one-line project status update.'
+  });
+
+  Logger.log(response.output.text);
 }
 ```
 
@@ -81,6 +97,7 @@ Project docs are built with MkDocs and published to GitHub Pages:
 - Local checks: `npm run lint && npm run test:local`
 - Docs check: `mkdocs build --strict`
 - Apps Script integration checks: `.github/workflows/integration-gas.yml`
+- Optional live AI smoke checks: `.github/workflows/integration-ai-live.yml`
 
 ## Release
 

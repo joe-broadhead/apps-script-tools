@@ -97,7 +97,7 @@ Object.freeze(AST_UTILS);
 
 Object.defineProperties(AST, {
   VERSION: {
-    value: '0.0.2',
+    value: '0.0.3',
     enumerable: true
   },
   Series: {
@@ -127,6 +127,10 @@ Object.defineProperties(AST, {
       read: resolveAstBinding('readFileFromDrive', () => (typeof readFileFromDrive === 'undefined' ? undefined : readFileFromDrive)),
       create: resolveAstBinding('createFileInDrive', () => (typeof createFileInDrive === 'undefined' ? undefined : createFileInDrive))
     }),
+    enumerable: true
+  },
+  AI: {
+    get: () => resolveAstBinding('AST_AI', () => (typeof AST_AI === 'undefined' ? undefined : AST_AI)),
     enumerable: true
   },
   Sql: {

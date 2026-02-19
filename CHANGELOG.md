@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.0.3 (release candidate)
+
+### Added
+
+- New `AST.AI` namespace with:
+  - `run`, `text`, `structured`, `tools`, `image`, `providers`, and `capabilities`.
+- Multi-provider AI adapters for:
+  - OpenAI
+  - Gemini (AI Studio)
+  - Vertex Gemini
+  - OpenRouter
+  - Perplexity
+- Typed AI error model:
+  - `AstAiError`, `AstAiValidationError`, `AstAiAuthError`, `AstAiCapabilityError`,
+    `AstAiProviderError`, `AstAiToolExecutionError`, `AstAiToolLoopError`, `AstAiResponseParseError`.
+- Bounded auto tool runtime with function-ref and global-name handlers.
+- Optional live AI smoke workflow:
+  - `.github/workflows/integration-ai-live.yml`
+- New AI docs:
+  - quickstart, contracts, providers, tool-calling, and operations/security guidance.
+
+### Changed
+
+- Public AST namespace now includes `AST.AI`.
+- Script manifest now includes `https://www.googleapis.com/auth/cloud-platform` for Vertex support.
+- Test harness defaults now include `PropertiesService` and `ScriptApp` stubs for deterministic local AI tests.
+- GAS functional suite now runs AI namespace/tool smoke tests via `runAllTests`.
+
 ## v0.0.2 (release candidate)
 
 ### Added

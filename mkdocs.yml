@@ -100,9 +100,13 @@ nav:
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
+    - AI Quick Start: getting-started/ai-quickstart.md
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
+    - AI Contracts: api/ai-contracts.md
+    - AI Providers: api/ai-providers.md
+    - AI Tool Calling: api/ai-tool-calling.md
     - SQL Contracts: api/sql-contracts.md
     - DataFrame Patterns: api/dataframe-patterns.md
   - Performance:
@@ -110,6 +114,7 @@ nav:
     - Benchmarks: performance/benchmarks.md
     - Optimization Playbook: performance/optimization-playbook.md
   - Operations:
+    - AI Security: operations/ai-security.md
     - Security: operations/security.md
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md

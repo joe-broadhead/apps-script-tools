@@ -104,6 +104,56 @@ Workspace interoperability surfaces:
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
+## `ASTX.AI`
+
+Unified AI surface across:
+
+- `openai`
+- `gemini`
+- `vertex_gemini`
+- `openrouter`
+- `perplexity`
+
+Primary methods:
+
+- `ASTX.AI.run(request)` for explicit operation routing.
+- `ASTX.AI.text(request)` for text generation.
+- `ASTX.AI.structured(request)` for schema-constrained JSON output.
+- `ASTX.AI.tools(request)` for bounded auto tool execution.
+- `ASTX.AI.image(request)` for image generation paths.
+- `ASTX.AI.providers()` and `ASTX.AI.capabilities(provider)` for runtime checks.
+
+High-signal behavior:
+
+- auth/config resolution: per-call override first, then script properties.
+- unsupported provider-operation pairs throw `AstAiCapabilityError`.
+- tool calls support function handlers and global-name handlers.
+- tool execution is sequential and bounded by `options.maxToolRounds`.
+- set `options.includeRaw=true` to include provider raw payloads.
+
+```javascript
+const out = ASTX.AI.structured({
+  provider: 'openai',
+  input: 'Return JSON with priority and owner.',
+  schema: {
+    type: 'object',
+    properties: {
+      priority: { type: 'string' },
+      owner: { type: 'string' }
+    },
+    required: ['priority', 'owner']
+  }
+});
+
+Logger.log(JSON.stringify(out.output.json));
+```
+
+See:
+
+- [AI Contracts](ai-contracts.md)
+- [AI Providers](ai-providers.md)
+- [AI Tool Calling](ai-tool-calling.md)
+
 ## `ASTX.Utils`
 
 `Utils` exposes public utility helpers.

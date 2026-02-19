@@ -48,7 +48,8 @@ function verifyAstInstall() {
     version: ASTX.VERSION,
     hasDataFrame: typeof ASTX.DataFrame === 'function',
     hasSeries: typeof ASTX.Series === 'function',
-    hasUtils: !!ASTX.Utils
+    hasUtils: !!ASTX.Utils,
+    hasAi: !!ASTX.AI
   });
 }
 ```
@@ -62,3 +63,5 @@ Common scope-dependent surfaces:
 - `ASTX.DataFrame.toSheet(...)` and sheet open helpers.
 - `ASTX.Drive.read(...)` and `ASTX.Drive.create(...)`.
 - `ASTX.Sql.run(...)` with provider `bigquery`.
+- `ASTX.AI.*(...)` for provider API requests (external request scope required).
+- `ASTX.AI.*(...)` with `provider='vertex_gemini'` (cloud-platform scope required).

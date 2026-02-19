@@ -15,7 +15,8 @@ Use semantic tags:
 5. `clasp push`
 6. `clasp run runAllTests`
 7. `clasp run runPerformanceBenchmarks`
-8. validate library from a clean consumer Apps Script project
+8. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+9. validate library from a clean consumer Apps Script project
 
 ## Apps Script Publish (`clasp`)
 
