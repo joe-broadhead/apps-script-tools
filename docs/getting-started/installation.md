@@ -21,6 +21,9 @@
 
 Recommended identifier: `ASTLib`
 
+`ASTLib` is the Apps Script library identifier.
+`ASTX` is a local alias used in code examples.
+
 ## Normalize namespace once
 
 Use this pattern at the top of scripts to support both direct and nested export shapes:

@@ -17,10 +17,14 @@
 - `DataFrame.toArrays` now reads column arrays directly.
 - Join and dedupe key handling canonicalizes object/date values and normalizes null/undefined/missing comparisons.
 - Set-like utilities (`arrayUnion`, `arrayDifference`, `arrayIntersect`) now use canonical key semantics.
+- `DataFrame.generateSurrogateKey(...)` now preserves caller-provided column arrays (no input mutation).
+- Databricks SQL failures now throw provider-specific errors instead of returning `null`.
+- SQL placeholder replacement now escapes placeholder keys for regex-safe matching.
 
 ### CI / Release
 
-- Added report-only performance benchmark job to `CI` workflow.
+- Added blocking `perf-gate` (`npm run test:perf:check`) to PR CI.
+- Kept `perf-report` benchmark artifact job for visibility.
 - Added performance threshold gate (`npm run test:perf:check`) to release validation.
 - Extended Apps Script integration workflow dispatch to support functional/perf suite selection.
 

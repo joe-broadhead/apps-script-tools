@@ -55,6 +55,27 @@ function validateSqlRequest(request = {}) {
     );
   }
 
+  if (provider === 'bigquery') {
+    const projectId = parameters.projectId;
+    if (typeof projectId !== 'string' || projectId.trim().length === 0) {
+      throw new Error('BigQuery requests require parameters.projectId as a non-empty string');
+    }
+  }
+
+  if (provider === 'databricks') {
+    const requiredDatabricksParameters = ['host', 'sqlWarehouseId', 'schema', 'token'];
+    const missingDatabricksParameters = requiredDatabricksParameters.filter(key => {
+      const value = parameters[key];
+      return typeof value !== 'string' || value.trim().length === 0;
+    });
+
+    if (missingDatabricksParameters.length > 0) {
+      throw new Error(
+        `Databricks requests require parameters.${missingDatabricksParameters.join(', parameters.')}`
+      );
+    }
+  }
+
   return {
     provider,
     sql: sql.trim(),

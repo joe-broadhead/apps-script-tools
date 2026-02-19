@@ -28,6 +28,11 @@ Use a local `.clasp.json` (not committed):
 }
 ```
 
+`.claspignore` model:
+
+- root `.claspignore` is the only authoritative ignore file for `clasp` operations.
+- do not add nested `.claspignore` files under `apps_script_tools/`.
+
 Publish flow:
 
 ```bash

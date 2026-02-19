@@ -5,6 +5,11 @@
 - Use semantic tags: `vMAJOR.MINOR.PATCH`.
 - Record release notes in both GitHub Release and `CHANGELOG.md`.
 
+## Current state
+
+- Published release: `v0.0.1`
+- Current hardening target on `master`: `v0.0.2` (unreleased)
+
 ## Pre-release checks
 
 ```bash

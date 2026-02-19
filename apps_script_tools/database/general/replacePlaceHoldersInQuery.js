@@ -24,14 +24,31 @@
  * - Time Complexity: O(n), where `n` is the length of the query string.
  * - Space Complexity: O(n), as a new string with replacements is created.
  */
+function astEscapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function replacePlaceHoldersInQuery(query, placeholders) {
+  if (typeof query !== 'string') {
+    throw new Error('Query must be a string');
+  }
+
+  if (placeholders == null || typeof placeholders !== 'object' || Array.isArray(placeholders)) {
+    return query;
+  }
+
   let queryWithReplacements = query;
-  for (const key in placeholders) {
+  const keys = Object.keys(placeholders);
+
+  for (let idx = 0; idx < keys.length; idx++) {
+    const key = keys[idx];
     const rawValue = placeholders[key];
     const value = typeof rawValue === 'string'
       ? `'${rawValue.replace(/'/g, "''")}'`
       : rawValue;
-    queryWithReplacements = queryWithReplacements.replace(new RegExp(`{{${key}}}`, 'g'), value);
-  };
+    const placeholderPattern = new RegExp(`{{${astEscapeRegExp(key)}}}`, 'g');
+    queryWithReplacements = queryWithReplacements.replace(placeholderPattern, value);
+  }
+
   return queryWithReplacements;
 };

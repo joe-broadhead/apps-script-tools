@@ -1,5 +1,13 @@
 # API Quick Reference
 
+## Consumer import alias
+
+Use your configured Apps Script library identifier (recommended: `ASTLib`) and normalize once:
+
+```javascript
+const ASTX = ASTLib.AST || ASTLib;
+```
+
 ## Namespace
 
 ```javascript
