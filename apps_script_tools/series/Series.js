@@ -9,10 +9,11 @@
  * @description A class representing a Series, providing methods to transform data using the array data structure.
  */
 var Series = class Series {
-  constructor(array = [], name = null, type = null, index = null, options = { useUTC: false, allowComplexValues: false }) {
+  constructor(array = [], name = null, type = null, index = null, options = { useUTC: false, allowComplexValues: false, skipTypeCoercion: false }) {
     const {
       useUTC = false,
-      allowComplexValues = false
+      allowComplexValues = false,
+      skipTypeCoercion = false
     } = options || {};
 
     if (index && index.length !== array.length) {
@@ -33,7 +34,7 @@ var Series = class Series {
       };
     }
     
-    this.array = this._initializeArray(array, type);
+    this.array = this._initializeArray(array, type, skipTypeCoercion);
     this.name = name ? toSnakeCase(name) : 'series';
     this.index = this._initializeIndex(array, index);
 
@@ -213,8 +214,8 @@ var Series = class Series {
    * - Time Complexity: O(n), where `n` is the length of the array. Coercion processes each element once.
    * - Space Complexity: O(n), as a new array may be created for type coercion.
    */
-  _initializeArray(array, type) {
-    return type ? arrayAstype(array, type) : array;
+  _initializeArray(array, type, skipTypeCoercion = false) {
+    return type && !skipTypeCoercion ? arrayAstype(array, type) : array;
   }
 
   /**
@@ -1475,7 +1476,13 @@ var Series = class Series {
         }
       }
 
-      return new Series(resultArray, this.name, hasNull ? null : 'number');
+      return new Series(
+        resultArray,
+        this.name,
+        hasNull ? null : 'number',
+        null,
+        { useUTC: this.useUTC, skipTypeCoercion: true }
+      );
     }
 
     if (other instanceof Series && this.type === 'number' && other.type === 'number') {
@@ -1499,7 +1506,13 @@ var Series = class Series {
         resultArray[idx] = leftValue * rightValue;
       }
 
-      return new Series(resultArray, this.name, hasNull ? null : 'number');
+      return new Series(
+        resultArray,
+        this.name,
+        hasNull ? null : 'number',
+        null,
+        { useUTC: this.useUTC, skipTypeCoercion: true }
+      );
     }
 
     return this.transform(
