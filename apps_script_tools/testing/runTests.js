@@ -3,7 +3,7 @@ async function runAllTests() {
 
   const tests = [
     {
-      description: "Default Test Case - This should allways pass",
+      description: "Default Test Case - This should always pass",
       test: () => true
     },
 
@@ -244,7 +244,10 @@ async function runAllTests() {
   const results = suite.exportResults();
 
   if (results.failed > 0) {
-    throw new Error(`${results.failed} tests failed.`);
+    const failures = results.results
+      .filter(result => result.status === 'fail')
+      .map(result => `${result.group} - ${result.description}: ${result.error || 'unknown error'}`);
+    throw new Error(`${results.failed} tests failed.\n${failures.join('\n')}`);
   }
 
   return results;

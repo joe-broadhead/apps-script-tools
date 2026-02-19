@@ -78,8 +78,12 @@ Before release, validate from a clean consumer project:
 
 Pull requests should pass:
 
-- `CI` workflow (`lint-and-local-tests`, `docs-build`)
-- performance report job (`perf-report`, non-blocking)
+- `CI` workflow checks:
+  - `lint-and-local-tests`
+  - `perf-gate` (`npm run test:perf:check`)
+  - `docs-build`
+
+`perf-report` remains informational and publishes benchmark artifacts.
 
 Release validation requires:
 

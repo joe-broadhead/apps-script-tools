@@ -103,3 +103,23 @@ Use `toTable` to write dataframe rows to provider tables.
 - Unsafe placeholders without explicit opt-in: throws.
 - `toTable` with missing `config.tableSchema`: throws.
 - BigQuery load mode not in (`insert`, `overwrite`): throws.
+
+## Provider error semantics
+
+- `ASTX.Sql.run(...)` throws on validation failures before execution.
+- BigQuery execution/load failures throw errors from the provider path.
+- Databricks execution failures throw `DatabricksSqlError` with:
+  - `name: "DatabricksSqlError"`
+  - `provider: "databricks"`
+  - optional `details` and `cause` fields for diagnostics
+
+Recommended usage:
+
+```javascript
+try {
+  const df = ASTX.Sql.run(request);
+  Logger.log(df.len());
+} catch (error) {
+  Logger.log(`${error.name}: ${error.message}`);
+}
+```

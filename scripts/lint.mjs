@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 const ROOT = process.cwd();
 const APPS_DIR = path.join(ROOT, 'apps_script_tools');
@@ -40,6 +41,40 @@ if (manifest.executionApi?.access === 'ANYONE') {
 
 if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
   findings.push('Manifest must declare explicit oauthScopes');
+}
+
+const nestedClaspIgnorePath = path.join(APPS_DIR, '.claspignore');
+if (fs.existsSync(nestedClaspIgnorePath)) {
+  findings.push('Nested apps_script_tools/.claspignore is not allowed. Use root .claspignore only.');
+}
+
+const blockedTrackedFiles = [
+  '.clasp.json',
+  '.clasprc.json',
+  'client_secret.json',
+  'creds.json'
+];
+
+try {
+  const trackedFiles = execSync('git ls-files', {
+    cwd: ROOT,
+    encoding: 'utf8'
+  })
+    .split('\n')
+    .map(file => file.trim())
+    .filter(Boolean);
+
+  const trackedSecrets = trackedFiles.filter(filePath => {
+    return blockedTrackedFiles.some(blocked => {
+      return filePath === blocked || filePath.endsWith(`/${blocked}`);
+    });
+  });
+
+  trackedSecrets.forEach(filePath => {
+    findings.push(`Tracked secret/config file is not allowed: ${filePath}`);
+  });
+} catch (error) {
+  findings.push(`Unable to verify tracked files with git ls-files: ${error.message}`);
 }
 
 if (findings.length > 0) {

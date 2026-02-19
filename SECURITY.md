@@ -2,7 +2,8 @@
 
 ## Supported Version
 
-Current supported release line: `v0.0.0`.
+Current published release line: `v0.0.1`.
+Current hardening target on `master`: `v0.0.2` (unreleased).
 
 ## Reporting Security Issues
 

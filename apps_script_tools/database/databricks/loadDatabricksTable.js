@@ -36,9 +36,6 @@
  *   databricks_parameters: { ... }
  * });
  * 
- * // Output:
- * // Upload complete (insert) to sales_data
- * 
  * @note
  * - Behavior:
  *   - `"insert"` mode appends data to the table.
@@ -152,7 +149,6 @@ function loadDatabricksTable(config) {
     runDatabricksSql(sql, databricks_parameters);
   });
 
-  console.log(`Upload complete (${mode}) to ${tableName}`);
 };
 
 /**

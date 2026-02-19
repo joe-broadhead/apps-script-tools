@@ -1,5 +1,13 @@
 # API Tools
 
+## Import pattern
+
+In consumer scripts, normalize the namespace once:
+
+```javascript
+const ASTX = ASTLib.AST || ASTLib;
+```
+
 ## `ASTX.Series`
 
 Use `Series` for one-dimensional transforms and aggregations.

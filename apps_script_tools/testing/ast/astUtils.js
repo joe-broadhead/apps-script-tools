@@ -27,5 +27,21 @@ AST_UTILS_TESTS = [
         throw new Error(`Expected ${expected} from AST.Utils.dateAdd, but got ${output.toISOString()}`);
       }
     }
+  },
+  {
+    description: 'AST namespace should expose Sheets and Drive helper surfaces',
+    test: () => {
+      if (!AST || !AST.Sheets || !AST.Drive) {
+        throw new Error('AST.Sheets or AST.Drive is not available');
+      }
+
+      if (typeof AST.Sheets.openById !== 'function' || typeof AST.Sheets.openByUrl !== 'function') {
+        throw new Error('AST.Sheets does not expose openById/openByUrl functions');
+      }
+
+      if (typeof AST.Drive.read !== 'function' || typeof AST.Drive.create !== 'function') {
+        throw new Error('AST.Drive does not expose read/create functions');
+      }
+    }
   }
 ];

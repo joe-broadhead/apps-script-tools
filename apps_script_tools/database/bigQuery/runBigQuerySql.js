@@ -58,7 +58,6 @@ function runBigQuerySql(query, parameters, placeholders = {}) {
   const headers = queryResults.schema.fields.map(field => field.name);
 
   if (!rows) {
-    Logger.log('No rows returned.');
     const emptyFrame = headers.reduce((acc, header) => {
       acc[header] = new Series([], header);
       return acc;

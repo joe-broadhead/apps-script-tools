@@ -9,7 +9,7 @@
  * @param {Object} request.parameters - Connection parameters specific to the selected provider.
  * @param {Object} [request.placeholders={}] - Optional placeholders to replace in the query before execution.
  * @param {Object} [request.options={}] - Extra options.
- * @returns {DataFrame|null} A DataFrame containing the query results or `null` if the query fails.
+ * @returns {DataFrame} A DataFrame containing the query results.
  * 
  * @example
  * const request = {
@@ -32,7 +32,7 @@
  * - Behavior:
  *   - Routes the query to the appropriate provider function based on the `provider` argument.
  *   - Supports parameterized queries via the `placeholders` argument.
- *   - Throws an error if the `provider` is not recognized.
+ *   - Throws provider validation and execution errors.
  * - Time Complexity: O(n), where `n` is the number of rows in the result set.
  * - Space Complexity: O(n), as the entire result set is stored in memory as a DataFrame.
  * 

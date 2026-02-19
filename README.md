@@ -35,6 +35,11 @@
 - `AST.Sql`: Databricks/BigQuery query execution
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
+Current release state:
+
+- Published: `v0.0.1`
+- Current `master` hardening target: `v0.0.2` (unreleased)
+
 ## Install As Apps Script Library
 
 1. In your Apps Script project, open **Libraries**.

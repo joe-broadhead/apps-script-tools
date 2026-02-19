@@ -9,7 +9,7 @@
  * @param {String} parameters.schema - The target schema for the query.
  * @param {String} parameters.token - The access token for authentication.
  * @param {Object} [placeholders={}] - Optional placeholders to replace in the query before execution.
- * @returns {DataFrame|null} A DataFrame containing the query results or `null` if the query fails.
+ * @returns {DataFrame} A DataFrame containing the query results.
  * 
  * @example
  * const params = {
@@ -29,7 +29,7 @@
  * - Behavior:
  *   - Executes the query using the Databricks SQL API.
  *   - Fetches data in chunks and concatenates them into a single DataFrame.
- *   - If the query fails, an error is logged and `null` is returned.
+ *   - Throws provider-specific errors when execution fails.
  *   - Implements a retry mechanism for pending or running queries with a 5-second interval.
  * - Time Complexity: O(n), where `n` is the number of chunks fetched.
  * - Space Complexity: O(n), as the entire dataset is stored in memory as a DataFrame.
@@ -37,8 +37,42 @@
  * @see fetchStatementStatus - Fetches the status of a running query.
  * @see downloadAllChunks - Downloads all result chunks and concatenates them.
  */
+function buildDatabricksSqlError(message, details = {}, cause = null) {
+  const error = new Error(message);
+  error.name = 'DatabricksSqlError';
+  error.provider = 'databricks';
+  error.details = details;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
+
 function runDatabricksSql(query, parameters, placeholders = {}) {
+  if (typeof query !== 'string' || query.trim().length === 0) {
+    throw buildDatabricksSqlError('Databricks SQL query must be a non-empty string');
+  }
+
+  if (parameters == null || typeof parameters !== 'object' || Array.isArray(parameters)) {
+    throw buildDatabricksSqlError('Databricks parameters must be an object');
+  }
+
   const { host, sqlWarehouseId, schema, token } = parameters;
+  const missingFields = [
+    ['host', host],
+    ['sqlWarehouseId', sqlWarehouseId],
+    ['schema', schema],
+    ['token', token]
+  ]
+    .filter(([, value]) => typeof value !== 'string' || value.trim().length === 0)
+    .map(([key]) => key);
+
+  if (missingFields.length > 0) {
+    throw buildDatabricksSqlError(
+      `Missing required Databricks parameters: ${missingFields.join(', ')}`,
+      { missingFields }
+    );
+  }
 
   const apiBaseUrl = `https://${host}/api/2.0/sql/statements/`;
 
@@ -60,25 +94,51 @@ function runDatabricksSql(query, parameters, placeholders = {}) {
     
     const responseData = JSON.parse(response.getContentText());
     const statementId = responseData?.statement_id;
-    
-    if (statementId) {
-      while (true) {
-        const resultData = fetchStatementStatus(apiBaseUrl, statementId, token);
-        switch (resultData.status.state) {
-          case 'SUCCEEDED':
-            return downloadAllChunks(resultData, host, token);
-          case 'FAILED':
-            throw new Error(JSON.stringify(resultData.status.error));
-          default:
-            Utilities.sleep(5000);
-        };
-      };
-    };
+
+    if (!statementId) {
+      throw buildDatabricksSqlError(
+        'Databricks SQL API response did not include statement_id',
+        { response: responseData }
+      );
+    }
+
+    while (true) {
+      const resultData = fetchStatementStatus(apiBaseUrl, statementId, token);
+      const state = resultData?.status?.state;
+
+      switch (state) {
+        case 'SUCCEEDED':
+          return downloadAllChunks(resultData, host, token);
+        case 'FAILED':
+        case 'CANCELED':
+        case 'CLOSED':
+          throw buildDatabricksSqlError(
+            `Databricks SQL statement ${String(state).toLowerCase()}`,
+            { state, error: resultData?.status?.error, statementId }
+          );
+        case 'PENDING':
+        case 'RUNNING':
+          Utilities.sleep(5000);
+          break;
+        default:
+          throw buildDatabricksSqlError(
+            `Unknown Databricks SQL statement state: ${state}`,
+            { state, statementId, status: resultData?.status }
+          );
+      }
+    }
 
   } catch (error) {
-    console.error(`Error: ${error.toString()}`);
-    return null;
-  };
+    if (error && error.name === 'DatabricksSqlError') {
+      throw error;
+    }
+
+    throw buildDatabricksSqlError(
+      'Databricks SQL execution failed',
+      { host, sqlWarehouseId, schema },
+      error
+    );
+  }
 };
 
 /**
@@ -169,7 +229,7 @@ function fetchChunk(chunkLink, host, token) {
  * @param {Object} results - The initial query result object containing the manifest and first chunk information.
  * @param {String} host - The Databricks host URL (e.g., `databricks-instance.cloud.databricks.com`).
  * @param {String} token - The Databricks access token for authentication.
- * @returns {DataFrame|null} A DataFrame containing all the fetched data, or `null` if no data is returned.
+ * @returns {DataFrame} A DataFrame containing all the fetched data.
  * 
  * @example
  * const host = 'databricks-instance.cloud.databricks.com';
@@ -203,9 +263,17 @@ function fetchChunk(chunkLink, host, token) {
  */
 function downloadAllChunks(results, host, token) {
   const { manifest, result } = results;
-  if(manifest.total_byte_count === 0) return;
-  const firstResult = result.external_links[0];
   const columns = manifest.schema.columns.map(col => col.name);
+
+  if (manifest.total_byte_count === 0) {
+    const emptyColumns = columns.reduce((acc, column) => {
+      acc[column] = [];
+      return acc;
+    }, {});
+    return DataFrame.fromColumns(emptyColumns, { copy: false });
+  }
+
+  const firstResult = result.external_links[0];
 
   let nextChunkInternalLink = firstResult?.next_chunk_internal_link || null;
   let nextChunkExternalLink = firstResult?.external_link || null;

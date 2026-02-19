@@ -12,6 +12,23 @@ function __astIncrementDataFrameCounter(counterName) {
   __astDataFramePerfCounters[counterName] += 1;
 }
 
+function __astNormalizeSurrogateColumns(columns) {
+  const normalizedColumns = Array.isArray(columns) ? [...columns] : [columns];
+
+  if (normalizedColumns.length === 0) {
+    throw new Error('generateSurrogateKey requires at least one column');
+  }
+
+  for (let idx = 0; idx < normalizedColumns.length; idx++) {
+    const column = normalizedColumns[idx];
+    if (typeof column !== 'string' || column.trim().length === 0) {
+      throw new Error('generateSurrogateKey columns must be non-empty strings');
+    }
+  }
+
+  return normalizedColumns;
+}
+
 var DataFrame = class DataFrame {
   constructor(data, index = null) {
     this.data = data;
@@ -161,8 +178,19 @@ var DataFrame = class DataFrame {
   }
 
   static generateSurrogateKey(dataframe, columns, delimiter = '-') {
-    const firstCol = columns.shift();
-    return columns.reduce((acc, col) => {
+    if (!(dataframe instanceof DataFrame)) {
+      throw new Error('generateSurrogateKey requires a DataFrame instance');
+    }
+
+    const normalizedColumns = __astNormalizeSurrogateColumns(columns);
+    const missingColumns = normalizedColumns.filter(column => !dataframe.columns.includes(column));
+    if (missingColumns.length > 0) {
+      throw new Error(`generateSurrogateKey received unknown columns: ${missingColumns.join(', ')}`);
+    }
+
+    const [firstCol, ...remainingColumns] = normalizedColumns;
+
+    return remainingColumns.reduce((acc, col) => {
       return acc.concat(dataframe[col], delimiter);
     }, dataframe[firstCol]).str.sha256();
   }
@@ -369,8 +397,15 @@ var DataFrame = class DataFrame {
   }
 
   generateSurrogateKey(columns, delimiter = '-') {
-    const firstCol = columns.shift();
-    return columns.reduce((acc, col) => {
+    const normalizedColumns = __astNormalizeSurrogateColumns(columns);
+    const missingColumns = normalizedColumns.filter(column => !this.columns.includes(column));
+    if (missingColumns.length > 0) {
+      throw new Error(`generateSurrogateKey received unknown columns: ${missingColumns.join(', ')}`);
+    }
+
+    const [firstCol, ...remainingColumns] = normalizedColumns;
+
+    return remainingColumns.reduce((acc, col) => {
       return acc.concat(this[col], delimiter);
     }, this[firstCol]).str.sha256();
   }
