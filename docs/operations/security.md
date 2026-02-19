@@ -1,13 +1,50 @@
 # Security
 
-## Defaults
+## Runtime safeguards
 
-- No dynamic string predicate execution in `Series.query`.
-- SQL request validation is mandatory.
-- Placeholder interpolation is disabled unless explicitly enabled.
-- Apps Script execution API access is scoped to `MYSELF` (not public).
+The library includes secure defaults for query and expression execution:
 
-## Secret Management
+- `Series.query` supports function predicates only.
+- Dynamic string predicate execution is not supported.
+- SQL request object validation is mandatory.
+- Placeholder interpolation is blocked unless explicitly enabled.
+- Apps Script execution API access is set to `MYSELF`.
 
-- Do not commit `.clasp.json`, `.clasprc.json`, client secrets, or refresh tokens.
-- Use CI secrets for integration workflows.
+## SQL placeholder guidance
+
+Prefer provider-native parameterization where possible.
+
+If you use placeholder substitution:
+
+- Treat substituted values as untrusted input.
+- Restrict allowed values with explicit allowlists.
+- Set `options.allowUnsafePlaceholders=true` only for controlled/internal queries.
+
+## Credential handling
+
+Do not commit credentials:
+
+- `.clasp.json`
+- `.clasprc.json`
+- OAuth client secrets or refresh tokens
+
+Use repository or organization secrets for CI-based integration runs.
+
+## OAuth scopes
+
+The library currently declares scopes for:
+
+- External requests
+- Spreadsheets
+- Drive
+- BigQuery
+- Docs / Slides / Forms
+
+Only authorize consumer scripts for the surfaces you actually use.
+
+## Release checklist (security focus)
+
+- Confirm no secret files are tracked.
+- Confirm no dynamic SQL interpolation paths were introduced unintentionally.
+- Confirm `appsscript.json` execution API access remains non-public.
+- Re-run integration tests after any auth/scope changes.

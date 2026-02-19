@@ -1,36 +1,66 @@
 # Release
 
-## Publish `v0.0.0`
+## Versioning
+
+- Use semantic tags: `vMAJOR.MINOR.PATCH`.
+- Record release notes in both GitHub Release and `CHANGELOG.md`.
+
+## Pre-release checks
+
+```bash
+npm run lint
+npm run test:local
+mkdocs build --strict
+```
+
+Apps Script runtime validation:
 
 ```bash
 clasp status
 clasp push
-clasp version "v0.0.0"
+clasp run runAllTests
+```
+
+Consumer validation (recommended):
+
+- Install library in a clean Apps Script project.
+- Select target library version.
+- Run smoke script covering namespace, utils, dataframe, groupby, series query.
+
+## Publish Apps Script version
+
+```bash
+clasp version "vX.Y.Z"
 clasp versions
 ```
 
-## API Executable Deployment
+Capture the exact Apps Script version number created by `clasp version`.
 
-`clasp run runAllTests` requires an API-executable deployment:
-
-```bash
-clasp deploy -d "API executable for runAllTests"
-```
-
-Tag release:
+## Tag and release
 
 ```bash
-git tag v0.0.0
-git push origin v0.0.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-## Docs Deployment
+Tag push triggers:
 
-Tag push matching `v*` triggers `.github/workflows/docs.yml` and deploys to GitHub Pages.
+- `.github/workflows/release.yml`
+- `.github/workflows/docs.yml`
 
-## Release Workflow
+## Release notes content
 
-Tag push matching `v*` also triggers `.github/workflows/release.yml`, which:
+Include:
 
-- runs lint/tests/docs validation
-- publishes GitHub Release notes for the tag
+- Script ID
+- Library identifier
+- Exact mapping: tag -> Apps Script version number
+- Key changes
+- Migration notes (if any)
+- Docs URL
+
+## Post-release checks
+
+- Verify GitHub release is published for the tag.
+- Verify docs site build/deploy succeeded.
+- Verify consumer install works with released version.

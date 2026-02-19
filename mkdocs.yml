@@ -103,8 +103,11 @@ nav:
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
+    - SQL Contracts: api/sql-contracts.md
+    - DataFrame Patterns: api/dataframe-patterns.md
   - Operations:
     - Security: operations/security.md
     - Testing: operations/testing.md
+    - Troubleshooting: operations/troubleshooting.md
   - Development:
     - Release: development/release.md
