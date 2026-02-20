@@ -35,6 +35,7 @@ Use repository or organization secrets for CI-based integration runs.
 The library currently declares scopes for:
 
 - External requests
+- Cloud Platform (required for `vertex_gemini`)
 - Spreadsheets
 - Drive
 - BigQuery

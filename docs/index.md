@@ -38,8 +38,8 @@ flowchart LR
 
 ## Public release
 
-- Current published release: `v0.0.1`
-- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
+- Current published release: `v0.0.2`
+- Next release target on `master`: `v0.0.3` (unreleased)
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 

@@ -11,8 +11,9 @@
 `ASTX.AI` resolves auth in this order:
 
 1. per-call `request.auth.*`
-2. script properties
-3. throw `AstAiAuthError`
+2. runtime config (`ASTX.AI.configure(...)`)
+3. script properties
+4. throw `AstAiAuthError`
 
 This makes override behavior explicit and deterministic.
 

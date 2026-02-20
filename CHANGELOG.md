@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.3 (release candidate)
+## v0.0.3 (unreleased)
 
 ### Added
 
@@ -24,11 +24,12 @@
 ### Changed
 
 - Public AST namespace now includes `AST.AI`.
+- AI auth/model resolution now checks per-call overrides, then `AST.AI.configure(...)` runtime config, then script properties.
 - Script manifest now includes `https://www.googleapis.com/auth/cloud-platform` for Vertex support.
 - Test harness defaults now include `PropertiesService` and `ScriptApp` stubs for deterministic local AI tests.
 - GAS functional suite now runs AI namespace/tool smoke tests via `runAllTests`.
 
-## v0.0.2 (release candidate)
+## v0.0.2
 
 ### Added
 
@@ -76,7 +77,7 @@
 
 ## v0.0.0
 
-Initial public release candidate for `apps-script-tools`.
+Initial public release for `apps-script-tools`.
 
 ### Added
 

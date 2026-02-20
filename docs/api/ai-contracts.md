@@ -17,6 +17,13 @@ ASTX.AI.clearConfig()
 
 `configure` is useful in consumer projects when you want to load script properties once and avoid passing `auth` on every call.
 
+Auth/model resolution order:
+
+1. per-call `request.auth.*` / `request.model`
+2. runtime config loaded via `ASTX.AI.configure(...)`
+3. script properties
+4. throw `AstAiAuthError` if still missing
+
 ## Common request contract
 
 ```javascript

@@ -35,6 +35,29 @@ Fix:
 
 - Use exact values: `databricks` or `bigquery`.
 
+## `Missing required AI configuration field 'apiKey'`
+
+Cause:
+
+- No API key was resolved from per-call `auth`, runtime AI config, or script properties.
+
+Fix:
+
+```javascript
+const ASTX = ASTLib.AST || ASTLib;
+ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
+```
+
+Or pass per-call auth explicitly:
+
+```javascript
+ASTX.AI.text({
+  provider: 'openrouter',
+  auth: { apiKey: '...' },
+  input: 'Reply with OK'
+});
+```
+
 ## `Unsafe placeholder interpolation is disabled by default`
 
 Cause:
