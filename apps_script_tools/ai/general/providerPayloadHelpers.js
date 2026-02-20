@@ -135,12 +135,17 @@ function astAiBuildOpenAiMessages(messages) {
     const role = message.role || 'user';
 
     if (role === 'tool') {
-      return {
+      const toolMessage = {
         role: 'tool',
         content: astAiNormalizeTextContent(message.content),
-        tool_call_id: message.toolCallId || `tool_call_${index + 1}`,
-        name: message.name || ''
+        tool_call_id: message.toolCallId || `tool_call_${index + 1}`
       };
+
+      if (typeof message.name === 'string' && message.name.trim().length > 0) {
+        toolMessage.name = message.name.trim();
+      }
+
+      return toolMessage;
     }
 
     const output = {

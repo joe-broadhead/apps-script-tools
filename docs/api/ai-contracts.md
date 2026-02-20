@@ -17,6 +17,13 @@ ASTX.AI.clearConfig()
 
 `configure` is useful in consumer projects when you want to load script properties once and avoid passing `auth` on every call.
 
+Auth/model resolution order:
+
+1. per-call `request.auth.*` / `request.model`
+2. runtime config loaded via `ASTX.AI.configure(...)`
+3. script properties
+4. throw `AstAiAuthError` if still missing
+
 ## Common request contract
 
 ```javascript
@@ -38,6 +45,8 @@ ASTX.AI.clearConfig()
   providerOptions: { ...provider-native extras... }
 }
 ```
+
+`options.timeoutMs` is accepted for cross-runtime parity, but Apps Script `UrlFetchApp.fetch` does not provide hard request-timeout control. Use `options.retries` plus provider-side timeout settings where supported.
 
 ## Structured request additions
 

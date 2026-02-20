@@ -57,8 +57,9 @@ Runtime auth token defaults to `ScriptApp.getOAuthToken()`.
 For each required key:
 
 1. per-call `request.auth.*` (or `request.model`)
-2. script properties
-3. throw `AstAiAuthError`
+2. runtime config from `ASTX.AI.configure(...)`
+3. script properties
+4. throw `AstAiAuthError`
 
 ## Notes
 

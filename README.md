@@ -38,8 +38,8 @@
 
 Current release state:
 
-- Published: `v0.0.1`
-- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
+- Published: `v0.0.2`
+- Next release target on `master`: `v0.0.3` (unreleased)
 
 ## Install As Apps Script Library
 
@@ -74,6 +74,7 @@ function demoAstLibrary() {
 ```javascript
 function demoAstAi() {
   const ASTX = ASTLib.AST || ASTLib;
+  ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
 
   const response = ASTX.AI.text({
     provider: 'openai',

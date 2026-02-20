@@ -18,7 +18,11 @@ Set provider-native keys in script properties (Project Settings -> Script proper
 - `PERPLEXITY_API_KEY`, `PERPLEXITY_MODEL`
 - `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, `VERTEX_GEMINI_MODEL`
 
-Per-call values in `request.auth` and `request.model` override script properties.
+Resolution order for auth/model values:
+
+1. per-call `request.auth.*` and `request.model`
+2. runtime config loaded via `ASTX.AI.configure(...)`
+3. script properties
 
 Optional one-time runtime config load:
 
@@ -26,6 +30,8 @@ Optional one-time runtime config load:
 const ASTX = ASTLib.AST || ASTLib;
 ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
 ```
+
+For consumer library projects, this `configure(...)` step is the most reliable way to reuse your own script properties across AI calls.
 
 ## 2) Text generation
 

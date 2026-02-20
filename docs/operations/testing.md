@@ -65,7 +65,7 @@ clasp run runPerformanceBenchmarks
 Optional live-provider smoke workflow:
 
 - `.github/workflows/integration-ai-live.yml` (manual dispatch only)
-- executes `runAiLiveSmoke(provider, prompt, model)` against configured provider credentials in script properties
+- executes `runAiLiveSmoke(provider, prompt, model)` against configured provider credentials (runtime config or script properties)
 
 ## Consumer smoke test
 

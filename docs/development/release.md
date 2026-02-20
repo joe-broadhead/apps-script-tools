@@ -7,8 +7,8 @@
 
 ## Current state
 
-- Published release: `v0.0.1`
-- Next release target on `master`: `v0.0.3` (release candidate, not tagged yet)
+- Published release: `v0.0.2`
+- Next release target on `master`: `v0.0.3` (unreleased)
 
 ## Pre-release checks
 

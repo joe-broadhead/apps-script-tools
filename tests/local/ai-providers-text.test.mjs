@@ -284,3 +284,21 @@ test('runPerplexity normalizes text output', () => {
   assert.equal(output.usage.totalTokens, 5);
   assert.equal(output.provider, 'perplexity');
 });
+
+test('astAiBuildOpenAiMessages omits empty tool message name', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const messages = context.astAiBuildOpenAiMessages([
+    {
+      role: 'tool',
+      content: 'result payload',
+      toolCallId: 'tool_call_1'
+    }
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, 'tool');
+  assert.equal(messages[0].tool_call_id, 'tool_call_1');
+  assert.equal(Object.prototype.hasOwnProperty.call(messages[0], 'name'), false);
+});
