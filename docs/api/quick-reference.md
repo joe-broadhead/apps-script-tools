@@ -91,6 +91,9 @@ ASTX.AI.tools(request)
 ASTX.AI.image(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
+ASTX.AI.configure(config, options)
+ASTX.AI.getConfig()
+ASTX.AI.clearConfig()
 ```
 
 ## Workspace helpers

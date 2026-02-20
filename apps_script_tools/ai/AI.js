@@ -26,6 +26,18 @@ function astAiCapabilities(provider) {
   return astGetAiCapabilities(provider);
 }
 
+function astAiConfigure(config = {}, options = {}) {
+  return astSetAiRuntimeConfig(config, options);
+}
+
+function astAiGetConfig() {
+  return astGetAiRuntimeConfig();
+}
+
+function astAiClearConfig() {
+  return astClearAiRuntimeConfig();
+}
+
 const AST_AI = Object.freeze({
   run: astAiRun,
   text: astAiText,
@@ -33,5 +45,8 @@ const AST_AI = Object.freeze({
   tools: astAiTools,
   image: astAiImage,
   providers: astAiProviders,
-  capabilities: astAiCapabilities
+  capabilities: astAiCapabilities,
+  configure: astAiConfigure,
+  getConfig: astAiGetConfig,
+  clearConfig: astAiClearConfig
 });

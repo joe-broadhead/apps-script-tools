@@ -6,7 +6,18 @@ AI_NAMESPACE_TESTS = [
         throw new Error('AST.AI is not available');
       }
 
-      const requiredMethods = ['run', 'text', 'structured', 'tools', 'image', 'providers', 'capabilities'];
+      const requiredMethods = [
+        'run',
+        'text',
+        'structured',
+        'tools',
+        'image',
+        'providers',
+        'capabilities',
+        'configure',
+        'getConfig',
+        'clearConfig'
+      ];
       requiredMethods.forEach(method => {
         if (typeof AST.AI[method] !== 'function') {
           throw new Error(`AST.AI.${method} is not available`);

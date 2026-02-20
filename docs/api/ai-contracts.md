@@ -10,7 +10,12 @@ ASTX.AI.tools(request)
 ASTX.AI.image(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
+ASTX.AI.configure(config, options)
+ASTX.AI.getConfig()
+ASTX.AI.clearConfig()
 ```
+
+`configure` is useful in consumer projects when you want to load script properties once and avoid passing `auth` on every call.
 
 ## Common request contract
 

@@ -122,10 +122,12 @@ Primary methods:
 - `ASTX.AI.tools(request)` for bounded auto tool execution.
 - `ASTX.AI.image(request)` for image generation paths.
 - `ASTX.AI.providers()` and `ASTX.AI.capabilities(provider)` for runtime checks.
+- `ASTX.AI.configure(config)` to set runtime defaults (for example from consumer script properties).
+- `ASTX.AI.getConfig()` and `ASTX.AI.clearConfig()` for runtime config inspection/reset.
 
 High-signal behavior:
 
-- auth/config resolution: per-call override first, then script properties.
+- auth/config resolution: per-call override first, then `ASTX.AI.configure(...)` runtime config, then script properties.
 - unsupported provider-operation pairs throw `AstAiCapabilityError`.
 - tool calls support function handlers and global-name handlers.
 - tool execution is sequential and bounded by `options.maxToolRounds`.

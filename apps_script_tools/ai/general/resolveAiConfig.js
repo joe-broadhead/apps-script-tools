@@ -1,3 +1,123 @@
+const AST_AI_CONFIG_KEYS = Object.freeze([
+  'OPENAI_API_KEY',
+  'OPENAI_MODEL',
+  'GEMINI_API_KEY',
+  'GEMINI_MODEL',
+  'OPENROUTER_API_KEY',
+  'OPENROUTER_MODEL',
+  'OPENROUTER_HTTP_REFERER',
+  'OPENROUTER_X_TITLE',
+  'PERPLEXITY_API_KEY',
+  'PERPLEXITY_MODEL',
+  'VERTEX_PROJECT_ID',
+  'VERTEX_LOCATION',
+  'VERTEX_GEMINI_MODEL'
+]);
+
+let AST_AI_RUNTIME_CONFIG = {};
+
+function astIsPlainObject(value) {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function astCloneObject(value) {
+  return Object.assign({}, value || {});
+}
+
+function astNormalizeConfigValue(value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return null;
+}
+
+function astGetAiRuntimeConfig() {
+  return astCloneObject(AST_AI_RUNTIME_CONFIG);
+}
+
+function astSetAiRuntimeConfig(config = {}, options = {}) {
+  if (!astIsPlainObject(config)) {
+    throw new AstAiValidationError('AI runtime config must be an object');
+  }
+
+  if (!astIsPlainObject(options)) {
+    throw new AstAiValidationError('AI runtime config options must be an object');
+  }
+
+  const merge = options.merge !== false;
+  const nextConfig = merge ? astGetAiRuntimeConfig() : {};
+
+  Object.keys(config).forEach(key => {
+    const normalizedKey = String(key || '').trim();
+
+    if (!normalizedKey) {
+      return;
+    }
+
+    const normalizedValue = astNormalizeConfigValue(config[key]);
+
+    if (normalizedValue == null) {
+      delete nextConfig[normalizedKey];
+      return;
+    }
+
+    nextConfig[normalizedKey] = normalizedValue;
+  });
+
+  AST_AI_RUNTIME_CONFIG = nextConfig;
+  return astGetAiRuntimeConfig();
+}
+
+function astClearAiRuntimeConfig() {
+  AST_AI_RUNTIME_CONFIG = {};
+  return {};
+}
+
+function astGetScriptPropertiesByKey(scriptProperties) {
+  const output = {};
+
+  if (!scriptProperties || typeof scriptProperties !== 'object') {
+    return output;
+  }
+
+  if (typeof scriptProperties.getProperties === 'function') {
+    const map = scriptProperties.getProperties();
+    if (astIsPlainObject(map)) {
+      Object.keys(map).forEach(key => {
+        const normalizedValue = astNormalizeConfigValue(map[key]);
+        if (normalizedValue != null) {
+          output[key] = normalizedValue;
+        }
+      });
+    }
+  }
+
+  if (typeof scriptProperties.getProperty === 'function') {
+    AST_AI_CONFIG_KEYS.forEach(key => {
+      if (output[key]) {
+        return;
+      }
+
+      const normalizedValue = astNormalizeConfigValue(scriptProperties.getProperty(key));
+      if (normalizedValue != null) {
+        output[key] = normalizedValue;
+      }
+    });
+  }
+
+  return output;
+}
+
 function astGetScriptPropertiesSnapshot() {
   try {
     if (
@@ -6,9 +126,7 @@ function astGetScriptPropertiesSnapshot() {
       typeof PropertiesService.getScriptProperties === 'function'
     ) {
       const scriptProperties = PropertiesService.getScriptProperties();
-      if (scriptProperties && typeof scriptProperties.getProperties === 'function') {
-        return scriptProperties.getProperties() || {};
-      }
+      return astGetScriptPropertiesByKey(scriptProperties);
     }
   } catch (error) {
     // Intentionally swallow property access failures.
@@ -20,12 +138,18 @@ function astGetScriptPropertiesSnapshot() {
 function astResolveConfigString({
   requestValue,
   authValue,
+  runtimeConfig = {},
   scriptProperties,
   scriptKey,
   required,
   field
 }) {
-  const candidates = [requestValue, authValue, scriptProperties[scriptKey]];
+  const candidates = [
+    requestValue,
+    authValue,
+    runtimeConfig[scriptKey],
+    scriptProperties[scriptKey]
+  ];
 
   for (let idx = 0; idx < candidates.length; idx++) {
     const value = candidates[idx];
@@ -80,6 +204,7 @@ function resolveAiConfig(request) {
   }
 
   const scriptProperties = astGetScriptPropertiesSnapshot();
+  const runtimeConfig = astGetAiRuntimeConfig();
   const auth = request.auth || {};
   const provider = request.provider;
 
@@ -88,6 +213,7 @@ function resolveAiConfig(request) {
       const apiKey = astResolveConfigString({
         requestValue: auth.apiKey,
         authValue: auth.OPENAI_API_KEY,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENAI_API_KEY',
         required: true,
@@ -97,6 +223,7 @@ function resolveAiConfig(request) {
       const model = astResolveConfigString({
         requestValue: request.model,
         authValue: auth.model,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENAI_MODEL',
         required: true,
@@ -114,6 +241,7 @@ function resolveAiConfig(request) {
       const apiKey = astResolveConfigString({
         requestValue: auth.apiKey,
         authValue: auth.GEMINI_API_KEY,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'GEMINI_API_KEY',
         required: true,
@@ -123,6 +251,7 @@ function resolveAiConfig(request) {
       const model = astResolveConfigString({
         requestValue: request.model,
         authValue: auth.model,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'GEMINI_MODEL',
         required: true,
@@ -140,6 +269,7 @@ function resolveAiConfig(request) {
       const apiKey = astResolveConfigString({
         requestValue: auth.apiKey,
         authValue: auth.OPENROUTER_API_KEY,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENROUTER_API_KEY',
         required: true,
@@ -149,6 +279,7 @@ function resolveAiConfig(request) {
       const model = astResolveConfigString({
         requestValue: request.model,
         authValue: auth.model,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENROUTER_MODEL',
         required: true,
@@ -158,6 +289,7 @@ function resolveAiConfig(request) {
       const httpReferer = astResolveConfigString({
         requestValue: auth.httpReferer,
         authValue: auth.OPENROUTER_HTTP_REFERER,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENROUTER_HTTP_REFERER',
         required: false,
@@ -167,6 +299,7 @@ function resolveAiConfig(request) {
       const xTitle = astResolveConfigString({
         requestValue: auth.xTitle,
         authValue: auth.OPENROUTER_X_TITLE,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'OPENROUTER_X_TITLE',
         required: false,
@@ -186,6 +319,7 @@ function resolveAiConfig(request) {
       const apiKey = astResolveConfigString({
         requestValue: auth.apiKey,
         authValue: auth.PERPLEXITY_API_KEY,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'PERPLEXITY_API_KEY',
         required: true,
@@ -195,6 +329,7 @@ function resolveAiConfig(request) {
       const model = astResolveConfigString({
         requestValue: request.model,
         authValue: auth.model,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'PERPLEXITY_MODEL',
         required: true,
@@ -212,6 +347,7 @@ function resolveAiConfig(request) {
       const projectId = astResolveConfigString({
         requestValue: auth.projectId,
         authValue: auth.VERTEX_PROJECT_ID,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'VERTEX_PROJECT_ID',
         required: true,
@@ -221,6 +357,7 @@ function resolveAiConfig(request) {
       const location = astResolveConfigString({
         requestValue: auth.location,
         authValue: auth.VERTEX_LOCATION,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'VERTEX_LOCATION',
         required: true,
@@ -230,6 +367,7 @@ function resolveAiConfig(request) {
       const model = astResolveConfigString({
         requestValue: request.model,
         authValue: auth.model,
+        runtimeConfig,
         scriptProperties,
         scriptKey: 'VERTEX_GEMINI_MODEL',
         required: true,

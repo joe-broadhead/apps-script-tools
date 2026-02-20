@@ -20,6 +20,13 @@ Set provider-native keys in script properties (Project Settings -> Script proper
 
 Per-call values in `request.auth` and `request.model` override script properties.
 
+Optional one-time runtime config load:
+
+```javascript
+const ASTX = ASTLib.AST || ASTLib;
+ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
+```
+
 ## 2) Text generation
 
 ```javascript
