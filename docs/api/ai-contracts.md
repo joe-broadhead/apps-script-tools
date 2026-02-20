@@ -46,6 +46,8 @@ Auth/model resolution order:
 }
 ```
 
+`options.timeoutMs` is accepted for cross-runtime parity, but Apps Script `UrlFetchApp.fetch` does not provide hard request-timeout control. Use `options.retries` plus provider-side timeout settings where supported.
+
 ## Structured request additions
 
 ```javascript
