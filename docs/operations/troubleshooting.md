@@ -23,7 +23,7 @@ Cause:
 Fix:
 
 - Ensure values are real date instances (or ISO strings converted to `Date` before calling).
-- Confirm you are on the latest published patch with cross-context date hardening.
+- Confirm you are on the latest published version (cross-context date hardening shipped in `v0.0.1` and later).
 
 ## `Provider must be one of: databricks, bigquery`
 

@@ -16,10 +16,15 @@
   - `AstAiError`, `AstAiValidationError`, `AstAiAuthError`, `AstAiCapabilityError`,
     `AstAiProviderError`, `AstAiToolExecutionError`, `AstAiToolLoopError`, `AstAiResponseParseError`.
 - Bounded auto tool runtime with function-ref and global-name handlers.
+- `DataFrame.selectExpr(map, options)` for single-pass passthrough + computed projection.
+- `DataFrame.window(spec).assign(map)` for partitioned row-number, lag/lead, and running aggregates.
+- Internal SQL provider adapter registry for `ASTX.Sql.run(...)` routing (`validateRequest`, `executeQuery`, `classifyError`).
 - Optional live AI smoke workflow:
   - `.github/workflows/integration-ai-live.yml`
-- New AI docs:
-  - quickstart, contracts, providers, tool-calling, and operations/security guidance.
+- Added RFC docs for post-`v0.0.3` features:
+  - DataFrame window ops
+  - DataFrame selectExpr
+  - SQL provider adapters
 
 ### Changed
 
@@ -28,6 +33,27 @@
 - Script manifest now includes `https://www.googleapis.com/auth/cloud-platform` for Vertex support.
 - Test harness defaults now include `PropertiesService` and `ScriptApp` stubs for deterministic local AI tests.
 - GAS functional suite now runs AI namespace/tool smoke tests via `runAllTests`.
+- `runSqlQuery` now dispatches provider execution through adapter lookup instead of provider branching in the router.
+- BigQuery and Databricks polling behavior now uses elapsed-time timeout enforcement with bounded final-sleep intervals.
+- Databricks table-load contracts are stricter for mode/schema/merge-key validation.
+- `DataFrame.toSheet(...)` mode and header semantics are explicit for append/overwrite/overwriteRange flows.
+- Repository clasp model now enforces:
+  - root-only `.claspignore`
+  - `.clasp.json.example` template guardrails
+  - tracked secret/config file blocking in lint
+
+### Fixed
+
+- `DataFrame.selectExpr(...)` projector dispatch edge cases for columnar projector pathways.
+- `decrypt(...)` malformed UTF-8 handling now fails closed to `''` while re-throwing non-UTF8/runtime failures.
+- BigQuery SQL timeout handling reliability and provider option validation.
+- Databricks SQL/load reliability and typed error surfacing (`DatabricksSqlError`, `DatabricksLoadError`).
+
+### CI / Docs
+
+- Expanded docs with AI contracts/providers/tool-calling and AI security guidance.
+- Expanded docs with DataFrame patterns for `selectExpr` and window workflows.
+- Added SQL contract docs for adapter-routed execution and provider-specific error semantics.
 
 ## v0.0.2
 

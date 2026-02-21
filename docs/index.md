@@ -43,6 +43,13 @@ flowchart LR
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 
+## `v0.0.3` release-line scope
+
+- `AST.AI` unified provider surface with typed errors and bounded tool runtime.
+- `DataFrame.selectExpr(...)` and `DataFrame.window(...).assign(...)`.
+- Adapter-routed SQL execution with stronger provider validation and error semantics.
+- Reliability hardening for sheet writes, SQL polling timeouts, and cipher decode failures.
+
 ## Import pattern
 
 In consumer projects, use the library identifier you configured (recommended: `ASTLib`) and normalize once:

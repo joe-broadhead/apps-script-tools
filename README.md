@@ -41,6 +41,13 @@ Current release state:
 - Published: `v0.0.2`
 - Next release target on `master`: `v0.0.3` (unreleased)
 
+`v0.0.3` release-line highlights already on `master`:
+
+- New `AST.AI` module with multi-provider text, structured output, tool-calling, and image APIs.
+- New DataFrame transforms: `selectExpr(...)` and `window(...).assign(...)`.
+- SQL execution routing through provider adapters with stricter timeout/error contracts.
+- Hardening fixes for sheet-write behavior, query polling reliability, and cipher decode error handling.
+
 ## Install As Apps Script Library
 
 1. In your Apps Script project, open **Libraries**.

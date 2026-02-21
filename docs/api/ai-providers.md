@@ -8,7 +8,7 @@
 - `openrouter`
 - `perplexity`
 
-## Capability matrix (`v0.0.3` target)
+## Capability matrix (`v0.0.3` release line)
 
 | Provider | Text | Structured | Tool Calls | Image Generation | Image Understanding |
 |---|---|---|---|---|---|
