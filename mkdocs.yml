@@ -120,7 +120,3 @@ nav:
     - Troubleshooting: operations/troubleshooting.md
   - Development:
     - Release: development/release.md
-    - RFCs:
-      - DataFrame Window Ops: development/rfcs/rfc-dataframe-window-ops.md
-      - DataFrame Select Expr: development/rfcs/rfc-dataframe-select-expr.md
-      - SQL Provider Adapters: development/rfcs/rfc-sql-provider-adapters.md
