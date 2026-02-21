@@ -586,7 +586,8 @@ var DataFrame = class DataFrame {
       headerRows = 0,
       startRow,
       startCol,
-      headerOrder = []
+      headerOrder = [],
+      includeHeader
     } = options;
 
     const [length, width] = this.size();
@@ -594,7 +595,28 @@ var DataFrame = class DataFrame {
       throw new Error('Cell count exceeds the 5,000,000 cell limit in Google Sheets');
     }
 
-    const values = this.toArrays(headerOrder);
+    const includeHeaderByDefault = mode === 'overwrite' || mode === 'overwriteRange';
+    const shouldIncludeHeader = typeof includeHeader === 'boolean'
+      ? includeHeader
+      : includeHeaderByDefault;
+
+    const valuesWithHeader = this.toArrays(headerOrder);
+
+    if (mode === 'overwriteRange' && (startRow == null || startCol == null)) {
+      throw new Error("toSheet mode 'overwriteRange' requires 'startRow' and 'startCol' options");
+    }
+
+    if (valuesWithHeader.length === 0) {
+      return this;
+    }
+
+    const values = shouldIncludeHeader
+      ? valuesWithHeader
+      : valuesWithHeader.slice(1);
+
+    if (values.length === 0) {
+      return this;
+    }
 
     switch (mode) {
       case 'overwrite':
@@ -607,9 +629,6 @@ var DataFrame = class DataFrame {
         enhancedSheet.prependToSheet(values, headerRows);
         break;
       case 'overwriteRange':
-        if (startRow == null || startCol == null) {
-          throw new Error("toSheet mode 'overwriteRange' requires 'startRow' and 'startCol' options");
-        }
         enhancedSheet.overwriteRange(startRow, startCol, values);
         break;
       default:
