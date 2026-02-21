@@ -26,7 +26,12 @@
 function decrypt(encrypted, secret) {
   try {
     return CryptoJS.AES.decrypt(encrypted, secret).toString(CryptoJS.enc.Utf8);
-  } catch (_error) {
-    return '';
+  } catch (error) {
+    const message = error && error.message ? String(error.message) : String(error);
+    if (message.indexOf('Malformed UTF-8 data') !== -1) {
+      return '';
+    }
+
+    throw error;
   }
 };
