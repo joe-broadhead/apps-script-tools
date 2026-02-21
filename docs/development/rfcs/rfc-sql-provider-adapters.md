@@ -120,7 +120,7 @@ These are required before implementation PR merge.
 ## Migration Notes
 
 - Public API remains unchanged:
-  - `AST.Sql.run(request)`
+  - `ASTX.Sql.run(request)`
   - `DataFrame.toTable(config)`
 - Existing provider request shapes remain valid.
 - Migration is internal; user-facing docs focus on clarified typed errors.
@@ -133,6 +133,6 @@ These are required before implementation PR merge.
 
 ## Open Questions
 
-1. Should adapter capabilities be publicly exposed (`AST.Sql.providers()`)?
-2. Should load APIs move to `AST.Sql.load(...)` in a future minor?
+1. Should adapter capabilities be publicly exposed (`ASTX.Sql.providers()`)?
+2. Should load APIs move to `ASTX.Sql.load(...)` in a future minor?
 3. Do we want provider-specific retry policies in adapter config, or keep centralized retry behavior?
