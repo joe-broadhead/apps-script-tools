@@ -1,5 +1,28 @@
 const DATABASE_RUN_SQL_QUERY_TESTS = [
   {
+    description: 'sql provider adapter registry should list supported providers',
+    test: () => {
+      const providers = astListSqlProviders();
+      const expected = JSON.stringify(['bigquery', 'databricks']);
+      if (JSON.stringify(providers) !== expected) {
+        throw new Error(`Expected providers ${expected}, got ${JSON.stringify(providers)}`);
+      }
+    },
+  },
+  {
+    description: 'sql provider adapter registry should throw typed validation errors for unknown providers',
+    test: () => {
+      try {
+        astGetSqlProviderAdapter('snowflake');
+        throw new Error('Expected astGetSqlProviderAdapter to throw');
+      } catch (error) {
+        if (error.name !== 'SqlProviderValidationError') {
+          throw new Error(`Expected SqlProviderValidationError, got ${error.name}`);
+        }
+      }
+    },
+  },
+  {
     description: 'runSqlQuery() should reject unsafe placeholders by default',
     test: () => {
       const request = {

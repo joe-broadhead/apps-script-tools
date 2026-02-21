@@ -10,6 +10,7 @@ test('runSqlQuery validates required BigQuery parameters', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
@@ -30,6 +31,7 @@ test('runSqlQuery validates required Databricks parameters', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
@@ -58,6 +60,7 @@ test('runSqlQuery forwards normalized options to BigQuery provider', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
@@ -99,6 +102,7 @@ test('runSqlQuery forwards default options to Databricks provider', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
@@ -135,6 +139,7 @@ test('runSqlQuery forwards custom options to Databricks provider', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
@@ -180,6 +185,7 @@ test('runSqlQuery rejects options.pollIntervalMs larger than options.maxWaitMs',
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 

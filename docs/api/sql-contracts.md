@@ -27,6 +27,12 @@ Validation rules:
 - `options.maxWaitMs` and `options.pollIntervalMs` must be positive integers when provided.
 - `options.pollIntervalMs` cannot be greater than `options.maxWaitMs`.
 
+Internal routing notes:
+
+- `ASTX.Sql.run(...)` resolves provider execution through an internal adapter registry.
+- adapters expose `validateRequest`, `executeQuery`, and `classifyError` contracts.
+- this adapter layer is internal; public request/response behavior remains unchanged.
+
 ### Databricks parameters
 
 ```javascript
@@ -119,6 +125,7 @@ Use `toTable` to write dataframe rows to provider tables.
 - BigQuery load mode not in (`insert`, `overwrite`): throws.
 - Databricks load mode not in (`insert`, `overwrite`, `merge`): throws.
 - Databricks merge mode without `mergeKey`: throws.
+- Adapter lookup for unknown providers throws `SqlProviderValidationError`.
 
 ## Provider error semantics
 

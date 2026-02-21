@@ -10,6 +10,7 @@ test('runSqlQuery rejects placeholders unless unsafe option is enabled', () => {
 
   loadScripts(context, [
     'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/database/general/runSqlQuery.js'
   ]);
 
