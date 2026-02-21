@@ -53,14 +53,22 @@ test('loadBigQueryTable throws when insert returns immediate errorResult', () =>
 });
 
 test('loadBigQueryTable throws timeout error when polling exceeds maxWaitMs', () => {
-  let sleepCount = 0;
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
   const baseContext = createGasContext();
 
   const context = createGasContext({
+    Date: FakeDate,
     Utilities: {
       ...baseContext.Utilities,
-      sleep: () => {
-        sleepCount += 1;
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
       }
     },
     BigQuery: {
@@ -84,7 +92,7 @@ test('loadBigQueryTable throws timeout error when polling exceeds maxWaitMs', ()
     /BigQuery load timed out after 1000ms/
   );
 
-  assert.equal(sleepCount, 4);
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
 });
 
 test('loadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
@@ -98,4 +106,47 @@ test('loadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
     () => context.loadBigQueryTable(config),
     /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/
   );
+});
+
+test('loadBigQueryTable caps final sleep to remaining timeout budget', () => {
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
+      }
+    },
+    BigQuery: {
+      Jobs: {
+        insert: () => ({
+          jobReference: { jobId: 'job-1' },
+          status: { state: 'PENDING' }
+        }),
+        get: () => ({ status: { state: 'RUNNING' } })
+      }
+    }
+  });
+
+  loadScripts(context, [SCRIPT]);
+
+  const config = baseConfig('insert');
+  config.options = { maxWaitMs: 1000, pollIntervalMs: 600 };
+
+  assert.throws(
+    () => context.loadBigQueryTable(config),
+    /BigQuery load timed out after 1000ms/
+  );
+
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([600, 400]));
 });

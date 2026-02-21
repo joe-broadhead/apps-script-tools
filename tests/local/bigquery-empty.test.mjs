@@ -90,14 +90,22 @@ test('runBigQuerySql collects paginated rows when first page has no rows', () =>
 });
 
 test('runBigQuerySql throws timeout errors when query polling exceeds maxWaitMs', () => {
-  let sleepCount = 0;
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
   const baseContext = createGasContext();
 
   const context = createGasContext({
+    Date: FakeDate,
     Utilities: {
       ...baseContext.Utilities,
-      sleep: () => {
-        sleepCount += 1;
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
       }
     },
     BigQuery: {
@@ -130,7 +138,7 @@ test('runBigQuerySql throws timeout errors when query polling exceeds maxWaitMs'
     );
   }, /timed out after 1000ms/);
 
-  assert.equal(sleepCount, 4);
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
 });
 
 test('runBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
@@ -150,4 +158,56 @@ test('runBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
       { maxWaitMs: 100, pollIntervalMs: 200 }
     );
   }, /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/);
+});
+
+test('runBigQuerySql caps final sleep to remaining timeout budget', () => {
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
+      }
+    },
+    BigQuery: {
+      Jobs: {
+        query: () => ({
+          jobReference: { jobId: 'job-timeout' },
+          jobComplete: false,
+          schema: { fields: [] }
+        }),
+        getQueryResults: () => ({
+          jobComplete: false,
+          schema: { fields: [] }
+        })
+      }
+    }
+  });
+
+  loadCoreDataContext(context);
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+    'apps_script_tools/database/bigQuery/runBigQuerySql.js'
+  ]);
+
+  assert.throws(() => {
+    context.runBigQuerySql(
+      'select * from users',
+      { projectId: 'proj' },
+      {},
+      { maxWaitMs: 1000, pollIntervalMs: 600 }
+    );
+  }, /timed out after 1000ms/);
+
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([600, 400]));
 });

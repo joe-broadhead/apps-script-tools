@@ -43,8 +43,7 @@ function normalizeBigQueryLoadOptions(options = {}) {
 
   return {
     maxWaitMs,
-    pollIntervalMs,
-    maxPolls: Math.max(1, Math.ceil(maxWaitMs / pollIntervalMs))
+    pollIntervalMs
   };
 }
 
@@ -157,23 +156,28 @@ function loadBigQueryTable(config) {
     }
 
     let status = job.status ? job.status.state : 'PENDING';
+    const pollStartedAt = Date.now();
     let pollCount = 0;
 
     while (status !== 'DONE') {
-      if (pollCount >= normalizedOptions.maxPolls) {
+      const elapsedMs = Date.now() - pollStartedAt;
+      const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
+
+      if (remainingMs <= 0) {
         throw buildBigQueryLoadError(
           `BigQuery load timed out after ${normalizedOptions.maxWaitMs}ms`,
           {
             phase: 'poll',
             jobId,
             pollCount,
+            elapsedMs,
             maxWaitMs: normalizedOptions.maxWaitMs,
             pollIntervalMs: normalizedOptions.pollIntervalMs
           }
         );
       }
 
-      Utilities.sleep(normalizedOptions.pollIntervalMs);
+      Utilities.sleep(Math.min(normalizedOptions.pollIntervalMs, remainingMs));
       pollCount += 1;
 
       const latest = BigQuery.Jobs.get(projectId, jobId);

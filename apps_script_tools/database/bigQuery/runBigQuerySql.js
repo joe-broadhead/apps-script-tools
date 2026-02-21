@@ -61,8 +61,7 @@ function normalizeBigQueryQueryOptions(options = {}) {
 
   return {
     maxWaitMs,
-    pollIntervalMs,
-    maxPolls: Math.max(1, Math.ceil(maxWaitMs / pollIntervalMs))
+    pollIntervalMs
   };
 }
 
@@ -98,21 +97,26 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
       });
     }
 
+    const pollStartedAt = Date.now();
     let pollCount = 0;
     while (!queryResults.jobComplete) {
-      if (pollCount >= normalizedOptions.maxPolls) {
+      const elapsedMs = Date.now() - pollStartedAt;
+      const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
+
+      if (remainingMs <= 0) {
         throw buildBigQuerySqlError(
           `BigQuery query timed out after ${normalizedOptions.maxWaitMs}ms`,
           {
             jobId,
             pollCount,
+            elapsedMs,
             maxWaitMs: normalizedOptions.maxWaitMs,
             pollIntervalMs: normalizedOptions.pollIntervalMs
           }
         );
       }
 
-      Utilities.sleep(normalizedOptions.pollIntervalMs);
+      Utilities.sleep(Math.min(normalizedOptions.pollIntervalMs, remainingMs));
       pollCount += 1;
       queryResults = BigQuery.Jobs.getQueryResults(projectId, jobId);
     }
