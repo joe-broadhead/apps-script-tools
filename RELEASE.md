@@ -18,18 +18,18 @@ Use semantic tags:
 8. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
 9. validate library from a clean consumer Apps Script project
 
-## `v0.0.3` Release Prep Notes
+## `v0.0.4` Release Prep Notes
 
-- Confirm `CHANGELOG.md` `v0.0.3 (unreleased)` includes:
-  - AI module + provider coverage
-  - DataFrame `selectExpr` and `window`
-  - SQL adapter routing and provider hardening
-  - sheet/sql/cipher reliability fixes
+- Confirm `CHANGELOG.md` `v0.0.4 (unreleased)` includes:
+  - `AST.RAG` surface and typed error model
+  - Drive ingestion coverage (`txt`, `pdf`, Docs, Slides + notes)
+  - embedding provider registry and custom provider registration
+  - grounding/citation/abstention behavior
 - Confirm docs and README release-state messaging is consistent:
-  - published is still `v0.0.2`
-  - `v0.0.3` is unreleased until tag + GitHub release publish
+  - published is `v0.0.3`
+  - `v0.0.4` is unreleased until tag + GitHub release publish
 - For release notes, include exact mapping:
-  - `v0.0.3 -> Apps Script version N` (from `clasp version` output)
+  - `v0.0.4 -> Apps Script version N` (from `clasp version` output)
 
 ## Apps Script Publish (`clasp`)
 

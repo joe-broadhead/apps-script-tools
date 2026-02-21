@@ -18,6 +18,7 @@
 - `AST.Sheets`: sheet open helpers and enhanced sheet classes.
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
+- `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -30,25 +31,27 @@ flowchart LR
     B --> D[AST.Sql]
     B --> E[AST.Sheets / AST.Drive]
     B --> I[AST.AI]
+    B --> K[AST.RAG]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
+    K --> L[Drive JSON Index + Cosine Retrieval]
     C --> H[Records / Arrays / Sheets]
 ```
 
 ## Public release
 
-- Current published release: `v0.0.2`
-- Next release target on `master`: `v0.0.3` (unreleased)
+- Current published release: `v0.0.3`
+- Next release target on `master`: `v0.0.4` (unreleased)
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 
-## `v0.0.3` release-line scope
+## `v0.0.4` release-line scope
 
-- `AST.AI` unified provider surface with typed errors and bounded tool runtime.
-- `DataFrame.selectExpr(...)` and `DataFrame.window(...).assign(...)`.
-- Adapter-routed SQL execution with stronger provider validation and error semantics.
-- Reliability hardening for sheet writes, SQL polling timeouts, and cipher decode failures.
+- `AST.RAG` module for Drive-only ingestion (`txt`, `pdf`, Docs, Slides + speaker notes).
+- Embedding provider registry with built-ins and runtime custom provider registration.
+- Grounded answering with strict citation mapping and deterministic abstention behavior.
+- Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
 
 ## Import pattern
 

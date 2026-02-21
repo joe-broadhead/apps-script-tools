@@ -49,7 +49,8 @@ function verifyAstInstall() {
     hasDataFrame: typeof ASTX.DataFrame === 'function',
     hasSeries: typeof ASTX.Series === 'function',
     hasUtils: !!ASTX.Utils,
-    hasAi: !!ASTX.AI
+    hasAi: !!ASTX.AI,
+    hasRag: !!ASTX.RAG
   });
 }
 ```
@@ -65,3 +66,4 @@ Common scope-dependent surfaces:
 - `ASTX.Sql.run(...)` with provider `bigquery`.
 - `ASTX.AI.*(...)` for provider API requests (external request scope required).
 - `ASTX.AI.*(...)` with `provider='vertex_gemini'` (cloud-platform scope required).
+- `ASTX.RAG.*(...)` for Drive ingestion/retrieval and embedding/generation provider calls.

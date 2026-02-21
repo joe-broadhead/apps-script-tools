@@ -1,6 +1,39 @@
 # Changelog
 
-## v0.0.3 (unreleased)
+## v0.0.4 (unreleased)
+
+### Added
+
+- New `AST.RAG` namespace with:
+  - `configure`, `getConfig`, `clearConfig`
+  - `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`
+  - `embeddingProviders`, `embeddingCapabilities`
+  - `registerEmbeddingProvider`, `unregisterEmbeddingProvider`
+- Drive-only source ingestion for:
+  - plain text (`text/plain`)
+  - PDF (`application/pdf`)
+  - Google Docs
+  - Google Slides (slide text + speaker notes)
+- Drive JSON index lifecycle with source fingerprinting and chunk metadata.
+- Embedding provider registry with built-ins (`openai`, `gemini`, `vertex_gemini`, `openrouter`, `perplexity`) plus runtime custom provider registration.
+- Grounded answer orchestration with citation IDs (`S1..Sn`) and abstention behavior (`status=insufficient_context`).
+- New typed RAG errors:
+  - `AstRagError`, `AstRagValidationError`, `AstRagAuthError`, `AstRagSourceError`,
+    `AstRagIndexError`, `AstRagRetrievalError`, `AstRagEmbeddingCapabilityError`, `AstRagGroundingError`.
+- RAG docs set:
+  - `getting-started/rag-quickstart.md`
+  - `api/rag-contracts.md`
+  - `api/rag-embedding-providers.md`
+  - `operations/rag-indexing.md`
+
+### Changed
+
+- `AST.VERSION` and package version moved to `0.0.4` development line.
+- `AST` namespace now exposes `AST.RAG`.
+- Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
+- GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
+
+## v0.0.3
 
 ### Added
 

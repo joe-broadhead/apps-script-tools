@@ -33,20 +33,21 @@
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
+- `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
 - `AST.Sql`: Databricks/BigQuery query execution
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
 Current release state:
 
-- Published: `v0.0.2`
-- Next release target on `master`: `v0.0.3` (unreleased)
+- Published: `v0.0.3`
+- Next release target on `master`: `v0.0.4` (unreleased)
 
-`v0.0.3` release-line highlights already on `master`:
+`v0.0.4` release-line highlights already on `master`:
 
-- New `AST.AI` module with multi-provider text, structured output, tool-calling, and image APIs.
-- New DataFrame transforms: `selectExpr(...)` and `window(...).assign(...)`.
-- SQL execution routing through provider adapters with stricter timeout/error contracts.
-- Hardening fixes for sheet-write behavior, query polling reliability, and cipher decode error handling.
+- New `AST.RAG` module with Drive ingestion (`txt`, `pdf`, Docs, Slides + notes).
+- RAG embedding registry with built-in providers and runtime custom provider registration.
+- Grounded `RAG.answer(...)` orchestration with strict citation mapping and abstention.
+- Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`.
 
 ## Install As Apps Script Library
 
@@ -89,6 +90,23 @@ function demoAstAi() {
   });
 
   Logger.log(response.output.text);
+}
+```
+
+```javascript
+function demoAstRagAnswer() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const response = ASTX.RAG.answer({
+    indexFileId: 'YOUR_INDEX_FILE_ID',
+    question: 'What are the open risks?',
+    generation: { provider: 'openai' },
+    options: { requireCitations: true }
+  });
+
+  Logger.log(response.status);
+  Logger.log(response.answer);
+  Logger.log(response.citations);
 }
 ```
 

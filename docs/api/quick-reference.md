@@ -18,6 +18,7 @@ ASTX.GroupBy
 ASTX.Sheets
 ASTX.Drive
 ASTX.AI
+ASTX.RAG
 ASTX.Sql
 ASTX.Utils
 ```
@@ -83,6 +84,21 @@ series.dt.*
 }
 ```
 
+## `RAG` essentials
+
+```javascript
+ASTX.RAG.configure(config, options)
+ASTX.RAG.buildIndex(request)
+ASTX.RAG.syncIndex(request)
+ASTX.RAG.search(request)
+ASTX.RAG.answer(request)
+ASTX.RAG.inspectIndex({ indexFileId })
+ASTX.RAG.embeddingProviders()
+ASTX.RAG.embeddingCapabilities(provider)
+ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
+ASTX.RAG.unregisterEmbeddingProvider(name)
+```
+
 ## `AI` essentials
 
 ```javascript
@@ -117,3 +133,4 @@ ASTX.Drive.create(fileType, fileName, options)
 - placeholder interpolation is blocked unless explicitly enabled.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - unsupported AI provider/operation combinations throw typed capability errors.
+- RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).

@@ -176,6 +176,39 @@ See:
 - [AI Providers](ai-providers.md)
 - [AI Tool Calling](ai-tool-calling.md)
 
+## `ASTX.RAG`
+
+Drive-backed retrieval-augmented generation surface for Apps Script chat workflows.
+
+Primary methods:
+
+- `ASTX.RAG.buildIndex(...)` to create a Drive JSON index from Drive sources.
+- `ASTX.RAG.syncIndex(...)` to refresh existing indexes after file changes.
+- `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
+- `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
+- `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.
+- `ASTX.RAG.embeddingProviders()` and `ASTX.RAG.embeddingCapabilities(...)`.
+- `ASTX.RAG.registerEmbeddingProvider(...)` and `ASTX.RAG.unregisterEmbeddingProvider(...)`.
+
+Source support:
+
+- plain text
+- PDF
+- Google Docs
+- Google Slides (slide text + speaker notes)
+
+High-signal behavior:
+
+- embedding provider/model is bound at index build time and enforced for retrieval.
+- `answer(...)` returns `status='insufficient_context'` when citation grounding fails.
+- source parse failures can be downgraded to warnings with `options.skipParseFailures=true`.
+
+See:
+
+- [RAG Contracts](rag-contracts.md)
+- [RAG Embedding Providers](rag-embedding-providers.md)
+- [RAG Indexing](../operations/rag-indexing.md)
+
 ## `ASTX.Utils`
 
 `Utils` exposes public utility helpers.
