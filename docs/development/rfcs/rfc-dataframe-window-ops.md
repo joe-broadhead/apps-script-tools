@@ -2,57 +2,128 @@
 
 ## Status
 
-Draft for post-`v0.0.2` planning.
+Draft for the `v0.0.3` feature line (post-hardening).
 
-## Problem
+## Objective
 
-`DataFrame` users need native window-style operations without falling back to manual loops or per-group post-processing.
+Add first-class window operations to `DataFrame` so users can compute partitioned rankings, offsets, and running aggregates without manual row loops.
+
+## Motivation
+
+Current workflows rely on combinations of `sort`, `groupBy`, and `assign` with custom closures. This is verbose, error-prone at partition boundaries, and difficult to optimize for large datasets.
 
 ## Proposed API
 
+### Surface
+
 ```javascript
-const out = df.window({
+const windowed = df.window({
   partitionBy: ['account_id'],
-  orderBy: [{ column: 'event_ts', ascending: true }]
-}).assign({
-  amount_running_sum: w => w.col('amount').running('sum'),
+  orderBy: [
+    { column: 'event_ts', ascending: true, nulls: 'last' },
+    { column: 'id', ascending: true }
+  ]
+});
+
+const out = windowed.assign({
+  row_number: w => w.rowNumber(),
   amount_lag_1: w => w.col('amount').lag(1),
-  row_number: w => w.rowNumber()
+  amount_lead_1: w => w.col('amount').lead(1),
+  amount_running_sum: w => w.col('amount').running('sum'),
+  amount_running_mean: w => w.col('amount').running('mean')
 });
 ```
 
-## Complexity Targets
+### Contract
 
-- Single partition running aggregates: `O(n)`
-- Partitioned operations: `O(n log n)` including ordering
-- Additional memory overhead target: `< 2x` input column storage
+- `df.window(spec)` returns a window context bound to the source dataframe.
+- `spec.partitionBy`:
+  - optional string[]
+  - empty/missing means a single global partition
+- `spec.orderBy`:
+  - required for deterministic `rowNumber`, `lag`, `lead`, and running metrics
+  - supports multi-key stable ordering
+- Supported initial functions:
+  - `rowNumber()`
+  - `col(name).lag(offset = 1, defaultValue = null)`
+  - `col(name).lead(offset = 1, defaultValue = null)`
+  - `col(name).running('sum' | 'mean' | 'min' | 'max' | 'count')`
 
-## Data/Execution Model
+## Semantics
 
-1. Build partition index maps once.
-2. Reuse ordered row-index arrays per partition.
-3. Compute each requested window metric in columnar arrays.
-4. Return `DataFrame.fromColumns(...)` without row-object materialization.
+- Partitions are independent execution units.
+- Null ordering defaults to `nulls: 'last'` unless explicitly set.
+- Running functions are cumulative from the first row in the partition through current row.
+- `lag/lead` out-of-range returns `defaultValue` (default `null`).
+- Numeric running functions throw on non-numeric values (except `null`, which is skipped for `mean/sum/count` and considered for `min/max` only when all values are null).
 
-## Edge Cases
+## Performance and Memory Gates
 
-- Null ordering semantics (default nulls last, configurable later).
-- Duplicate order keys (stable tie behavior required).
-- Empty partitions after filtering.
-- Non-numeric running metrics with strict type validation.
+These are required before implementation PR merge.
+
+### Node 20 (100k rows)
+
+- `window.rowNumber` (single partition, 1 sort key): `<= 1400ms`
+- `window.lag` (partitioned by 1 key): `<= 1600ms`
+- `window.running(sum,mean,count)` (partitioned by 1 key): `<= 1900ms`
+
+### GAS Runtime (20k rows)
+
+- `window.rowNumber`: `<= 2500ms`
+- `window.lag`: `<= 3000ms`
+- `window.running(sum,mean,count)`: `<= 3500ms`
+
+### Allocation Policy
+
+- No repeated `toRecords()` roundtrips in window hot paths.
+- No per-row object persistence for intermediate window state.
+- Peak heap target: `<= 2.5x` input column storage for worst-case partitioning.
+
+## Implementation Outline
+
+1. Precompute partition row-index lists.
+2. Precompute ordered index vectors once per partition.
+3. Compute each window metric as a direct columnar pass over ordered indices.
+4. Materialize outputs with `DataFrame.fromColumns(...)` only.
+5. Reuse shared typed helpers for numeric window reducers.
 
 ## Test Plan
 
-1. Deterministic correctness tests for `lag`, `lead`, running `sum`, `mean`, and `rowNumber`.
-2. Partition boundary tests (first/last rows in partition).
-3. Null handling and mixed-type rejection tests.
-4. Perf tests at 100k rows with:
-   - narrow tables (5 cols)
-   - wider tables (20 cols)
-5. Counter checks to ensure no hidden `toRecords` loops in hot path.
+### Correctness
+
+1. `rowNumber` resets by partition and follows stable order.
+2. `lag/lead` boundaries honor `defaultValue`.
+3. Running `sum/mean/min/max/count` correctness on mixed null/numeric inputs.
+4. Multi-key sort stability with duplicate primary keys.
+5. Null ordering behavior for `nulls: 'first'|'last'`.
+
+### Failure Cases
+
+1. Missing order columns.
+2. Unknown partition/order columns.
+3. Invalid offset values.
+4. Non-numeric values in numeric running operations.
+
+### Performance
+
+1. Tall narrow (`100k x 5`) and medium wide (`100k x 20`) datasets.
+2. High-cardinality partitions and heavily skewed partitions.
+3. Conversion counter assertions to block hidden row-materialization loops.
 
 ## Migration Notes
 
-- Additive API only.
-- No behavior change to existing `groupBy` or `sort`.
-- Document recommended migration from custom row loops to `window()`.
+- Additive API only; no changes to existing `groupBy` behavior.
+- Existing custom loop logic remains valid.
+- Docs must include migration examples from `groupBy + assign` patterns.
+
+## Non-Goals (v0.0.3)
+
+- SQL-style frame clauses (`ROWS BETWEEN ...`).
+- Percentile/rank variants beyond `rowNumber`.
+- Cross-partition windows.
+
+## Open Questions
+
+1. Do we need `denseRank` in the first release or defer to `v0.0.4`?
+2. Should null ordering default be globally configurable?
+3. Should `running('mean')` treat all-null windows as `null` (proposed) or `0`?
