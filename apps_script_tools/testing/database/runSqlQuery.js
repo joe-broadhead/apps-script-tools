@@ -88,6 +88,63 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
     },
   },
   {
+    description: 'runSqlQuery() should reject pollIntervalMs greater than maxWaitMs',
+    test: () => {
+      try {
+        runSqlQuery({
+          provider: 'bigquery',
+          sql: 'select 1',
+          parameters: { projectId: 'test' },
+          options: {
+            maxWaitMs: 100,
+            pollIntervalMs: 200
+          }
+        });
+        throw new Error('Expected validation error, but none was thrown');
+      } catch (error) {
+        if (!error.message.includes('options.pollIntervalMs cannot be greater than options.maxWaitMs')) {
+          throw new Error(`Unexpected error message: ${error.message}`);
+        }
+      }
+    },
+  },
+  {
+    description: 'runSqlQuery() should forward normalized options to providers',
+    test: () => {
+      const originalRunBigQuerySql = runBigQuerySql;
+      let captured = null;
+
+      runBigQuerySql = (sql, parameters, placeholders, options) => {
+        captured = { sql, parameters, placeholders, options };
+        return DataFrame.fromRecords([{ ok: true }]);
+      };
+
+      try {
+        runSqlQuery({
+          provider: 'bigquery',
+          sql: 'select * from t where region = {{region}}',
+          parameters: { projectId: 'test' },
+          placeholders: { region: 'north' },
+          options: {
+            allowUnsafePlaceholders: true,
+            maxWaitMs: 2000,
+            pollIntervalMs: 250
+          }
+        });
+
+        if (!captured) {
+          throw new Error('Expected runBigQuerySql to be called');
+        }
+
+        if (captured.options.maxWaitMs !== 2000 || captured.options.pollIntervalMs !== 250) {
+          throw new Error(`Expected options to be forwarded, got ${JSON.stringify(captured.options)}`);
+        }
+      } finally {
+        runBigQuerySql = originalRunBigQuerySql;
+      }
+    },
+  },
+  {
     description: 'replacePlaceHoldersInQuery() should escape regex placeholder keys safely',
     test: () => {
       const output = replacePlaceHoldersInQuery(

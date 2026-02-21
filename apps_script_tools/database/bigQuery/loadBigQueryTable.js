@@ -9,36 +9,84 @@
  * @param {Object} config.bigquery_parameters - BigQuery connection details.
  * @param {String} config.bigquery_parameters.projectId - GCP project ID.
  * @param {String} [config.bigquery_parameters.datasetId] - Dataset ID if not included in tableName.
+ * @param {Object} [config.options={}] - Load polling options.
+ * @param {Number} [config.options.maxWaitMs=120000] - Maximum wait time for load completion.
+ * @param {Number} [config.options.pollIntervalMs=1000] - Poll interval while waiting for load completion.
  */
+function buildBigQueryLoadError(message, details = {}, cause = null) {
+  const error = new Error(message);
+  error.name = 'BigQueryLoadError';
+  error.provider = 'bigquery';
+  error.details = details;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
+
+function normalizeBigQueryLoadOptions(options = {}) {
+  const raw = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+
+  const maxWaitMs = Number.isInteger(raw.maxWaitMs) && raw.maxWaitMs > 0
+    ? raw.maxWaitMs
+    : 120000;
+
+  const pollIntervalMs = Number.isInteger(raw.pollIntervalMs) && raw.pollIntervalMs > 0
+    ? raw.pollIntervalMs
+    : 1000;
+
+  if (pollIntervalMs > maxWaitMs) {
+    throw buildBigQueryLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
+      options: raw
+    });
+  }
+
+  return {
+    maxWaitMs,
+    pollIntervalMs
+  };
+}
+
 function loadBigQueryTable(config) {
+  if (config == null || typeof config !== 'object' || Array.isArray(config)) {
+    throw buildBigQueryLoadError('loadBigQueryTable requires a config object');
+  }
+
   const {
     arrays,
     tableName,
     tableSchema,
     mode = 'insert',
-    bigquery_parameters = {}
+    bigquery_parameters = {},
+    options = {}
   } = config;
 
+  const normalizedOptions = normalizeBigQueryLoadOptions(options);
+
   if (!Array.isArray(arrays) || arrays.length === 0) {
-    throw new Error('loadBigQueryTable requires non-empty arrays with a header row');
+    throw buildBigQueryLoadError('loadBigQueryTable requires non-empty arrays with a header row');
+  }
+
+  if (typeof tableName !== 'string' || tableName.trim().length === 0) {
+    throw buildBigQueryLoadError('loadBigQueryTable requires a non-empty tableName');
   }
 
   if (!tableSchema || typeof tableSchema !== 'object') {
-    throw new Error('loadBigQueryTable requires a tableSchema object');
+    throw buildBigQueryLoadError('loadBigQueryTable requires a tableSchema object');
   }
 
   const { projectId, datasetId: parameterDatasetId } = bigquery_parameters;
 
   if (!projectId) {
-    throw new Error('bigquery_parameters.projectId is required');
+    throw buildBigQueryLoadError('bigquery_parameters.projectId is required');
   }
 
-  const [datasetPart, tablePart] = String(tableName).includes('.')
-    ? String(tableName).split('.', 2)
+  const [datasetPart, tablePart] = tableName.includes('.')
+    ? tableName.split('.', 2)
     : [parameterDatasetId, tableName];
 
   if (!datasetPart || !tablePart) {
-    throw new Error('BigQuery destination table must include dataset and table name');
+    throw buildBigQueryLoadError('BigQuery destination table must include dataset and table name');
   }
 
   const headers = arrays[0].map(header => String(header).trim());
@@ -69,7 +117,7 @@ function loadBigQueryTable(config) {
       writeDisposition = 'WRITE_TRUNCATE';
       break;
     default:
-      throw new Error(`Invalid BigQuery load mode '${mode}'. Expected one of: insert, overwrite`);
+      throw buildBigQueryLoadError(`Invalid BigQuery load mode '${mode}'. Expected one of: insert, overwrite`);
   }
   const loadJob = {
     configuration: {
@@ -89,19 +137,70 @@ function loadBigQueryTable(config) {
     }
   };
 
-  const job = BigQuery.Jobs.insert(loadJob, projectId, csvBlob);
-  if (job.status && job.status.errorResult) {
-    throw new Error(`BigQuery load failed: ${JSON.stringify(job.status.errorResult)}`);
-  }
-  const jobId = job.jobReference.jobId;
+  try {
+    const job = BigQuery.Jobs.insert(loadJob, projectId, csvBlob);
 
-  let status = job.status ? job.status.state : 'PENDING';
-  while (status !== 'DONE') {
-    Utilities.sleep(1000);
-    const latest = BigQuery.Jobs.get(projectId, jobId);
-    status = latest.status.state;
-    if (latest.status.errorResult) {
-      throw new Error(`BigQuery load failed: ${JSON.stringify(latest.status.errorResult)}`);
+    if (job && job.status && job.status.errorResult) {
+      throw buildBigQueryLoadError(
+        `BigQuery load failed: ${JSON.stringify(job.status.errorResult)}`,
+        { phase: 'insert', errorResult: job.status.errorResult }
+      );
     }
+
+    const jobId = job && job.jobReference ? job.jobReference.jobId : null;
+    if (typeof jobId !== 'string' || jobId.trim().length === 0) {
+      throw buildBigQueryLoadError('BigQuery load response did not include a valid jobId', {
+        phase: 'insert',
+        response: job
+      });
+    }
+
+    let status = job.status ? job.status.state : 'PENDING';
+    const pollStartedAt = Date.now();
+    let pollCount = 0;
+
+    while (status !== 'DONE') {
+      const elapsedMs = Date.now() - pollStartedAt;
+      const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
+
+      if (remainingMs <= 0) {
+        throw buildBigQueryLoadError(
+          `BigQuery load timed out after ${normalizedOptions.maxWaitMs}ms`,
+          {
+            phase: 'poll',
+            jobId,
+            pollCount,
+            elapsedMs,
+            maxWaitMs: normalizedOptions.maxWaitMs,
+            pollIntervalMs: normalizedOptions.pollIntervalMs
+          }
+        );
+      }
+
+      Utilities.sleep(Math.min(normalizedOptions.pollIntervalMs, remainingMs));
+      pollCount += 1;
+
+      const latest = BigQuery.Jobs.get(projectId, jobId);
+      const latestStatus = latest && latest.status ? latest.status : {};
+
+      if (latestStatus.errorResult) {
+        throw buildBigQueryLoadError(
+          `BigQuery load failed: ${JSON.stringify(latestStatus.errorResult)}`,
+          { phase: 'poll', jobId, errorResult: latestStatus.errorResult }
+        );
+      }
+
+      status = latestStatus.state || 'PENDING';
+    }
+  } catch (error) {
+    if (error && error.name === 'BigQueryLoadError') {
+      throw error;
+    }
+
+    throw buildBigQueryLoadError(
+      'BigQuery load failed',
+      { projectId, datasetId: datasetPart, tableId: tablePart },
+      error
+    );
   }
 };

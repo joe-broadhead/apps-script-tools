@@ -11,7 +11,9 @@
   parameters: { ... },
   placeholders: { ... },
   options: {
-    allowUnsafePlaceholders: false
+    allowUnsafePlaceholders: false,
+    maxWaitMs: 120000,
+    pollIntervalMs: 500
   }
 }
 ```
@@ -22,6 +24,8 @@ Validation rules:
 - `sql` must be a non-empty string.
 - `parameters`, `placeholders`, and `options` must be objects.
 - If `placeholders` is non-empty, you must set `options.allowUnsafePlaceholders=true`.
+- `options.maxWaitMs` and `options.pollIntervalMs` must be positive integers when provided.
+- `options.pollIntervalMs` cannot be greater than `options.maxWaitMs`.
 
 ### Databricks parameters
 
@@ -38,7 +42,7 @@ Notes:
 
 - Query execution uses Databricks SQL statements API.
 - Results are downloaded in chunks and combined into a `DataFrame`.
-- On provider errors, Databricks path may return `null`.
+- Provider errors throw `DatabricksSqlError`.
 
 ### BigQuery parameters
 
@@ -51,6 +55,7 @@ Notes:
 Notes:
 
 - Uses BigQuery Jobs API (`Jobs.query` + `getQueryResults`).
+- Polling timeout is controlled by `options.maxWaitMs` / `options.pollIntervalMs`.
 - Empty result sets return an empty `DataFrame` with schema columns.
 
 ## `DataFrame.toTable(request)`
@@ -74,6 +79,10 @@ Use `toTable` to write dataframe rows to provider tables.
   mode: 'insert' | 'overwrite',
   bigquery_parameters: {
     projectId: 'my-gcp-project'
+  },
+  options: {
+    maxWaitMs: 120000,
+    pollIntervalMs: 1000
   }
 }
 ```
