@@ -1,7 +1,7 @@
 /**
  * @function runSqlQuery
  * @description Executes a SQL query on the specified data provider (`databricks` or `bigquery`). 
- *              Delegates query execution to the appropriate provider function and handles query 
+ *              Delegates query execution through the provider adapter registry and handles query 
  *              parameter replacements.
  * @param {Object} request - SQL request.
  * @param {String} request.provider - The data provider to execute the query on. Must be `"databricks"` or `"bigquery"`.
@@ -32,7 +32,7 @@
  * 
  * @note
  * - Behavior:
- *   - Routes the query to the appropriate provider function based on the `provider` argument.
+ *   - Routes the query through the provider adapter based on the `provider` argument.
  *   - Supports parameterized queries via the `placeholders` argument.
  *   - Throws provider validation and execution errors.
  * - Time Complexity: O(n), where `n` is the number of rows in the result set.
@@ -43,14 +43,12 @@
  */
 function runSqlQuery(request = {}) {
   const normalizedRequest = validateSqlRequest(request);
-  const { provider, sql, parameters, placeholders, options } = normalizedRequest;
+  const adapter = astGetSqlProviderAdapter(normalizedRequest.provider);
 
-  switch (provider) {
-    case 'databricks':
-      return runDatabricksSql(sql, parameters, placeholders, options);
-    case 'bigquery':
-      return runBigQuerySql(sql, parameters, placeholders, options);
-    default:
-      throw new Error('Provider must be one of: databricks, bigquery');
-  };
+  try {
+    const validatedRequest = adapter.validateRequest(normalizedRequest);
+    return adapter.executeQuery(validatedRequest);
+  } catch (error) {
+    throw adapter.classifyError(error, normalizedRequest);
+  }
 };
