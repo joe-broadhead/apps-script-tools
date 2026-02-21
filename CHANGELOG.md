@@ -21,10 +21,6 @@
 - Internal SQL provider adapter registry for `ASTX.Sql.run(...)` routing (`validateRequest`, `executeQuery`, `classifyError`).
 - Optional live AI smoke workflow:
   - `.github/workflows/integration-ai-live.yml`
-- Added RFC docs for post-`v0.0.3` features:
-  - DataFrame window ops
-  - DataFrame selectExpr
-  - SQL provider adapters
 
 ### Changed
 
