@@ -34,6 +34,21 @@ test('DataFrame.selectExpr supports passthrough + row + columnar projections', (
   assert.equal(JSON.stringify(projected.index), JSON.stringify(['row_a', 'row_b']));
 });
 
+test('DataFrame.selectExpr supports columnar projector with default second parameter', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { id: 1, score: 82 },
+    { id: 2, score: 61 }
+  ]);
+
+  const projected = df.selectExpr({
+    score_bucket: (columns, rowIdx = 0) => columns.score.array[rowIdx] >= 80 ? 'high' : 'standard'
+  });
+
+  assert.equal(JSON.stringify(projected.score_bucket.array), JSON.stringify(['high', 'standard']));
+});
+
 test('DataFrame.selectExpr strict=false null-fills unknown passthrough columns', () => {
   const context = createContext();
 
@@ -94,7 +109,18 @@ test('DataFrame.selectExpr rejects async expression results', () => {
 
   assert.throws(
     () => df.selectExpr({ next: () => Promise.resolve(1) }),
-    /does not support async expressions/
+    /async expressions are not supported/
+  );
+});
+
+test('DataFrame.selectExpr rejects async expression results even when onError is null', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([{ id: 1 }]);
+
+  assert.throws(
+    () => df.selectExpr({ next: () => Promise.resolve(1) }, { onError: 'null' }),
+    /async expressions are not supported/
   );
 });
 

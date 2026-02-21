@@ -27,6 +27,23 @@ DATAFRAME_SELECT_EXPR_TESTS = [
     }
   },
   {
+    description: 'DataFrame.selectExpr() should support columnar projector with default row index parameter',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { score: 81 },
+        { score: 63 }
+      ]);
+
+      const result = df.selectExpr({
+        score_bucket: (columns, rowIdx = 0) => columns.score.array[rowIdx] >= 80 ? 'high' : 'standard'
+      });
+
+      if (JSON.stringify(result.score_bucket.array) !== JSON.stringify(['high', 'standard'])) {
+        throw new Error(`Unexpected score buckets: ${JSON.stringify(result.score_bucket.array)}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.selectExpr() should null-fill unknown passthrough columns when strict=false',
     test: () => {
       const df = DataFrame.fromRecords([
@@ -63,6 +80,23 @@ DATAFRAME_SELECT_EXPR_TESTS = [
 
       if (JSON.stringify(result.safe_div.array) !== JSON.stringify([10, null])) {
         throw new Error(`Expected [10, null], got ${JSON.stringify(result.safe_div.array)}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.selectExpr() should reject async expressions even when onError=null',
+    test: () => {
+      const df = DataFrame.fromRecords([{ id: 1 }]);
+
+      try {
+        df.selectExpr({
+          next: () => Promise.resolve(1)
+        }, { onError: 'null' });
+        throw new Error('Expected async expression rejection, but no error was thrown');
+      } catch (error) {
+        if (!String(error.message).includes('async expressions are not supported')) {
+          throw new Error(`Unexpected error message: ${error.message}`);
+        }
       }
     }
   }

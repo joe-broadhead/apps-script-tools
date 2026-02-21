@@ -37,6 +37,124 @@ function __astValidateColumnName(columnName, contextName) {
   return columnName.trim();
 }
 
+function __astCountTopLevelParams(paramsSource) {
+  if (paramsSource.trim().length === 0) {
+    return 0;
+  }
+
+  let count = 1;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inTemplate = false;
+  let previous = '';
+
+  for (let idx = 0; idx < paramsSource.length; idx++) {
+    const char = paramsSource[idx];
+
+    if (inSingleQuote) {
+      if (char === '\'' && previous !== '\\') {
+        inSingleQuote = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (inDoubleQuote) {
+      if (char === '"' && previous !== '\\') {
+        inDoubleQuote = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (inTemplate) {
+      if (char === '`' && previous !== '\\') {
+        inTemplate = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (char === '\'') {
+      inSingleQuote = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '"') {
+      inDoubleQuote = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '`') {
+      inTemplate = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '(') parenDepth += 1;
+    else if (char === ')') parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']') bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}') braceDepth -= 1;
+    else if (char === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) count += 1;
+
+    previous = char;
+  }
+
+  return count;
+}
+
+function __astGetDeclaredFunctionParamCount(fn) {
+  const source = String(fn).trim();
+
+  if (source.length === 0) {
+    return null;
+  }
+
+  if (source.includes('=>')) {
+    const arrowIndex = source.indexOf('=>');
+    const left = source.slice(0, arrowIndex).trim().replace(/^async\s+/, '');
+    if (left.startsWith('(') && left.endsWith(')')) {
+      return __astCountTopLevelParams(left.slice(1, -1));
+    }
+
+    return left.length === 0 ? 0 : 1;
+  }
+
+  const startParen = source.indexOf('(');
+  if (startParen === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let idx = startParen; idx < source.length; idx++) {
+    const char = source[idx];
+    if (char === '(') depth += 1;
+    if (char === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        const inner = source.slice(startParen + 1, idx);
+        return __astCountTopLevelParams(inner);
+      }
+    }
+  }
+
+  return null;
+}
+
+function __astResolveSelectExprProjectorMode(expression) {
+  const declaredParamCount = __astGetDeclaredFunctionParamCount(expression);
+  return declaredParamCount != null && declaredParamCount >= 2
+    ? 'columns'
+    : 'row';
+}
+
 function __astNormalizeWindowColumnList(value, optionName) {
   if (value == null) {
     return [];
@@ -692,18 +810,15 @@ var DataFrame = class DataFrame {
         throw new Error(`selectExpr expression for '${normalizedOutputColumn}' must be a string or function`);
       }
 
+      const projectorMode = __astResolveSelectExprProjectorMode(expression);
       const values = new Array(rowCount);
       for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+        let value;
+
         try {
-          const value = expression.length >= 2
+          value = projectorMode === 'columns'
             ? expression(this.data, rowIdx)
             : expression(buildRowObjectAt(rowIdx));
-
-          if (value && typeof value.then === 'function') {
-            throw new Error('selectExpr does not support async expressions');
-          }
-
-          values[rowIdx] = value;
         } catch (error) {
           if (onError === 'null') {
             values[rowIdx] = null;
@@ -712,6 +827,12 @@ var DataFrame = class DataFrame {
 
           throw new Error(`selectExpr expression for '${normalizedOutputColumn}' failed at row ${rowIdx}: ${error.message}`);
         }
+
+        if (value && typeof value.then === 'function') {
+          throw new Error(`selectExpr expression for '${normalizedOutputColumn}' returned a Promise at row ${rowIdx}; async expressions are not supported`);
+        }
+
+        values[rowIdx] = value;
       }
 
       selectedColumns[normalizedOutputColumn] = values;
