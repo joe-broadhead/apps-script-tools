@@ -100,9 +100,16 @@ function astRagSyncIndexCore(request = {}) {
         throw error;
       }
 
+      if (existingSource) {
+        nextSources.push(existingSource);
+        const preservedChunks = existingChunksByFileId[sourceDescriptor.fileId] || [];
+        preservedChunks.forEach(chunk => nextChunks.push(chunk));
+      }
+
       warnings.push({
         fileId: sourceDescriptor.fileId,
         fileName: sourceDescriptor.fileName,
+        preservedExistingData: !!existingSource,
         reason: error && error.message ? error.message : 'Unknown extraction error'
       });
     }

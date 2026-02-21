@@ -97,13 +97,14 @@ function astCreateGeminiEmbeddingAdapter() {
     },
     embed: request => {
       const rawModel = request.config.model;
-      const model = rawModel.startsWith('models/') ? rawModel : `models/${rawModel}`;
+      const modelId = rawModel.startsWith('models/') ? rawModel.slice('models/'.length) : rawModel;
+      const modelPath = `models/${modelId}`;
       const response = astRagHttpRequest({
-        url: `https://generativelanguage.googleapis.com/v1beta/${encodeURIComponent(model)}:batchEmbedContents?key=${encodeURIComponent(request.config.apiKey)}`,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:batchEmbedContents?key=${encodeURIComponent(request.config.apiKey)}`,
         method: 'post',
         payload: {
           requests: request.texts.map(text => ({
-            model,
+            model: modelPath,
             content: {
               parts: [{ text }]
             }

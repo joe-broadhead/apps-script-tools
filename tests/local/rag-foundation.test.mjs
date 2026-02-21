@@ -153,3 +153,40 @@ test('RAG embedding maps unsupported provider/model responses to capability erro
     /Embedding provider\/model combination is not supported/
   );
 });
+
+test('Gemini embedding uses models/<id> route without encoding path slash', () => {
+  let capturedUrl = '';
+  let capturedModel = '';
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        capturedUrl = url;
+        const payload = JSON.parse(options.payload);
+        capturedModel = payload.requests[0].model;
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            embeddings: [{ values: [0.1, 0.2, 0.3] }],
+            usageMetadata: { promptTokenCount: 3, totalTokenCount: 3 }
+          })
+        };
+      }
+    }
+  });
+
+  loadRagScripts(context);
+  context.astRagRegisterBuiltInEmbeddingProviders();
+
+  const out = context.astRagEmbedTexts({
+    provider: 'gemini',
+    model: 'models/text-embedding-004',
+    texts: ['hello'],
+    auth: { apiKey: 'test-gemini-key' }
+  });
+
+  assert.match(capturedUrl, /\/v1beta\/models\/text-embedding-004:batchEmbedContents\?/);
+  assert.equal(capturedUrl.includes('models%2Ftext-embedding-004'), false);
+  assert.equal(capturedModel, 'models/text-embedding-004');
+  assert.equal(out.vectors.length, 1);
+});

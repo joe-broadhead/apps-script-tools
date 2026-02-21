@@ -340,6 +340,101 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   assert.equal(synced.addedChunks > 0, true);
 });
 
+test('syncIndex preserves existing source data when parse fails and skipParseFailures=true', () => {
+  const fileA = makeDriveFile({
+    id: 'file_keep_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha alpha alpha'
+  });
+  const fileB = makeDriveFile({
+    id: 'file_keep_b',
+    name: 'b.txt',
+    mimeType: MIME_TEXT,
+    text: 'bravo bravo bravo'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-preserve-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  const before = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(before.sources.length, 2);
+
+  const originalRead = context.astRagReadDriveSourceText;
+  context.astRagReadDriveSourceText = (sourceDescriptor, auth, options) => {
+    if (sourceDescriptor.fileId === 'file_keep_b') {
+      throw new Error('transient parse failure');
+    }
+    return originalRead(sourceDescriptor, auth, options);
+  };
+
+  const synced = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-preserve-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      skipParseFailures: true,
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.addedSources, 0);
+  assert.equal(synced.updatedSources, 0);
+  assert.equal(synced.removedSources, 0);
+  assert.equal(synced.warnings.length, 1);
+  assert.equal(synced.warnings[0].fileId, 'file_keep_b');
+  assert.equal(synced.warnings[0].preservedExistingData, true);
+
+  const after = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(after.sources.length, 2);
+  assert.equal(after.chunks.length, before.chunks.length);
+  assert.equal(after.sources.some(source => source.fileId === 'file_keep_b'), true);
+});
+
 test('search ranks and filters index chunks by cosine score', () => {
   const indexDoc = {
     schemaVersion: '1.0',
