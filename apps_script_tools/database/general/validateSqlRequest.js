@@ -9,6 +9,8 @@
  * @param {Object} [request.placeholders={}] - Placeholder values for interpolation.
  * @param {Object} [request.options={}] - Extra options.
  * @param {Boolean} [request.options.allowUnsafePlaceholders=false] - Enables unsafe placeholder interpolation.
+ * @param {Number} [request.options.maxWaitMs=120000] - Maximum polling wait for providers that support it.
+ * @param {Number} [request.options.pollIntervalMs=500] - Poll interval for providers that support it.
  * @returns {Object} Normalized SQL request.
  */
 function validateSqlRequest(request = {}) {
@@ -44,9 +46,27 @@ function validateSqlRequest(request = {}) {
     throw new Error('SQL request options must be an object');
   }
 
+  function normalizeOptionalPositiveInteger(value, fieldName, defaultValue) {
+    if (value == null) {
+      return defaultValue;
+    }
+
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(`${fieldName} must be a positive integer when provided`);
+    }
+
+    return value;
+  }
+
   const normalizedOptions = {
-    allowUnsafePlaceholders: Boolean(options.allowUnsafePlaceholders)
+    allowUnsafePlaceholders: Boolean(options.allowUnsafePlaceholders),
+    maxWaitMs: normalizeOptionalPositiveInteger(options.maxWaitMs, 'options.maxWaitMs', 120000),
+    pollIntervalMs: normalizeOptionalPositiveInteger(options.pollIntervalMs, 'options.pollIntervalMs', 500)
   };
+
+  if (normalizedOptions.pollIntervalMs > normalizedOptions.maxWaitMs) {
+    throw new Error('options.pollIntervalMs cannot be greater than options.maxWaitMs');
+  }
 
   if (Object.keys(placeholders).length > 0 && !normalizedOptions.allowUnsafePlaceholders) {
     throw new Error(

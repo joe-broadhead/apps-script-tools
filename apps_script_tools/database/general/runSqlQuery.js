@@ -9,6 +9,8 @@
  * @param {Object} request.parameters - Connection parameters specific to the selected provider.
  * @param {Object} [request.placeholders={}] - Optional placeholders to replace in the query before execution.
  * @param {Object} [request.options={}] - Extra options.
+ * @param {Number} [request.options.maxWaitMs=120000] - Maximum polling wait for providers that support it.
+ * @param {Number} [request.options.pollIntervalMs=500] - Poll interval for providers that support it.
  * @returns {DataFrame} A DataFrame containing the query results.
  * 
  * @example
@@ -41,13 +43,13 @@
  */
 function runSqlQuery(request = {}) {
   const normalizedRequest = validateSqlRequest(request);
-  const { provider, sql, parameters, placeholders } = normalizedRequest;
+  const { provider, sql, parameters, placeholders, options } = normalizedRequest;
 
   switch (provider) {
     case 'databricks':
-      return runDatabricksSql(sql, parameters, placeholders);
+      return runDatabricksSql(sql, parameters, placeholders, options);
     case 'bigquery':
-      return runBigQuerySql(sql, parameters, placeholders);
+      return runBigQuerySql(sql, parameters, placeholders, options);
     default:
       throw new Error('Provider must be one of: databricks, bigquery');
   };

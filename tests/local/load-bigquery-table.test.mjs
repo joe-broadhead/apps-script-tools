@@ -13,7 +13,11 @@ function baseConfig(mode = 'insert') {
     tableName: 'dataset.users',
     tableSchema: { id: 'INT64', name: 'STRING' },
     mode,
-    bigquery_parameters: { projectId: 'project-id' }
+    bigquery_parameters: { projectId: 'project-id' },
+    options: {
+      maxWaitMs: 10000,
+      pollIntervalMs: 500
+    }
   };
 }
 
@@ -45,5 +49,53 @@ test('loadBigQueryTable throws when insert returns immediate errorResult', () =>
   assert.throws(
     () => context.loadBigQueryTable(baseConfig('insert')),
     /BigQuery load failed/
+  );
+});
+
+test('loadBigQueryTable throws timeout error when polling exceeds maxWaitMs', () => {
+  let sleepCount = 0;
+  const baseContext = createGasContext();
+
+  const context = createGasContext({
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: () => {
+        sleepCount += 1;
+      }
+    },
+    BigQuery: {
+      Jobs: {
+        insert: () => ({
+          jobReference: { jobId: 'job-1' },
+          status: { state: 'PENDING' }
+        }),
+        get: () => ({ status: { state: 'RUNNING' } })
+      }
+    }
+  });
+
+  loadScripts(context, [SCRIPT]);
+
+  const config = baseConfig('insert');
+  config.options = { maxWaitMs: 1000, pollIntervalMs: 250 };
+
+  assert.throws(
+    () => context.loadBigQueryTable(config),
+    /BigQuery load timed out after 1000ms/
+  );
+
+  assert.equal(sleepCount, 4);
+});
+
+test('loadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
+  const context = createGasContext();
+  loadScripts(context, [SCRIPT]);
+
+  const config = baseConfig('insert');
+  config.options = { maxWaitMs: 100, pollIntervalMs: 200 };
+
+  assert.throws(
+    () => context.loadBigQueryTable(config),
+    /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/
   );
 });
