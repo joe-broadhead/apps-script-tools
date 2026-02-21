@@ -41,6 +41,7 @@ Validation rules:
 Notes:
 
 - Query execution uses Databricks SQL statements API.
+- Polling timeout is controlled by `options.maxWaitMs` / `options.pollIntervalMs`.
 - Results are downloaded in chunks and combined into a `DataFrame`.
 - Provider errors throw `DatabricksSqlError`.
 
@@ -101,6 +102,10 @@ Use `toTable` to write dataframe rows to provider tables.
     sqlWarehouseId: 'warehouse-id',
     schema: 'analytics',
     token: 'dapi...'
+  },
+  options: {
+    maxWaitMs: 120000,
+    pollIntervalMs: 500
   }
 }
 ```

@@ -123,6 +123,55 @@ test('runSqlQuery forwards default options to Databricks provider', () => {
   );
 });
 
+test('runSqlQuery forwards custom options to Databricks provider', () => {
+  let captured = null;
+  const context = createGasContext({
+    runDatabricksSql: (sql, parameters, placeholders, options) => {
+      captured = { sql, parameters, placeholders, options };
+      return { provider: 'databricks' };
+    },
+    runBigQuerySql: () => ({ provider: 'bigquery' })
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/validateSqlRequest.js',
+    'apps_script_tools/database/general/runSqlQuery.js'
+  ]);
+
+  context.runSqlQuery({
+    provider: 'databricks',
+    sql: 'select 1',
+    parameters: {
+      host: 'dbc.example.com',
+      sqlWarehouseId: 'warehouse',
+      schema: 'default',
+      token: 'token'
+    },
+    options: {
+      maxWaitMs: 2000,
+      pollIntervalMs: 300
+    }
+  });
+
+  const expected = {
+    sql: 'select 1',
+    parameters: {
+      host: 'dbc.example.com',
+      sqlWarehouseId: 'warehouse',
+      schema: 'default',
+      token: 'token'
+    },
+    placeholders: {},
+    options: {
+      allowUnsafePlaceholders: false,
+      maxWaitMs: 2000,
+      pollIntervalMs: 300
+    }
+  };
+
+  assert.equal(JSON.stringify(captured), JSON.stringify(expected));
+});
+
 test('runSqlQuery rejects options.pollIntervalMs larger than options.maxWaitMs', () => {
   const context = createGasContext({
     runDatabricksSql: () => ({ provider: 'databricks' }),

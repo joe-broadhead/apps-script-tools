@@ -145,6 +145,45 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
     },
   },
   {
+    description: 'runSqlQuery() should forward normalized options to Databricks provider',
+    test: () => {
+      const originalRunDatabricksSql = runDatabricksSql;
+      let captured = null;
+
+      runDatabricksSql = (sql, parameters, placeholders, options) => {
+        captured = { sql, parameters, placeholders, options };
+        return DataFrame.fromRecords([{ ok: true }]);
+      };
+
+      try {
+        runSqlQuery({
+          provider: 'databricks',
+          sql: 'select 1',
+          parameters: {
+            host: 'dbc.example.com',
+            sqlWarehouseId: 'w-1',
+            schema: 'default',
+            token: 'token'
+          },
+          options: {
+            maxWaitMs: 2000,
+            pollIntervalMs: 300
+          }
+        });
+
+        if (!captured) {
+          throw new Error('Expected runDatabricksSql to be called');
+        }
+
+        if (captured.options.maxWaitMs !== 2000 || captured.options.pollIntervalMs !== 300) {
+          throw new Error(`Expected options to be forwarded, got ${JSON.stringify(captured.options)}`);
+        }
+      } finally {
+        runDatabricksSql = originalRunDatabricksSql;
+      }
+    },
+  },
+  {
     description: 'replacePlaceHoldersInQuery() should escape regex placeholder keys safely',
     test: () => {
       const output = replacePlaceHoldersInQuery(

@@ -9,6 +9,9 @@
  * @param {String} parameters.schema - The target schema for the query.
  * @param {String} parameters.token - The access token for authentication.
  * @param {Object} [placeholders={}] - Optional placeholders to replace in the query before execution.
+ * @param {Object} [options={}] - Optional polling controls.
+ * @param {Number} [options.maxWaitMs=120000] - Maximum wait time while polling for query completion.
+ * @param {Number} [options.pollIntervalMs=500] - Poll interval while waiting for query completion.
  * @returns {DataFrame} A DataFrame containing the query results.
  * 
  * @example
@@ -30,7 +33,7 @@
  *   - Executes the query using the Databricks SQL API.
  *   - Fetches data in chunks and concatenates them into a single DataFrame.
  *   - Throws provider-specific errors when execution fails.
- *   - Implements a retry mechanism for pending or running queries with a 5-second interval.
+ *   - Uses bounded polling for pending/running query states.
  * - Time Complexity: O(n), where `n` is the number of chunks fetched.
  * - Space Complexity: O(n), as the entire dataset is stored in memory as a DataFrame.
  * 
@@ -48,7 +51,30 @@ function buildDatabricksSqlError(message, details = {}, cause = null) {
   return error;
 }
 
-function runDatabricksSql(query, parameters, placeholders = {}) {
+function normalizeDatabricksSqlOptions(options = {}) {
+  const raw = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+
+  const maxWaitMs = Number.isInteger(raw.maxWaitMs) && raw.maxWaitMs > 0
+    ? raw.maxWaitMs
+    : 120000;
+
+  const pollIntervalMs = Number.isInteger(raw.pollIntervalMs) && raw.pollIntervalMs > 0
+    ? raw.pollIntervalMs
+    : 500;
+
+  if (pollIntervalMs > maxWaitMs) {
+    throw buildDatabricksSqlError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
+      options: raw
+    });
+  }
+
+  return {
+    maxWaitMs,
+    pollIntervalMs
+  };
+}
+
+function runDatabricksSql(query, parameters, placeholders = {}, options = {}) {
   if (typeof query !== 'string' || query.trim().length === 0) {
     throw buildDatabricksSqlError('Databricks SQL query must be a non-empty string');
   }
@@ -74,6 +100,7 @@ function runDatabricksSql(query, parameters, placeholders = {}) {
     );
   }
 
+  const normalizedOptions = normalizeDatabricksSqlOptions(options);
   const apiBaseUrl = `https://${host}/api/2.0/sql/statements/`;
 
   try {
@@ -102,6 +129,9 @@ function runDatabricksSql(query, parameters, placeholders = {}) {
       );
     }
 
+    const pollStartedAt = Date.now();
+    let pollCount = 0;
+
     while (true) {
       const resultData = fetchStatementStatus(apiBaseUrl, statementId, token);
       const state = resultData?.status?.state;
@@ -117,9 +147,28 @@ function runDatabricksSql(query, parameters, placeholders = {}) {
             { state, error: resultData?.status?.error, statementId }
           );
         case 'PENDING':
-        case 'RUNNING':
-          Utilities.sleep(5000);
+        case 'RUNNING': {
+          const elapsedMs = Date.now() - pollStartedAt;
+          const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
+
+          if (remainingMs <= 0) {
+            throw buildDatabricksSqlError(
+              `Databricks SQL query timed out after ${normalizedOptions.maxWaitMs}ms`,
+              {
+                state,
+                statementId,
+                pollCount,
+                elapsedMs,
+                maxWaitMs: normalizedOptions.maxWaitMs,
+                pollIntervalMs: normalizedOptions.pollIntervalMs
+              }
+            );
+          }
+
+          Utilities.sleep(Math.min(normalizedOptions.pollIntervalMs, remainingMs));
+          pollCount += 1;
           break;
+        }
         default:
           throw buildDatabricksSqlError(
             `Unknown Databricks SQL statement state: ${state}`,
