@@ -201,5 +201,87 @@ AI_TOOLS_TESTS = [
         runOpenAi = originalRunOpenAi;
       }
     }
+  },
+  {
+    description: 'AST.AI.tools() should downgrade named toolChoice to auto after first round',
+    test: () => {
+      const originalRunOpenAi = runOpenAi;
+      const observedToolChoices = [];
+      let callCount = 0;
+
+      runOpenAi = request => {
+        callCount += 1;
+        observedToolChoices.push(request.toolChoice);
+
+        if (callCount === 1) {
+          return normalizeAiResponse({
+            provider: 'openai',
+            operation: 'tools',
+            model: 'gpt-4.1-mini',
+            output: {
+              toolCalls: [{
+                id: 'tool_named_1',
+                name: 'adder_tool',
+                arguments: { a: 4, b: 6 }
+              }]
+            }
+          });
+        }
+
+        return normalizeAiResponse({
+          provider: 'openai',
+          operation: 'tools',
+          model: 'gpt-4.1-mini',
+          output: {
+            text: 'named done'
+          }
+        });
+      };
+
+      try {
+        const response = AST.AI.tools({
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          input: 'sum values with named tool',
+          auth: {
+            apiKey: 'test-key'
+          },
+          tools: [{
+            name: 'adder_tool',
+            description: 'adds two numbers',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                a: { type: 'number' },
+                b: { type: 'number' }
+              }
+            },
+            handler: args => args.a + args.b
+          }],
+          toolChoice: { name: 'adder_tool' },
+          options: {
+            maxToolRounds: 3
+          }
+        });
+
+        if (response.output.text !== 'named done') {
+          throw new Error(`Expected named done text, but got ${response.output.text}`);
+        }
+
+        if (observedToolChoices.length !== 2) {
+          throw new Error(`Expected 2 provider calls, got ${observedToolChoices.length}`);
+        }
+
+        if (JSON.stringify(observedToolChoices[0]) !== JSON.stringify({ name: 'adder_tool' })) {
+          throw new Error(`Expected first toolChoice to be named, got ${JSON.stringify(observedToolChoices[0])}`);
+        }
+
+        if (observedToolChoices[1] !== 'auto') {
+          throw new Error(`Expected second toolChoice to be auto, got ${JSON.stringify(observedToolChoices[1])}`);
+        }
+      } finally {
+        runOpenAi = originalRunOpenAi;
+      }
+    }
   }
 ];
