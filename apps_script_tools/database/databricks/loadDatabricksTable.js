@@ -11,6 +11,9 @@
  * @param {String} [config.mergeKey=null] - The key column to use for `merge` mode. Required if `mode` is `"merge"`.
  * @param {Number} [config.batchSize=500] - The number of rows to process per batch.
  * @param {Object} config.databricks_parameters - Connection parameters for Databricks SQL execution.
+ * @param {Object} [config.options={}] - SQL polling controls forwarded to Databricks statements.
+ * @param {Number} [config.options.maxWaitMs=120000] - Maximum wait time while polling Databricks statements.
+ * @param {Number} [config.options.pollIntervalMs=500] - Poll interval while Databricks statements are pending/running.
  * 
  * @returns {void}
  * 
@@ -55,7 +58,8 @@ function loadDatabricksTable(config) {
     mode = 'insert',
     mergeKey,
     batchSize = 500,
-    databricks_parameters
+    databricks_parameters,
+    options = {}
   } = config;
 
   const headers = arrays[0].map(h => String(h).trim());
@@ -72,14 +76,16 @@ function loadDatabricksTable(config) {
     create table if not exists ${tableName} (
       ${defs}
     )`,
-    databricks_parameters
+    databricks_parameters,
+    {},
+    options
   );
 
   const colList = headers.join(', ');
   const chunks = arrayChunk(rows, batchSize);
 
   if(mode === 'overwrite') {
-    runDatabricksSql(`truncate table ${tableName}`, databricks_parameters);
+    runDatabricksSql(`truncate table ${tableName}`, databricks_parameters, {}, options);
   };
 
   chunks.forEach(chunkRows => {
@@ -146,7 +152,7 @@ function loadDatabricksTable(config) {
         throw new Error(`Unsupported mode: ${mode}`);
     }
 
-    runDatabricksSql(sql, databricks_parameters);
+    runDatabricksSql(sql, databricks_parameters, {}, options);
   });
 
 };

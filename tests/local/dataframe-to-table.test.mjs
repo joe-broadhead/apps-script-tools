@@ -33,3 +33,48 @@ test('DataFrame.toTable routes to loadBigQueryTable', () => {
   assert.equal(called, 1);
   assert.ok(Array.isArray(captured.arrays));
 });
+
+test('DataFrame.toTable routes to loadDatabricksTable', () => {
+  let called = 0;
+  let captured = null;
+
+  const context = createGasContext({
+    loadDatabricksTable: config => {
+      called += 1;
+      captured = config;
+    },
+    loadBigQueryTable: () => {}
+  });
+
+  loadCoreDataContext(context);
+
+  const df = context.DataFrame.fromRecords([
+    { id: 1, name: 'Alice' },
+    { id: 2, name: 'Bob' }
+  ]);
+
+  df.toTable({
+    provider: 'databricks',
+    config: {
+      tableName: 'analytics.users',
+      tableSchema: { id: 'INT', name: 'STRING' },
+      databricks_parameters: {
+        host: 'dbc.example.com',
+        sqlWarehouseId: 'warehouse-1',
+        schema: 'analytics',
+        token: 'token'
+      },
+      options: {
+        maxWaitMs: 2000,
+        pollIntervalMs: 250
+      }
+    }
+  });
+
+  assert.equal(called, 1);
+  assert.ok(Array.isArray(captured.arrays));
+  assert.equal(
+    JSON.stringify(captured.options),
+    JSON.stringify({ maxWaitMs: 2000, pollIntervalMs: 250 })
+  );
+});

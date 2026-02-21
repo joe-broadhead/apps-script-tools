@@ -64,3 +64,149 @@ test('runDatabricksSql validates required Databricks parameters', () => {
     /Missing required Databricks parameters: token/
   );
 });
+
+test('runDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
+  const context = createGasContext();
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+    'apps_script_tools/database/databricks/runDatabricksSql.js'
+  ]);
+
+  assert.throws(
+    () => context.runDatabricksSql(
+      'select 1',
+      {
+        host: 'dbc.example.com',
+        sqlWarehouseId: 'warehouse-1',
+        schema: 'default',
+        token: 'token'
+      },
+      {},
+      { maxWaitMs: 100, pollIntervalMs: 200 }
+    ),
+    /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/
+  );
+});
+
+test('runDatabricksSql times out based on elapsed maxWaitMs budget', () => {
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
+      }
+    },
+    UrlFetchApp: {
+      fetch: (_url, options = {}) => {
+        if (options.method === 'post') {
+          return {
+            getContentText: () => JSON.stringify({ statement_id: 'stmt-timeout' })
+          };
+        }
+
+        return {
+          getContentText: () => JSON.stringify({
+            status: {
+              state: 'RUNNING'
+            }
+          })
+        };
+      }
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+    'apps_script_tools/database/databricks/runDatabricksSql.js'
+  ]);
+
+  assert.throws(
+    () => context.runDatabricksSql(
+      'select 1',
+      {
+        host: 'dbc.example.com',
+        sqlWarehouseId: 'warehouse-1',
+        schema: 'default',
+        token: 'token'
+      },
+      {},
+      { maxWaitMs: 1000, pollIntervalMs: 250 }
+    ),
+    /timed out after 1000ms/
+  );
+
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
+});
+
+test('runDatabricksSql caps final sleep to remaining timeout budget', () => {
+  let fakeNow = 0;
+  const sleepDurations = [];
+  class FakeDate extends Date {
+    static now() {
+      return fakeNow;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: (ms) => {
+        sleepDurations.push(ms);
+        fakeNow += ms;
+      }
+    },
+    UrlFetchApp: {
+      fetch: (_url, options = {}) => {
+        if (options.method === 'post') {
+          return {
+            getContentText: () => JSON.stringify({ statement_id: 'stmt-timeout' })
+          };
+        }
+
+        return {
+          getContentText: () => JSON.stringify({
+            status: {
+              state: 'RUNNING'
+            }
+          })
+        };
+      }
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+    'apps_script_tools/database/databricks/runDatabricksSql.js'
+  ]);
+
+  assert.throws(
+    () => context.runDatabricksSql(
+      'select 1',
+      {
+        host: 'dbc.example.com',
+        sqlWarehouseId: 'warehouse-1',
+        schema: 'default',
+        token: 'token'
+      },
+      {},
+      { maxWaitMs: 1000, pollIntervalMs: 600 }
+    ),
+    /timed out after 1000ms/
+  );
+
+  assert.equal(JSON.stringify(sleepDurations), JSON.stringify([600, 400]));
+});

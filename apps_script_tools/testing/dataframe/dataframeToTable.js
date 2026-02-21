@@ -36,4 +36,56 @@ DATAFRAME_TO_TABLE_TESTS = [
       }
     },
   },
+  {
+    description: 'DataFrame.toTable() should route Databricks loads to loadDatabricksTable',
+    test: () => {
+      const originalLoadDatabricksTable = loadDatabricksTable;
+      let callCount = 0;
+      let capturedConfig = null;
+
+      loadDatabricksTable = config => {
+        callCount += 1;
+        capturedConfig = config;
+      };
+
+      const df = DataFrame.fromRecords([
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ]);
+
+      df.toTable({
+        provider: 'databricks',
+        config: {
+          tableName: 'analytics.users',
+          tableSchema: { id: 'INT', name: 'STRING' },
+          databricks_parameters: {
+            host: 'dbc.example.com',
+            sqlWarehouseId: 'w-1',
+            schema: 'analytics',
+            token: 'token'
+          },
+          options: {
+            maxWaitMs: 2000,
+            pollIntervalMs: 300
+          }
+        }
+      });
+
+      loadDatabricksTable = originalLoadDatabricksTable;
+
+      if (callCount !== 1) {
+        throw new Error(`Expected loadDatabricksTable to be called once, got ${callCount}`);
+      }
+
+      if (!capturedConfig || !Array.isArray(capturedConfig.arrays)) {
+        throw new Error('Expected table load config with arrays payload');
+      }
+
+      const optionsJson = JSON.stringify(capturedConfig.options || {});
+      const expectedOptionsJson = JSON.stringify({ maxWaitMs: 2000, pollIntervalMs: 300 });
+      if (optionsJson !== expectedOptionsJson) {
+        throw new Error(`Expected Databricks options ${expectedOptionsJson}, got ${optionsJson}`);
+      }
+    },
+  },
 ];
