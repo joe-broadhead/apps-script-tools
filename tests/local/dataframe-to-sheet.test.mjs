@@ -120,3 +120,21 @@ test('DataFrame.toSheet overwriteRange requires start coordinates', () => {
     /requires 'startRow' and 'startCol'/
   );
 });
+
+test('DataFrame.toSheet validates mode even when there is no data to write', () => {
+  const context = createGasContext();
+  loadCoreDataContext(context);
+  installEnhancedSheetMock(context);
+
+  const empty = new context.DataFrame({});
+  assert.throws(
+    () => empty.toSheet({}, { mode: 'typo' }),
+    /unknown mode/
+  );
+
+  const zeroRows = context.DataFrame.fromColumns({ id: [] });
+  assert.throws(
+    () => zeroRows.toSheet({}, { mode: 'typo', includeHeader: false }),
+    /unknown mode/
+  );
+});

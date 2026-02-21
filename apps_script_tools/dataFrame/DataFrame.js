@@ -595,6 +595,11 @@ var DataFrame = class DataFrame {
       throw new Error('Cell count exceeds the 5,000,000 cell limit in Google Sheets');
     }
 
+    const validModes = ['overwrite', 'append', 'prepend', 'overwriteRange'];
+    if (!validModes.includes(mode)) {
+      throw new Error(`toSheet: unknown mode '${mode}'`);
+    }
+
     const includeHeaderByDefault = mode === 'overwrite' || mode === 'overwriteRange';
     const shouldIncludeHeader = typeof includeHeader === 'boolean'
       ? includeHeader
@@ -631,8 +636,6 @@ var DataFrame = class DataFrame {
       case 'overwriteRange':
         enhancedSheet.overwriteRange(startRow, startCol, values);
         break;
-      default:
-        throw new Error(`toSheet: unknown mode '${mode}'`);
     }
     return this;
   }

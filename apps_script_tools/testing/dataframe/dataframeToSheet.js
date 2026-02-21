@@ -180,5 +180,42 @@ DATAFRAME_TO_SHEET_TESTS = [
         EnhancedSheet = originalEnhancedSheet;
       }
     }
+  },
+  {
+    description: 'DataFrame.toSheet() should validate unknown mode for empty writes',
+    test: () => {
+      const originalEnhancedSheet = EnhancedSheet;
+      EnhancedSheet = class EnhancedSheetMock {
+        constructor(_sheet) {}
+      };
+
+      try {
+        const empty = new DataFrame({});
+        let firstError = null;
+        try {
+          empty.toSheet({}, { mode: 'typo' });
+        } catch (error) {
+          firstError = error;
+        }
+
+        if (!firstError || !String(firstError.message || '').includes("unknown mode")) {
+          throw new Error(`Expected unknown mode validation error for empty frame, got ${firstError ? firstError.message : 'no error'}`);
+        }
+
+        const zeroRows = DataFrame.fromColumns({ id: [] });
+        let secondError = null;
+        try {
+          zeroRows.toSheet({}, { mode: 'typo', includeHeader: false });
+        } catch (error) {
+          secondError = error;
+        }
+
+        if (!secondError || !String(secondError.message || '').includes("unknown mode")) {
+          throw new Error(`Expected unknown mode validation error for zero-row frame, got ${secondError ? secondError.message : 'no error'}`);
+        }
+      } finally {
+        EnhancedSheet = originalEnhancedSheet;
+      }
+    }
   }
 ];
