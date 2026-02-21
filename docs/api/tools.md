@@ -48,7 +48,7 @@ Creation:
 
 Transform:
 
-- `select`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`.
+- `select`, `selectExpr`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`, `window`.
 - `dropDuplicates(subset = [])` with explicit subset semantics.
 
 Output:
@@ -63,6 +63,26 @@ const df = ASTX.DataFrame.fromColumns({
 });
 
 const out = df.assign({ amount_x2: frame => frame.amount.multiply(2) });
+```
+
+Window and expression projection examples:
+
+```javascript
+const projected = df.selectExpr({
+  id: 'id',
+  amount_x2: row => row.amount * 2
+});
+
+const withWindows = df
+  .window({
+    partitionBy: ['region'],
+    orderBy: [{ column: 'event_ts', ascending: true }]
+  })
+  .assign({
+    row_number: w => w.rowNumber(),
+    amount_lag_1: w => w.col('amount').lag(1),
+    amount_running_sum: w => w.col('amount').running('sum')
+  });
 ```
 
 High-signal behavior:
