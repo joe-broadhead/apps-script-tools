@@ -30,6 +30,12 @@ Do not commit credentials:
 
 Use repository or organization secrets for CI-based integration runs.
 
+For storage workflows, use script properties/runtime config instead of inline secrets:
+
+- `GCS_SERVICE_ACCOUNT_JSON`
+- `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_SESSION_TOKEN`
+- `DATABRICKS_TOKEN`
+
 ## OAuth scopes
 
 The library currently declares scopes for:

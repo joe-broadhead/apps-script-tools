@@ -102,6 +102,7 @@ nav:
     - Quick Start: getting-started/quickstart.md
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
+    - Storage Quick Start: getting-started/storage-quickstart.md
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
@@ -110,6 +111,8 @@ nav:
     - AI Tool Calling: api/ai-tool-calling.md
     - RAG Contracts: api/rag-contracts.md
     - RAG Embedding Providers: api/rag-embedding-providers.md
+    - Storage Contracts: api/storage-contracts.md
+    - Storage Providers: api/storage-providers.md
     - SQL Contracts: api/sql-contracts.md
     - DataFrame Patterns: api/dataframe-patterns.md
   - Performance:
@@ -119,6 +122,7 @@ nav:
   - Operations:
     - AI Security: operations/ai-security.md
     - RAG Indexing: operations/rag-indexing.md
+    - Storage Security: operations/storage-security.md
     - Security: operations/security.md
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md

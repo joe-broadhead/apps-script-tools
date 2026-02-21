@@ -32,6 +32,7 @@
 - `AST.DataFrame`: tabular transformations and IO
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
+- `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
 - `AST.Sql`: Databricks/BigQuery query execution
@@ -48,6 +49,7 @@ Current release state:
 - RAG embedding registry with built-in providers and runtime custom provider registration.
 - Grounded `RAG.answer(...)` orchestration with strict citation mapping and abstention.
 - Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`.
+- New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 
 ## Install As Apps Script Library
 
@@ -107,6 +109,18 @@ function demoAstRagAnswer() {
   Logger.log(response.status);
   Logger.log(response.answer);
   Logger.log(response.citations);
+}
+```
+
+```javascript
+function demoAstStorageRead() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Storage.read({
+    uri: 'gcs://my-bucket/project/config.json'
+  });
+
+  Logger.log(out.output.data.json || out.output.data.text);
 }
 ```
 

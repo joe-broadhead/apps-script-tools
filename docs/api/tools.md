@@ -124,6 +124,43 @@ Workspace interoperability surfaces:
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
+## `ASTX.Storage`
+
+Cross-provider object storage surface:
+
+- providers: `gcs`, `s3`, `dbfs`
+- operations: `list`, `head`, `read`, `write`, `delete`
+- URI model: `gcs://`, `s3://`, `dbfs:/`
+
+Primary methods:
+
+- `ASTX.Storage.run(request)` for explicit operation routing.
+- `ASTX.Storage.list/head/read/write/delete(request)` convenience wrappers.
+- `ASTX.Storage.providers()` and `ASTX.Storage.capabilities(provider)` for runtime checks.
+- `ASTX.Storage.configure(config)` to set runtime defaults from script properties.
+- `ASTX.Storage.getConfig()` and `ASTX.Storage.clearConfig()` for runtime config inspection/reset.
+
+High-signal behavior:
+
+- auth/config resolution: per-call override first, then `ASTX.Storage.configure(...)`, then script properties.
+- write payload contract is base64-first with `text/json` helper inputs.
+- `head/read/delete` missing objects throw `AstStorageNotFoundError`.
+- transport retries apply to transient HTTP statuses (`429`, `5xx`) only.
+
+```javascript
+const out = ASTX.Storage.read({
+  uri: 'gcs://my-bucket/data/config.json'
+});
+
+Logger.log(out.output.data.json || out.output.data.text);
+```
+
+See:
+
+- [Storage Contracts](storage-contracts.md)
+- [Storage Providers](storage-providers.md)
+- [Storage Security](../operations/storage-security.md)
+
 ## `ASTX.AI`
 
 Unified AI surface across:

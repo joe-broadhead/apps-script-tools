@@ -43,5 +43,17 @@ AST_UTILS_TESTS = [
         throw new Error('AST.Drive does not expose read/create functions');
       }
     }
+  },
+  {
+    description: 'AST namespace should expose Storage helper surface',
+    test: () => {
+      if (!AST || !AST.Storage) {
+        throw new Error('AST.Storage is not available');
+      }
+
+      if (typeof AST.Storage.read !== 'function' || typeof AST.Storage.write !== 'function') {
+        throw new Error('AST.Storage does not expose read/write functions');
+      }
+    }
   }
 ];

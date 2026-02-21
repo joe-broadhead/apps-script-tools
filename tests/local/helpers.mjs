@@ -18,20 +18,88 @@ export function createGasContext(overrides = {}) {
       DigestAlgorithm: { SHA_256: 'SHA_256' },
       Charset: { UTF_8: 'UTF_8' },
       computeDigest: (_alg, input) => {
-        const buffer = crypto.createHash('sha256').update(String(input), 'utf8').digest();
+        let source;
+        if (Array.isArray(input)) {
+          source = Buffer.from(input.map(value => (value < 0 ? value + 256 : value)));
+        } else if (Buffer.isBuffer(input)) {
+          source = input;
+        } else if (input instanceof Uint8Array) {
+          source = Buffer.from(input);
+        } else {
+          source = Buffer.from(String(input), 'utf8');
+        }
+
+        const buffer = crypto.createHash('sha256').update(source).digest();
         return Array.from(buffer.values()).map(byte => (byte > 127 ? byte - 256 : byte));
+      },
+      computeHmacSha256Signature: (value, key) => {
+        const normalize = input => {
+          if (Array.isArray(input)) {
+            return Buffer.from(input.map(entry => (entry < 0 ? entry + 256 : entry)));
+          }
+          if (Buffer.isBuffer(input)) {
+            return input;
+          }
+          if (input instanceof Uint8Array) {
+            return Buffer.from(input);
+          }
+          return Buffer.from(String(input), 'utf8');
+        };
+
+        const signature = crypto
+          .createHmac('sha256', normalize(key))
+          .update(normalize(value))
+          .digest();
+
+        return Array.from(signature.values()).map(byte => (byte > 127 ? byte - 256 : byte));
+      },
+      computeRsaSha256Signature: (value, key) => {
+        const signature = crypto
+          .createSign('RSA-SHA256')
+          .update(String(value))
+          .end()
+          .sign(String(key));
+
+        return Array.from(signature.values()).map(byte => (byte > 127 ? byte - 256 : byte));
       },
       sleep: () => {},
       base64Encode: value => {
         if (Array.isArray(value)) {
-          return Buffer.from(value).toString('base64');
+          const normalized = value.map(entry => (entry < 0 ? entry + 256 : entry));
+          return Buffer.from(normalized).toString('base64');
         }
         return Buffer.from(String(value), 'utf8').toString('base64');
       },
+      base64EncodeWebSafe: value => {
+        const base64 = Array.isArray(value)
+          ? Buffer.from(value.map(entry => (entry < 0 ? entry + 256 : entry))).toString('base64')
+          : Buffer.from(String(value), 'utf8').toString('base64');
+        return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+      },
+      base64Decode: value => {
+        const normalized = String(value || '')
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+        const bytes = Buffer.from(padded, 'base64');
+        return Array.from(bytes.values()).map(byte => (byte > 127 ? byte - 256 : byte));
+      },
       parseCsv: (value, delimiter = ',') => String(value).split('\n').map(line => line.split(delimiter)),
       newBlob: (data, _mime, name) => ({
-        getDataAsString: () => String(data),
-        getName: () => name
+        getDataAsString: () => {
+          if (Array.isArray(data)) {
+            return Buffer.from(data.map(entry => (entry < 0 ? entry + 256 : entry))).toString('utf8');
+          }
+          return String(data);
+        },
+        getName: () => name,
+        getBytes: () => {
+          if (Array.isArray(data)) {
+            return data;
+          }
+          return Array.from(Buffer.from(String(data), 'utf8').values()).map(byte => (byte > 127 ? byte - 256 : byte));
+        },
+        getContentType: () => _mime || 'application/octet-stream'
       }),
       formatDate: date => {
         const d = new Date(date);
