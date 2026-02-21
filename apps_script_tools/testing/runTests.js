@@ -11,6 +11,8 @@ async function runAllTests() {
     ...AST_UTILS_TESTS,
     ...AI_NAMESPACE_TESTS,
     ...AI_TOOLS_TESTS,
+    ...RAG_NAMESPACE_TESTS,
+    ...RAG_GROUNDING_TESTS,
 
     // dataFrame/DataFrame Tests
 

@@ -195,9 +195,14 @@ function astRunAiTools(request, config, providerExecutor) {
   let latestResponse = null;
 
   for (let round = 0; round < maxToolRounds; round++) {
+    const roundToolChoice = (round > 0 && request.toolChoice && typeof request.toolChoice === 'object')
+      ? 'auto'
+      : request.toolChoice;
+
     const providerRequest = Object.assign({}, request, {
       messages: workingMessages,
-      tools: providerTools
+      tools: providerTools,
+      toolChoice: roundToolChoice
     });
 
     latestResponse = providerExecutor(providerRequest, config);

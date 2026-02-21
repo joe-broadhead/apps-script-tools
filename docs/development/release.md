@@ -7,15 +7,15 @@
 
 ## Current state
 
-- Published release: `v0.0.2`
-- Next release target on `master`: `v0.0.3` (unreleased)
+- Published release: `v0.0.3`
+- Next release target on `master`: `v0.0.4` (unreleased)
 
-`v0.0.3` release scope check:
+`v0.0.4` release scope check:
 
-- AI module (`AST.AI`) shipped on `master` with docs and tests.
-- DataFrame `selectExpr` + `window` shipped on `master` with docs and tests.
-- SQL adapter routing and provider hardening shipped on `master`.
-- Release-note source of truth is `CHANGELOG.md` (`v0.0.3` section).
+- RAG module (`AST.RAG`) shipped on `master` with docs and tests.
+- Drive-only ingestion support includes txt/pdf/Docs/Slides (+ notes).
+- Embedding provider registry supports built-ins and runtime custom providers.
+- Release-note source of truth is `CHANGELOG.md` (`v0.0.4` section).
 
 ## Pre-release checks
 

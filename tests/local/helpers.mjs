@@ -22,6 +22,12 @@ export function createGasContext(overrides = {}) {
         return Array.from(buffer.values()).map(byte => (byte > 127 ? byte - 256 : byte));
       },
       sleep: () => {},
+      base64Encode: value => {
+        if (Array.isArray(value)) {
+          return Buffer.from(value).toString('base64');
+        }
+        return Buffer.from(String(value), 'utf8').toString('base64');
+      },
       parseCsv: (value, delimiter = ',') => String(value).split('\n').map(line => line.split(delimiter)),
       newBlob: (data, _mime, name) => ({
         getDataAsString: () => String(data),
@@ -55,6 +61,9 @@ export function createGasContext(overrides = {}) {
     },
     ScriptApp: {
       getOAuthToken: () => 'test-oauth-token'
+    },
+    MimeType: {
+      PLAIN_TEXT: 'text/plain'
     },
     SpreadsheetApp: {},
     DriveApp: {},

@@ -97,7 +97,7 @@ Object.freeze(AST_UTILS);
 
 Object.defineProperties(AST, {
   VERSION: {
-    value: '0.0.3',
+    value: '0.0.4',
     enumerable: true
   },
   Series: {
@@ -131,6 +131,10 @@ Object.defineProperties(AST, {
   },
   AI: {
     get: () => resolveAstBinding('AST_AI', () => (typeof AST_AI === 'undefined' ? undefined : AST_AI)),
+    enumerable: true
+  },
+  RAG: {
+    get: () => resolveAstBinding('AST_RAG', () => (typeof AST_RAG === 'undefined' ? undefined : AST_RAG)),
     enumerable: true
   },
   Sql: {

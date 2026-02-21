@@ -103,9 +103,33 @@ function quickstartAi() {
 }
 ```
 
+## RAG grounded Q&A workflow
+
+```javascript
+function quickstartRagAnswer() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.RAG.answer({
+    indexFileId: 'YOUR_INDEX_FILE_ID',
+    question: 'What are the key milestones?',
+    generation: {
+      provider: 'openai'
+    },
+    options: {
+      requireCitations: true
+    }
+  });
+
+  Logger.log(out.status);
+  Logger.log(out.answer);
+  Logger.log(out.citations);
+}
+```
+
 ## Large dataset best practices
 
 - prefer `DataFrame.fromColumns(...)` when data is already columnar.
 - avoid repeated `toRecords()` inside loops.
 - use `dropDuplicates(['key1', 'key2'])` instead of full-row dedupe when possible.
 - run `npm run test:perf` before large refactors that affect dataframe internals.
+- for RAG indexing, cap `maxChunks` and re-sync incrementally instead of full rebuilds on every edit.

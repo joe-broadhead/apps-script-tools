@@ -51,7 +51,7 @@ Dispatch options:
 
 - `suite=functional` -> runs `runAllTests`
 - `suite=perf` -> runs `runPerformanceBenchmarks`
-- functional suite includes AI namespace/tool smoke tests
+- functional suite includes AI and RAG namespace/grounding smoke tests
 
 Or locally with configured `clasp` auth:
 
@@ -79,6 +79,7 @@ Before release, validate from a clean consumer project:
   - `DataFrame` transforms
   - `GroupBy`
   - `Series.query` function-only contract
+  - `ASTX.RAG` build/search/answer grounding behavior
 
 ## CI expectations
 

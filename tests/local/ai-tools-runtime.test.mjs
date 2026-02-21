@@ -57,7 +57,7 @@ test('runAiRequest executes tool handlers referenced by function', () => {
     });
   };
 
-  const response = context.runAiRequest(baseToolRequest([
+  const request = baseToolRequest([
     {
       name: 'sum_tool',
       description: 'sum values',
@@ -70,7 +70,8 @@ test('runAiRequest executes tool handlers referenced by function', () => {
       },
       handler: args => args.a + args.b
     }
-  ]));
+  ]);
+  const response = context.runAiRequest(request);
 
   context.runOpenAi = originalRunOpenAi;
 
@@ -171,4 +172,67 @@ test('runAiRequest throws AstAiToolLoopError when max rounds exceeded', () => {
   );
 
   context.runOpenAi = originalRunOpenAi;
+});
+
+test('runAiRequest downgrades named toolChoice to auto after first tool round', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  const seenToolChoices = [];
+  let calls = 0;
+
+  context.runOpenAi = request => {
+    calls += 1;
+    seenToolChoices.push(request.toolChoice);
+
+    if (calls === 1) {
+      return context.normalizeAiResponse({
+        provider: 'openai',
+        operation: 'tools',
+        model: 'gpt-4.1-mini',
+        output: {
+          toolCalls: [{
+            id: 'call_named_1',
+            name: 'sum_tool',
+            arguments: { a: 1, b: 2 }
+          }]
+        }
+      });
+    }
+
+    return context.normalizeAiResponse({
+      provider: 'openai',
+      operation: 'tools',
+      model: 'gpt-4.1-mini',
+      output: {
+        text: 'done named'
+      }
+    });
+  };
+
+  const request = baseToolRequest([
+    {
+      name: 'sum_tool',
+      description: 'sum values',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          a: { type: 'number' },
+          b: { type: 'number' }
+        }
+      },
+      handler: args => args.a + args.b
+    }
+  ], { maxToolRounds: 3 });
+  request.toolChoice = { name: 'sum_tool' };
+
+  const response = context.runAiRequest(request);
+
+  context.runOpenAi = originalRunOpenAi;
+
+  assert.equal(response.output.text, 'done named');
+  assert.equal(seenToolChoices.length, 2);
+  assert.equal(JSON.stringify(seenToolChoices[0]), JSON.stringify({ name: 'sum_tool' }));
+  assert.equal(seenToolChoices[1], 'auto');
 });
