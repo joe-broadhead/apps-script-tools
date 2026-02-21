@@ -24,5 +24,9 @@
  * - This function relies on the `CryptoJS` library for AES decryption.
  */
 function decrypt(encrypted, secret) {
-  return CryptoJS.AES.decrypt(encrypted, secret).toString(CryptoJS.enc.Utf8);
+  try {
+    return CryptoJS.AES.decrypt(encrypted, secret).toString(CryptoJS.enc.Utf8);
+  } catch (_error) {
+    return '';
+  }
 };
