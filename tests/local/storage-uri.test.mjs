@@ -33,6 +33,21 @@ test('astParseStorageUri rejects unsupported URI schemes', () => {
   );
 });
 
+test('astParseStorageUri rejects malformed dbfs URIs without a path', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astParseStorageUri('dbfs:'),
+    /must include a non-empty path segment/
+  );
+
+  assert.throws(
+    () => context.astParseStorageUri('dbfs://'),
+    /must include a non-empty path segment/
+  );
+});
+
 test('astStorageBuildUri normalizes canonical output', () => {
   const context = createGasContext();
   loadStorageScripts(context);

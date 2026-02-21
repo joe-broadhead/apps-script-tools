@@ -66,12 +66,19 @@ function astStorageNormalizeDbfsPath(pathValue) {
     throw new AstStorageValidationError('dbfs path must be a non-empty string');
   }
 
+  if (/^dbfs:(?:\/\/)?$/i.test(raw)) {
+    throw new AstStorageValidationError('dbfs uri/path must include a non-empty path segment');
+  }
+
   if (raw.startsWith('dbfs:/')) {
     return raw;
   }
 
   if (raw.startsWith('dbfs://')) {
     const body = raw.slice('dbfs://'.length);
+    if (!body || body.trim().length === 0) {
+      throw new AstStorageValidationError('dbfs uri/path must include a non-empty path segment');
+    }
     const normalizedBody = body.startsWith('/') ? body : `/${body}`;
     return `dbfs:${normalizedBody}`;
   }
