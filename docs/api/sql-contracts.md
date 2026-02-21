@@ -117,6 +117,8 @@ Use `toTable` to write dataframe rows to provider tables.
 - Unsafe placeholders without explicit opt-in: throws.
 - `toTable` with missing `config.tableSchema`: throws.
 - BigQuery load mode not in (`insert`, `overwrite`): throws.
+- Databricks load mode not in (`insert`, `overwrite`, `merge`): throws.
+- Databricks merge mode without `mergeKey`: throws.
 
 ## Provider error semantics
 
@@ -124,6 +126,10 @@ Use `toTable` to write dataframe rows to provider tables.
 - BigQuery execution/load failures throw errors from the provider path.
 - Databricks execution failures throw `DatabricksSqlError` with:
   - `name: "DatabricksSqlError"`
+  - `provider: "databricks"`
+  - optional `details` and `cause` fields for diagnostics
+- Databricks table-load failures throw `DatabricksLoadError` with:
+  - `name: "DatabricksLoadError"`
   - `provider: "databricks"`
   - optional `details` and `cause` fields for diagnostics
 
