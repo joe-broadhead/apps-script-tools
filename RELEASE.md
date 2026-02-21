@@ -33,6 +33,16 @@ Use a local `.clasp.json` (not committed):
 
 - root `.claspignore` is the only authoritative ignore file for `clasp` operations.
 - do not add nested `.claspignore` files under `apps_script_tools/`.
+- keep `.clasp.json` local-only (untracked) and use `.clasp.json.example` as the committed template.
+
+Repository guardrails (enforced by `npm run lint`):
+
+- root `.claspignore` must exist.
+- `apps_script_tools/.claspignore` must not exist.
+- `.clasp.json.example` must remain a valid template with:
+  - `"scriptId": "<YOUR_SCRIPT_ID>"`
+  - `"rootDir": "apps_script_tools"`
+- tracked secret/config files are blocked (`.clasp.json`, `.clasprc.json`, `creds.json`, `client_secret.json`).
 
 Publish flow:
 

@@ -43,6 +43,31 @@ if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
   findings.push('Manifest must declare explicit oauthScopes');
 }
 
+const rootClaspIgnorePath = path.join(ROOT, '.claspignore');
+if (!fs.existsSync(rootClaspIgnorePath)) {
+  findings.push('Root .claspignore is required and is the only allowed clasp ignore file.');
+}
+
+const claspTemplatePath = path.join(ROOT, '.clasp.json.example');
+if (!fs.existsSync(claspTemplatePath)) {
+  findings.push('Missing .clasp.json.example template.');
+} else {
+  try {
+    const claspTemplate = JSON.parse(readText(claspTemplatePath));
+    if (typeof claspTemplate.scriptId !== 'string' || claspTemplate.scriptId.trim().length === 0) {
+      findings.push('.clasp.json.example must define a non-empty scriptId placeholder.');
+    } else if (claspTemplate.scriptId !== '<YOUR_SCRIPT_ID>') {
+      findings.push('.clasp.json.example scriptId should remain <YOUR_SCRIPT_ID> placeholder.');
+    }
+
+    if (claspTemplate.rootDir !== 'apps_script_tools') {
+      findings.push('.clasp.json.example rootDir must be "apps_script_tools".');
+    }
+  } catch (error) {
+    findings.push(`.clasp.json.example must be valid JSON: ${error.message}`);
+  }
+}
+
 const nestedClaspIgnorePath = path.join(APPS_DIR, '.claspignore');
 if (fs.existsSync(nestedClaspIgnorePath)) {
   findings.push('Nested apps_script_tools/.claspignore is not allowed. Use root .claspignore only.');
