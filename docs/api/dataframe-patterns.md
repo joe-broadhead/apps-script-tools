@@ -18,6 +18,25 @@ function patternSelectAssignSort(ASTX) {
 }
 ```
 
+## Single-pass projection with `selectExpr`
+
+```javascript
+function patternSelectExpr(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { id: 1, amount: 10, score: 81 },
+    { id: 2, amount: 20, score: 63 }
+  ]);
+
+  return df.selectExpr({
+    id: 'id',
+    amount_x2: row => row.amount * 2,
+    score_bucket: (columns, idx) => columns.score.array[idx] >= 80 ? 'high' : 'standard'
+  });
+}
+```
+
+Use `selectExpr` when you want passthrough + computed columns in one projection step.
+
 ## Fast construction with `fromColumns`
 
 ```javascript
@@ -83,6 +102,29 @@ function patternGroupMetrics(ASTX) {
   return df.groupBy(['region']).agg({
     amount: ['sum', 'mean', values => Math.max(...values)]
   });
+}
+```
+
+## Partitioned window metrics
+
+```javascript
+function patternWindow(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { region: 'east', event_ts: 1, amount: 10 },
+    { region: 'east', event_ts: 2, amount: 15 },
+    { region: 'west', event_ts: 1, amount: 5 }
+  ]);
+
+  return df
+    .window({
+      partitionBy: ['region'],
+      orderBy: [{ column: 'event_ts', ascending: true }]
+    })
+    .assign({
+      row_number: w => w.rowNumber(),
+      amount_lag_1: w => w.col('amount').lag(1),
+      amount_running_sum: w => w.col('amount').running('sum')
+    });
 }
 ```
 

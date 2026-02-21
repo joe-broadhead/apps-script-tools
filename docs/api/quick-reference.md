@@ -34,10 +34,12 @@ ASTX.DataFrame.fromQuery(request)
 
 ```javascript
 df.select(columns)
+df.selectExpr(map, options)
 df.assign(map)
 df.sort(by, ascending)
 df.merge(other, how, options)
 df.groupBy(keys)
+df.window(spec).assign(map)
 df.dropDuplicates(subset)
 df.toColumns(options)
 df.toRecords()

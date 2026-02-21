@@ -29,6 +29,494 @@ function __astNormalizeSurrogateColumns(columns) {
   return normalizedColumns;
 }
 
+function __astValidateColumnName(columnName, contextName) {
+  if (typeof columnName !== 'string' || columnName.trim().length === 0) {
+    throw new Error(`${contextName} must be a non-empty string`);
+  }
+
+  return columnName.trim();
+}
+
+function __astCountTopLevelParams(paramsSource) {
+  if (paramsSource.trim().length === 0) {
+    return 0;
+  }
+
+  let count = 1;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inTemplate = false;
+  let previous = '';
+
+  for (let idx = 0; idx < paramsSource.length; idx++) {
+    const char = paramsSource[idx];
+
+    if (inSingleQuote) {
+      if (char === '\'' && previous !== '\\') {
+        inSingleQuote = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (inDoubleQuote) {
+      if (char === '"' && previous !== '\\') {
+        inDoubleQuote = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (inTemplate) {
+      if (char === '`' && previous !== '\\') {
+        inTemplate = false;
+      }
+      previous = char;
+      continue;
+    }
+
+    if (char === '\'') {
+      inSingleQuote = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '"') {
+      inDoubleQuote = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '`') {
+      inTemplate = true;
+      previous = char;
+      continue;
+    }
+
+    if (char === '(') parenDepth += 1;
+    else if (char === ')') parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']') bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}') braceDepth -= 1;
+    else if (char === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) count += 1;
+
+    previous = char;
+  }
+
+  return count;
+}
+
+function __astGetDeclaredFunctionParamCount(fn) {
+  const source = String(fn).trim();
+
+  if (source.length === 0) {
+    return null;
+  }
+
+  if (source.includes('=>')) {
+    const arrowIndex = source.indexOf('=>');
+    const left = source.slice(0, arrowIndex).trim().replace(/^async\s+/, '');
+    if (left.startsWith('(') && left.endsWith(')')) {
+      return __astCountTopLevelParams(left.slice(1, -1));
+    }
+
+    return left.length === 0 ? 0 : 1;
+  }
+
+  const startParen = source.indexOf('(');
+  if (startParen === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let idx = startParen; idx < source.length; idx++) {
+    const char = source[idx];
+    if (char === '(') depth += 1;
+    if (char === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        const inner = source.slice(startParen + 1, idx);
+        return __astCountTopLevelParams(inner);
+      }
+    }
+  }
+
+  return null;
+}
+
+function __astResolveSelectExprProjectorMode(expression) {
+  const declaredParamCount = __astGetDeclaredFunctionParamCount(expression);
+  return declaredParamCount != null && declaredParamCount >= 2
+    ? 'columns'
+    : 'row';
+}
+
+function __astNormalizeWindowColumnList(value, optionName) {
+  if (value == null) {
+    return [];
+  }
+
+  const rawList = Array.isArray(value) ? value : [value];
+  const normalizedList = new Array(rawList.length);
+
+  for (let idx = 0; idx < rawList.length; idx++) {
+    normalizedList[idx] = __astValidateColumnName(rawList[idx], `${optionName}[${idx}]`);
+  }
+
+  return normalizedList;
+}
+
+function __astNormalizeWindowSpec(df, spec = {}) {
+  if (spec == null || typeof spec !== 'object' || Array.isArray(spec)) {
+    throw new Error('window requires a spec object');
+  }
+
+  const partitionBy = __astNormalizeWindowColumnList(spec.partitionBy, 'partitionBy');
+  const missingPartitionColumns = partitionBy.filter(column => !df.columns.includes(column));
+  if (missingPartitionColumns.length > 0) {
+    throw new Error(`window received unknown partition columns: ${missingPartitionColumns.join(', ')}`);
+  }
+
+  const rawOrderBy = spec.orderBy;
+  if (rawOrderBy == null) {
+    throw new Error('window requires orderBy');
+  }
+
+  const orderByArray = Array.isArray(rawOrderBy) ? rawOrderBy : [rawOrderBy];
+  if (orderByArray.length === 0) {
+    throw new Error('window requires at least one orderBy column');
+  }
+
+  const orderBy = orderByArray.map((entry, idx) => {
+    const rawEntry = typeof entry === 'string'
+      ? { column: entry }
+      : entry;
+
+    if (rawEntry == null || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      throw new Error(`orderBy[${idx}] must be a string or object`);
+    }
+
+    const column = __astValidateColumnName(rawEntry.column, `orderBy[${idx}].column`);
+    if (!df.columns.includes(column)) {
+      throw new Error(`window orderBy column '${column}' not found`);
+    }
+
+    const ascending = rawEntry.ascending == null ? true : rawEntry.ascending;
+    if (typeof ascending !== 'boolean') {
+      throw new Error(`orderBy[${idx}].ascending must be boolean`);
+    }
+
+    const nulls = rawEntry.nulls == null ? 'last' : String(rawEntry.nulls).toLowerCase();
+    if (nulls !== 'first' && nulls !== 'last') {
+      throw new Error(`orderBy[${idx}].nulls must be 'first' or 'last'`);
+    }
+
+    return {
+      column,
+      ascending,
+      nulls
+    };
+  });
+
+  return { partitionBy, orderBy };
+}
+
+function __astWindowCompareValues(leftValue, rightValue) {
+  if (Object.is(leftValue, rightValue)) {
+    return 0;
+  }
+
+  if (leftValue instanceof Date && rightValue instanceof Date) {
+    const leftTime = leftValue.getTime();
+    const rightTime = rightValue.getTime();
+    return leftTime < rightTime ? -1 : (leftTime > rightTime ? 1 : 0);
+  }
+
+  const leftType = typeof leftValue;
+  const rightType = typeof rightValue;
+
+  if (leftType === rightType) {
+    if (leftType === 'number' || leftType === 'string' || leftType === 'boolean' || leftType === 'bigint') {
+      return leftValue < rightValue ? -1 : (leftValue > rightValue ? 1 : 0);
+    }
+  }
+
+  const leftKey = astStableKey(leftValue);
+  const rightKey = astStableKey(rightValue);
+  return leftKey < rightKey ? -1 : (leftKey > rightKey ? 1 : 0);
+}
+
+function __astBuildWindowExecutionContext(df, normalizedSpec) {
+  const rowCount = df.len();
+  const partitionColumns = normalizedSpec.partitionBy.map(column => df.data[column].array);
+  const orderColumns = normalizedSpec.orderBy.map(spec => df.data[spec.column].array);
+  const groupedRowIndexes = new Map();
+
+  for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+    const partitionKeyValues = new Array(partitionColumns.length);
+
+    for (let keyIdx = 0; keyIdx < partitionColumns.length; keyIdx++) {
+      partitionKeyValues[keyIdx] = partitionColumns[keyIdx][rowIdx];
+    }
+
+    const partitionKey = partitionColumns.length > 0
+      ? astBuildValuesKey(partitionKeyValues)
+      : '__ast_global_partition__';
+
+    if (!groupedRowIndexes.has(partitionKey)) {
+      groupedRowIndexes.set(partitionKey, []);
+    }
+
+    groupedRowIndexes.get(partitionKey).push(rowIdx);
+  }
+
+  const partitionRowsByRowIndex = new Array(rowCount);
+  const partitionPositionByRowIndex = new Array(rowCount);
+  const partitionGroups = [];
+
+  for (const rowIndexes of groupedRowIndexes.values()) {
+    rowIndexes.sort((leftIdx, rightIdx) => {
+      for (let specIdx = 0; specIdx < normalizedSpec.orderBy.length; specIdx++) {
+        const sortSpec = normalizedSpec.orderBy[specIdx];
+        const sourceArray = orderColumns[specIdx];
+        const leftValue = sourceArray[leftIdx];
+        const rightValue = sourceArray[rightIdx];
+
+        if (leftValue == null && rightValue == null) {
+          continue;
+        }
+        if (leftValue == null) {
+          return sortSpec.nulls === 'first' ? -1 : 1;
+        }
+        if (rightValue == null) {
+          return sortSpec.nulls === 'first' ? 1 : -1;
+        }
+
+        const compared = __astWindowCompareValues(leftValue, rightValue);
+        if (compared !== 0) {
+          return sortSpec.ascending ? compared : -compared;
+        }
+      }
+
+      // Stable final tie-breaker.
+      return leftIdx - rightIdx;
+    });
+
+    partitionGroups.push(rowIndexes);
+
+    for (let pos = 0; pos < rowIndexes.length; pos++) {
+      const rowIdx = rowIndexes[pos];
+      partitionRowsByRowIndex[rowIdx] = rowIndexes;
+      partitionPositionByRowIndex[rowIdx] = pos;
+    }
+  }
+
+  return {
+    partitionGroups,
+    partitionRowsByRowIndex,
+    partitionPositionByRowIndex
+  };
+}
+
+function __astValidateWindowOffset(offset, methodName) {
+  if (!Number.isInteger(offset) || offset < 1) {
+    throw new Error(`window.${methodName} offset must be a positive integer`);
+  }
+}
+
+function __astResolveWindowAssignedValues(value, rowCount, outputColumnName, windowContext) {
+  if (value && typeof value.then === 'function') {
+    throw new Error(`window.assign() does not support async results for '${outputColumnName}'`);
+  }
+
+  if (value instanceof Series) {
+    if (value.len() !== rowCount) {
+      throw new Error(`window.assign() Series for '${outputColumnName}' must match DataFrame length`);
+    }
+    return [...value.array];
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length !== rowCount) {
+      throw new Error(`window.assign() array for '${outputColumnName}' must have length ${rowCount}`);
+    }
+    return [...value];
+  }
+
+  if (typeof value === 'function') {
+    const resolved = value(windowContext);
+    return __astResolveWindowAssignedValues(resolved, rowCount, outputColumnName, windowContext);
+  }
+
+  return Series.fromValue(value, rowCount, outputColumnName).array;
+}
+
+var AstDataFrameWindowColumn = class AstDataFrameWindowColumn {
+  constructor(windowContext, columnName) {
+    this.windowContext = windowContext;
+    this.columnName = columnName;
+  }
+
+  lag(offset = 1, defaultValue = null) {
+    __astValidateWindowOffset(offset, 'lag');
+    return this._shift(-offset, defaultValue);
+  }
+
+  lead(offset = 1, defaultValue = null) {
+    __astValidateWindowOffset(offset, 'lead');
+    return this._shift(offset, defaultValue);
+  }
+
+  _shift(step, defaultValue) {
+    const rowCount = this.windowContext.df.len();
+    const values = new Array(rowCount);
+    const sourceColumn = this.windowContext.df.data[this.columnName].array;
+
+    for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+      const partitionRows = this.windowContext.partitionRowsByRowIndex[rowIdx];
+      const partitionPosition = this.windowContext.partitionPositionByRowIndex[rowIdx];
+      const sourcePosition = partitionPosition + step;
+
+      if (sourcePosition < 0 || sourcePosition >= partitionRows.length) {
+        values[rowIdx] = defaultValue;
+        continue;
+      }
+
+      values[rowIdx] = sourceColumn[partitionRows[sourcePosition]];
+    }
+
+    return values;
+  }
+
+  running(metric) {
+    const normalizedMetric = String(metric || '').toLowerCase();
+    const supportedMetrics = ['sum', 'mean', 'min', 'max', 'count'];
+    if (!supportedMetrics.includes(normalizedMetric)) {
+      throw new Error(`window.col('${this.columnName}').running() metric must be one of: ${supportedMetrics.join(', ')}`);
+    }
+
+    const rowCount = this.windowContext.df.len();
+    const sourceColumn = this.windowContext.df.data[this.columnName].array;
+    const output = new Array(rowCount);
+
+    for (let partitionIdx = 0; partitionIdx < this.windowContext.partitionGroups.length; partitionIdx++) {
+      const partitionRows = this.windowContext.partitionGroups[partitionIdx];
+      let runningCount = 0;
+      let runningSum = 0;
+      let runningMin = null;
+      let runningMax = null;
+
+      for (let pos = 0; pos < partitionRows.length; pos++) {
+        const rowIdx = partitionRows[pos];
+        const rawValue = sourceColumn[rowIdx];
+        const hasValue = rawValue != null;
+
+        if (normalizedMetric === 'count') {
+          if (hasValue) {
+            runningCount += 1;
+          }
+          output[rowIdx] = runningCount;
+          continue;
+        }
+
+        if (hasValue) {
+          if (typeof rawValue !== 'number' || Number.isNaN(rawValue)) {
+            throw new Error(`window.running('${normalizedMetric}') requires numeric values for column '${this.columnName}'`);
+          }
+
+          runningCount += 1;
+          runningSum += rawValue;
+          runningMin = runningMin == null ? rawValue : Math.min(runningMin, rawValue);
+          runningMax = runningMax == null ? rawValue : Math.max(runningMax, rawValue);
+        }
+
+        switch (normalizedMetric) {
+          case 'sum':
+            output[rowIdx] = runningCount > 0 ? runningSum : null;
+            break;
+          case 'mean':
+            output[rowIdx] = runningCount > 0 ? runningSum / runningCount : null;
+            break;
+          case 'min':
+            output[rowIdx] = runningMin;
+            break;
+          case 'max':
+            output[rowIdx] = runningMax;
+            break;
+        }
+      }
+    }
+
+    return output;
+  }
+};
+
+var AstDataFrameWindow = class AstDataFrameWindow {
+  constructor(df, spec = {}) {
+    this.df = df;
+    this.spec = __astNormalizeWindowSpec(df, spec);
+
+    const executionContext = __astBuildWindowExecutionContext(df, this.spec);
+    this.partitionGroups = executionContext.partitionGroups;
+    this.partitionRowsByRowIndex = executionContext.partitionRowsByRowIndex;
+    this.partitionPositionByRowIndex = executionContext.partitionPositionByRowIndex;
+  }
+
+  rowNumber() {
+    const output = new Array(this.df.len());
+    for (let rowIdx = 0; rowIdx < output.length; rowIdx++) {
+      output[rowIdx] = this.partitionPositionByRowIndex[rowIdx] + 1;
+    }
+    return output;
+  }
+
+  col(columnName) {
+    const normalizedColumn = __astValidateColumnName(columnName, 'window column');
+    if (!this.df.columns.includes(normalizedColumn)) {
+      throw new Error(`window column '${normalizedColumn}' not found`);
+    }
+    return new AstDataFrameWindowColumn(this, normalizedColumn);
+  }
+
+  assign(columns = {}) {
+    if (columns == null || typeof columns !== 'object' || Array.isArray(columns)) {
+      throw new Error('window.assign() requires an object mapping');
+    }
+
+    const entries = Object.entries(columns);
+    if (entries.length === 0) {
+      throw new Error('window.assign() requires at least one output column');
+    }
+
+    const rowCount = this.df.len();
+    const nextColumns = this.df.toColumns({ copy: true });
+
+    for (let idx = 0; idx < entries.length; idx++) {
+      const [columnName, expression] = entries[idx];
+      const normalizedColumnName = __astValidateColumnName(columnName, `window.assign column at index ${idx}`);
+      const evaluated = typeof expression === 'function'
+        ? expression(this)
+        : expression;
+
+      nextColumns[normalizedColumnName] = __astResolveWindowAssignedValues(
+        evaluated,
+        rowCount,
+        normalizedColumnName,
+        this
+      );
+    }
+
+    return DataFrame.fromColumns(nextColumns, {
+      copy: false,
+      index: [...this.df.index]
+    });
+  }
+};
+
 var DataFrame = class DataFrame {
   constructor(data, index = null) {
     this.data = data;
@@ -247,6 +735,113 @@ var DataFrame = class DataFrame {
     const result = new DataFrame(selectedData);
     result.index = [...this.index];
     return result;
+  }
+
+  selectExpr(map, options = {}) {
+    if (map == null || typeof map !== 'object' || Array.isArray(map)) {
+      throw new Error('selectExpr requires an object mapping of output columns');
+    }
+
+    const expressionEntries = Object.entries(map);
+    if (expressionEntries.length === 0) {
+      throw new Error('selectExpr requires at least one expression');
+    }
+
+    if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('selectExpr options must be an object');
+    }
+
+    const {
+      strict = true,
+      onError = 'throw'
+    } = options;
+
+    if (typeof strict !== 'boolean') {
+      throw new Error('selectExpr option strict must be boolean');
+    }
+
+    if (!['throw', 'null'].includes(onError)) {
+      throw new Error("selectExpr option onError must be either 'throw' or 'null'");
+    }
+
+    const rowCount = this.len();
+    const selectedColumns = {};
+    const sourceColumns = this.columns;
+    const sourceColumnArrays = sourceColumns.map(column => this.data[column].array);
+    let rowCache = null;
+
+    const buildRowObjectAt = rowIdx => {
+      if (rowCache == null) {
+        rowCache = new Array(rowCount);
+      }
+
+      if (rowCache[rowIdx] != null) {
+        return rowCache[rowIdx];
+      }
+
+      const row = {};
+      for (let colIdx = 0; colIdx < sourceColumns.length; colIdx++) {
+        row[sourceColumns[colIdx]] = sourceColumnArrays[colIdx][rowIdx];
+      }
+
+      rowCache[rowIdx] = row;
+      return row;
+    };
+
+    for (let exprIdx = 0; exprIdx < expressionEntries.length; exprIdx++) {
+      const [outputColumnName, expression] = expressionEntries[exprIdx];
+      const normalizedOutputColumn = __astValidateColumnName(outputColumnName, `selectExpr output key at index ${exprIdx}`);
+
+      if (typeof expression === 'string') {
+        const sourceColumnName = expression.trim();
+        if (!this.columns.includes(sourceColumnName)) {
+          if (strict) {
+            throw new Error(`selectExpr received unknown source column '${sourceColumnName}' for output '${normalizedOutputColumn}'`);
+          }
+          selectedColumns[normalizedOutputColumn] = Series.fromValue(null, rowCount, normalizedOutputColumn).array;
+          continue;
+        }
+
+        selectedColumns[normalizedOutputColumn] = [...this.data[sourceColumnName].array];
+        continue;
+      }
+
+      if (typeof expression !== 'function') {
+        throw new Error(`selectExpr expression for '${normalizedOutputColumn}' must be a string or function`);
+      }
+
+      const projectorMode = __astResolveSelectExprProjectorMode(expression);
+      const values = new Array(rowCount);
+      for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+        let value;
+
+        try {
+          value = projectorMode === 'columns'
+            ? expression(this.data, rowIdx)
+            : expression(buildRowObjectAt(rowIdx));
+        } catch (error) {
+          if (onError === 'null') {
+            values[rowIdx] = null;
+            continue;
+          }
+
+          throw new Error(`selectExpr expression for '${normalizedOutputColumn}' failed at row ${rowIdx}: ${error.message}`);
+        }
+
+        if (value && typeof value.then === 'function') {
+          throw new Error(`selectExpr expression for '${normalizedOutputColumn}' returned a Promise at row ${rowIdx}; async expressions are not supported`);
+        }
+
+        values[rowIdx] = value;
+      }
+
+      selectedColumns[normalizedOutputColumn] = values;
+    }
+
+    return DataFrame.fromColumns(selectedColumns, {
+      copy: false,
+      index: [...this.index]
+    });
   }
 
   resetIndex() {
@@ -492,6 +1087,10 @@ var DataFrame = class DataFrame {
       throw new Error('groupBy requires at least one key');
     }
     return new GroupBy(this, normalizedKeys);
+  }
+
+  window(spec = {}) {
+    return new AstDataFrameWindow(this, spec);
   }
 
   toColumns(options = {}) {
