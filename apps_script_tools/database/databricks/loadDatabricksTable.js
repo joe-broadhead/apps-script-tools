@@ -50,20 +50,198 @@
  * 
  * @see sqlLiteral - Converts data values to SQL-safe literals.
  */
-function loadDatabricksTable(config) {
+function buildDatabricksLoadError(message, details = {}, cause = null) {
+  const error = new Error(message);
+  error.name = 'DatabricksLoadError';
+  error.provider = 'databricks';
+  error.details = details;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
+
+function normalizeDatabricksLoadConfig(config = {}) {
+  if (config == null || typeof config !== 'object' || Array.isArray(config)) {
+    throw buildDatabricksLoadError('loadDatabricksTable requires a config object');
+  }
+
   const {
     arrays,
     tableName,
     tableSchema,
     mode = 'insert',
-    mergeKey,
+    mergeKey = null,
     batchSize = 500,
-    databricks_parameters,
+    databricks_parameters = {},
     options = {}
   } = config;
 
-  const headers = arrays[0].map(h => String(h).trim());
+  if (!Array.isArray(arrays) || arrays.length === 0 || !Array.isArray(arrays[0])) {
+    throw buildDatabricksLoadError('loadDatabricksTable requires non-empty arrays with a header row');
+  }
+
+  const headers = arrays[0].map(header => String(header).trim());
+  if (headers.length === 0) {
+    throw buildDatabricksLoadError('loadDatabricksTable header row must include at least one column');
+  }
+
+  if (headers.some(header => header.length === 0)) {
+    throw buildDatabricksLoadError('loadDatabricksTable header values must be non-empty strings');
+  }
+
+  const uniqueHeaders = new Set(headers);
+  if (uniqueHeaders.size !== headers.length) {
+    throw buildDatabricksLoadError('loadDatabricksTable header values must be unique');
+  }
+
   const rows = arrays.slice(1);
+  rows.forEach((row, rowIdx) => {
+    if (!Array.isArray(row)) {
+      throw buildDatabricksLoadError(`Data row at index ${rowIdx + 1} must be an array`);
+    }
+
+    if (row.length !== headers.length) {
+      throw buildDatabricksLoadError(
+        `Data row at index ${rowIdx + 1} has length ${row.length}, expected ${headers.length}`
+      );
+    }
+  });
+
+  if (typeof tableName !== 'string' || tableName.trim().length === 0) {
+    throw buildDatabricksLoadError('loadDatabricksTable requires a non-empty tableName');
+  }
+
+  if (tableSchema == null || typeof tableSchema !== 'object' || Array.isArray(tableSchema)) {
+    throw buildDatabricksLoadError('loadDatabricksTable requires a tableSchema object');
+  }
+
+  const schemaEntries = Object.entries(tableSchema);
+  if (schemaEntries.length === 0) {
+    throw buildDatabricksLoadError('loadDatabricksTable requires tableSchema with at least one column');
+  }
+
+  schemaEntries.forEach(([columnName, columnType]) => {
+    if (typeof columnName !== 'string' || columnName.trim().length === 0) {
+      throw buildDatabricksLoadError('tableSchema column names must be non-empty strings');
+    }
+    if (typeof columnType !== 'string' || columnType.trim().length === 0) {
+      throw buildDatabricksLoadError(`tableSchema.${columnName} must be a non-empty string type`);
+    }
+  });
+
+  const schemaColumnNames = Object.keys(tableSchema);
+  const missingSchemaColumns = headers.filter(header => !schemaColumnNames.includes(header));
+  if (missingSchemaColumns.length > 0) {
+    throw buildDatabricksLoadError(
+      `tableSchema is missing definitions for columns: ${missingSchemaColumns.join(', ')}`
+    );
+  }
+
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw buildDatabricksLoadError('batchSize must be a positive integer');
+  }
+
+  const allowedModes = ['insert', 'overwrite', 'merge'];
+  if (!allowedModes.includes(mode)) {
+    throw buildDatabricksLoadError(`Unsupported mode: ${mode}`);
+  }
+
+  if (databricks_parameters == null || typeof databricks_parameters !== 'object' || Array.isArray(databricks_parameters)) {
+    throw buildDatabricksLoadError('databricks_parameters must be an object');
+  }
+
+  const requiredDatabricksFields = ['host', 'sqlWarehouseId', 'schema', 'token'];
+  const missingDatabricksFields = requiredDatabricksFields.filter(field => {
+    const value = databricks_parameters[field];
+    return typeof value !== 'string' || value.trim().length === 0;
+  });
+
+  if (missingDatabricksFields.length > 0) {
+    throw buildDatabricksLoadError(
+      `Missing required Databricks parameters: ${missingDatabricksFields.join(', ')}`
+    );
+  }
+
+  if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+    throw buildDatabricksLoadError('options must be an object when provided');
+  }
+
+  const maxWaitMs = options.maxWaitMs;
+  const pollIntervalMs = options.pollIntervalMs;
+
+  if (maxWaitMs != null && (!Number.isInteger(maxWaitMs) || maxWaitMs < 1)) {
+    throw buildDatabricksLoadError('options.maxWaitMs must be a positive integer when provided');
+  }
+
+  if (pollIntervalMs != null && (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 1)) {
+    throw buildDatabricksLoadError('options.pollIntervalMs must be a positive integer when provided');
+  }
+
+  if (
+    Number.isInteger(maxWaitMs) &&
+    Number.isInteger(pollIntervalMs) &&
+    pollIntervalMs > maxWaitMs
+  ) {
+    throw buildDatabricksLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs');
+  }
+
+  const normalizedMergeKey = typeof mergeKey === 'string' ? mergeKey.trim() : mergeKey;
+
+  if (mode === 'merge') {
+    if (typeof normalizedMergeKey !== 'string' || normalizedMergeKey.length === 0) {
+      throw buildDatabricksLoadError('mergeKey is required for merge mode');
+    }
+
+    if (!headers.includes(normalizedMergeKey)) {
+      throw buildDatabricksLoadError(`mergeKey '${normalizedMergeKey}' must exist in header columns`);
+    }
+  }
+
+  return {
+    arrays,
+    headers,
+    rows,
+    tableName: tableName.trim(),
+    tableSchema,
+    mode,
+    mergeKey: normalizedMergeKey,
+    batchSize,
+    databricks_parameters,
+    options
+  };
+}
+
+function executeDatabricksLoadStatement(sql, databricks_parameters, options, details = {}) {
+  try {
+    return runDatabricksSql(sql, databricks_parameters, {}, options);
+  } catch (error) {
+    if (error && error.name === 'DatabricksLoadError') {
+      throw error;
+    }
+
+    throw buildDatabricksLoadError(
+      `Databricks load failed during ${details.phase || 'statement execution'}`,
+      details,
+      error
+    );
+  }
+}
+
+function loadDatabricksTable(config) {
+  const normalizedConfig = normalizeDatabricksLoadConfig(config);
+
+  const {
+    headers,
+    rows,
+    tableName,
+    tableSchema,
+    mode,
+    mergeKey,
+    batchSize,
+    databricks_parameters,
+    options
+  } = normalizedConfig;
 
   const defs = (
     Object.entries(tableSchema)
@@ -72,23 +250,28 @@ function loadDatabricksTable(config) {
     .join(',')
   );
 
-  runDatabricksSql(`
+  executeDatabricksLoadStatement(`
     create table if not exists ${tableName} (
       ${defs}
     )`,
     databricks_parameters,
-    {},
-    options
+    options,
+    { phase: 'create table', tableName, mode }
   );
 
   const colList = headers.join(', ');
   const chunks = arrayChunk(rows, batchSize);
 
   if(mode === 'overwrite') {
-    runDatabricksSql(`truncate table ${tableName}`, databricks_parameters, {}, options);
+    executeDatabricksLoadStatement(
+      `truncate table ${tableName}`,
+      databricks_parameters,
+      options,
+      { phase: 'truncate', tableName, mode }
+    );
   };
 
-  chunks.forEach(chunkRows => {
+  chunks.forEach((chunkRows, chunkIndex) => {
     const vals = (
       chunkRows
       .map(row => `(${row.map(sqlLiteral).join(', ')})`)
@@ -113,7 +296,7 @@ function loadDatabricksTable(config) {
         break;
 
       case 'merge':
-        if (!mergeKey) throw new Error('mergeKey is required for merge mode');
+        if (!mergeKey) throw buildDatabricksLoadError('mergeKey is required for merge mode');
         const colAliases = (
           headers
           .map((h, i) => `col${i+1} AS ${h}`)
@@ -149,10 +332,15 @@ function loadDatabricksTable(config) {
         break;
 
       default:
-        throw new Error(`Unsupported mode: ${mode}`);
+        throw buildDatabricksLoadError(`Unsupported mode: ${mode}`);
     }
 
-    runDatabricksSql(sql, databricks_parameters, {}, options);
+    executeDatabricksLoadStatement(
+      sql,
+      databricks_parameters,
+      options,
+      { phase: `write_${mode}`, tableName, mode, chunkIndex }
+    );
   });
 
 };

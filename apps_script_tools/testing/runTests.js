@@ -238,6 +238,7 @@ async function runAllTests() {
 
     // database Tests
 
+    ...DATABASE_LOAD_DATABRICKS_TABLE_TESTS,
     ...DATABASE_RUN_DATABRICKS_SQL_TESTS,
     ...DATABASE_RUN_SQL_QUERY_TESTS,
   ];
