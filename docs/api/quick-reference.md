@@ -184,6 +184,7 @@ ASTX.Telemetry.getTrace(traceId)
 - unsupported AI provider/operation combinations throw typed capability errors.
 - `ASTX.AI.stream(...)` emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
+- `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).

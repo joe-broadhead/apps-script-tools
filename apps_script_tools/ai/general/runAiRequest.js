@@ -104,6 +104,12 @@ function astExecuteAiRequest(normalizedRequest) {
   return providerExecutor(normalizedRequest, config);
 }
 
+function astDispatchAiRequest(normalizedRequest) {
+  return normalizedRequest.routing
+    ? astRunAiWithFallback(normalizedRequest, astExecuteAiRequest)
+    : astExecuteAiRequest(normalizedRequest);
+}
+
 function runAiRequest(request = {}) {
   let normalizedRequest = null;
   const spanId = astAiTelemetryStartSpan(request, null);
@@ -111,9 +117,9 @@ function runAiRequest(request = {}) {
   try {
     normalizedRequest = validateAiRequest(request);
 
-    const response = normalizedRequest.routing
-      ? astRunAiWithFallback(normalizedRequest, astExecuteAiRequest)
-      : astExecuteAiRequest(normalizedRequest);
+    const response = normalizedRequest.operation === 'structured'
+      ? astRunStructuredWithReliability(normalizedRequest, astDispatchAiRequest)
+      : astDispatchAiRequest(normalizedRequest);
 
     astAiTelemetryEndSpan(spanId, normalizedRequest, response, null);
     return response;

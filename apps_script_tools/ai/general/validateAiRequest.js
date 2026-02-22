@@ -107,6 +107,48 @@ function astNormalizeToolChoice(toolChoice) {
   throw new AstAiValidationError('toolChoice must be auto, none, or an object with a name field');
 }
 
+function astNormalizeStructuredReliabilityOptions(reliability) {
+  if (typeof reliability === 'undefined' || reliability === null) {
+    return {
+      maxSchemaRetries: 2,
+      repairMode: 'json_repair',
+      strictValidation: true
+    };
+  }
+
+  if (!astIsPlainObject(reliability)) {
+    throw new AstAiValidationError('options.reliability must be an object when provided');
+  }
+
+  let maxSchemaRetries = 2;
+  if (typeof reliability.maxSchemaRetries !== 'undefined' && reliability.maxSchemaRetries !== null) {
+    if (!Number.isInteger(reliability.maxSchemaRetries)) {
+      throw new AstAiValidationError('options.reliability.maxSchemaRetries must be an integer when provided');
+    }
+
+    maxSchemaRetries = Math.max(0, Math.min(5, reliability.maxSchemaRetries));
+  }
+
+  let repairMode = 'json_repair';
+  if (typeof reliability.repairMode !== 'undefined' && reliability.repairMode !== null) {
+    const normalizedMode = String(reliability.repairMode || '').trim().toLowerCase();
+    if (!['none', 'json_repair', 'llm_repair'].includes(normalizedMode)) {
+      throw new AstAiValidationError('options.reliability.repairMode must be one of: none, json_repair, llm_repair');
+    }
+    repairMode = normalizedMode;
+  }
+
+  const strictValidation = typeof reliability.strictValidation === 'undefined'
+    ? true
+    : Boolean(reliability.strictValidation);
+
+  return {
+    maxSchemaRetries,
+    repairMode,
+    strictValidation
+  };
+}
+
 function astNormalizeAiOptions(options = {}) {
   if (!astIsPlainObject(options)) {
     throw new AstAiValidationError('AI request options must be an object');
@@ -153,6 +195,8 @@ function astNormalizeAiOptions(options = {}) {
     maxOutputTokens = options.maxOutputTokens;
   }
 
+  const reliability = astNormalizeStructuredReliabilityOptions(options.reliability);
+
   return {
     temperature,
     maxOutputTokens,
@@ -161,7 +205,8 @@ function astNormalizeAiOptions(options = {}) {
     includeRaw: Boolean(options.includeRaw),
     maxToolRounds,
     stream,
-    streamChunkSize
+    streamChunkSize,
+    reliability
   };
 }
 

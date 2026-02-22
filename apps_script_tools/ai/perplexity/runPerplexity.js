@@ -101,14 +101,6 @@ function runPerplexity(request, config) {
   let structuredJson = null;
   if (request.operation === 'structured') {
     structuredJson = astAiSafeJsonParse(text);
-
-    if (structuredJson == null) {
-      throw new AstAiResponseParseError('Failed to parse Perplexity structured response as JSON', {
-        provider: 'perplexity',
-        operation: 'structured',
-        text
-      });
-    }
   }
 
   return normalizeAiResponse({

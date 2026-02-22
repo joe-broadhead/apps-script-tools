@@ -129,14 +129,6 @@ function runOpenRouter(request, config) {
   let structuredJson = null;
   if (request.operation === 'structured') {
     structuredJson = astAiSafeJsonParse(text);
-
-    if (structuredJson == null) {
-      throw new AstAiResponseParseError('Failed to parse OpenRouter structured response as JSON', {
-        provider: 'openrouter',
-        operation: 'structured',
-        text
-      });
-    }
   }
 
   return normalizeAiResponse({

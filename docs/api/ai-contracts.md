@@ -39,7 +39,12 @@ Auth/model resolution order:
     timeoutMs: 45000,
     retries: 2,
     includeRaw: false,
-    maxToolRounds: 3
+    maxToolRounds: 3,
+    reliability: {
+      maxSchemaRetries: 2,
+      repairMode: 'none' | 'json_repair' | 'llm_repair',
+      strictValidation: true
+    }
   },
   auth: { ...provider overrides... },
   providerOptions: { ...provider-native extras... },
@@ -89,6 +94,17 @@ Routing notes:
 ```
 
 `ASTX.AI.structured(...)` returns parsed JSON at `response.output.json`.
+
+Structured reliability notes:
+
+- default reliability policy: `maxSchemaRetries=2`, `repairMode='json_repair'`, `strictValidation=true`.
+- retries are bounded and deterministic (`1 + maxSchemaRetries` total attempts).
+- `json_repair` performs local JSON cleanup (code fences, trailing commas, substring extraction).
+- `llm_repair` may issue one additional provider call per attempt to repair malformed output.
+- final failures throw `AstAiResponseParseError` with diagnostics in `error.details`:
+  - `retryCount`
+  - `attempts[]` (failure kind, schema diagnostics, truncated payload)
+  - `originalPayload` (truncated)
 
 ## Tool request additions
 

@@ -55,6 +55,7 @@ Current release state:
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
+- `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.
 
 ## Install As Apps Script Library
 

@@ -28,6 +28,11 @@
   - candidate-based selection (`priority`, `fastest`, `cost_first`)
   - deterministic retry/failover policy controls
   - response/error attempt trace metadata (`response.route` and `error.details.route`)
+- Structured output reliability layer for `AST.AI.structured(...)`:
+  - schema validation pass over normalized provider JSON
+  - bounded retry policy (`options.reliability.maxSchemaRetries`)
+  - optional repair modes (`json_repair`, `llm_repair`)
+  - deterministic diagnostics on failure (`AstAiResponseParseError.details.attempts`)
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
