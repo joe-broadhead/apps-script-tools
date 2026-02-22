@@ -208,3 +208,45 @@ test('DBFS maps missing resources to AstStorageNotFoundError', () => {
     }
   );
 });
+
+test('DBFS list marks truncated when maxItems caps file list', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: url => {
+        if (url.includes('/dbfs/list?')) {
+          return createResponse({
+            body: JSON.stringify({
+              files: [
+                { path: 'dbfs:/mnt/data/a.txt', is_dir: false, file_size: 1, modification_time: 1 },
+                { path: 'dbfs:/mnt/data/b.txt', is_dir: false, file_size: 1, modification_time: 1 }
+              ]
+            })
+          });
+        }
+
+        return createResponse({ body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 'dbfs:/mnt/data',
+    operation: 'list',
+    options: {
+      maxItems: 1
+    }
+  });
+
+  assert.equal(out.output.items.length, 1);
+  assert.equal(out.page.truncated, true);
+});

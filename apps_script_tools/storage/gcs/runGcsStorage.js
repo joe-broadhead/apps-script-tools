@@ -104,15 +104,18 @@ function astGcsList({ request, accessToken }) {
     }))
     : [];
 
-  const mergedItems = items.concat(prefixes).slice(0, request.options.maxItems);
+  const allItems = items.concat(prefixes);
+  const mergedItems = allItems.slice(0, request.options.maxItems);
+  const truncatedByMaxItems = allItems.length > request.options.maxItems;
+  const nextPageToken = astStorageNormalizeString(payload.nextPageToken, null);
 
   return {
     output: {
       items: mergedItems
     },
     page: {
-      nextPageToken: astStorageNormalizeString(payload.nextPageToken, null),
-      truncated: Boolean(payload.nextPageToken)
+      nextPageToken,
+      truncated: Boolean(nextPageToken) || truncatedByMaxItems
     },
     usage: {
       requestCount: 1,

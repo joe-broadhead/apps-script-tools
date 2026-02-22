@@ -28,6 +28,9 @@
       },
       "dataframe.toRecords_100000_10": {
         "toRecords": 1
+      },
+      "dataframe.merge_inner_100000": {
+        "toRecords": 0
       }
     }
   }

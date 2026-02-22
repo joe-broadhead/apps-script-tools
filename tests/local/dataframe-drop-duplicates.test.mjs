@@ -45,3 +45,27 @@ test('DataFrame.dropDuplicates compares Date/object values by content for subset
   const subsetResult = df.dropDuplicates(['date', 'nested']);
   assert.equal(subsetResult.len(), 2);
 });
+
+test('DataFrame.dropDuplicates preserves schema for typed empty DataFrames', () => {
+  const context = createGasContext({
+    loadDatabricksTable: () => {},
+    loadBigQueryTable: () => {}
+  });
+
+  loadCoreDataContext(context);
+
+  const emptyTyped = context.DataFrame.fromColumns({
+    id: new context.Series([], 'id', 'string', [], { allowComplexValues: true, skipTypeCoercion: true }),
+    amount: new context.Series([], 'amount', 'float', [], { allowComplexValues: true, skipTypeCoercion: true })
+  }, {
+    copy: false,
+    index: []
+  });
+
+  const deduped = emptyTyped.dropDuplicates();
+
+  assert.equal(deduped.len(), 0);
+  assert.equal(JSON.stringify(deduped.columns), JSON.stringify(['id', 'amount']));
+  assert.equal(JSON.stringify(deduped.schema()), JSON.stringify({ id: 'string', amount: 'float' }));
+  assert.notEqual(deduped, emptyTyped);
+});

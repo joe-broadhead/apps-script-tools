@@ -125,13 +125,16 @@ function astS3List({ request, config }) {
 
   const parsed = astS3ParseListXml(response.body, request.location.bucket);
 
+  const cappedItems = parsed.items.slice(0, request.options.maxItems);
+  const truncatedByMaxItems = parsed.items.length > request.options.maxItems;
+
   return {
     output: {
-      items: parsed.items.slice(0, request.options.maxItems)
+      items: cappedItems
     },
     page: {
       nextPageToken: astStorageNormalizeString(parsed.nextPageToken, null),
-      truncated: parsed.truncated
+      truncated: parsed.truncated || truncatedByMaxItems
     },
     usage: {
       requestCount: 1,

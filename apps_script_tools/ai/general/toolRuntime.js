@@ -138,6 +138,16 @@ function astExecuteToolCall(toolCall, registry, requestContext) {
       toolCall
     });
 
+    if (result && typeof result.then === 'function') {
+      throw new AstAiToolExecutionError(
+        `Tool handler '${toolName}' returned a Promise; async handlers are not supported`,
+        {
+          toolName,
+          arguments: args
+        }
+      );
+    }
+
     return {
       id: typeof toolCall.id === 'string' && toolCall.id.trim().length > 0
         ? toolCall.id
@@ -147,6 +157,10 @@ function astExecuteToolCall(toolCall, registry, requestContext) {
       result
     };
   } catch (error) {
+    if (error && error.name === 'AstAiToolExecutionError') {
+      throw error;
+    }
+
     throw new AstAiToolExecutionError(
       `Tool handler '${toolName}' threw an error`,
       {
@@ -235,11 +249,24 @@ function astRunAiTools(request, config, providerExecutor) {
     });
 
     roundToolResults.forEach(result => {
+      let serializedResult = '';
+      try {
+        serializedResult = JSON.stringify(result.result);
+      } catch (error) {
+        throw new AstAiToolExecutionError(
+          `Tool handler '${result.name}' returned a non-serializable result`,
+          {
+            toolName: result.name
+          },
+          error
+        );
+      }
+
       workingMessages.push({
         role: 'tool',
         name: result.name,
         toolCallId: result.id,
-        content: JSON.stringify(result.result)
+        content: serializedResult
       });
     });
   }

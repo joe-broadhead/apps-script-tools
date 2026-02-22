@@ -236,3 +236,80 @@ test('runAiRequest downgrades named toolChoice to auto after first tool round', 
   assert.equal(JSON.stringify(seenToolChoices[0]), JSON.stringify({ name: 'sum_tool' }));
   assert.equal(seenToolChoices[1], 'auto');
 });
+
+test('runAiRequest rejects async tool handlers with typed error', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  context.runOpenAi = () => context.normalizeAiResponse({
+    provider: 'openai',
+    operation: 'tools',
+    model: 'gpt-4.1-mini',
+    output: {
+      toolCalls: [{
+        id: 'call_async',
+        name: 'async_tool',
+        arguments: {}
+      }]
+    }
+  });
+
+  assert.throws(
+    () => context.runAiRequest(baseToolRequest([
+      {
+        name: 'async_tool',
+        description: 'async tool should fail',
+        inputSchema: { type: 'object', properties: {} },
+        handler: () => Promise.resolve('ok')
+      }
+    ])),
+    error => {
+      assert.equal(error.name, 'AstAiToolExecutionError');
+      assert.match(error.message, /returned a Promise/);
+      return true;
+    }
+  );
+
+  context.runOpenAi = originalRunOpenAi;
+});
+
+test('runAiRequest rejects non-serializable tool results', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  context.runOpenAi = () => context.normalizeAiResponse({
+    provider: 'openai',
+    operation: 'tools',
+    model: 'gpt-4.1-mini',
+    output: {
+      toolCalls: [{
+        id: 'call_circular',
+        name: 'circular_tool',
+        arguments: {}
+      }]
+    }
+  });
+
+  const circular = {};
+  circular.self = circular;
+
+  assert.throws(
+    () => context.runAiRequest(baseToolRequest([
+      {
+        name: 'circular_tool',
+        description: 'returns circular object',
+        inputSchema: { type: 'object', properties: {} },
+        handler: () => circular
+      }
+    ])),
+    error => {
+      assert.equal(error.name, 'AstAiToolExecutionError');
+      assert.match(error.message, /non-serializable result/);
+      return true;
+    }
+  );
+
+  context.runOpenAi = originalRunOpenAi;
+});

@@ -47,26 +47,57 @@ var GroupBy = class GroupBy {
     }
   
     agg(aggregations) {
+      const outputPlans = [];
+      const usedOutputNames = new Set(this.keys);
+
+      const toUniqueOutputName = baseName => {
+        if (!usedOutputNames.has(baseName)) {
+          usedOutputNames.add(baseName);
+          return baseName;
+        }
+
+        let suffix = 2;
+        while (usedOutputNames.has(`${baseName}_${suffix}`)) {
+          suffix += 1;
+        }
+
+        const nextName = `${baseName}_${suffix}`;
+        usedOutputNames.add(nextName);
+        return nextName;
+      };
+
+      for (const [colName, aggFuncs] of Object.entries(aggregations)) {
+        const funcsArray = Array.isArray(aggFuncs) ? aggFuncs : [aggFuncs];
+
+        funcsArray.forEach((aggFunc, idx) => {
+          const isCustomFunc = typeof aggFunc === 'function';
+          const suffix = isCustomFunc
+            ? (aggFunc.name || `custom_${idx + 1}`)
+            : aggFunc;
+          const baseColName = `${colName}_${suffix}`;
+          const newColName = toUniqueOutputName(baseColName);
+
+          outputPlans.push({
+            colName,
+            aggFunc,
+            isCustomFunc,
+            outputName: newColName
+          });
+        });
+      }
+
       const results = [];
   
       for (const group of Object.values(this.groups)) {
         const groupKeys = group.dropDuplicates(this.keys).select(this.keys);
         const output = {};
   
-        for (const [colName, aggFuncs] of Object.entries(aggregations)) {
-          const funcsArray = Array.isArray(aggFuncs) ? aggFuncs : [aggFuncs];
-  
-          funcsArray.forEach(aggFunc => {
-            const isCustomFunc = typeof aggFunc === 'function';
-            const suffix = isCustomFunc ? aggFunc.name : aggFunc;
-            const newColName = `${colName}_${suffix}`;
-            const columnData = group[colName].array;
-  
-            output[newColName] = isCustomFunc
-              ? aggFunc(columnData)
-              : group[colName][aggFunc]();
-          });
-        }
+        outputPlans.forEach(plan => {
+          const columnData = group[plan.colName].array;
+          output[plan.outputName] = plan.isCustomFunc
+            ? plan.aggFunc(columnData)
+            : group[plan.colName][plan.aggFunc]();
+        });
   
         results.push(groupKeys.assign(output));
       }
