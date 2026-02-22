@@ -1,8 +1,29 @@
-function astAiStreamBuildEventBase(request) {
+function astAiStreamResolveModel(request, config, response) {
+  const fromResponse = response && typeof response.model === 'string' && response.model.trim().length > 0
+    ? response.model.trim()
+    : null;
+  if (fromResponse) {
+    return fromResponse;
+  }
+
+  const fromConfig = config && typeof config.model === 'string' && config.model.trim().length > 0
+    ? config.model.trim()
+    : null;
+  if (fromConfig) {
+    return fromConfig;
+  }
+
+  const fromRequest = request && typeof request.model === 'string' && request.model.trim().length > 0
+    ? request.model.trim()
+    : null;
+  return fromRequest;
+}
+
+function astAiStreamBuildEventBase(request, config, response = null) {
   return {
     provider: request.provider,
     operation: request.operation,
-    model: request.model
+    model: astAiStreamResolveModel(request, config, response)
   };
 }
 
@@ -40,8 +61,8 @@ function astAiStreamChunkText(text, chunkSize) {
   return chunks;
 }
 
-function astAiStreamEmitToolEvents(response, request, onEvent) {
-  const base = astAiStreamBuildEventBase(request);
+function astAiStreamEmitToolEvents(response, request, config, onEvent) {
+  const base = astAiStreamBuildEventBase(request, config, response);
   const output = response && response.output && typeof response.output === 'object'
     ? response.output
     : {};
@@ -72,8 +93,8 @@ function astAiStreamEmitToolEvents(response, request, onEvent) {
   }
 }
 
-function astAiStreamEmitTokenEvents(response, request, onEvent) {
-  const base = astAiStreamBuildEventBase(request);
+function astAiStreamEmitTokenEvents(response, request, config, onEvent) {
+  const base = astAiStreamBuildEventBase(request, config, response);
   const text = response && response.output && typeof response.output.text === 'string'
     ? response.output.text
     : '';
@@ -94,7 +115,7 @@ function astAiStreamEmitTokenEvents(response, request, onEvent) {
 
 function astRunAiStream(request, config, providerExecutor) {
   const onEvent = request.onEvent;
-  const base = astAiStreamBuildEventBase(request);
+  const base = astAiStreamBuildEventBase(request, config, null);
 
   astAiStreamEmit(onEvent, Object.assign({}, base, { type: 'start' }));
 
@@ -105,12 +126,12 @@ function astRunAiStream(request, config, providerExecutor) {
       : providerExecutor(request, config);
 
     if (request.operation === 'tools') {
-      astAiStreamEmitToolEvents(response, request, onEvent);
+      astAiStreamEmitToolEvents(response, request, config, onEvent);
     }
 
-    astAiStreamEmitTokenEvents(response, request, onEvent);
+    astAiStreamEmitTokenEvents(response, request, config, onEvent);
 
-    astAiStreamEmit(onEvent, Object.assign({}, base, {
+    astAiStreamEmit(onEvent, Object.assign({}, astAiStreamBuildEventBase(request, config, response), {
       type: 'done',
       response
     }));

@@ -167,3 +167,44 @@ test('runAiRequest stream mode emits tool_call and tool_result events for tool w
   assert.equal(JSON.stringify(toolCallEvent.toolCall.arguments), JSON.stringify({ a: 2, b: 5 }));
   assert.equal(toolResultEvent.toolResult.result, 7);
 });
+
+test('stream events use resolved config model when request.model is omitted', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          OPENAI_MODEL: 'script-default-model'
+        })
+      })
+    }
+  });
+  loadAiScripts(context);
+
+  const events = [];
+  const originalRunOpenAi = context.runOpenAi;
+
+  context.runOpenAi = () => context.normalizeAiResponse({
+    provider: 'openai',
+    operation: 'text',
+    output: {
+      text: 'hello world'
+    }
+  });
+
+  const response = context.runAiRequest({
+    provider: 'openai',
+    input: 'hello',
+    auth: { apiKey: 'key' },
+    onEvent: event => events.push(event),
+    options: {
+      stream: true,
+      streamChunkSize: 5
+    }
+  });
+
+  context.runOpenAi = originalRunOpenAi;
+
+  assert.equal(response.model, '');
+  const eventModels = events.map(event => event.model);
+  assert.equal(eventModels.every(model => model === 'script-default-model'), true);
+});
