@@ -15,18 +15,78 @@ function astGetAiProviderExecutor(provider) {
   }
 }
 
-function runAiRequest(request = {}) {
-  const normalizedRequest = validateAiRequest(request);
+function astAiTelemetryBuildContext(request = {}, normalizedRequest = null) {
+  const source = normalizedRequest || request || {};
+  return {
+    provider: source.provider || null,
+    operation: source.operation || null,
+    model: source.model || null,
+    hasSchema: Boolean(source.schema),
+    hasTools: Array.isArray(source.tools) && source.tools.length > 0
+  };
+}
 
-  astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
-  astAssertAiInputCapabilities(normalizedRequest);
-
-  const config = resolveAiConfig(normalizedRequest);
-  const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
-
-  if (normalizedRequest.operation === 'tools') {
-    return astRunAiTools(normalizedRequest, config, providerExecutor);
+function astAiTelemetryStartSpan(request = {}, normalizedRequest = null) {
+  if (typeof astTelemetryStartSpanSafe !== 'function') {
+    return null;
   }
 
-  return providerExecutor(normalizedRequest, config);
+  return astTelemetryStartSpanSafe(
+    'ai.run',
+    astAiTelemetryBuildContext(request, normalizedRequest)
+  );
+}
+
+function astAiTelemetryEndSpan(spanId, normalizedRequest, response, error) {
+  if (!spanId || typeof astTelemetryEndSpanSafe !== 'function') {
+    return;
+  }
+
+  const base = {
+    provider: normalizedRequest ? normalizedRequest.provider : null,
+    operation: normalizedRequest ? normalizedRequest.operation : null,
+    model: normalizedRequest ? normalizedRequest.model : null
+  };
+
+  if (error) {
+    astTelemetryEndSpanSafe(spanId, {
+      status: 'error',
+      error,
+      result: base
+    });
+    return;
+  }
+
+  const usage = response && response.usage ? response.usage : {};
+  astTelemetryEndSpanSafe(spanId, {
+    status: 'ok',
+    result: Object.assign({}, base, {
+      finishReason: response && response.finishReason ? response.finishReason : null,
+      usage
+    })
+  });
+}
+
+function runAiRequest(request = {}) {
+  let normalizedRequest = null;
+  const spanId = astAiTelemetryStartSpan(request, null);
+
+  try {
+    normalizedRequest = validateAiRequest(request);
+
+    astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
+    astAssertAiInputCapabilities(normalizedRequest);
+
+    const config = resolveAiConfig(normalizedRequest);
+    const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
+    const response = normalizedRequest.operation === 'tools'
+      ? astRunAiTools(normalizedRequest, config, providerExecutor)
+      : providerExecutor(normalizedRequest, config);
+
+    astAiTelemetryEndSpan(spanId, normalizedRequest, response, null);
+    return response;
+  } catch (error) {
+    astAiTelemetryEndSpan(spanId, normalizedRequest, null, error);
+    throw error;
+  }
 }

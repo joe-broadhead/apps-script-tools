@@ -106,6 +106,7 @@ nav:
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
+    - Telemetry Contracts: api/telemetry-contracts.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md
     - AI Tool Calling: api/ai-tool-calling.md
@@ -120,6 +121,7 @@ nav:
     - Benchmarks: performance/benchmarks.md
     - Optimization Playbook: performance/optimization-playbook.md
   - Operations:
+    - Telemetry: operations/telemetry.md
     - AI Security: operations/ai-security.md
     - RAG Indexing: operations/rag-indexing.md
     - Storage Security: operations/storage-security.md

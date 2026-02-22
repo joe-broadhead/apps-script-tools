@@ -20,6 +20,7 @@
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
+- `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -34,11 +35,13 @@ flowchart LR
     B --> I[AST.AI]
     B --> K[AST.RAG]
     B --> M[AST.Storage]
+    B --> O[AST.Telemetry]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     K --> L[Drive JSON Index + Cosine Retrieval]
     M --> N[GCS / S3 / DBFS APIs]
+    O --> P[Logger / Drive NDJSON]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -56,6 +59,7 @@ flowchart LR
 - Grounded answering with strict citation mapping and deterministic abstention behavior.
 - Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
 - `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
+- `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`) with redaction and sink control.
 
 ## Import pattern
 

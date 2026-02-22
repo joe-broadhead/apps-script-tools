@@ -141,6 +141,10 @@ Object.defineProperties(AST, {
     get: () => resolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
     enumerable: true
   },
+  Telemetry: {
+    get: () => resolveAstBinding('AST_TELEMETRY', () => (typeof AST_TELEMETRY === 'undefined' ? undefined : AST_TELEMETRY)),
+    enumerable: true
+  },
   Jobs: {
     get: () => resolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
     enumerable: true

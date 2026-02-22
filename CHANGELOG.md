@@ -4,6 +4,17 @@
 
 ### Added
 
+- New `AST.Telemetry` namespace with:
+  - `configure`, `getConfig`, `clearConfig`
+  - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
+- Telemetry foundation module with:
+  - typed errors (`AstTelemetryError`, `AstTelemetryValidationError`, `AstTelemetryCapabilityError`)
+  - secret redaction (`apiKey`, `token`, `authorization`, `cookie`, etc.)
+  - sink support for `logger` and Drive NDJSON (`drive_json`)
+- Runtime instrumentation for:
+  - `AST.AI` request execution (`ai.run` spans)
+  - `AST.RAG.buildIndex(...)` (`rag.buildIndex` spans)
+  - `AST.RAG.answer(...)` (`rag.answer` spans)
 - New `AST.RAG` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`
@@ -52,8 +63,10 @@
 - `AST.VERSION` and package version moved to `0.0.4` development line.
 - `AST` namespace now exposes `AST.RAG`.
 - `AST` namespace now exposes `AST.Storage`.
+- `AST` namespace now exposes `AST.Telemetry`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
+- GAS functional suite now includes telemetry namespace smoke coverage.
 - Storage `options.timeoutMs` is now enforced as a retry-budget timeout window across GCS, S3, and DBFS HTTP execution paths.
 - Storage read paths now emit soft-cap warnings when payload size exceeds the 50 MB stability threshold.
 - GAS functional integration is now reusable from CI (`gas-functional`) instead of manual-dispatch only.

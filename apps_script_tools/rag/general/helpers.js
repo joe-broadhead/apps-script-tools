@@ -124,3 +124,31 @@ function astRagToScriptPropertiesSnapshot(allowedKeys) {
 
   return output;
 }
+
+function astRagTelemetryStartSpan(name, context = {}) {
+  if (typeof astTelemetryStartSpanSafe !== 'function') {
+    return null;
+  }
+
+  return astTelemetryStartSpanSafe(name, context);
+}
+
+function astRagTelemetryEndSpan(spanId, result = {}, error = null) {
+  if (!spanId || typeof astTelemetryEndSpanSafe !== 'function') {
+    return;
+  }
+
+  if (error) {
+    astTelemetryEndSpanSafe(spanId, {
+      status: 'error',
+      error,
+      result
+    });
+    return;
+  }
+
+  astTelemetryEndSpanSafe(spanId, {
+    status: 'ok',
+    result
+  });
+}
