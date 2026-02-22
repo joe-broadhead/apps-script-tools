@@ -1134,6 +1134,11 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
   assert.equal(grounded.citations.length, 1);
   assert.equal(grounded.citations[0].chunkId, 'chunk_1');
   assert.equal(grounded.retrieval.mode, 'vector');
+  assert.equal(typeof grounded.citations[0].vectorScore, 'number');
+  assert.equal(grounded.citations[0].lexicalScore, null);
+  assert.equal(typeof grounded.citations[0].finalScore, 'number');
+  assert.equal(grounded.citations[0].finalScore, grounded.citations[0].score);
+  assert.equal(grounded.citations[0].rerankScore, null);
 
   context.runAiRequest = () => ({
     output: {

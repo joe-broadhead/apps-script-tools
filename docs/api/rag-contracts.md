@@ -148,6 +148,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       vectorScore,
       lexicalScore, // null in vector mode
       finalScore,
+      rerankScore, // null unless rerank produced a score
       snippet
     }
   ],

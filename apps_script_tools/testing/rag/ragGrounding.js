@@ -76,6 +76,18 @@ RAG_GROUNDING_TESTS = [
           throw new Error(`Expected citation to map to chunk_1, got ${out.citations[0].chunkId}`);
         }
 
+        if (typeof out.citations[0].vectorScore !== 'number') {
+          throw new Error(`Expected citation vectorScore number, got ${typeof out.citations[0].vectorScore}`);
+        }
+
+        if (out.citations[0].lexicalScore !== null) {
+          throw new Error(`Expected citation lexicalScore null in vector mode, got ${out.citations[0].lexicalScore}`);
+        }
+
+        if (typeof out.citations[0].finalScore !== 'number') {
+          throw new Error(`Expected citation finalScore number, got ${typeof out.citations[0].finalScore}`);
+        }
+
         if (!out.retrieval || out.retrieval.mode !== 'vector') {
           throw new Error(`Expected retrieval.mode=vector, got ${JSON.stringify(out.retrieval)}`);
         }
