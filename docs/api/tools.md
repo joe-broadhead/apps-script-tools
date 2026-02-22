@@ -161,6 +161,57 @@ See:
 - [Storage Providers](storage-providers.md)
 - [Storage Security](../operations/storage-security.md)
 
+## `ASTX.Telemetry`
+
+Observability foundation for request traces and operational diagnostics.
+
+Primary methods:
+
+- `ASTX.Telemetry.configure(config, options)` to set runtime telemetry defaults.
+- `ASTX.Telemetry.getConfig()` to inspect current runtime telemetry config.
+- `ASTX.Telemetry.clearConfig()` to reset runtime telemetry config.
+- `ASTX.Telemetry.startSpan(name, context)` to begin a trace span.
+- `ASTX.Telemetry.endSpan(spanId, result)` to close span state and persist sink output.
+- `ASTX.Telemetry.recordEvent(event)` to append structured event records.
+- `ASTX.Telemetry.getTrace(traceId)` to retrieve in-memory trace state.
+
+Sink support:
+
+- `logger` (default) emits JSON payloads to Apps Script `Logger`.
+- `drive_json` appends NDJSON records to a Drive file.
+
+High-signal behavior:
+
+- `configure(...)` supports `sink`, `redactSecrets`, `sampleRate`, `driveFolderId`, `driveFileName`, and trace limits.
+- sensitive keys and token-like values are redacted by default.
+- telemetry calls should never block functional execution paths.
+- span IDs and trace IDs are generated if not supplied.
+
+```javascript
+const traceSpan = ASTX.Telemetry.startSpan('demo.operation', {
+  requestId: 'req_123'
+});
+
+try {
+  const value = ASTX.Utils.arraySum([1, 2, 3, 4]);
+  ASTX.Telemetry.endSpan(traceSpan, {
+    status: 'ok',
+    result: { value }
+  });
+} catch (error) {
+  ASTX.Telemetry.endSpan(traceSpan, {
+    status: 'error',
+    error
+  });
+  throw error;
+}
+```
+
+See:
+
+- [Telemetry Contracts](telemetry-contracts.md)
+- [Telemetry Operations](../operations/telemetry.md)
+
 ## `ASTX.AI`
 
 Unified AI surface across:

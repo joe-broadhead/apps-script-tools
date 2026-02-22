@@ -39,106 +39,124 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
 }
 
 function astRagBuildIndexCore(request = {}) {
-  const normalizedRequest = astRagValidateBuildRequest(request);
-
-  const driveSources = astRagListDriveSources(normalizedRequest.source, {
-    maxFiles: normalizedRequest.options.maxFiles
+  const spanId = astRagTelemetryStartSpan('rag.buildIndex', {
+    indexName: request && request.index && request.index.indexName ? request.index.indexName : null
   });
 
-  const preparedSources = [];
-  const chunks = [];
-  const warnings = [];
+  try {
+    const normalizedRequest = astRagValidateBuildRequest(request);
 
-  for (let idx = 0; idx < driveSources.length; idx += 1) {
-    const sourceDescriptor = driveSources[idx];
-    const sourceId = `src_${sourceDescriptor.fileId}`;
+    const driveSources = astRagListDriveSources(normalizedRequest.source, {
+      maxFiles: normalizedRequest.options.maxFiles
+    });
 
-    try {
-      const extracted = astRagReadDriveSourceText(sourceDescriptor, normalizedRequest.auth, {
-        retries: 2
-      });
+    const preparedSources = [];
+    const chunks = [];
+    const warnings = [];
 
-      const sourceChunks = astRagPrepareSourceChunks(
-        sourceDescriptor,
-        extracted,
-        normalizedRequest.chunking,
-        sourceId
-      );
+    for (let idx = 0; idx < driveSources.length; idx += 1) {
+      const sourceDescriptor = driveSources[idx];
+      const sourceId = `src_${sourceDescriptor.fileId}`;
 
-      if (sourceChunks.length === 0) {
+      try {
+        const extracted = astRagReadDriveSourceText(sourceDescriptor, normalizedRequest.auth, {
+          retries: 2
+        });
+
+        const sourceChunks = astRagPrepareSourceChunks(
+          sourceDescriptor,
+          extracted,
+          normalizedRequest.chunking,
+          sourceId
+        );
+
+        if (sourceChunks.length === 0) {
+          warnings.push({
+            fileId: sourceDescriptor.fileId,
+            fileName: sourceDescriptor.fileName,
+            reason: 'No chunks produced from source text'
+          });
+          continue;
+        }
+
+        if (chunks.length + sourceChunks.length > normalizedRequest.options.maxChunks) {
+          throw new AstRagValidationError('Indexing would exceed maxChunks limit', {
+            maxChunks: normalizedRequest.options.maxChunks,
+            attempted: chunks.length + sourceChunks.length
+          });
+        }
+
+        const fingerprint = astRagBuildSourceFingerprint(sourceDescriptor, extracted);
+
+        preparedSources.push({
+          sourceId,
+          fileId: sourceDescriptor.fileId,
+          fileName: sourceDescriptor.fileName,
+          mimeType: sourceDescriptor.mimeType,
+          modifiedTime: sourceDescriptor.modifiedTime,
+          checksum: fingerprint,
+          chunkCount: sourceChunks.length
+        });
+
+        for (let chunkIndex = 0; chunkIndex < sourceChunks.length; chunkIndex += 1) {
+          chunks.push(sourceChunks[chunkIndex]);
+        }
+      } catch (error) {
+        if (!normalizedRequest.options.skipParseFailures) {
+          throw error;
+        }
+
         warnings.push({
           fileId: sourceDescriptor.fileId,
           fileName: sourceDescriptor.fileName,
-          reason: 'No chunks produced from source text'
-        });
-        continue;
-      }
-
-      if (chunks.length + sourceChunks.length > normalizedRequest.options.maxChunks) {
-        throw new AstRagValidationError('Indexing would exceed maxChunks limit', {
-          maxChunks: normalizedRequest.options.maxChunks,
-          attempted: chunks.length + sourceChunks.length
+          reason: error && error.message ? error.message : 'Unknown extraction error'
         });
       }
+    }
 
-      const fingerprint = astRagBuildSourceFingerprint(sourceDescriptor, extracted);
-
-      preparedSources.push({
-        sourceId,
-        fileId: sourceDescriptor.fileId,
-        fileName: sourceDescriptor.fileName,
-        mimeType: sourceDescriptor.mimeType,
-        modifiedTime: sourceDescriptor.modifiedTime,
-        checksum: fingerprint,
-        chunkCount: sourceChunks.length
-      });
-
-      for (let chunkIndex = 0; chunkIndex < sourceChunks.length; chunkIndex += 1) {
-        chunks.push(sourceChunks[chunkIndex]);
-      }
-    } catch (error) {
-      if (!normalizedRequest.options.skipParseFailures) {
-        throw error;
-      }
-
-      warnings.push({
-        fileId: sourceDescriptor.fileId,
-        fileName: sourceDescriptor.fileName,
-        reason: error && error.message ? error.message : 'Unknown extraction error'
+    if (chunks.length === 0) {
+      throw new AstRagIndexError('No chunks available for index build', {
+        sourceCount: preparedSources.length,
+        warnings
       });
     }
-  }
 
-  if (chunks.length === 0) {
-    throw new AstRagIndexError('No chunks available for index build', {
-      sourceCount: preparedSources.length,
-      warnings
+    const embeddingResult = astRagEmbedTexts({
+      provider: normalizedRequest.embedding.provider,
+      model: normalizedRequest.embedding.model,
+      texts: chunks.map(chunk => chunk.text),
+      auth: normalizedRequest.auth,
+      providerOptions: normalizedRequest.embedding.providerOptions,
+      options: { retries: 2 }
     });
+
+    for (let idx = 0; idx < chunks.length; idx += 1) {
+      chunks[idx].embedding = embeddingResult.vectors[idx];
+    }
+
+    const document = astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, embeddingResult);
+    const persisted = astRagPersistIndexDocument(normalizedRequest, document);
+    const result = {
+      indexFileId: persisted.indexFileId,
+      indexName: document.indexName,
+      chunkCount: chunks.length,
+      sourceCount: preparedSources.length,
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
+      warnings
+    };
+
+    astRagTelemetryEndSpan(spanId, {
+      indexName: result.indexName,
+      sourceCount: result.sourceCount,
+      chunkCount: result.chunkCount,
+      warningCount: warnings.length
+    });
+    return result;
+  } catch (error) {
+    astRagTelemetryEndSpan(spanId, {
+      indexName: request && request.index && request.index.indexName ? request.index.indexName : null
+    }, error);
+    throw error;
   }
-
-  const embeddingResult = astRagEmbedTexts({
-    provider: normalizedRequest.embedding.provider,
-    model: normalizedRequest.embedding.model,
-    texts: chunks.map(chunk => chunk.text),
-    auth: normalizedRequest.auth,
-    providerOptions: normalizedRequest.embedding.providerOptions,
-    options: { retries: 2 }
-  });
-
-  for (let idx = 0; idx < chunks.length; idx += 1) {
-    chunks[idx].embedding = embeddingResult.vectors[idx];
-  }
-
-  const document = astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, embeddingResult);
-  const persisted = astRagPersistIndexDocument(normalizedRequest, document);
-
-  return {
-    indexFileId: persisted.indexFileId,
-    indexName: document.indexName,
-    chunkCount: chunks.length,
-    sourceCount: preparedSources.length,
-    createdAt: document.createdAt,
-    updatedAt: document.updatedAt,
-    warnings
-  };
 }

@@ -20,6 +20,7 @@ ASTX.Drive
 ASTX.AI
 ASTX.RAG
 ASTX.Storage
+ASTX.Telemetry
 ASTX.Sql
 ASTX.Utils
 ```
@@ -140,6 +141,18 @@ ASTX.Storage.getConfig()
 ASTX.Storage.clearConfig()
 ```
 
+## `Telemetry` essentials
+
+```javascript
+ASTX.Telemetry.configure(config, options)
+ASTX.Telemetry.getConfig()
+ASTX.Telemetry.clearConfig()
+ASTX.Telemetry.startSpan(name, context)
+ASTX.Telemetry.endSpan(spanId, result)
+ASTX.Telemetry.recordEvent(event)
+ASTX.Telemetry.getTrace(traceId)
+```
+
 ## High-signal behavior notes
 
 - `Series.query` rejects string predicates.
@@ -152,3 +165,4 @@ ASTX.Storage.clearConfig()
 - unsupported AI provider/operation combinations throw typed capability errors.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
+- Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).
