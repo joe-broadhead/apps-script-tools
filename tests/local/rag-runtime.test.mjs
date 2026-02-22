@@ -1070,6 +1070,96 @@ test('search rerank can promote phrase-exact chunk within topN', () => {
   assert.equal(typeof output.results[0].rerankScore, 'number');
 });
 
+test('search enforces retrieval access control allow/deny constraints', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_access',
+    indexName: 'access-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'allowed_chunk',
+        sourceId: 's1',
+        fileId: 'allowed_file',
+        fileName: 'allowed.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Project risks and mitigations',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'denied_chunk',
+        sourceId: 's2',
+        fileId: 'denied_file',
+        fileName: 'denied.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Sensitive project risks and escalations',
+        embedding: [0.98, 0.05, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_access',
+    fileName: 'access-index.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_access',
+    query: 'project risks',
+    retrieval: {
+      topK: 5,
+      minScore: 0,
+      access: {
+        allowedFileIds: ['allowed_file'],
+        deniedFileIds: ['denied_file']
+      }
+    },
+    options: {
+      enforceAccessControl: true
+    }
+  });
+
+  assert.equal(output.results.length, 1);
+  assert.equal(output.results[0].chunkId, 'allowed_chunk');
+  assert.equal(output.results[0].fileId, 'allowed_file');
+
+  const outputNoEnforce = context.AST.RAG.search({
+    indexFileId: 'index_access',
+    query: 'project risks',
+    retrieval: {
+      topK: 5,
+      minScore: 0,
+      access: {
+        deniedFileIds: ['denied_file']
+      }
+    },
+    options: {
+      enforceAccessControl: false
+    }
+  });
+
+  assert.equal(outputNoEnforce.results.length, 2);
+});
+
 test('answer enforces strict citation mapping and abstains on missing grounding', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
@@ -1169,6 +1259,161 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
 
   assert.equal(abstain.status, 'insufficient_context');
   assert.equal(abstain.answer, 'Insufficient context.');
+});
+
+test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_access',
+    fileName: 'answer-access-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_denied',
+          sourceId: 'src_denied',
+          fileId: 'file_denied',
+          fileName: 'denied.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Denied content only',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  let aiCallCount = 0;
+  context.runAiRequest = () => {
+    aiCallCount += 1;
+    return {
+      output: {
+        json: {
+          answer: 'Denied content [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2
+      }
+    };
+  };
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_access',
+    question: 'What is the denied content?',
+    retrieval: {
+      topK: 4,
+      minScore: 0,
+      access: {
+        allowedFileIds: ['file_allowed']
+      }
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      enforceAccessControl: true,
+      requireCitations: true,
+      insufficientEvidenceMessage: 'No accessible context.'
+    }
+  });
+
+  assert.equal(response.status, 'insufficient_context');
+  assert.equal(response.answer, 'No accessible context.');
+  assert.equal(response.citations.length, 0);
+  assert.equal(aiCallCount, 0);
+});
+
+test('answer citation validation rejects inaccessible cited chunks when access is enforced', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const originalRetrieve = context.astRagRetrieveRankedChunks;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_access_citation',
+    fileName: 'answer-access-citation-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+  context.astRagRetrieveRankedChunks = () => [{
+    chunkId: 'chunk_denied',
+    sourceId: 'src_denied',
+    fileId: 'file_denied',
+    fileName: 'denied.txt',
+    mimeType: MIME_TEXT,
+    page: null,
+    slide: null,
+    section: 'body',
+    text: 'Denied content only',
+    score: 1,
+    finalScore: 1,
+    vectorScore: 1,
+    lexicalScore: null
+  }];
+  context.runAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'Denied content [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 1,
+      outputTokens: 1,
+      totalTokens: 2
+    }
+  });
+
+  try {
+    const response = context.AST.RAG.answer({
+      indexFileId: 'index_answer_access_citation',
+      question: 'What is the denied content?',
+      retrieval: {
+        access: {
+          allowedFileIds: ['file_allowed']
+        }
+      },
+      generation: {
+        provider: 'openai',
+        auth: { apiKey: 'test-key' }
+      },
+      options: {
+        enforceAccessControl: true,
+        requireCitations: true,
+        insufficientEvidenceMessage: 'No accessible context.'
+      }
+    });
+
+    assert.equal(response.status, 'insufficient_context');
+    assert.equal(response.answer, 'No accessible context.');
+    assert.equal(response.citations.length, 0);
+  } finally {
+    context.astRagRetrieveRankedChunks = originalRetrieve;
+  }
 });
 
 test('Doc extraction works through DocumentApp for Google Docs sources', () => {

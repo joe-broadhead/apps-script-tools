@@ -23,6 +23,13 @@ class AstRagAuthError extends AstRagError {
   }
 }
 
+class AstRagAccessError extends AstRagError {
+  constructor(message, details = {}, cause = null) {
+    super(message, details, cause);
+    this.name = 'AstRagAccessError';
+  }
+}
+
 class AstRagSourceError extends AstRagError {
   constructor(message, details = {}, cause = null) {
     super(message, details, cause);

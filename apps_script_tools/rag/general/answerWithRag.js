@@ -94,6 +94,8 @@ function astRagAnswerCore(request = {}) {
       contextBlocks: prompt.contextBlocks,
       searchResults: rankedResults,
       requireCitations: normalizedRequest.options.requireCitations,
+      accessControl: normalizedRequest.retrieval.access,
+      enforceAccessControl: normalizedRequest.options.enforceAccessControl,
       insufficientEvidenceMessage: normalizedRequest.options.insufficientEvidenceMessage
     });
 

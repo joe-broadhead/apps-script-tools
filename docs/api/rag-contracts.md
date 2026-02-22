@@ -78,10 +78,19 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       enabled: false,
       topN: 20
     },
+    access: {
+      allowedFileIds: [],
+      deniedFileIds: [],
+      allowedMimeTypes: [],
+      deniedMimeTypes: []
+    },
     filters: {
       fileIds: [],
       mimeTypes: []
     }
+  },
+  options: {
+    enforceAccessControl: true
   },
   // Back-compat aliases are still accepted:
   // topK, minScore, filters, mode, vectorWeight, lexicalWeight, rerank
@@ -109,6 +118,12 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       enabled: false,
       topN: 20
     },
+    access: {
+      allowedFileIds: [],
+      deniedFileIds: [],
+      allowedMimeTypes: [],
+      deniedMimeTypes: []
+    },
     filters: { fileIds: [], mimeTypes: [] }
   },
   generation: {
@@ -123,6 +138,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   },
   options: {
     requireCitations: true,
+    enforceAccessControl: true,
     insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
   },
   auth: {}
@@ -192,12 +208,15 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 - Answers are validated against retrieved context.
 - If no valid citation grounding exists and `requireCitations=true`, status is `insufficient_context`.
 - Hybrid retrieval combines vector + lexical evidence and can optionally rerank top-N hits.
+- Access control can be enforced with `retrieval.access` + `options.enforceAccessControl=true`.
+- When access policy excludes all relevant chunks or cited chunks are inaccessible, `answer` deterministically returns `status=insufficient_context`.
 
 ## Typed errors
 
 - `AstRagError`
 - `AstRagValidationError`
 - `AstRagAuthError`
+- `AstRagAccessError`
 - `AstRagSourceError`
 - `AstRagIndexError`
 - `AstRagRetrievalError`

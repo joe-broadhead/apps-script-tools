@@ -30,7 +30,10 @@ function astRagProjectChunkForRetrieval(chunk = {}) {
 }
 
 function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval = {}) {
-  const chunks = astRagApplyChunkFilters(indexDocument.chunks || [], retrieval.filters || {});
+  const filteredByQuery = astRagApplyChunkFilters(indexDocument.chunks || [], retrieval.filters || {});
+  const chunks = astRagApplyAccessControl(filteredByQuery, retrieval.access || {}, {
+    enforceAccessControl: retrieval.enforceAccessControl
+  });
   if (chunks.length === 0) {
     return [];
   }

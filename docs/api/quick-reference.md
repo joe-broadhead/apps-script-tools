@@ -188,6 +188,8 @@ ASTX.Telemetry.getTrace(traceId)
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - RAG retrieval supports `vector` (default) and `hybrid` (vector + lexical fusion) modes.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
+- RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
+- `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
