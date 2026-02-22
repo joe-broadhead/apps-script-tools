@@ -141,6 +141,10 @@ Object.defineProperties(AST, {
     get: () => resolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
     enumerable: true
   },
+  Jobs: {
+    get: () => resolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
+    enumerable: true
+  },
   Sql: {
     get: () => ({
       run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery))
