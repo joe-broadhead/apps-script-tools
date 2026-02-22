@@ -167,3 +167,41 @@ test('astStorageHttpRequest enforces timeoutMs as a retry budget', () => {
     }
   );
 });
+
+test('astStorageHttpRequest reports timeout classification on final-attempt transport failure', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      nowMs += 50;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    UrlFetchApp: {
+      fetch: () => {
+        throw new Error('network failure');
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astStorageHttpRequest({
+      provider: 's3',
+      operation: 'read',
+      url: 'https://bucket.s3.amazonaws.com/path.txt',
+      method: 'get',
+      retries: 0,
+      timeoutMs: 60
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.match(error.message, /timeout budget/);
+      assert.equal(error.details.timeoutMs, 60);
+      return true;
+    }
+  );
+});

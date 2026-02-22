@@ -207,6 +207,10 @@ function astStorageHttpRequest(config = {}) {
 
       throw providerError;
     } catch (error) {
+      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
+        throw buildTimeoutError(error);
+      }
+
       if (
         error &&
         error.name === 'AstStorageProviderError' &&
@@ -228,10 +232,6 @@ function astStorageHttpRequest(config = {}) {
           },
           error
         );
-      }
-
-      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
-        throw buildTimeoutError(error);
       }
 
       lastError = error;
