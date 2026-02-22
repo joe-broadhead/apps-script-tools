@@ -21,6 +21,17 @@ function astRagComputeChecksum(payload) {
   return String(normalized.length);
 }
 
+function astRagBuildChunkFingerprint(chunk = {}) {
+  const payload = {
+    textHash: astRagComputeChecksum(astRagNormalizeString(chunk.text, '')),
+    page: chunk.page == null ? null : chunk.page,
+    slide: chunk.slide == null ? null : chunk.slide,
+    section: astRagNormalizeString(chunk.section, 'body')
+  };
+
+  return astRagComputeChecksum(payload);
+}
+
 function astRagBuildSourceFingerprint(sourceDescriptor, extracted = {}) {
   const payload = {
     fileId: sourceDescriptor.fileId,
@@ -32,4 +43,12 @@ function astRagBuildSourceFingerprint(sourceDescriptor, extracted = {}) {
   };
 
   return astRagComputeChecksum(payload);
+}
+
+function astRagNormalizeSourceFingerprint(source = {}) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  return astRagNormalizeString(source.fingerprint, null) || astRagNormalizeString(source.checksum, null);
 }

@@ -99,6 +99,12 @@ function astRagNormalizeBuildOptions(options = {}) {
   };
 }
 
+function astRagNormalizeSyncOptions(options = {}) {
+  const normalized = astRagNormalizeBuildOptions(options);
+  normalized.dryRun = astRagNormalizeBoolean(options.dryRun, AST_RAG_DEFAULT_OPTIONS.dryRun);
+  return normalized;
+}
+
 function astRagNormalizeSourceRequest(source = {}) {
   if (!astRagIsPlainObject(source)) {
     throw new AstRagValidationError('source is required and must be an object');
@@ -179,6 +185,7 @@ function astRagValidateSyncRequest(request = {}) {
   if (!normalized.index.indexFileId) {
     throw new AstRagValidationError('syncIndex requires index.indexFileId');
   }
+  normalized.options = astRagNormalizeSyncOptions(request.options || {});
   return normalized;
 }
 
