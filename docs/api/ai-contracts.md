@@ -77,7 +77,7 @@ Auth/model resolution order:
       maxResultBytes: 200000,
       retries: 0,
       idempotencyKeyFromArgs: false,
-      idempotencyKey: 'optional-fixed-key'
+      idempotencyKey: 'optional-fixed-key' // scoped per tool name
     }
   }],
   toolChoice: 'auto' | 'none' | { name: 'tool_name' },

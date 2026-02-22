@@ -41,7 +41,7 @@ If exceeded, the library throws `AstAiToolLoopError`.
 - `maxArgsBytes` / `maxResultBytes`: throws `AstAiToolPayloadLimitError` when exceeded.
 - `retries`: retries handler failures up to `retries + 1` total attempts.
 - `idempotencyKeyFromArgs`: replays prior result for identical tool arguments.
-- `idempotencyKey`: explicit fixed key when you need custom dedupe boundaries.
+- `idempotencyKey`: explicit fixed key when you need custom dedupe boundaries (scoped per tool name).
 
 ## Example: function handler
 

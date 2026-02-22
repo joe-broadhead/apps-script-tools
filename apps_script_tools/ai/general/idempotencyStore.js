@@ -47,7 +47,7 @@ function astResolveToolIdempotencyKey(tool, toolCall, args) {
   const guardrails = tool.guardrails || {};
 
   if (guardrails.idempotencyKey) {
-    return guardrails.idempotencyKey;
+    return `${tool.name}:${guardrails.idempotencyKey}`;
   }
 
   if (!guardrails.idempotencyKeyFromArgs) {

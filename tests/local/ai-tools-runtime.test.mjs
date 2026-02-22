@@ -660,3 +660,92 @@ test('runAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', ()
 
   context.runOpenAi = originalRunOpenAi;
 });
+
+test('runAiRequest scopes fixed idempotency keys by tool name', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  let providerCalls = 0;
+  let alphaCalls = 0;
+  let betaCalls = 0;
+
+  context.runOpenAi = () => {
+    providerCalls += 1;
+
+    if (providerCalls === 1) {
+      return context.normalizeAiResponse({
+        provider: 'openai',
+        operation: 'tools',
+        model: 'gpt-4.1-mini',
+        output: {
+          toolCalls: [{
+            id: 'tool_alpha_1',
+            name: 'alpha_tool',
+            arguments: { value: 1 }
+          }]
+        }
+      });
+    }
+
+    if (providerCalls === 2) {
+      return context.normalizeAiResponse({
+        provider: 'openai',
+        operation: 'tools',
+        model: 'gpt-4.1-mini',
+        output: {
+          toolCalls: [{
+            id: 'tool_beta_1',
+            name: 'beta_tool',
+            arguments: { value: 2 }
+          }]
+        }
+      });
+    }
+
+    return context.normalizeAiResponse({
+      provider: 'openai',
+      operation: 'tools',
+      model: 'gpt-4.1-mini',
+      output: {
+        text: 'done scoped idempotency'
+      }
+    });
+  };
+
+  const response = context.runAiRequest(baseToolRequest([
+    {
+      name: 'alpha_tool',
+      description: 'alpha tool',
+      inputSchema: { type: 'object', properties: {} },
+      guardrails: {
+        idempotencyKey: 'shared-fixed'
+      },
+      handler: args => {
+        alphaCalls += 1;
+        return args.value;
+      }
+    },
+    {
+      name: 'beta_tool',
+      description: 'beta tool',
+      inputSchema: { type: 'object', properties: {} },
+      guardrails: {
+        idempotencyKey: 'shared-fixed'
+      },
+      handler: args => {
+        betaCalls += 1;
+        return args.value;
+      }
+    }
+  ], { maxToolRounds: 4 }));
+
+  context.runOpenAi = originalRunOpenAi;
+
+  assert.equal(response.output.text, 'done scoped idempotency');
+  assert.equal(alphaCalls, 1);
+  assert.equal(betaCalls, 1);
+  assert.equal(response.output.toolResults.length, 2);
+  assert.equal(response.output.toolResults[0].name, 'alpha_tool');
+  assert.equal(response.output.toolResults[1].name, 'beta_tool');
+});
