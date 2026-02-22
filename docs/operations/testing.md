@@ -81,6 +81,7 @@ Before release, validate from a clean consumer project:
   - `DataFrame` transforms
   - `GroupBy`
   - `Series.query` function-only contract
+  - `ASTX.AI.tools` guardrails (`timeoutMs`, payload caps, retries, idempotency replay)
   - `ASTX.Storage` CRUD contract checks (mocked or sandbox buckets/paths)
   - `ASTX.RAG` build/search/answer grounding behavior
 

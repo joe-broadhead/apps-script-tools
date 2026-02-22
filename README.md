@@ -54,6 +54,7 @@ Current release state:
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.
+- `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
 
 ## Install As Apps Script Library
 

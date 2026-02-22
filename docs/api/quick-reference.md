@@ -180,6 +180,7 @@ ASTX.Telemetry.getTrace(traceId)
 - `Sql.run` validates provider/request shape before execution.
 - placeholder interpolation is blocked unless explicitly enabled.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
+- AI tools support per-tool guardrails: `timeoutMs`, `maxArgsBytes`, `maxResultBytes`, `retries`, and idempotent replay.
 - unsupported AI provider/operation combinations throw typed capability errors.
 - `ASTX.AI.stream(...)` emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
