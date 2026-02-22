@@ -346,6 +346,149 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   assert.equal(synced.addedChunks > 0, true);
 });
 
+test('buildIndex applies maxFiles after deterministic source ordering', () => {
+  const fileZ = makeDriveFile({
+    id: 'z_file',
+    name: 'z.txt',
+    mimeType: MIME_TEXT,
+    text: 'zeta zeta zeta'
+  });
+  const fileM = makeDriveFile({
+    id: 'm_file',
+    name: 'm.txt',
+    mimeType: MIME_TEXT,
+    text: 'mu mu mu'
+  });
+  const fileA = makeDriveFile({
+    id: 'a_file',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha alpha alpha'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileZ, fileM, fileA]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'ordered-max-files-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 2,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  const fileIds = loaded.sources.map(source => source.fileId);
+  assert.equal(JSON.stringify(fileIds), JSON.stringify(['a_file', 'm_file']));
+  assert.equal(loaded.sources.some(source => source.fileId === 'z_file'), false);
+});
+
+test('syncIndex maxChunks guard does not double-count pending embeds', () => {
+  const fileA = makeDriveFile({
+    id: 'max_guard_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'A'.repeat(250)
+  });
+  const fileB = makeDriveFile({
+    id: 'max_guard_b',
+    name: 'b.txt',
+    mimeType: MIME_TEXT,
+    text: 'B'.repeat(250)
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'max-guard-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 2
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  fileA._setText('X'.repeat(250));
+  fileA._setLastUpdated('2026-01-07T00:00:00.000Z');
+  fileB._setText('Y'.repeat(250));
+  fileB._setLastUpdated('2026-01-08T00:00:00.000Z');
+
+  const synced = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'max-guard-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 2
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.updatedSources, 2);
+  assert.equal(synced.reembeddedChunks, 2);
+  assert.equal(synced.addedChunks, 2);
+  assert.equal(synced.removedChunks, 2);
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(loaded.chunks.length, 2);
+});
+
 test('syncIndex does not re-embed unchanged corpus', () => {
   const fileA = makeDriveFile({
     id: 'file_static_a',

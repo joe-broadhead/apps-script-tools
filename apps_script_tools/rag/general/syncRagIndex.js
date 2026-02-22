@@ -188,7 +188,7 @@ function astRagSyncIndexCore(request = {}) {
           return;
         }
 
-        if (nextChunks.length + pendingEmbedChunks.length + rebuiltChunks.length > normalizedRequest.options.maxChunks) {
+        if (nextChunks.length + rebuiltChunks.length > normalizedRequest.options.maxChunks) {
           throw new AstRagValidationError('Index sync would exceed maxChunks limit', {
             maxChunks: normalizedRequest.options.maxChunks
           });

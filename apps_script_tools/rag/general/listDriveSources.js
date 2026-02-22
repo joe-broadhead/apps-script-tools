@@ -69,11 +69,8 @@ function astRagListDriveSources(sourceRequest, options = {}) {
       modifiedTime: file.getLastUpdated ? file.getLastUpdated().toISOString() : null,
       driveFile: file
     });
-
-    if (output.length >= maxFiles) {
-      break;
-    }
   }
 
-  return astRagSortDriveSourcesDeterministically(output);
+  const sorted = astRagSortDriveSourcesDeterministically(output);
+  return sorted.slice(0, maxFiles);
 }
