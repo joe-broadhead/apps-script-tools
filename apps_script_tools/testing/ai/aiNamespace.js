@@ -12,6 +12,7 @@ AI_NAMESPACE_TESTS = [
         'structured',
         'tools',
         'image',
+        'stream',
         'providers',
         'capabilities',
         'configure',

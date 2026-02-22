@@ -124,6 +124,17 @@ function astNormalizeAiOptions(options = {}) {
     ? Math.max(1, Math.min(10, options.maxToolRounds))
     : 3;
 
+  const stream = Boolean(options.stream);
+
+  let streamChunkSize = 24;
+  if (typeof options.streamChunkSize !== 'undefined' && options.streamChunkSize !== null) {
+    if (!Number.isInteger(options.streamChunkSize) || options.streamChunkSize < 1) {
+      throw new AstAiValidationError('options.streamChunkSize must be a positive integer when provided');
+    }
+
+    streamChunkSize = Math.min(1024, options.streamChunkSize);
+  }
+
   let temperature = null;
   if (typeof options.temperature !== 'undefined' && options.temperature !== null) {
     if (typeof options.temperature !== 'number' || !isFinite(options.temperature)) {
@@ -148,7 +159,9 @@ function astNormalizeAiOptions(options = {}) {
     timeoutMs,
     retries,
     includeRaw: Boolean(options.includeRaw),
-    maxToolRounds
+    maxToolRounds,
+    stream,
+    streamChunkSize
   };
 }
 
@@ -206,6 +219,12 @@ function validateAiRequest(request = {}, forcedOperation) {
     ? astNormalizeToolChoice(request.toolChoice)
     : 'none';
 
+  const onEvent = typeof request.onEvent === 'function' ? request.onEvent : null;
+
+  if (options.stream && !onEvent) {
+    throw new AstAiValidationError('options.stream=true requires onEvent callback function');
+  }
+
   return {
     provider,
     operation,
@@ -216,6 +235,7 @@ function validateAiRequest(request = {}, forcedOperation) {
     schema,
     tools,
     toolChoice,
+    onEvent,
     auth: astClonePlainObject(auth),
     providerOptions: astClonePlainObject(providerOptions),
     options

@@ -14,6 +14,7 @@
   - `script_properties`
   - `storage_json` (AST.Storage-backed via `gcs://`, `s3://`, or `dbfs:/` URI)
 - Deterministic cache TTL semantics (`ttlSec`) and tag-based invalidation contracts.
+- New `AST.AI.stream(request)` helper with callback-based `start` / `token` / `tool_call` / `tool_result` / `done` / `error` event emission.
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`

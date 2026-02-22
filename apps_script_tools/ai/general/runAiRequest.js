@@ -79,9 +79,13 @@ function runAiRequest(request = {}) {
 
     const config = resolveAiConfig(normalizedRequest);
     const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
-    const response = normalizedRequest.operation === 'tools'
-      ? astRunAiTools(normalizedRequest, config, providerExecutor)
-      : providerExecutor(normalizedRequest, config);
+    const response = normalizedRequest.options.stream
+      ? astRunAiStream(normalizedRequest, config, providerExecutor)
+      : (
+        normalizedRequest.operation === 'tools'
+          ? astRunAiTools(normalizedRequest, config, providerExecutor)
+          : providerExecutor(normalizedRequest, config)
+      );
 
     astAiTelemetryEndSpan(spanId, normalizedRequest, response, null);
     return response;

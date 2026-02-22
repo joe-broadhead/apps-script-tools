@@ -18,6 +18,12 @@ function astAiImage(request = {}) {
   return runAiRequest(Object.assign({}, request, { operation: 'image' }));
 }
 
+function astAiStream(request = {}) {
+  return runAiRequest(Object.assign({}, request, {
+    options: Object.assign({}, request.options || {}, { stream: true })
+  }));
+}
+
 function astAiProviders() {
   return AST_AI_PROVIDERS.slice();
 }
@@ -44,6 +50,7 @@ const AST_AI = Object.freeze({
   structured: astAiStructured,
   tools: astAiTools,
   image: astAiImage,
+  stream: astAiStream,
   providers: astAiProviders,
   capabilities: astAiCapabilities,
   configure: astAiConfigure,
