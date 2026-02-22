@@ -19,6 +19,7 @@ ASTX.Sheets
 ASTX.Drive
 ASTX.AI
 ASTX.RAG
+ASTX.Cache
 ASTX.Storage
 ASTX.Telemetry
 ASTX.Sql
@@ -141,6 +142,22 @@ ASTX.Storage.getConfig()
 ASTX.Storage.clearConfig()
 ```
 
+## `Cache` essentials
+
+```javascript
+ASTX.Cache.get(key, options)
+ASTX.Cache.set(key, value, options)
+ASTX.Cache.delete(key, options)
+ASTX.Cache.invalidateByTag(tag, options)
+ASTX.Cache.stats(options)
+ASTX.Cache.backends()
+ASTX.Cache.capabilities(backend)
+ASTX.Cache.configure(config, options)
+ASTX.Cache.getConfig()
+ASTX.Cache.clearConfig()
+ASTX.Cache.clear(options)
+```
+
 ## `Telemetry` essentials
 
 ```javascript
@@ -164,5 +181,7 @@ ASTX.Telemetry.getTrace(traceId)
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - unsupported AI provider/operation combinations throw typed capability errors.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
+- Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
+- Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).
