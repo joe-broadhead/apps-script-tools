@@ -39,12 +39,17 @@ test('astParseStorageUri rejects malformed dbfs URIs without a path', () => {
 
   assert.throws(
     () => context.astParseStorageUri('dbfs:'),
-    /must include a non-empty path segment/
+    /must include (a slash after scheme|a non-empty path segment)/
   );
 
   assert.throws(
     () => context.astParseStorageUri('dbfs://'),
     /must include a non-empty path segment/
+  );
+
+  assert.throws(
+    () => context.astParseStorageUri('dbfs:folder/file.txt'),
+    /must include a slash after scheme/
   );
 });
 

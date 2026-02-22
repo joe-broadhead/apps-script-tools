@@ -66,6 +66,10 @@ function astStorageNormalizeDbfsPath(pathValue) {
     throw new AstStorageValidationError('dbfs path must be a non-empty string');
   }
 
+  if (/^dbfs:/i.test(raw) && !/^dbfs:\/\//i.test(raw) && !/^dbfs:\//i.test(raw)) {
+    throw new AstStorageValidationError('dbfs uri/path must include a slash after scheme (dbfs:/...)');
+  }
+
   if (/^dbfs:(?:\/\/)?$/i.test(raw)) {
     throw new AstStorageValidationError('dbfs uri/path must include a non-empty path segment');
   }
