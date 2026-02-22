@@ -77,3 +77,11 @@ jobs:
 
       - name: Build docs
         run: mkdocs build --strict
+
+  gas-functional:
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.fork == false }}
+    needs: lint-and-local-tests
+    uses: ./.github/workflows/integration-gas.yml
+    with:
+      suite: functional
+    secrets: inherit

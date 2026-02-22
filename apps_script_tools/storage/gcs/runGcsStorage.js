@@ -68,7 +68,8 @@ function astGcsList({ request, accessToken }) {
     url,
     method: 'get',
     headers: astGcsBuildHeaders(accessToken),
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const payload = response.json || {};
@@ -129,7 +130,8 @@ function astGcsHead({ request, accessToken }) {
     url: astGcsBuildMetadataUrl(request.location.bucket, request.location.key),
     method: 'get',
     headers: astGcsBuildHeaders(accessToken),
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const payload = response.json || {};
@@ -166,7 +168,8 @@ function astGcsRead({ request, accessToken }) {
     url: astGcsBuildMediaUrl(request.location.bucket, request.location.key),
     method: 'get',
     headers: astGcsBuildHeaders(accessToken),
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   let base64;
@@ -184,6 +187,7 @@ function astGcsRead({ request, accessToken }) {
   }
 
   const mimeType = astStorageNormalizeReadMimeType(response.headers, 'application/octet-stream');
+  const warnings = astStorageBuildReadWarnings(bytesOut);
 
   return {
     output: {
@@ -194,7 +198,8 @@ function astGcsRead({ request, accessToken }) {
       bytesOut,
       bytesIn: 0
     },
-    raw: request.options.includeRaw ? response.body : null
+    raw: request.options.includeRaw ? response.body : null,
+    warnings
   };
 }
 
@@ -229,7 +234,8 @@ function astGcsWrite({ request, accessToken }) {
     headers: astGcsBuildHeaders(accessToken, request),
     contentType: request.payload.mimeType,
     payload: bytes,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const payload = response.json || {};
@@ -263,7 +269,8 @@ function astGcsDelete({ request, accessToken }) {
     url: astGcsBuildMetadataUrl(request.location.bucket, request.location.key),
     method: 'delete',
     headers: astGcsBuildHeaders(accessToken),
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   return {
@@ -284,7 +291,8 @@ function astGcsDelete({ request, accessToken }) {
 
 function astRunGcsStorage({ request, config }) {
   const accessToken = astGcsResolveAccessToken(config, {
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   try {

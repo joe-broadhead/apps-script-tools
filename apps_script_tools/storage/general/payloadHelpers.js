@@ -8,6 +8,24 @@ function astStorageEnsureUtilitiesFn(name) {
   }
 }
 
+function astStorageGetSoftLimitBytes() {
+  return 50 * 1024 * 1024;
+}
+
+function astStorageBuildSoftLimitWarning(direction, sizeBytes) {
+  const normalizedDirection = astStorageNormalizeString(direction, 'payload');
+  const normalizedSize = Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : 0;
+  return `${normalizedDirection} exceeds soft cap of ${astStorageGetSoftLimitBytes()} bytes (${normalizedSize} bytes)`;
+}
+
+function astStorageBuildReadWarnings(sizeBytes) {
+  if (sizeBytes > astStorageGetSoftLimitBytes()) {
+    return [astStorageBuildSoftLimitWarning('read payload', sizeBytes)];
+  }
+
+  return [];
+}
+
 function astStorageBytesToBase64(bytes) {
   astStorageEnsureUtilitiesFn('base64Encode');
   return Utilities.base64Encode(bytes || []);

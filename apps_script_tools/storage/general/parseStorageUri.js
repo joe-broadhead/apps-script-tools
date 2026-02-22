@@ -55,10 +55,6 @@ function astStorageNormalizeOperation(operation) {
   return normalized;
 }
 
-function astStorageEncodePathSegment(segment) {
-  return encodeURIComponent(String(segment || '')).replace(/%2F/g, '/');
-}
-
 function astStorageNormalizeDbfsPath(pathValue) {
   const raw = astStorageNormalizeString(pathValue, '');
 
@@ -203,8 +199,4 @@ function astStorageNormalizeLocation(provider, location = {}, parsedUri = null) 
 
 function astStorageBuildUri(provider, location = {}) {
   return astStorageComposeUri(provider, location);
-}
-
-function astStorageEncodeObjectKey(key) {
-  return encodeURIComponent(String(key || '')).replace(/%2F/g, '%2F');
 }

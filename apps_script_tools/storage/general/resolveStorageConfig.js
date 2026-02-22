@@ -1,6 +1,5 @@
 const AST_STORAGE_CONFIG_KEYS = Object.freeze([
   'GCS_SERVICE_ACCOUNT_JSON',
-  'GCS_DEFAULT_BUCKET',
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
   'S3_SESSION_TOKEN',
@@ -227,16 +226,6 @@ function resolveStorageConfig(request) {
       required: false
     });
 
-    const defaultBucket = astStorageResolveConfigString({
-      requestValue: providerAuth.defaultBucket,
-      authValue: providerAuth.GCS_DEFAULT_BUCKET,
-      runtimeConfig,
-      scriptConfig,
-      scriptKey: 'GCS_DEFAULT_BUCKET',
-      field: 'defaultBucket',
-      required: false
-    });
-
     if (authMode === 'oauth' && !oauthToken) {
       throw new AstStorageAuthError('Missing OAuth token for GCS provider', {
         provider
@@ -260,8 +249,7 @@ function resolveStorageConfig(request) {
       provider,
       authMode,
       oauthToken,
-      serviceAccountJson,
-      defaultBucket
+      serviceAccountJson
     };
   }
 

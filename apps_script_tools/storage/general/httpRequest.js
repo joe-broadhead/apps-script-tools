@@ -40,6 +40,36 @@ function astStorageIsTransientHttpError(statusCode) {
   return statusCode === 429 || statusCode >= 500;
 }
 
+function astStorageNormalizeTimeoutMs(value) {
+  if (typeof value === 'undefined' || value === null) {
+    return null;
+  }
+
+  if (!isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.max(1, Math.floor(value));
+}
+
+function astStorageElapsedMs(startedAtMs) {
+  return Math.max(0, Date.now() - startedAtMs);
+}
+
+function astStorageRemainingMs(startedAtMs, timeoutMs) {
+  if (!timeoutMs) {
+    return null;
+  }
+  return Math.max(0, timeoutMs - astStorageElapsedMs(startedAtMs));
+}
+
+function astStorageTimedOut(startedAtMs, timeoutMs) {
+  if (!timeoutMs) {
+    return false;
+  }
+  return astStorageElapsedMs(startedAtMs) >= timeoutMs;
+}
+
 function astStorageHttpRequest(config = {}) {
   const url = astStorageNormalizeString(config.url, '');
   const provider = astStorageNormalizeString(config.provider, 'storage');
@@ -59,11 +89,50 @@ function astStorageHttpRequest(config = {}) {
 
   const method = astStorageNormalizeString(config.method, 'get').toLowerCase();
   const retries = Number.isInteger(config.retries) ? Math.max(0, config.retries) : 0;
+  const timeoutMs = astStorageNormalizeTimeoutMs(config.timeoutMs);
+  const startedAtMs = Date.now();
 
   let attempt = 0;
   let lastError = null;
 
+  function buildTimeoutError(cause) {
+    return new AstStorageProviderError(
+      `Storage provider request exceeded timeout budget (${timeoutMs}ms)`,
+      {
+        provider,
+        operation,
+        url,
+        timeoutMs,
+        attempts: attempt + 1,
+        elapsedMs: astStorageElapsedMs(startedAtMs)
+      },
+      cause
+    );
+  }
+
+  function sleepWithTimeoutBudget(backoffMs) {
+    if (!timeoutMs) {
+      astStorageSleep(backoffMs);
+      return;
+    }
+
+    const remainingMs = astStorageRemainingMs(startedAtMs, timeoutMs);
+    if (remainingMs <= 0) {
+      throw buildTimeoutError(lastError);
+    }
+
+    if (backoffMs >= remainingMs) {
+      throw buildTimeoutError(lastError);
+    }
+
+    astStorageSleep(backoffMs);
+  }
+
   while (attempt <= retries) {
+    if (astStorageTimedOut(startedAtMs, timeoutMs)) {
+      throw buildTimeoutError(lastError);
+    }
+
     try {
       const options = {
         method,
@@ -128,8 +197,12 @@ function astStorageHttpRequest(config = {}) {
       if (astStorageIsTransientHttpError(statusCode) && attempt < retries) {
         lastError = providerError;
         attempt += 1;
-        astStorageSleep(250 * attempt);
+        sleepWithTimeoutBudget(250 * attempt);
         continue;
+      }
+
+      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
+        throw buildTimeoutError(providerError);
       }
 
       throw providerError;
@@ -149,15 +222,21 @@ function astStorageHttpRequest(config = {}) {
             provider,
             operation,
             url,
-            attempts: attempt + 1
+            attempts: attempt + 1,
+            timeoutMs,
+            elapsedMs: astStorageElapsedMs(startedAtMs)
           },
           error
         );
       }
 
+      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
+        throw buildTimeoutError(error);
+      }
+
       lastError = error;
       attempt += 1;
-      astStorageSleep(250 * attempt);
+      sleepWithTimeoutBudget(250 * attempt);
     }
   }
 
@@ -167,7 +246,9 @@ function astStorageHttpRequest(config = {}) {
       provider,
       operation,
       url,
-      attempts: retries + 1
+      attempts: retries + 1,
+      timeoutMs,
+      elapsedMs: astStorageElapsedMs(startedAtMs)
     },
     lastError
   );

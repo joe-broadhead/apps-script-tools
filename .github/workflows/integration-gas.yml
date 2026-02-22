@@ -1,6 +1,20 @@
 name: Apps Script Integration
 
 on:
+  workflow_call:
+    inputs:
+      suite:
+        description: "Integration suite to run"
+        required: false
+        default: functional
+        type: string
+    secrets:
+      CLASP_CLIENT_ID:
+        required: true
+      CLASP_CLIENT_SECRET:
+        required: true
+      CLASP_REFRESH_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       suite:

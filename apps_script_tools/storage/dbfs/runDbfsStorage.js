@@ -55,7 +55,8 @@ function astDbfsRequest({ request, config, endpoint, method = 'get', query = {},
     headers: astDbfsBuildHeaders(config),
     payload: typeof payload === 'undefined' ? undefined : JSON.stringify(payload),
     contentType: 'application/json',
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 }
 
@@ -176,6 +177,8 @@ function astDbfsRead({ request, config }) {
   }
 
   const base64 = astStorageBytesToBase64(mergedBytes);
+  const bytesOut = astStorageBytesLength(mergedBytes);
+  const warnings = astStorageBuildReadWarnings(bytesOut);
 
   return {
     output: {
@@ -184,9 +187,10 @@ function astDbfsRead({ request, config }) {
     usage: {
       requestCount,
       bytesIn: 0,
-      bytesOut: astStorageBytesLength(mergedBytes)
+      bytesOut
     },
-    raw: null
+    raw: null,
+    warnings
   };
 }
 

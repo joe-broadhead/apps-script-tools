@@ -1,5 +1,3 @@
-const AST_STORAGE_SOFT_LIMIT_BYTES = 50 * 1024 * 1024;
-
 const AST_STORAGE_DEFAULT_OPTIONS = Object.freeze({
   recursive: false,
   pageSize: 1000,
@@ -122,8 +120,8 @@ function astStorageNormalizePayload(payload, operation) {
     : (typeof bytes?.length === 'number' ? bytes.length : 0);
 
   const warnings = [];
-  if (sizeBytes > AST_STORAGE_SOFT_LIMIT_BYTES) {
-    warnings.push(`payload exceeds soft cap of ${AST_STORAGE_SOFT_LIMIT_BYTES} bytes`);
+  if (sizeBytes > astStorageGetSoftLimitBytes()) {
+    warnings.push(astStorageBuildSoftLimitWarning('write payload', sizeBytes));
   }
 
   const mimeTypeFallback = kind === 'json'

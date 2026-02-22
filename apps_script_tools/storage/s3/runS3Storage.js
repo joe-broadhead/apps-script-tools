@@ -92,7 +92,8 @@ function astS3Request({ request, config, method, query = {}, payload = '', heade
     method,
     headers: signed.headers,
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 }
 
@@ -196,6 +197,7 @@ function astS3Read({ request, config }) {
   }
 
   const mimeType = astStorageNormalizeReadMimeType(response.headers, 'application/octet-stream');
+  const warnings = astStorageBuildReadWarnings(bytesOut);
 
   return {
     output: {
@@ -206,7 +208,8 @@ function astS3Read({ request, config }) {
       bytesOut,
       bytesIn: 0
     },
-    raw: response.body
+    raw: response.body,
+    warnings
   };
 }
 
