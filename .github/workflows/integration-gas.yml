@@ -28,7 +28,6 @@ on:
 
 jobs:
   gas-tests:
-    if: ${{ github.event_name != 'workflow_call' || (secrets.CLASP_CLIENT_ID != '' && secrets.CLASP_CLIENT_SECRET != '' && secrets.CLASP_REFRESH_TOKEN != '') }}
     runs-on: ubuntu-latest
     env:
       SCRIPT_ID: 1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_
@@ -36,18 +35,41 @@ jobs:
       CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
       CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
     steps:
+      - name: Resolve clasp secret availability
+        id: secret_check
+        run: |
+          if [ -n "$CLASP_CLIENT_ID" ] && [ -n "$CLASP_CLIENT_SECRET" ] && [ -n "$CLASP_REFRESH_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip reusable call when clasp secrets are not configured
+        if: ${{ steps.secret_check.outputs.available != 'true' && github.event_name == 'workflow_call' }}
+        run: echo "Skipping Apps Script integration: clasp secrets not configured."
+
+      - name: Fail manual dispatch when clasp secrets are not configured
+        if: ${{ steps.secret_check.outputs.available != 'true' && github.event_name == 'workflow_dispatch' }}
+        run: |
+          echo "Missing required clasp secrets: CLASP_CLIENT_ID, CLASP_CLIENT_SECRET, CLASP_REFRESH_TOKEN."
+          exit 1
+
       - name: Checkout
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install clasp
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         run: npm install -g @google/clasp
 
       - name: Configure clasp auth
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         run: |
           test -n "$CLASP_CLIENT_ID"
           test -n "$CLASP_CLIENT_SECRET"
@@ -71,6 +93,7 @@ jobs:
           JSON
 
       - name: Configure script binding
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         run: |
           cat > .clasp.json <<JSON
           {
@@ -80,6 +103,7 @@ jobs:
           JSON
 
       - name: Push and execute integration tests
+        if: ${{ steps.secret_check.outputs.available == 'true' }}
         run: |
           clasp status
           clasp push
