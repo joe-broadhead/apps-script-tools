@@ -195,6 +195,67 @@ test('AST.Jobs.cancel marks queued jobs as canceled and list filters include the
   assert.ok(canceledJobs.some(job => job.id === queued.id));
 });
 
+test('AST.Jobs.run fails deterministically when step output is non-serializable', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_NON_SERIAL_${Date.now()}_`;
+
+  context.jobsNonSerializable = () => ({ value: BigInt(42) });
+
+  const result = context.AST.Jobs.run({
+    name: 'non-serializable-output',
+    options: {
+      propertyPrefix,
+      maxRetries: 0
+    },
+    steps: [
+      {
+        id: 'bad_step',
+        handler: 'jobsNonSerializable'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.steps[0].state, 'failed');
+  assert.equal(result.lastError.stepId, 'bad_step');
+  assert.equal(result.lastError.name, 'AstJobsStepExecutionError');
+  assert.match(result.lastError.message, /JSON serializable/);
+
+  const persisted = context.AST.Jobs.status(result.id);
+  assert.equal(persisted.status, 'failed');
+});
+
+test('AST.Jobs.cancel rejects jobs currently marked as running', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_RUNNING_CANCEL_${Date.now()}_`;
+
+  context.jobsRunningCancelNoop = () => true;
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'running-cancel-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'step_one',
+        handler: 'jobsRunningCancelNoop'
+      }
+    ]
+  });
+
+  const stored = context.astJobsReadJobRecord(queued.id);
+  stored.status = 'running';
+  context.astJobsWriteJobRecord(stored, {
+    propertyPrefix: stored.options.propertyPrefix
+  });
+
+  assert.throws(
+    () => context.AST.Jobs.cancel(queued.id),
+    /not cancelable/
+  );
+});
+
 test('AST.Jobs.configure controls runtime defaults', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_CONFIG_${Date.now()}_`;

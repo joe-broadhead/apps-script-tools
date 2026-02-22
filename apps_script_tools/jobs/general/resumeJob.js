@@ -19,7 +19,7 @@ function astJobsCancel(jobId, options = {}) {
   const normalizedJobId = astJobsNormalizeJobId(jobId);
   const job = astJobsReadJobRecord(normalizedJobId, options);
 
-  if (job.status === 'completed' || job.status === 'canceled') {
+  if (job.status === 'completed' || job.status === 'canceled' || job.status === 'running') {
     throw new AstJobsConflictError('Job is not cancelable in its current state', {
       jobId: normalizedJobId,
       status: job.status

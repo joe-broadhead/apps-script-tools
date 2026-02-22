@@ -135,6 +135,19 @@ function astJobsBuildStepContext(job, step) {
   };
 }
 
+function astJobsNormalizeStepOutput(output, step) {
+  const value = typeof output === 'undefined' ? null : output;
+
+  try {
+    return astJobsCloneSerializableValue(value);
+  } catch (error) {
+    throw new AstJobsStepExecutionError('Step handler output must be JSON serializable', {
+      stepId: step.id,
+      handlerName: step.handlerName
+    }, error);
+  }
+}
+
 function astJobsPersistJob(job) {
   job.updatedAt = astJobsNowIso();
   return astJobsWriteJobRecord(job, {
@@ -176,10 +189,11 @@ function astJobsExecuteStep(job, step) {
       });
     }
 
+    const normalizedOutput = astJobsNormalizeStepOutput(output, step);
     step.state = 'completed';
     step.completedAt = astJobsNowIso();
     step.lastError = null;
-    job.results[step.id] = typeof output === 'undefined' ? null : output;
+    job.results[step.id] = normalizedOutput;
     job.lastError = null;
     return true;
   } catch (error) {
