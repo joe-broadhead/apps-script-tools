@@ -47,7 +47,7 @@ Run via reusable workflow:
 
 - `.github/workflows/integration-gas.yml`
 
-PR CI runs `suite=functional` through the `gas-functional` job (internal PRs and branch pushes).
+PR CI runs `suite=functional` through the `gas-functional` job (internal PRs and branch pushes) when clasp secrets are configured.
 
 Dispatch options:
 
@@ -92,7 +92,7 @@ Pull requests should pass:
   - `lint-and-local-tests`
   - `perf-gate` (`npm run test:perf:check`)
   - `docs-build`
-  - `gas-functional` (Apps Script runtime functional suite for internal PRs)
+  - `gas-functional` (Apps Script runtime functional suite for internal PRs, when clasp secrets are available)
 
 `perf-report` remains informational and publishes benchmark artifacts.
 

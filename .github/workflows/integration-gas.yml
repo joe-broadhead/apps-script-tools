@@ -10,11 +10,11 @@ on:
         type: string
     secrets:
       CLASP_CLIENT_ID:
-        required: true
+        required: false
       CLASP_CLIENT_SECRET:
-        required: true
+        required: false
       CLASP_REFRESH_TOKEN:
-        required: true
+        required: false
   workflow_dispatch:
     inputs:
       suite:
@@ -28,6 +28,7 @@ on:
 
 jobs:
   gas-tests:
+    if: ${{ github.event_name != 'workflow_call' || (secrets.CLASP_CLIENT_ID != '' && secrets.CLASP_CLIENT_SECRET != '' && secrets.CLASP_REFRESH_TOKEN != '') }}
     runs-on: ubuntu-latest
     env:
       SCRIPT_ID: 1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_
