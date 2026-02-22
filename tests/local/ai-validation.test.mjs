@@ -4,6 +4,13 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 
+function createResponse({ status = 200, body = '{}' } = {}) {
+  return {
+    getResponseCode: () => status,
+    getContentText: () => body
+  };
+}
+
 test('validateAiRequest rejects unsupported providers', () => {
   const context = createGasContext();
   loadAiScripts(context);
@@ -122,4 +129,42 @@ test('AST exposes AI surface and helper methods', () => {
     JSON.stringify(providers),
     JSON.stringify(['openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'])
   );
+});
+
+test('astAiHttpRequest does not retry deterministic 4xx provider errors', () => {
+  let callCount = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        callCount += 1;
+        return createResponse({
+          status: 400,
+          body: JSON.stringify({
+            error: {
+              message: 'bad request'
+            }
+          })
+        });
+      }
+    }
+  });
+
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.astAiHttpRequest({
+      url: 'https://api.example.com/v1/test',
+      method: 'post',
+      payload: { ok: false },
+      retries: 3
+    }),
+    error => {
+      assert.equal(error.name, 'AstAiProviderError');
+      assert.equal(error.details.statusCode, 400);
+      return true;
+    }
+  );
+
+  assert.equal(callCount, 1);
 });

@@ -22,6 +22,10 @@ function astSleep(milliseconds) {
   }
 }
 
+function astAiIsTransientHttpError(statusCode) {
+  return statusCode === 429 || statusCode >= 500;
+}
+
 function astAiHttpRequest(config = {}) {
   const url = typeof config.url === 'string' ? config.url.trim() : '';
 
@@ -91,7 +95,7 @@ function astAiHttpRequest(config = {}) {
         }
       );
 
-      if (statusCode >= 500 && attempt < retries) {
+      if (astAiIsTransientHttpError(statusCode) && attempt < retries) {
         lastError = providerError;
         attempt += 1;
         astSleep(250 * attempt);
@@ -100,8 +104,11 @@ function astAiHttpRequest(config = {}) {
 
       throw providerError;
     } catch (error) {
-      if (error && error.name === 'AstAiProviderError' && attempt >= retries) {
-        throw error;
+      if (error && error.name === 'AstAiProviderError') {
+        const statusCode = Number(error.details && error.details.statusCode);
+        if (!astAiIsTransientHttpError(statusCode) || attempt >= retries) {
+          throw error;
+        }
       }
 
       if (attempt >= retries) {

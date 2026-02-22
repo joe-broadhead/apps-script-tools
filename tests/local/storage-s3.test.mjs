@@ -176,3 +176,52 @@ test('S3 maps 404 to AstStorageNotFoundError', () => {
     }
   );
 });
+
+test('S3 list marks truncated when maxItems caps provider results', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        if (url.includes('list-type=2')) {
+          return createResponse({
+            status: 200,
+            body: [
+              '<ListBucketResult>',
+              '<IsTruncated>false</IsTruncated>',
+              '<Contents><Key>folder/a.txt</Key><Size>1</Size></Contents>',
+              '<Contents><Key>folder/b.txt</Key><Size>1</Size></Contents>',
+              '</ListBucketResult>'
+            ].join('')
+          });
+        }
+
+        if (options.method === 'head') {
+          return createResponse({ status: 200 });
+        }
+
+        return createResponse({ status: 500, body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          S3_ACCESS_KEY_ID: 'AKIA_TEST',
+          S3_SECRET_ACCESS_KEY: 'SECRET_TEST',
+          S3_REGION: 'us-east-1'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 's3://bucket-1/folder/',
+    operation: 'list',
+    options: {
+      maxItems: 1
+    }
+  });
+
+  assert.equal(out.output.items.length, 1);
+  assert.equal(out.page.truncated, true);
+});

@@ -73,9 +73,12 @@ function astDbfsList({ request, config }) {
 
   const files = Array.isArray(response.json && response.json.files) ? response.json.files : [];
 
+  const cappedFiles = files.slice(0, request.options.maxItems);
+  const truncatedByMaxItems = files.length > request.options.maxItems;
+
   return {
     output: {
-      items: files.slice(0, request.options.maxItems).map(file => {
+      items: cappedFiles.map(file => {
         const path = astStorageNormalizeString(file.path, '');
         return {
           uri: path,
@@ -88,7 +91,7 @@ function astDbfsList({ request, config }) {
     },
     page: {
       nextPageToken: null,
-      truncated: false
+      truncated: truncatedByMaxItems
     },
     usage: {
       requestCount: 1,

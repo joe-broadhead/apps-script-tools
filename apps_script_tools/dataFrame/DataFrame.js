@@ -4,12 +4,17 @@ const __astDataFramePerfCounters = {
   toRecords: 0,
   toArrays: 0
 };
+const __astDataFrameCoercibleTypes = new Set(['integer', 'float', 'number', 'boolean', 'string', 'date']);
 
 function __astIncrementDataFrameCounter(counterName) {
   if (!Object.prototype.hasOwnProperty.call(__astDataFramePerfCounters, counterName)) {
     return;
   }
   __astDataFramePerfCounters[counterName] += 1;
+}
+
+function __astResolveCoercibleDataFrameType(type) {
+  return __astDataFrameCoercibleTypes.has(type) ? type : null;
 }
 
 function __astNormalizeSurrogateColumns(columns) {
@@ -353,6 +358,256 @@ function __astResolveWindowAssignedValues(value, rowCount, outputColumnName, win
   }
 
   return Series.fromValue(value, rowCount, outputColumnName).array;
+}
+
+function __astNormalizeJoinKeys(input) {
+  if (input == null) {
+    return [];
+  }
+  return Array.isArray(input) ? input : [input];
+}
+
+function __astBuildJoinKey(columnArrays, rowIdx) {
+  const values = new Array(columnArrays.length);
+
+  for (let idx = 0; idx < columnArrays.length; idx++) {
+    const source = columnArrays[idx];
+    values[idx] = source ? source[rowIdx] : null;
+  }
+
+  return astBuildValuesKey(values);
+}
+
+function __astBuildJoinBuckets(rowCount, keyColumns) {
+  const byKey = new Map();
+
+  for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+    const key = __astBuildJoinKey(keyColumns, rowIdx);
+    if (!byKey.has(key)) {
+      byKey.set(key, [rowIdx]);
+    } else {
+      byKey.get(key).push(rowIdx);
+    }
+  }
+
+  return { byKey };
+}
+
+function __astValidateJoinCardinality(validate, leftBuckets, rightBuckets) {
+  if (!validate) {
+    return;
+  }
+
+  const multiL = [...leftBuckets.byKey.values()].some(bucket => bucket.length > 1);
+  const multiR = [...rightBuckets.byKey.values()].some(bucket => bucket.length > 1);
+
+  let actual;
+  if (!multiL && !multiR) {
+    actual = 'one_to_one';
+  } else if (!multiL && multiR) {
+    actual = 'one_to_many';
+  } else if (multiL && !multiR) {
+    actual = 'many_to_one';
+  } else {
+    actual = 'many_to_many';
+  }
+
+  if (validate !== actual) {
+    throw new Error(`Validate failed: expected ${validate} but got ${actual}`);
+  }
+}
+
+function __astReadColumnValue(columnMap, columnName, rowIdx) {
+  if (rowIdx == null) {
+    return null;
+  }
+
+  const source = columnMap[columnName];
+  if (!source) {
+    return null;
+  }
+
+  return source[rowIdx];
+}
+
+function __astCloneSeries(series) {
+  return new Series(
+    [...series.array],
+    series.name,
+    series.type,
+    [...series.index],
+    {
+      useUTC: series.useUTC,
+      allowComplexValues: true,
+      skipTypeCoercion: true
+    }
+  );
+}
+
+function __astCloneDataFrame(dataframe) {
+  const clonedData = {};
+
+  for (let idx = 0; idx < dataframe.columns.length; idx++) {
+    const column = dataframe.columns[idx];
+    clonedData[column] = __astCloneSeries(dataframe.data[column]);
+  }
+
+  return new DataFrame(clonedData, [...dataframe.index]);
+}
+
+function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = {}) {
+  const {
+    on = null,
+    leftOn = null,
+    rightOn = null,
+    suffixes = ['_x', '_y'],
+    validate = null
+  } = options;
+
+  if (!Array.isArray(suffixes) || suffixes.length !== 2) {
+    throw new Error('suffixes must be an array of length 2');
+  }
+
+  const [leftSuffix, rightSuffix] = suffixes;
+
+  const leftKeys = __astNormalizeJoinKeys(on != null ? on : leftOn);
+  const rightKeys = __astNormalizeJoinKeys(on != null ? on : rightOn);
+
+  if (how !== 'cross') {
+    if (leftKeys.length === 0 || rightKeys.length === 0 || leftKeys.length !== rightKeys.length) {
+      throw new Error('Must provide `on` or both `leftOn` and `rightOn` of equal length');
+    }
+  }
+
+  const leftColumns = leftDf.columns;
+  const rightColumns = rightDf.columns;
+  const leftColumnMap = {};
+  const rightColumnMap = {};
+
+  for (let idx = 0; idx < leftColumns.length; idx++) {
+    leftColumnMap[leftColumns[idx]] = leftDf.data[leftColumns[idx]].array;
+  }
+
+  for (let idx = 0; idx < rightColumns.length; idx++) {
+    rightColumnMap[rightColumns[idx]] = rightDf.data[rightColumns[idx]].array;
+  }
+
+  const joinColumns = how === 'cross' ? [] : leftKeys.slice();
+  const overlapColumns = leftColumns.filter(col => !joinColumns.includes(col) && rightColumns.includes(col));
+  const leftOnlyColumns = leftColumns.filter(col => !joinColumns.includes(col) && !rightColumns.includes(col));
+  const rightOnlyColumns = rightColumns.filter(col => !joinColumns.includes(col) && !leftColumns.includes(col));
+
+  const leftJoinColumns = leftKeys.map(key => leftColumnMap[key] || null);
+  const rightJoinColumns = rightKeys.map(key => rightColumnMap[key] || null);
+  const leftRowCount = leftDf.len();
+  const rightRowCount = rightDf.len();
+
+  const leftBuckets = __astBuildJoinBuckets(leftRowCount, leftJoinColumns);
+  const rightBuckets = __astBuildJoinBuckets(rightRowCount, rightJoinColumns);
+  __astValidateJoinCardinality(validate, leftBuckets, rightBuckets);
+
+  const rowPairs = [];
+
+  if (how === 'cross') {
+    for (let leftIdx = 0; leftIdx < leftRowCount; leftIdx++) {
+      for (let rightIdx = 0; rightIdx < rightRowCount; rightIdx++) {
+        rowPairs.push([leftIdx, rightIdx]);
+      }
+    }
+  } else if (how === 'inner' || how === 'left' || how === 'outer') {
+    const matchedRight = new Set();
+
+    for (let leftIdx = 0; leftIdx < leftRowCount; leftIdx++) {
+      const leftKey = __astBuildJoinKey(leftJoinColumns, leftIdx);
+      const rightMatches = rightBuckets.byKey.get(leftKey);
+
+      if (rightMatches && rightMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < rightMatches.length; matchIdx++) {
+          const rightIdx = rightMatches[matchIdx];
+          rowPairs.push([leftIdx, rightIdx]);
+          matchedRight.add(rightIdx);
+        }
+      } else if (how === 'left' || how === 'outer') {
+        rowPairs.push([leftIdx, null]);
+      }
+    }
+
+    if (how === 'outer') {
+      for (let rightIdx = 0; rightIdx < rightRowCount; rightIdx++) {
+        if (!matchedRight.has(rightIdx)) {
+          rowPairs.push([null, rightIdx]);
+        }
+      }
+    }
+  } else if (how === 'right') {
+    for (let rightIdx = 0; rightIdx < rightRowCount; rightIdx++) {
+      const rightKey = __astBuildJoinKey(rightJoinColumns, rightIdx);
+      const leftMatches = leftBuckets.byKey.get(rightKey);
+
+      if (leftMatches && leftMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < leftMatches.length; matchIdx++) {
+          rowPairs.push([leftMatches[matchIdx], rightIdx]);
+        }
+      } else {
+        rowPairs.push([null, rightIdx]);
+      }
+    }
+  } else {
+    throw new Error(`Unknown join type: ${how}`);
+  }
+
+  const out = {};
+  const rowCount = rowPairs.length;
+
+  for (let idx = 0; idx < joinColumns.length; idx++) {
+    out[joinColumns[idx]] = new Array(rowCount);
+  }
+
+  for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
+    out[leftOnlyColumns[idx]] = new Array(rowCount);
+  }
+
+  for (let idx = 0; idx < overlapColumns.length; idx++) {
+    out[`${overlapColumns[idx]}${leftSuffix}`] = new Array(rowCount);
+    out[`${overlapColumns[idx]}${rightSuffix}`] = new Array(rowCount);
+  }
+
+  for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
+    out[rightOnlyColumns[idx]] = new Array(rowCount);
+  }
+
+  for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+    const [leftSourceIdx, rightSourceIdx] = rowPairs[rowIdx];
+
+    for (let keyIdx = 0; keyIdx < joinColumns.length; keyIdx++) {
+      const leftJoinCol = joinColumns[keyIdx];
+      const rightJoinCol = rightKeys[keyIdx];
+      const leftValue = __astReadColumnValue(leftColumnMap, leftJoinCol, leftSourceIdx);
+      const rightValue = __astReadColumnValue(rightColumnMap, rightJoinCol, rightSourceIdx);
+
+      out[leftJoinCol][rowIdx] = leftValue != null
+        ? leftValue
+        : (rightValue != null ? rightValue : null);
+    }
+
+    for (let colIdx = 0; colIdx < leftOnlyColumns.length; colIdx++) {
+      const col = leftOnlyColumns[colIdx];
+      out[col][rowIdx] = __astReadColumnValue(leftColumnMap, col, leftSourceIdx);
+    }
+
+    for (let colIdx = 0; colIdx < overlapColumns.length; colIdx++) {
+      const col = overlapColumns[colIdx];
+      out[`${col}${leftSuffix}`][rowIdx] = __astReadColumnValue(leftColumnMap, col, leftSourceIdx);
+      out[`${col}${rightSuffix}`][rowIdx] = __astReadColumnValue(rightColumnMap, col, rightSourceIdx);
+    }
+
+    for (let colIdx = 0; colIdx < rightOnlyColumns.length; colIdx++) {
+      const col = rightOnlyColumns[colIdx];
+      out[col][rowIdx] = __astReadColumnValue(rightColumnMap, col, rightSourceIdx);
+    }
+  }
+
+  return DataFrame.fromColumns(out, { copy: false });
 }
 
 var AstDataFrameWindowColumn = class AstDataFrameWindowColumn {
@@ -870,7 +1125,7 @@ var DataFrame = class DataFrame {
 
   union(other, distinct = false) {
     if (other.empty()) {
-      return this;
+      return __astCloneDataFrame(this);
     }
 
     const sameColumns = this.columns.length === other.columns.length
@@ -878,13 +1133,18 @@ var DataFrame = class DataFrame {
 
     if (!distinct && sameColumns) {
       const mergedColumns = {};
+      const typeMap = {};
 
       for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
         const column = this.columns[colIdx];
         mergedColumns[column] = [...this.data[column].array, ...other.data[column].array];
+        const coercibleType = __astResolveCoercibleDataFrameType(this.data[column].type);
+        if (coercibleType) {
+          typeMap[column] = coercibleType;
+        }
       }
 
-      return DataFrame.fromColumns(mergedColumns).resetIndex();
+      return DataFrame.fromColumns(mergedColumns, { typeMap }).resetIndex();
     }
 
     return DataFrame.fromRecords(
@@ -902,7 +1162,7 @@ var DataFrame = class DataFrame {
     }
 
     if (this.empty()) {
-      return new DataFrame({});
+      return __astCloneDataFrame(this);
     }
 
     const keySeries = dedupeKeys.map(key => this.data[key].array);
@@ -984,11 +1244,7 @@ var DataFrame = class DataFrame {
       throw new Error('`other` must be a DataFrame');
     }
 
-    const leftRecs = this.toRecords();
-    const rightRecs = other.toRecords();
-    const joined = joinRecordsOnKeys(leftRecs, rightRecs, how, options);
-
-    return DataFrame.fromRecords(joined);
+    return __astMergeDataFramesColumnar(this, other, how, options);
   }
 
   generateSurrogateKey(columns, delimiter = '-') {
@@ -1374,6 +1630,7 @@ var DataFrame = class DataFrame {
 
   _buildFromRowIndexes(rowIndexes, preserveIndex = false) {
     const columns = {};
+    const typeMap = {};
 
     for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
       const column = this.columns[colIdx];
@@ -1385,13 +1642,17 @@ var DataFrame = class DataFrame {
       }
 
       columns[column] = values;
+      const coercibleType = __astResolveCoercibleDataFrameType(this.data[column].type);
+      if (coercibleType) {
+        typeMap[column] = coercibleType;
+      }
     }
 
     const nextIndex = preserveIndex
       ? rowIndexes.map(index => this.index[index])
       : null;
 
-    return DataFrame.fromColumns(columns, { copy: false, index: nextIndex });
+    return DataFrame.fromColumns(columns, { copy: false, index: nextIndex, typeMap });
   }
 };
 

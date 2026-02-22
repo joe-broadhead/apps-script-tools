@@ -68,7 +68,7 @@ function standardizeRecords(records, defaultValue = null, modifyInPlace = false)
       throw new Error("All records must be non-null objects.");
     }
 
-    for (const key in record) {
+    for (const key of Object.keys(record)) {
       if (!keySet.has(key)) {
         keySet.add(key);
         allKeys.push(key); // Maintain insertion order

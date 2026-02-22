@@ -4,6 +4,13 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadRagScripts } from './rag-helpers.mjs';
 
+function createResponse({ status = 200, body = '{}' } = {}) {
+  return {
+    getResponseCode: () => status,
+    getContentText: () => body
+  };
+}
+
 test('AST exposes RAG namespace and public methods', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
@@ -189,4 +196,42 @@ test('Gemini embedding uses models/<id> route without encoding path slash', () =
   assert.equal(capturedUrl.includes('models%2Ftext-embedding-004'), false);
   assert.equal(capturedModel, 'models/text-embedding-004');
   assert.equal(out.vectors.length, 1);
+});
+
+test('astRagHttpRequest does not retry deterministic 4xx and preserves status details', () => {
+  let callCount = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        callCount += 1;
+        return createResponse({
+          status: 400,
+          body: JSON.stringify({
+            error: {
+              message: 'bad request'
+            }
+          })
+        });
+      }
+    }
+  });
+
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagHttpRequest({
+      url: 'https://example.com/rag',
+      method: 'post',
+      payload: { ok: false },
+      retries: 2
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagError');
+      assert.equal(error.details.statusCode, 400);
+      return true;
+    }
+  );
+
+  assert.equal(callCount, 1);
 });

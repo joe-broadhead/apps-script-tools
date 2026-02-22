@@ -214,3 +214,41 @@ test('GCS read returns soft-cap warnings when payload exceeds configured limit',
   assert.equal(out.warnings.length, 1);
   assert.match(out.warnings[0], /read payload exceeds soft cap/);
 });
+
+test('GCS list marks truncated when maxItems caps merged results', () => {
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token'
+    },
+    UrlFetchApp: {
+      fetch: url => {
+        if (url.includes('/storage/v1/b/my-bucket/o?')) {
+          return createResponse({
+            status: 200,
+            body: JSON.stringify({
+              items: [
+                { name: 'folder/a.txt', size: '1' },
+                { name: 'folder/b.txt', size: '1' }
+              ]
+            })
+          });
+        }
+
+        return createResponse({ status: 500, body: '{}' });
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 'gcs://my-bucket/folder/',
+    operation: 'list',
+    options: {
+      maxItems: 1
+    }
+  });
+
+  assert.equal(out.output.items.length, 1);
+  assert.equal(out.page.truncated, true);
+});

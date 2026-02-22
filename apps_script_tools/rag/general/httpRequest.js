@@ -9,6 +9,10 @@ function astRagSleep(milliseconds) {
   }
 }
 
+function astRagIsTransientHttpError(statusCode) {
+  return statusCode === 429 || statusCode >= 500;
+}
+
 function astRagHttpRequest(config = {}) {
   const url = astRagNormalizeString(config.url, null);
   if (!url) {
@@ -65,22 +69,29 @@ function astRagHttpRequest(config = {}) {
         };
       }
 
-      const error = new AstRagError(`RAG provider request failed with status ${statusCode}`, {
+      const providerError = new AstRagError(`RAG provider request failed with status ${statusCode}`, {
         url,
         statusCode,
         body,
         json
       });
 
-      if (statusCode >= 500 && attempt < retries) {
-        lastError = error;
+      if (astRagIsTransientHttpError(statusCode) && attempt < retries) {
+        lastError = providerError;
         attempt += 1;
         astRagSleep(250 * attempt);
         continue;
       }
 
-      throw error;
+      throw providerError;
     } catch (error) {
+      if (error && error.name === 'AstRagError') {
+        const statusCode = Number(error.details && error.details.statusCode);
+        if (!astRagIsTransientHttpError(statusCode) || attempt >= retries) {
+          throw error;
+        }
+      }
+
       if (attempt >= retries) {
         throw new AstRagError(
           'RAG provider request failed',
