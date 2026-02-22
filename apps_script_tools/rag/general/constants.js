@@ -34,7 +34,8 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
 const AST_RAG_DEFAULT_OPTIONS = Object.freeze({
   maxFiles: 300,
   maxChunks: 2000,
-  skipParseFailures: true
+  skipParseFailures: true,
+  dryRun: false
 });
 
 const AST_RAG_SCHEMA_VERSION = '1.0';

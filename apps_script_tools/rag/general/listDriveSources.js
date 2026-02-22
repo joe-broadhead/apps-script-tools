@@ -15,6 +15,22 @@ function astRagCollectDriveFiles(folder, includeSubfolders, output) {
   }
 }
 
+function astRagSortDriveSourcesDeterministically(sources) {
+  const list = Array.isArray(sources) ? sources.slice() : [];
+  list.sort((left, right) => {
+    const leftId = astRagNormalizeString(left.fileId, '') || '';
+    const rightId = astRagNormalizeString(right.fileId, '') || '';
+    if (leftId < rightId) {
+      return -1;
+    }
+    if (leftId > rightId) {
+      return 1;
+    }
+    return 0;
+  });
+  return list;
+}
+
 function astRagListDriveSources(sourceRequest, options = {}) {
   if (!sourceRequest || typeof sourceRequest !== 'object') {
     throw new AstRagValidationError('Source request is required');
@@ -59,5 +75,5 @@ function astRagListDriveSources(sourceRequest, options = {}) {
     }
   }
 
-  return output;
+  return astRagSortDriveSourcesDeterministically(output);
 }

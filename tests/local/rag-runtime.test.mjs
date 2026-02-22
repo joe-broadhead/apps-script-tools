@@ -107,11 +107,17 @@ function createDriveRuntime({ folderId = 'root', files = [] } = {}) {
   };
 }
 
-function createEmbeddingFetchMock() {
+function createEmbeddingFetchMock(tracker = null) {
   return {
     fetch: (_url, options) => {
       const payload = JSON.parse(options.payload);
       const inputs = Array.isArray(payload.input) ? payload.input : [payload.input];
+      if (tracker && typeof tracker === 'object') {
+        tracker.calls = (tracker.calls || 0) + 1;
+        tracker.textsEmbedded = (tracker.textsEmbedded || 0) + inputs.length;
+        tracker.batches = Array.isArray(tracker.batches) ? tracker.batches : [];
+        tracker.batches.push(inputs.slice());
+      }
       return {
         getResponseCode: () => 200,
         getContentText: () => JSON.stringify({
@@ -338,6 +344,282 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   assert.equal(synced.addedSources, 1);
   assert.equal(synced.removedSources, 1);
   assert.equal(synced.addedChunks > 0, true);
+});
+
+test('syncIndex does not re-embed unchanged corpus', () => {
+  const fileA = makeDriveFile({
+    id: 'file_static_a',
+    name: 'static-a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha alpha alpha'
+  });
+  const fileB = makeDriveFile({
+    id: 'file_static_b',
+    name: 'static-b.txt',
+    mimeType: MIME_TEXT,
+    text: 'bravo bravo bravo'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+  const tracker = { calls: 0, textsEmbedded: 0, batches: [] };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(tracker)
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-unchanged-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(built.sourceCount, 2);
+  tracker.calls = 0;
+  tracker.textsEmbedded = 0;
+  tracker.batches = [];
+
+  const synced = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-unchanged-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.addedSources, 0);
+  assert.equal(synced.updatedSources, 0);
+  assert.equal(synced.removedSources, 0);
+  assert.equal(synced.unchangedSources, 2);
+  assert.equal(synced.reembeddedChunks, 0);
+  assert.equal(tracker.calls, 0);
+  assert.equal(tracker.textsEmbedded, 0);
+});
+
+test('syncIndex re-embeds only changed chunks for edited source', () => {
+  const fileA = makeDriveFile({
+    id: 'file_chunk_a',
+    name: 'chunk-a.txt',
+    mimeType: MIME_TEXT,
+    text: `${'A'.repeat(200)}${'B'.repeat(200)}${'C'.repeat(200)}`
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA]
+  });
+  const tracker = { calls: 0, textsEmbedded: 0, batches: [] };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(tracker)
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-chunk-diff-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    chunking: {
+      chunkSizeChars: 200,
+      chunkOverlapChars: 0,
+      minChunkChars: 1
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(built.chunkCount, 3);
+  tracker.calls = 0;
+  tracker.textsEmbedded = 0;
+  tracker.batches = [];
+
+  fileA._setText(`${'A'.repeat(200)}${'X'.repeat(200)}${'C'.repeat(200)}`);
+  fileA._setLastUpdated('2026-01-06T00:00:00.000Z');
+
+  const synced = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-chunk-diff-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    chunking: {
+      chunkSizeChars: 200,
+      chunkOverlapChars: 0,
+      minChunkChars: 1
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.updatedSources, 1);
+  assert.equal(synced.addedSources, 0);
+  assert.equal(synced.reusedChunks, 2);
+  assert.equal(synced.reembeddedChunks, 1);
+  assert.equal(synced.addedChunks, 1);
+  assert.equal(synced.removedChunks, 1);
+  assert.equal(tracker.calls, 1);
+  assert.equal(tracker.textsEmbedded, 1);
+
+  const after = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(after.chunks.length, 3);
+  assert.equal(new Set(after.chunks.map(chunk => chunk.chunkId)).size, after.chunks.length);
+  assert.equal(after.sync.lastSyncSummary.reembeddedChunks, 1);
+  const inspected = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
+  assert.equal(typeof inspected.lastSyncAt, 'string');
+});
+
+test('syncIndex dryRun reports delta without persisting index', () => {
+  const fileA = makeDriveFile({
+    id: 'file_dry_a',
+    name: 'dry-a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha alpha alpha'
+  });
+  const fileB = makeDriveFile({
+    id: 'file_dry_b',
+    name: 'dry-b.txt',
+    mimeType: MIME_TEXT,
+    text: 'bravo bravo bravo'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+  const tracker = { calls: 0, textsEmbedded: 0, batches: [] };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(tracker)
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-dry-run-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  const before = context.astRagLoadIndexDocument(built.indexFileId).document;
+  fileA._setText('alpha alpha alpha changed');
+  fileA._setLastUpdated('2026-01-05T00:00:00.000Z');
+  tracker.calls = 0;
+  tracker.textsEmbedded = 0;
+  tracker.batches = [];
+
+  const dryRun = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-dry-run-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      dryRun: true,
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(dryRun.dryRun, true);
+  assert.equal(dryRun.persisted, false);
+  assert.equal(dryRun.updatedSources, 1);
+  assert.equal(dryRun.reembeddedChunks > 0, true);
+  assert.equal(tracker.calls, 0);
+  assert.equal(dryRun.currentChunkCount, before.chunks.length);
+  assert.equal(dryRun.nextChunkCount > 0, true);
+
+  const after = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(after.updatedAt, before.updatedAt);
 });
 
 test('syncIndex preserves existing source data when parse fails and skipParseFailures=true', () => {

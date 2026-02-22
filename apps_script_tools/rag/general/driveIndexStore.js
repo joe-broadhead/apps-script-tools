@@ -4,6 +4,22 @@ function astRagEnsureDriveAvailable() {
   }
 }
 
+function astRagHydrateLoadedChunk(chunk = {}) {
+  const hydrated = astRagCloneObject(chunk);
+  hydrated.chunkHash = astRagNormalizeString(hydrated.chunkHash, null) || astRagBuildChunkFingerprint(hydrated);
+  return hydrated;
+}
+
+function astRagHydrateLoadedSource(source = {}) {
+  const hydrated = astRagCloneObject(source);
+  const fingerprint = astRagNormalizeSourceFingerprint(hydrated);
+  if (fingerprint) {
+    hydrated.fingerprint = fingerprint;
+    hydrated.checksum = fingerprint;
+  }
+  return hydrated;
+}
+
 function astRagBuildIndexFileName(indexName) {
   const normalized = astRagNormalizeString(indexName, 'rag-index');
   if (normalized.toLowerCase().endsWith('.json')) {
@@ -64,6 +80,9 @@ function astRagLoadIndexDocument(indexFileId) {
     });
   }
 
+  json.sources = json.sources.map(astRagHydrateLoadedSource);
+  json.chunks = json.chunks.map(astRagHydrateLoadedChunk);
+
   return {
     indexFileId,
     fileName: file.getName(),
@@ -112,6 +131,7 @@ function astRagInspectIndex(indexFileId) {
     sourceCount: Array.isArray(document.sources) ? document.sources.length : 0,
     chunkCount: Array.isArray(document.chunks) ? document.chunks.length : 0,
     createdAt: document.createdAt || null,
-    updatedAt: document.updatedAt || null
+    updatedAt: document.updatedAt || null,
+    lastSyncAt: document.sync && document.sync.lastSyncAt ? document.sync.lastSyncAt : null
   };
 }

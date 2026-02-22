@@ -1,18 +1,22 @@
 function astRagPrepareSourceChunks(sourceDescriptor, extracted, chunking, sourceId) {
   const chunkSegments = astRagChunkSegments(extracted.segments || [], chunking);
 
-  return chunkSegments.map((chunk, index) => ({
-    chunkId: `${sourceId}_chunk_${index + 1}`,
-    sourceId,
-    fileId: sourceDescriptor.fileId,
-    fileName: sourceDescriptor.fileName,
-    mimeType: sourceDescriptor.mimeType,
-    page: chunk.page == null ? null : chunk.page,
-    slide: chunk.slide == null ? null : chunk.slide,
-    section: chunk.section || 'body',
-    text: chunk.text,
-    embedding: []
-  }));
+  return chunkSegments.map((chunk, index) => {
+    const prepared = {
+      chunkId: `${sourceId}_chunk_${index + 1}`,
+      sourceId,
+      fileId: sourceDescriptor.fileId,
+      fileName: sourceDescriptor.fileName,
+      mimeType: sourceDescriptor.mimeType,
+      page: chunk.page == null ? null : chunk.page,
+      slide: chunk.slide == null ? null : chunk.slide,
+      section: chunk.section || 'body',
+      text: chunk.text,
+      embedding: []
+    };
+    prepared.chunkHash = astRagBuildChunkFingerprint(prepared);
+    return prepared;
+  });
 }
 
 function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, embeddingResult) {
@@ -34,7 +38,23 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
     retrievalDefaults: normalizedRequest.retrievalDefaults,
     sourceConfig: normalizedRequest.source,
     sources: preparedSources,
-    chunks
+    chunks,
+    sync: {
+      lastSyncAt: now,
+      lastSyncSummary: {
+        mode: 'build',
+        dryRun: false,
+        persisted: true,
+        addedSources: preparedSources.length,
+        updatedSources: 0,
+        removedSources: 0,
+        addedChunks: chunks.length,
+        removedChunks: 0,
+        unchangedSources: 0,
+        reusedChunks: 0,
+        reembeddedChunks: chunks.length
+      }
+    }
   };
 }
 
@@ -94,6 +114,7 @@ function astRagBuildIndexCore(request = {}) {
           fileName: sourceDescriptor.fileName,
           mimeType: sourceDescriptor.mimeType,
           modifiedTime: sourceDescriptor.modifiedTime,
+          fingerprint,
           checksum: fingerprint,
           chunkCount: sourceChunks.length
         });
