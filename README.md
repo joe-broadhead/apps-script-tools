@@ -90,9 +90,14 @@ function demoAstAi() {
   const ASTX = ASTLib.AST || ASTLib;
   ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
 
-  const response = ASTX.AI.text({
+  const response = ASTX.AI.stream({
     provider: 'openai',
-    input: 'Write a one-line project status update.'
+    input: 'Write a one-line project status update.',
+    onEvent: event => {
+      if (event.type === 'token') {
+        Logger.log(`delta: ${event.delta}`);
+      }
+    }
   });
 
   Logger.log(response.output.text);

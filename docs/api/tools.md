@@ -283,6 +283,7 @@ Primary methods:
 - `ASTX.AI.structured(request)` for schema-constrained JSON output.
 - `ASTX.AI.tools(request)` for bounded auto tool execution.
 - `ASTX.AI.image(request)` for image generation paths.
+- `ASTX.AI.stream(request)` for callback-based token/tool event streaming.
 - `ASTX.AI.providers()` and `ASTX.AI.capabilities(provider)` for runtime checks.
 - `ASTX.AI.configure(config)` to set runtime defaults (for example from consumer script properties).
 - `ASTX.AI.getConfig()` and `ASTX.AI.clearConfig()` for runtime config inspection/reset.
@@ -293,6 +294,7 @@ High-signal behavior:
 - unsupported provider-operation pairs throw `AstAiCapabilityError`.
 - tool calls support function handlers and global-name handlers.
 - tool execution is sequential and bounded by `options.maxToolRounds`.
+- stream mode emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
 - set `options.includeRaw=true` to include provider raw payloads.
 
 ```javascript
@@ -310,6 +312,20 @@ const out = ASTX.AI.structured({
 });
 
 Logger.log(JSON.stringify(out.output.json));
+```
+
+```javascript
+const streamResult = ASTX.AI.stream({
+  provider: 'openai',
+  input: 'Give me a short status update.',
+  onEvent: event => {
+    if (event.type === 'token') {
+      Logger.log(event.delta);
+    }
+  }
+});
+
+Logger.log(streamResult.output.text);
 ```
 
 See:

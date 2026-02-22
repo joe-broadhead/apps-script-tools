@@ -110,6 +110,7 @@ ASTX.AI.text(request)
 ASTX.AI.structured(request)
 ASTX.AI.tools(request)
 ASTX.AI.image(request)
+ASTX.AI.stream(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
 ASTX.AI.configure(config, options)
@@ -180,6 +181,7 @@ ASTX.Telemetry.getTrace(traceId)
 - placeholder interpolation is blocked unless explicitly enabled.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - unsupported AI provider/operation combinations throw typed capability errors.
+- `ASTX.AI.stream(...)` emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).

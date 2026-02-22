@@ -118,6 +118,7 @@ test('AST exposes AI surface and helper methods', () => {
   assert.equal(typeof context.AST.AI.structured, 'function');
   assert.equal(typeof context.AST.AI.tools, 'function');
   assert.equal(typeof context.AST.AI.image, 'function');
+  assert.equal(typeof context.AST.AI.stream, 'function');
   assert.equal(typeof context.AST.AI.providers, 'function');
   assert.equal(typeof context.AST.AI.capabilities, 'function');
   assert.equal(typeof context.AST.AI.configure, 'function');
@@ -167,4 +168,20 @@ test('astAiHttpRequest does not retry deterministic 4xx provider errors', () => 
   );
 
   assert.equal(callCount, 1);
+});
+
+test('validateAiRequest enforces onEvent callback when stream mode is enabled', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.validateAiRequest({
+      provider: 'openai',
+      input: 'hello',
+      options: {
+        stream: true
+      }
+    }),
+    /requires onEvent callback/
+  );
 });
