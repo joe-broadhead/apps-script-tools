@@ -42,11 +42,41 @@ Auth/model resolution order:
     maxToolRounds: 3
   },
   auth: { ...provider overrides... },
-  providerOptions: { ...provider-native extras... }
+  providerOptions: { ...provider-native extras... },
+  routing: {
+    strategy: 'priority' | 'fastest' | 'cost_first',
+    maxProviderAttempts: 2,
+    perAttemptTimeoutMs: 20000,
+    retryOn: {
+      transientHttp: true,
+      providerErrors: false,
+      authErrors: true,
+      capabilityErrors: true,
+      responseParseErrors: true
+    },
+    candidates: [{
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      auth: { apiKey: '...' },
+      providerOptions: { ... },
+      options: { retries: 1 },
+      priority: 0,
+      latencyMs: 2500,
+      unitCost: 3
+    }]
+  }
 }
 ```
 
 `options.timeoutMs` is accepted for cross-runtime parity, but Apps Script `UrlFetchApp.fetch` does not provide hard request-timeout control. Use `options.retries` plus provider-side timeout settings where supported.
+
+Routing notes:
+
+- top-level `provider` is optional when `routing.candidates` is provided.
+- default `routing.strategy` is `priority` (candidate order/priority).
+- deterministic `4xx` provider errors do **not** fail over unless `routing.retryOn.providerErrors=true`.
+- transient `429/5xx` provider errors fail over by default.
+- stream mode supports a single routing candidate only.
 
 ## Structured request additions
 
@@ -108,6 +138,21 @@ Auth/model resolution order:
     inputTokens,
     outputTokens,
     totalTokens
+  },
+  route: {
+    strategy,
+    maxProviderAttempts,
+    selectedProvider,
+    selectedModel,
+    attempts: [{
+      attempt,
+      candidateId,
+      provider,
+      model,
+      status: 'ok' | 'error',
+      durationMs,
+      error: { name, message, statusCode, retryable } // error attempts only
+    }]
   },
   raw // present when options.includeRaw=true
 }

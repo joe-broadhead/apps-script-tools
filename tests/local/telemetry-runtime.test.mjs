@@ -280,6 +280,82 @@ test('runAiRequest emits telemetry span_end records', () => {
   assert.equal(spanLog.span.status, 'ok');
 });
 
+test('runAiRequest telemetry attributes provider/model to successful fallback attempt', () => {
+  const logger = createLoggerCapture();
+  const context = createGasContext({
+    Logger: logger.Logger
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  loadAiScripts(context);
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'logger'
+  });
+
+  const originalRunOpenAi = context.runOpenAi;
+  const originalRunGemini = context.runGemini;
+
+  context.runOpenAi = () => {
+    const error = new Error('temporary upstream failure');
+    error.name = 'AstAiProviderError';
+    error.details = { statusCode: 503 };
+    throw error;
+  };
+
+  context.runGemini = request => context.normalizeAiResponse({
+    provider: 'gemini',
+    operation: 'text',
+    model: request.model,
+    output: {
+      text: 'fallback-ok'
+    }
+  });
+
+  const response = context.runAiRequest({
+    input: 'hello',
+    routing: {
+      strategy: 'priority',
+      candidates: [
+        {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          auth: { apiKey: 'openai-key' }
+        },
+        {
+          provider: 'gemini',
+          model: 'gemini-2.0-flash',
+          auth: { apiKey: 'gemini-key' }
+        }
+      ]
+    }
+  });
+
+  context.runOpenAi = originalRunOpenAi;
+  context.runGemini = originalRunGemini;
+
+  assert.equal(response.provider, 'gemini');
+
+  const spanLog = logger.logs
+    .map(item => {
+      try {
+        return JSON.parse(item);
+      } catch (_error) {
+        return null;
+      }
+    })
+    .filter(item => item && item.type === 'span_end' && item.span && item.span.name === 'ai.run')[0];
+
+  assert.ok(spanLog, 'Expected ai.run span_end log');
+  assert.equal(spanLog.span.status, 'ok');
+  assert.equal(spanLog.span.result.result.provider, 'gemini');
+  assert.equal(spanLog.span.result.result.model, 'gemini-2.0-flash');
+  assert.equal(spanLog.span.result.result.selectedProvider, 'gemini');
+  assert.equal(spanLog.span.result.result.attemptCount, 2);
+});
+
 test('astRagBuildIndexCore emits telemetry span_end records', () => {
   const logger = createLoggerCapture();
   const context = createGasContext({

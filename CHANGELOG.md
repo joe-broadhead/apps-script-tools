@@ -24,6 +24,10 @@
   - `AstAiToolTimeoutError`
   - `AstAiToolPayloadLimitError`
   - `AstAiToolIdempotencyError`
+- AI provider routing and fallback contract (`request.routing`) with:
+  - candidate-based selection (`priority`, `fastest`, `cost_first`)
+  - deterministic retry/failover policy controls
+  - response/error attempt trace metadata (`response.route` and `error.details.route`)
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`

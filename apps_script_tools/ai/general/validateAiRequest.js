@@ -170,10 +170,7 @@ function validateAiRequest(request = {}, forcedOperation) {
     throw new AstAiValidationError('AI request must be an object');
   }
 
-  const provider = String(request.provider || '').trim();
-  if (!AST_AI_PROVIDERS.includes(provider)) {
-    throw new AstAiValidationError('Provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
-  }
+  const requestedProvider = String(request.provider || '').trim();
 
   const operation = forcedOperation || request.operation || 'text';
   if (!AST_AI_OPERATIONS.includes(operation)) {
@@ -195,6 +192,14 @@ function validateAiRequest(request = {}, forcedOperation) {
   }
 
   const options = astNormalizeAiOptions(request.options || {});
+  const routing = astAiNormalizeRoutingConfig(request.routing, requestedProvider || null, model);
+  const provider = requestedProvider
+    || (routing && routing.candidates && routing.candidates[0] ? routing.candidates[0].provider : '');
+
+  if (!AST_AI_PROVIDERS.includes(provider)) {
+    throw new AstAiValidationError('Provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
+  }
+
   const messages = astNormalizeMessages(request.input, request.system);
 
   let schema = null;
@@ -220,8 +225,18 @@ function validateAiRequest(request = {}, forcedOperation) {
     : 'none';
 
   const onEvent = typeof request.onEvent === 'function' ? request.onEvent : null;
+  const candidateStreamEnabled = Boolean(
+    routing
+    && Array.isArray(routing.candidates)
+    && routing.candidates.some(candidate => candidate.options && candidate.options.stream === true)
+  );
+  const streamEnabled = Boolean(options.stream || candidateStreamEnabled);
 
-  if (options.stream && !onEvent) {
+  if (streamEnabled && routing && routing.candidates.length > 1) {
+    throw new AstAiValidationError('Streaming is only supported with a single routing candidate');
+  }
+
+  if (streamEnabled && !onEvent) {
     throw new AstAiValidationError('options.stream=true requires onEvent callback function');
   }
 
@@ -238,6 +253,7 @@ function validateAiRequest(request = {}, forcedOperation) {
     onEvent,
     auth: astClonePlainObject(auth),
     providerOptions: astClonePlainObject(providerOptions),
-    options
+    options,
+    routing
   };
 }

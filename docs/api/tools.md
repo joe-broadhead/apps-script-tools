@@ -295,6 +295,9 @@ High-signal behavior:
 - tool calls support function handlers and global-name handlers.
 - tool execution is sequential and bounded by `options.maxToolRounds`.
 - stream mode emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
+- optional `routing` supports provider fallback using `priority`, `fastest`, or `cost_first` strategies.
+- deterministic provider `4xx` errors only fail over when `routing.retryOn.providerErrors=true`.
+- response metadata includes `response.route.attempts` with per-provider attempt status and retryability.
 - set `options.includeRaw=true` to include provider raw payloads.
 
 ```javascript
