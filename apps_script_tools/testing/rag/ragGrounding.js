@@ -259,5 +259,95 @@ RAG_GROUNDING_TESTS = [
         runAiRequest = originalRunAiRequest;
       }
     }
+  },
+  {
+    description: 'AST.RAG.answer() should enforce retrieval access policies and abstain on inaccessible context',
+    test: () => {
+      const originalLoad = astRagLoadIndexDocument;
+      const originalEmbed = astRagEmbedTexts;
+      const originalRunAiRequest = runAiRequest;
+
+      astRagLoadIndexDocument = () => ({
+        indexFileId: 'idx',
+        fileName: 'idx.json',
+        document: {
+          embedding: {
+            provider: 'openai',
+            model: 'text-embedding-3-small'
+          },
+          chunks: [{
+            chunkId: 'chunk_1',
+            sourceId: 'src_1',
+            fileId: 'file_denied',
+            fileName: 'denied.txt',
+            mimeType: 'text/plain',
+            page: null,
+            slide: null,
+            section: 'body',
+            text: 'Denied evidence text',
+            embedding: [1, 0, 0]
+          }]
+        }
+      });
+
+      astRagEmbedTexts = () => ({
+        vectors: [[1, 0, 0]],
+        usage: {
+          inputTokens: 1,
+          totalTokens: 1
+        }
+      });
+
+      let aiCallCount = 0;
+      runAiRequest = () => {
+        aiCallCount += 1;
+        return {
+          output: {
+            json: {
+              answer: 'Denied evidence text [S1]',
+              citations: ['S1']
+            }
+          },
+          usage: {
+            inputTokens: 2,
+            outputTokens: 3,
+            totalTokens: 5
+          }
+        };
+      };
+
+      try {
+        const out = AST.RAG.answer({
+          indexFileId: 'idx',
+          question: 'What does the document say?',
+          retrieval: {
+            access: {
+              allowedFileIds: ['file_allowed']
+            }
+          },
+          generation: {
+            provider: 'openai',
+            auth: { apiKey: 'test-key' }
+          },
+          options: {
+            requireCitations: true,
+            enforceAccessControl: true,
+            insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
+          }
+        });
+
+        if (out.status !== 'insufficient_context') {
+          throw new Error(`Expected status insufficient_context, got ${out.status}`);
+        }
+
+        if (aiCallCount !== 0) {
+          throw new Error(`Expected zero AI calls when no accessible context is available, got ${aiCallCount}`);
+        }
+      } finally {
+        astRagLoadIndexDocument = originalLoad;
+        astRagEmbedTexts = originalEmbed;
+        runAiRequest = originalRunAiRequest;
+      }
+    }
   }
 ];

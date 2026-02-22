@@ -52,6 +52,7 @@ Current release state:
 - Grounded `RAG.answer(...)` orchestration with strict citation mapping and abstention.
 - Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`.
 - Hybrid retrieval + reranking support in `RAG.search(...)` / `RAG.answer(...)` with explainable score fields (`vectorScore`, `lexicalScore`, `finalScore`).
+- RAG retrieval access-control (`retrieval.access`) and citation/source policy enforcement (`options.enforceAccessControl`).
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.

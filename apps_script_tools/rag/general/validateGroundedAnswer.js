@@ -24,6 +24,8 @@ function astRagValidateGroundedAnswer({
   contextBlocks,
   searchResults,
   requireCitations,
+  accessControl,
+  enforceAccessControl,
   insufficientEvidenceMessage
 }) {
   const parsed = astRagIsPlainObject(responseJson) ? responseJson : {};
@@ -45,6 +47,10 @@ function astRagValidateGroundedAnswer({
   }
 
   const validCitationIds = citationIds.filter(citationId => allowedCitationIds.has(citationId));
+  const shouldEnforceAccessControl = astRagNormalizeBoolean(enforceAccessControl, true);
+  const compiledAccessControl = shouldEnforceAccessControl
+    ? astRagCompileAccessControl(accessControl || {})
+    : null;
 
   if (requireCitations && validCitationIds.length === 0) {
     return {
@@ -54,11 +60,20 @@ function astRagValidateGroundedAnswer({
     };
   }
 
+  const deniedCitationIds = [];
   const citations = validCitationIds.map(citationId => {
     const index = Number(citationId.slice(1)) - 1;
     const result = searchResults[index];
 
     if (!result) {
+      return null;
+    }
+
+    if (
+      shouldEnforceAccessControl &&
+      !astRagIsChunkAllowedByAccess(result, accessControl || {}, compiledAccessControl)
+    ) {
+      deniedCitationIds.push(citationId);
       return null;
     }
 
@@ -86,6 +101,14 @@ function astRagValidateGroundedAnswer({
       snippet: astRagTruncate(result.text, 280)
     };
   }).filter(Boolean);
+
+  if (shouldEnforceAccessControl && deniedCitationIds.length > 0) {
+    return {
+      status: 'insufficient_context',
+      answer: insufficientEvidenceMessage,
+      citations: []
+    };
+  }
 
   if (requireCitations && citations.length === 0) {
     return {

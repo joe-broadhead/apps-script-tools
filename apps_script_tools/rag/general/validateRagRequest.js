@@ -48,7 +48,65 @@ function astRagNormalizeStringArray(values, field, allowEmpty = true) {
     throw new AstRagValidationError(`${field} must contain at least one item`);
   }
 
+  return Array.from(new Set(normalized));
+}
+
+function astRagNormalizeAccessControl(accessControl = {}, fieldPath = 'retrieval.access') {
+  if (typeof accessControl === 'undefined' || accessControl === null) {
+    accessControl = {};
+  }
+
+  if (!astRagIsPlainObject(accessControl)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  const normalized = {
+    allowedFileIds: astRagNormalizeStringArray(accessControl.allowedFileIds, `${fieldPath}.allowedFileIds`, true),
+    deniedFileIds: astRagNormalizeStringArray(accessControl.deniedFileIds, `${fieldPath}.deniedFileIds`, true),
+    allowedMimeTypes: astRagNormalizeStringArray(accessControl.allowedMimeTypes, `${fieldPath}.allowedMimeTypes`, true),
+    deniedMimeTypes: astRagNormalizeStringArray(accessControl.deniedMimeTypes, `${fieldPath}.deniedMimeTypes`, true)
+  };
+
+  const allowedFileSet = new Set(normalized.allowedFileIds);
+  const allowedMimeSet = new Set(normalized.allowedMimeTypes);
+  const overlappingFiles = normalized.deniedFileIds.filter(fileId => allowedFileSet.has(fileId));
+  const overlappingMimes = normalized.deniedMimeTypes.filter(mimeType => allowedMimeSet.has(mimeType));
+
+  if (overlappingFiles.length > 0 || overlappingMimes.length > 0) {
+    throw new AstRagAccessError('retrieval.access contains overlapping allow/deny constraints', {
+      overlappingFiles,
+      overlappingMimeTypes: overlappingMimes
+    });
+  }
+
   return normalized;
+}
+
+function astRagNormalizeSearchOptions(options = {}) {
+  if (!astRagIsPlainObject(options)) {
+    throw new AstRagValidationError('search.options must be an object when provided');
+  }
+
+  return {
+    enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true)
+  };
+}
+
+function astRagNormalizeAnswerOptions(options = {}) {
+  if (!astRagIsPlainObject(options)) {
+    throw new AstRagValidationError('answer.options must be an object when provided');
+  }
+
+  return {
+    requireCitations: typeof options.requireCitations === 'boolean'
+      ? options.requireCitations
+      : true,
+    enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
+    insufficientEvidenceMessage: astRagNormalizeString(
+      options.insufficientEvidenceMessage,
+      'I do not have enough grounded context to answer that.'
+    )
+  };
 }
 
 function astRagNormalizeChunking(chunking = {}) {
@@ -309,8 +367,14 @@ function astRagValidateSearchRequest(request = {}) {
   if (typeof retrieval.rerank === 'undefined') {
     retrieval.rerank = request.rerank;
   }
+  if (typeof retrieval.access === 'undefined') {
+    retrieval.access = request.access;
+  }
 
   const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrieval, defaults, 'search.retrieval');
+  const normalizedOptions = astRagNormalizeSearchOptions(
+    astRagIsPlainObject(request.options) ? request.options : {}
+  );
   const filtersInput = astRagIsPlainObject(retrieval.filters)
     ? retrieval.filters
     : (astRagIsPlainObject(request.filters) ? request.filters : {});
@@ -318,6 +382,7 @@ function astRagValidateSearchRequest(request = {}) {
     fileIds: astRagNormalizeStringArray(filtersInput.fileIds, 'search.retrieval.filters.fileIds', true),
     mimeTypes: astRagNormalizeStringArray(filtersInput.mimeTypes, 'search.retrieval.filters.mimeTypes', true)
   };
+  const normalizedAccess = astRagNormalizeAccessControl(retrieval.access, 'search.retrieval.access');
 
   return {
     indexFileId,
@@ -325,9 +390,12 @@ function astRagValidateSearchRequest(request = {}) {
     topK: normalizedRetrieval.topK,
     minScore: normalizedRetrieval.minScore,
     retrieval: Object.assign({}, normalizedRetrieval, {
-      filters: normalizedFilters
+      filters: normalizedFilters,
+      access: normalizedAccess,
+      enforceAccessControl: normalizedOptions.enforceAccessControl
     }),
     filters: normalizedFilters,
+    options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
     embedding: astRagNormalizeEmbeddingRequest(request.embedding || {})
   };
@@ -349,9 +417,16 @@ function astRagValidateAnswerRequest(request = {}) {
   }
 
   const history = Array.isArray(request.history) ? request.history.slice() : [];
-  const retrieval = astRagIsPlainObject(request.retrieval) ? request.retrieval : {};
+  const retrieval = astRagIsPlainObject(request.retrieval) ? astRagCloneObject(request.retrieval) : {};
+  if (typeof retrieval.access === 'undefined') {
+    retrieval.access = request.access;
+  }
   const defaults = astRagResolveRetrievalDefaults();
   const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrieval, defaults, 'answer.retrieval');
+  const normalizedAccess = astRagNormalizeAccessControl(retrieval.access, 'answer.retrieval.access');
+  const normalizedOptions = astRagNormalizeAnswerOptions(
+    astRagIsPlainObject(request.options) ? request.options : {}
+  );
 
   const generation = astRagIsPlainObject(request.generation) ? request.generation : {};
   const generationProvider = astRagNormalizeString(generation.provider, 'vertex_gemini');
@@ -368,7 +443,9 @@ function astRagValidateAnswerRequest(request = {}) {
       filters: {
         fileIds: astRagNormalizeStringArray((retrieval.filters || {}).fileIds, 'answer.retrieval.filters.fileIds', true),
         mimeTypes: astRagNormalizeStringArray((retrieval.filters || {}).mimeTypes, 'answer.retrieval.filters.mimeTypes', true)
-      }
+      },
+      access: normalizedAccess,
+      enforceAccessControl: normalizedOptions.enforceAccessControl
     }),
     generation: {
       provider: generationProvider,
@@ -377,15 +454,7 @@ function astRagValidateAnswerRequest(request = {}) {
       providerOptions: astRagIsPlainObject(generation.providerOptions) ? astRagCloneObject(generation.providerOptions) : {},
       options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {}
     },
-    options: {
-      requireCitations: request.options && typeof request.options.requireCitations === 'boolean'
-        ? request.options.requireCitations
-        : true,
-      insufficientEvidenceMessage: astRagNormalizeString(
-        request.options && request.options.insufficientEvidenceMessage,
-        'I do not have enough grounded context to answer that.'
-      )
-    },
+    options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {}
   };
 }

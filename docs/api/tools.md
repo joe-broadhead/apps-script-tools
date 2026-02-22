@@ -185,6 +185,7 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'vector'` (default cosine-only ranking)
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
 - `retrieval.rerank` for optional top-N reranking
+- `retrieval.access` for source-level allow/deny constraints
 
 ```javascript
 const answer = ASTX.RAG.answer({
@@ -196,9 +197,14 @@ const answer = ASTX.RAG.answer({
     minScore: 0.2,
     vectorWeight: 0.6,
     lexicalWeight: 0.4,
-    rerank: { enabled: true, topN: 12 }
+    rerank: { enabled: true, topN: 12 },
+    access: {
+      allowedFileIds: ['file_public_1', 'file_public_2'],
+      deniedFileIds: ['file_sensitive_1']
+    }
   },
-  generation: { provider: 'vertex_gemini' }
+  generation: { provider: 'vertex_gemini' },
+  options: { enforceAccessControl: true }
 });
 ```
 

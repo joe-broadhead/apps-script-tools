@@ -299,3 +299,55 @@ test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', (
     /requires vectorWeight \+ lexicalWeight > 0/
   );
 });
+
+test('astRagValidateAnswerRequest normalizes retrieval access and enforceAccessControl', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateAnswerRequest({
+    indexFileId: 'idx_1',
+    question: 'What are project risks?',
+    retrieval: {
+      topK: 6,
+      access: {
+        allowedFileIds: ['allowed_1'],
+        deniedFileIds: ['denied_1'],
+        allowedMimeTypes: ['text/plain']
+      }
+    },
+    options: {
+      enforceAccessControl: true
+    },
+    generation: {
+      provider: 'openai'
+    }
+  });
+
+  assert.equal(normalized.retrieval.access.allowedFileIds[0], 'allowed_1');
+  assert.equal(normalized.retrieval.access.deniedFileIds[0], 'denied_1');
+  assert.equal(normalized.retrieval.access.allowedMimeTypes[0], 'text/plain');
+  assert.equal(normalized.options.enforceAccessControl, true);
+  assert.equal(normalized.retrieval.enforceAccessControl, true);
+});
+
+test('astRagValidateSearchRequest rejects overlapping allow/deny access constraints', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagValidateSearchRequest({
+      indexFileId: 'idx_1',
+      query: 'project risks',
+      retrieval: {
+        access: {
+          allowedFileIds: ['file_1'],
+          deniedFileIds: ['file_1']
+        }
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagAccessError');
+      return true;
+    }
+  );
+});

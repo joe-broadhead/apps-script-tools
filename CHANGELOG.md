@@ -59,6 +59,7 @@
 - Grounded answer orchestration with citation IDs (`S1..Sn`) and abstention behavior (`status=insufficient_context`).
 - Hybrid RAG retrieval mode (`mode=hybrid`) with weighted vector + lexical score fusion.
 - Optional RAG reranking (`retrieval.rerank`) for top-N post-rank refinement.
+- RAG access-control contract for retrieval and answer flows (`retrieval.access`) with enforceable source/citation boundaries.
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
 - New `AST.Storage` namespace with:
   - `run`, `list`, `head`, `read`, `write`, `delete`
@@ -82,7 +83,7 @@
   - `api/storage-providers.md`
   - `operations/storage-security.md`
 - New typed RAG errors:
-  - `AstRagError`, `AstRagValidationError`, `AstRagAuthError`, `AstRagSourceError`,
+  - `AstRagError`, `AstRagValidationError`, `AstRagAuthError`, `AstRagAccessError`, `AstRagSourceError`,
     `AstRagIndexError`, `AstRagRetrievalError`, `AstRagEmbeddingCapabilityError`, `AstRagGroundingError`.
 - RAG docs set:
   - `getting-started/rag-quickstart.md`

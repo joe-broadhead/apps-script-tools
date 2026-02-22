@@ -75,6 +75,10 @@ function ragAnswer() {
       rerank: {
         enabled: true,
         topN: 12
+      },
+      access: {
+        allowedFileIds: ['ALLOWED_FILE_ID_1', 'ALLOWED_FILE_ID_2'],
+        deniedFileIds: ['SENSITIVE_FILE_ID']
       }
     },
     generation: {
@@ -85,6 +89,7 @@ function ragAnswer() {
       }
     },
     options: {
+      enforceAccessControl: true,
       requireCitations: true,
       insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
     }
