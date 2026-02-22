@@ -186,6 +186,8 @@ ASTX.Telemetry.getTrace(traceId)
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
+- RAG retrieval supports `vector` (default) and `hybrid` (vector + lexical fusion) modes.
+- RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.

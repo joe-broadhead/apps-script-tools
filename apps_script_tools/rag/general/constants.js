@@ -28,7 +28,14 @@ const AST_RAG_DEFAULT_CHUNKING = Object.freeze({
 
 const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
   topK: 8,
-  minScore: 0.2
+  minScore: 0.2,
+  mode: 'vector',
+  lexicalWeight: 0.35,
+  vectorWeight: 0.65,
+  rerank: Object.freeze({
+    enabled: false,
+    topN: 20
+  })
 });
 
 const AST_RAG_DEFAULT_OPTIONS = Object.freeze({

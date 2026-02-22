@@ -327,6 +327,13 @@ function astRagResolveRetrievalDefaults() {
   return {
     topK,
     minScore,
+    mode: AST_RAG_DEFAULT_RETRIEVAL.mode,
+    lexicalWeight: AST_RAG_DEFAULT_RETRIEVAL.lexicalWeight,
+    vectorWeight: AST_RAG_DEFAULT_RETRIEVAL.vectorWeight,
+    rerank: {
+      enabled: AST_RAG_DEFAULT_RETRIEVAL.rerank.enabled,
+      topN: AST_RAG_DEFAULT_RETRIEVAL.rerank.topN
+    },
     defaultFolderId
   };
 }

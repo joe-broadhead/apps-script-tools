@@ -57,6 +57,9 @@
 - Drive JSON index lifecycle with source fingerprinting and chunk metadata.
 - Embedding provider registry with built-ins (`openai`, `gemini`, `vertex_gemini`, `openrouter`, `perplexity`) plus runtime custom provider registration.
 - Grounded answer orchestration with citation IDs (`S1..Sn`) and abstention behavior (`status=insufficient_context`).
+- Hybrid RAG retrieval mode (`mode=hybrid`) with weighted vector + lexical score fusion.
+- Optional RAG reranking (`retrieval.rerank`) for top-N post-rank refinement.
+- Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
 - New `AST.Storage` namespace with:
   - `run`, `list`, `head`, `read`, `write`, `delete`
   - `providers`, `capabilities`

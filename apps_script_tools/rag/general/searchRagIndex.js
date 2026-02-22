@@ -1,20 +1,3 @@
-function astRagApplyChunkFilters(chunks, filters = {}) {
-  const fileSet = new Set(filters.fileIds || []);
-  const mimeSet = new Set(filters.mimeTypes || []);
-
-  return chunks.filter(chunk => {
-    if (fileSet.size > 0 && !fileSet.has(chunk.fileId)) {
-      return false;
-    }
-
-    if (mimeSet.size > 0 && !mimeSet.has(chunk.mimeType)) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
 function astRagSearchCore(request = {}) {
   const normalizedRequest = astRagValidateSearchRequest(request);
   const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId);
@@ -40,34 +23,18 @@ function astRagSearchCore(request = {}) {
   });
 
   const queryVector = queryEmbedding.vectors[0];
-  const chunks = astRagApplyChunkFilters(document.chunks || [], normalizedRequest.filters);
-
-  const ranked = chunks.map(chunk => {
-    return {
-      chunk,
-      score: astRagCosineSimilarity(queryVector, chunk.embedding)
-    };
-  })
-    .filter(item => item.score >= normalizedRequest.minScore)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, normalizedRequest.topK)
-    .map(item => ({
-      chunkId: item.chunk.chunkId,
-      sourceId: item.chunk.sourceId,
-      fileId: item.chunk.fileId,
-      fileName: item.chunk.fileName,
-      mimeType: item.chunk.mimeType,
-      page: item.chunk.page == null ? null : item.chunk.page,
-      slide: item.chunk.slide == null ? null : item.chunk.slide,
-      section: item.chunk.section || 'body',
-      text: item.chunk.text,
-      score: item.score
-    }));
+  const ranked = astRagRetrieveRankedChunks(
+    document,
+    normalizedRequest.query,
+    queryVector,
+    normalizedRequest.retrieval
+  );
 
   return {
     query: normalizedRequest.query,
-    topK: normalizedRequest.topK,
-    minScore: normalizedRequest.minScore,
+    topK: normalizedRequest.retrieval.topK,
+    minScore: normalizedRequest.retrieval.minScore,
+    mode: normalizedRequest.retrieval.mode,
     results: ranked,
     usage: queryEmbedding.usage
   };

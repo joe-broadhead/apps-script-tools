@@ -1,24 +1,3 @@
-function astRagRankChunks(indexDocument, queryVector, retrieval) {
-  const filteredChunks = astRagApplyChunkFilters(indexDocument.chunks || [], retrieval.filters);
-
-  return filteredChunks
-    .map(chunk => ({
-      chunkId: chunk.chunkId,
-      sourceId: chunk.sourceId,
-      fileId: chunk.fileId,
-      fileName: chunk.fileName,
-      mimeType: chunk.mimeType,
-      page: chunk.page == null ? null : chunk.page,
-      slide: chunk.slide == null ? null : chunk.slide,
-      section: chunk.section || 'body',
-      text: chunk.text,
-      score: astRagCosineSimilarity(queryVector, chunk.embedding)
-    }))
-    .filter(item => item.score >= retrieval.minScore)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, retrieval.topK);
-}
-
 function astRagAnswerCore(request = {}) {
   const spanId = astRagTelemetryStartSpan('rag.answer', {
     indexFileId: request && request.indexFileId ? request.indexFileId : null
@@ -47,7 +26,12 @@ function astRagAnswerCore(request = {}) {
       options: { retries: 2 }
     });
 
-    const rankedResults = astRagRankChunks(indexDocument, queryEmbedding.vectors[0], normalizedRequest.retrieval);
+    const rankedResults = astRagRetrieveRankedChunks(
+      indexDocument,
+      normalizedRequest.question,
+      queryEmbedding.vectors[0],
+      normalizedRequest.retrieval
+    );
 
     if (rankedResults.length === 0) {
       const insufficient = {
@@ -57,6 +41,7 @@ function astRagAnswerCore(request = {}) {
         retrieval: {
           topK: normalizedRequest.retrieval.topK,
           minScore: normalizedRequest.retrieval.minScore,
+          mode: normalizedRequest.retrieval.mode,
           returned: 0
         },
         usage: queryEmbedding.usage
@@ -119,6 +104,7 @@ function astRagAnswerCore(request = {}) {
       retrieval: {
         topK: normalizedRequest.retrieval.topK,
         minScore: normalizedRequest.retrieval.minScore,
+        mode: normalizedRequest.retrieval.mode,
         returned: rankedResults.length
       },
       usage: {
