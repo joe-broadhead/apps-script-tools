@@ -188,6 +188,36 @@ test('Telemetry drive_json sink uses script lock when LockService is available',
   assert.equal(releaseCalls, 1);
 });
 
+test('Telemetry keeps running traces eligible for endSpan under maxTraceCount pressure', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'logger',
+    maxTraceCount: 10
+  });
+
+  const span1 = context.AST.Telemetry.startSpan('trace.one', { traceId: 'trace_1' });
+  for (let traceNum = 2; traceNum <= 11; traceNum += 1) {
+    context.AST.Telemetry.startSpan(`trace.${traceNum}`, {
+      traceId: `trace_${traceNum}`
+    });
+  }
+
+  // Running traces should not be evicted before they can be ended.
+  assert.ok(context.AST.Telemetry.getTrace('trace_1'));
+
+  const ended = context.AST.Telemetry.endSpan(span1, { status: 'ok' });
+  assert.equal(ended.traceId, 'trace_1');
+  assert.equal(ended.status, 'ok');
+
+  // After completion, old traces can be evicted to enforce maxTraceCount.
+  context.AST.Telemetry.startSpan('trace.12', { traceId: 'trace_12' });
+  assert.equal(context.AST.Telemetry.getTrace('trace_1'), null);
+});
+
 test('runAiRequest emits telemetry span_end records', () => {
   const logger = createLoggerCapture();
   const context = createGasContext({
