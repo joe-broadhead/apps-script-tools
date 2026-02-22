@@ -1133,18 +1133,13 @@ var DataFrame = class DataFrame {
 
     if (!distinct && sameColumns) {
       const mergedColumns = {};
-      const typeMap = {};
 
       for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
         const column = this.columns[colIdx];
         mergedColumns[column] = [...this.data[column].array, ...other.data[column].array];
-        const coercibleType = __astResolveCoercibleDataFrameType(this.data[column].type);
-        if (coercibleType) {
-          typeMap[column] = coercibleType;
-        }
       }
 
-      return DataFrame.fromColumns(mergedColumns, { typeMap }).resetIndex();
+      return DataFrame.fromColumns(mergedColumns).resetIndex();
     }
 
     return DataFrame.fromRecords(
