@@ -124,6 +124,49 @@ Workspace interoperability surfaces:
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
+## `ASTX.Cache`
+
+General-purpose cache layer for repeated API results and computed artifacts.
+
+Backends:
+
+- `memory`
+- `drive_json`
+- `script_properties`
+
+Primary methods:
+
+- `ASTX.Cache.get(key, options)`
+- `ASTX.Cache.set(key, value, options)`
+- `ASTX.Cache.delete(key, options)`
+- `ASTX.Cache.invalidateByTag(tag, options)`
+- `ASTX.Cache.stats(options)`
+- `ASTX.Cache.backends()` and `ASTX.Cache.capabilities(backend)`
+- `ASTX.Cache.configure(config)` / `ASTX.Cache.getConfig()` / `ASTX.Cache.clearConfig()`
+- `ASTX.Cache.clear(options)` to clear all entries in a namespace/backend
+
+High-signal behavior:
+
+- config precedence is per-call options, then runtime `configure(...)`, then script properties.
+- deterministic TTL semantics via `ttlSec`.
+- tags are normalized and de-duplicated for invalidation workflows.
+- `stats()` returns backend/namespace entry counts and hit/miss counters.
+
+```javascript
+ASTX.Cache.configure({
+  backend: 'memory',
+  namespace: 'my_project',
+  defaultTtlSec: 300
+});
+
+ASTX.Cache.set('rag:query:abc', { chunks: [1, 2, 3] }, {
+  ttlSec: 120,
+  tags: ['rag', 'search']
+});
+
+const cached = ASTX.Cache.get('rag:query:abc');
+```
+
 ## `ASTX.Storage`
 
 Cross-provider object storage surface:

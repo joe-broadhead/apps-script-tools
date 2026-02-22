@@ -20,6 +20,7 @@
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
+- `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses.
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
@@ -35,12 +36,14 @@ flowchart LR
     B --> I[AST.AI]
     B --> K[AST.RAG]
     B --> M[AST.Storage]
+    B --> Q[AST.Cache]
     B --> O[AST.Telemetry]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     K --> L[Drive JSON Index + Cosine Retrieval]
     M --> N[GCS / S3 / DBFS APIs]
+    Q --> R[Memory / Drive JSON / Script Properties]
     O --> P[Logger / Drive NDJSON]
     C --> H[Records / Arrays / Sheets]
 ```
@@ -59,6 +62,7 @@ flowchart LR
 - Grounded answering with strict citation mapping and deterministic abstention behavior.
 - Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
 - `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
+- `AST.Cache` cache contracts (`get`, `set`, `delete`, `invalidateByTag`, `stats`) for `memory`, `drive_json`, and `script_properties`.
 - `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`) with redaction and sink control.
 
 ## Import pattern

@@ -4,6 +4,15 @@
 
 ### Added
 
+- New `AST.Cache` namespace with:
+  - `get`, `set`, `delete`, `invalidateByTag`, `stats`
+  - `backends`, `capabilities`
+  - `configure`, `getConfig`, `clearConfig`, `clear`
+- Cache backend support:
+  - `memory`
+  - `drive_json`
+  - `script_properties`
+- Deterministic cache TTL semantics (`ttlSec`) and tag-based invalidation contracts.
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
@@ -62,6 +71,7 @@
 
 - `AST.VERSION` and package version moved to `0.0.4` development line.
 - `AST` namespace now exposes `AST.RAG`.
+- `AST` namespace now exposes `AST.Cache`.
 - `AST` namespace now exposes `AST.Storage`.
 - `AST` namespace now exposes `AST.Telemetry`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
