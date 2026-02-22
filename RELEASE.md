@@ -25,6 +25,7 @@ Use semantic tags:
   - Drive ingestion coverage (`txt`, `pdf`, Docs, Slides + notes)
   - embedding provider registry and custom provider registration
   - grounding/citation/abstention behavior
+  - `AST.Storage` contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`
 - Confirm docs and README release-state messaging is consistent:
   - published is `v0.0.3`
   - `v0.0.4` is unreleased until tag + GitHub release publish

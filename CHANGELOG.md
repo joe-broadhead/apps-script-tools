@@ -17,6 +17,27 @@
 - Drive JSON index lifecycle with source fingerprinting and chunk metadata.
 - Embedding provider registry with built-ins (`openai`, `gemini`, `vertex_gemini`, `openrouter`, `perplexity`) plus runtime custom provider registration.
 - Grounded answer orchestration with citation IDs (`S1..Sn`) and abstention behavior (`status=insufficient_context`).
+- New `AST.Storage` namespace with:
+  - `run`, `list`, `head`, `read`, `write`, `delete`
+  - `providers`, `capabilities`
+  - `configure`, `getConfig`, `clearConfig`
+- Unified storage URI model:
+  - `gcs://bucket/key`
+  - `s3://bucket/key`
+  - `dbfs:/path`
+- Storage adapters for:
+  - Google Cloud Storage (OAuth + service-account JWT exchange)
+  - Amazon S3 (SigV4 signing)
+  - Databricks DBFS (`/api/2.0/dbfs/*`)
+- Typed storage error model:
+  - `AstStorageError`, `AstStorageValidationError`, `AstStorageAuthError`,
+    `AstStorageCapabilityError`, `AstStorageNotFoundError`, `AstStorageProviderError`,
+    `AstStorageParseError`.
+- Storage docs set:
+  - `getting-started/storage-quickstart.md`
+  - `api/storage-contracts.md`
+  - `api/storage-providers.md`
+  - `operations/storage-security.md`
 - New typed RAG errors:
   - `AstRagError`, `AstRagValidationError`, `AstRagAuthError`, `AstRagSourceError`,
     `AstRagIndexError`, `AstRagRetrievalError`, `AstRagEmbeddingCapabilityError`, `AstRagGroundingError`.
@@ -30,6 +51,7 @@
 
 - `AST.VERSION` and package version moved to `0.0.4` development line.
 - `AST` namespace now exposes `AST.RAG`.
+- `AST` namespace now exposes `AST.Storage`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
 

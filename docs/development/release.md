@@ -15,6 +15,7 @@
 - RAG module (`AST.RAG`) shipped on `master` with docs and tests.
 - Drive-only ingestion support includes txt/pdf/Docs/Slides (+ notes).
 - Embedding provider registry supports built-ins and runtime custom providers.
+- Storage module (`AST.Storage`) ships unified CRUD for `gcs`, `s3`, and `dbfs`.
 - Release-note source of truth is `CHANGELOG.md` (`v0.0.4` section).
 
 ## Pre-release checks
@@ -40,7 +41,7 @@ Consumer validation (recommended):
 
 - install library in a clean Apps Script project
 - select target library version
-- run smoke script covering namespace/utils/dataframe/groupby/series query
+- run smoke script covering namespace/utils/dataframe/groupby/series query/storage CRUD
 
 ## Publish Apps Script version
 

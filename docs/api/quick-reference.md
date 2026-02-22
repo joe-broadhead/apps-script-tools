@@ -19,6 +19,7 @@ ASTX.Sheets
 ASTX.Drive
 ASTX.AI
 ASTX.RAG
+ASTX.Storage
 ASTX.Sql
 ASTX.Utils
 ```
@@ -123,6 +124,22 @@ ASTX.Drive.read(fileId, fileType, options)
 ASTX.Drive.create(fileType, fileName, options)
 ```
 
+## `Storage` essentials
+
+```javascript
+ASTX.Storage.run(request)
+ASTX.Storage.list(request)
+ASTX.Storage.head(request)
+ASTX.Storage.read(request)
+ASTX.Storage.write(request)
+ASTX.Storage.delete(request)
+ASTX.Storage.providers()
+ASTX.Storage.capabilities(provider)
+ASTX.Storage.configure(config, options)
+ASTX.Storage.getConfig()
+ASTX.Storage.clearConfig()
+```
+
 ## High-signal behavior notes
 
 - `Series.query` rejects string predicates.
@@ -134,3 +151,4 @@ ASTX.Drive.create(fileType, fileName, options)
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - unsupported AI provider/operation combinations throw typed capability errors.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
+- Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.

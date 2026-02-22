@@ -19,6 +19,7 @@
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
+- `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -32,10 +33,12 @@ flowchart LR
     B --> E[AST.Sheets / AST.Drive]
     B --> I[AST.AI]
     B --> K[AST.RAG]
+    B --> M[AST.Storage]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     K --> L[Drive JSON Index + Cosine Retrieval]
+    M --> N[GCS / S3 / DBFS APIs]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -52,6 +55,7 @@ flowchart LR
 - Embedding provider registry with built-ins and runtime custom provider registration.
 - Grounded answering with strict citation mapping and deterministic abstention behavior.
 - Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
+- `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
 
 ## Import pattern
 
