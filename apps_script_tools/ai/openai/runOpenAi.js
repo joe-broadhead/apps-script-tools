@@ -127,14 +127,6 @@ function runOpenAi(request, config) {
   let structuredJson = null;
   if (request.operation === 'structured') {
     structuredJson = astAiSafeJsonParse(text);
-
-    if (structuredJson == null) {
-      throw new AstAiResponseParseError('Failed to parse structured OpenAI response as JSON', {
-        provider: 'openai',
-        operation: 'structured',
-        text
-      });
-    }
   }
 
   return normalizeAiResponse({

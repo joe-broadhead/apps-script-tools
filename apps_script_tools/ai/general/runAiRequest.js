@@ -86,7 +86,7 @@ function astAiTelemetryEndSpan(spanId, normalizedRequest, response, error) {
   });
 }
 
-function astExecuteAiRequest(normalizedRequest) {
+function astExecuteAiRequestDirect(normalizedRequest) {
   astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
   astAssertAiInputCapabilities(normalizedRequest);
 
@@ -104,6 +104,20 @@ function astExecuteAiRequest(normalizedRequest) {
   return providerExecutor(normalizedRequest, config);
 }
 
+function astExecuteAiRequestWithReliability(normalizedRequest) {
+  if (normalizedRequest.operation === 'structured') {
+    return astRunStructuredWithReliability(normalizedRequest, astExecuteAiRequestDirect);
+  }
+
+  return astExecuteAiRequestDirect(normalizedRequest);
+}
+
+function astDispatchAiRequest(normalizedRequest) {
+  return normalizedRequest.routing
+    ? astRunAiWithFallback(normalizedRequest, astExecuteAiRequestWithReliability)
+    : astExecuteAiRequestWithReliability(normalizedRequest);
+}
+
 function runAiRequest(request = {}) {
   let normalizedRequest = null;
   const spanId = astAiTelemetryStartSpan(request, null);
@@ -111,9 +125,7 @@ function runAiRequest(request = {}) {
   try {
     normalizedRequest = validateAiRequest(request);
 
-    const response = normalizedRequest.routing
-      ? astRunAiWithFallback(normalizedRequest, astExecuteAiRequest)
-      : astExecuteAiRequest(normalizedRequest);
+    const response = astDispatchAiRequest(normalizedRequest);
 
     astAiTelemetryEndSpan(spanId, normalizedRequest, response, null);
     return response;

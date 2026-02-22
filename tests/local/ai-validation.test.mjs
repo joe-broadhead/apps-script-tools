@@ -214,3 +214,28 @@ test('runAiRequest rejects invalid tool guardrails configuration', () => {
     }
   );
 });
+
+test('validateAiRequest rejects invalid structured reliability settings', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.validateAiRequest({
+      provider: 'openai',
+      operation: 'structured',
+      input: 'hello',
+      schema: {
+        type: 'object',
+        properties: {
+          ok: { type: 'boolean' }
+        }
+      },
+      options: {
+        reliability: {
+          repairMode: 'invalid_mode'
+        }
+      }
+    }),
+    /repairMode must be one of/
+  );
+});

@@ -298,6 +298,10 @@ High-signal behavior:
 - optional `routing` supports provider fallback using `priority`, `fastest`, or `cost_first` strategies.
 - deterministic provider `4xx` errors only fail over when `routing.retryOn.providerErrors=true`.
 - response metadata includes `response.route.attempts` with per-provider attempt status and retryability.
+- structured mode has bounded reliability controls via `options.reliability`:
+  - `maxSchemaRetries`
+  - `repairMode` (`none`, `json_repair`, `llm_repair`)
+  - `strictValidation`
 - set `options.includeRaw=true` to include provider raw payloads.
 
 ```javascript
@@ -310,7 +314,15 @@ const out = ASTX.AI.structured({
       priority: { type: 'string' },
       owner: { type: 'string' }
     },
-    required: ['priority', 'owner']
+    required: ['priority', 'owner'],
+    additionalProperties: false
+  },
+  options: {
+    reliability: {
+      maxSchemaRetries: 2,
+      repairMode: 'json_repair',
+      strictValidation: true
+    }
   }
 });
 

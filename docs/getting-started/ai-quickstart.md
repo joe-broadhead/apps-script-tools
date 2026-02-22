@@ -62,7 +62,15 @@ function aiStructuredExample() {
         priority: { type: 'string' },
         owner: { type: 'string' }
       },
-      required: ['priority', 'owner']
+      required: ['priority', 'owner'],
+      additionalProperties: false
+    },
+    options: {
+      reliability: {
+        maxSchemaRetries: 2,
+        repairMode: 'json_repair',
+        strictValidation: true
+      }
     }
   });
 
@@ -125,4 +133,5 @@ function aiImageExample() {
 
 - Use `ASTX.AI.providers()` for supported providers.
 - Use `ASTX.AI.capabilities(provider)` to check provider-level operation support.
+- Structured calls support deterministic reliability controls in `options.reliability`.
 - Set `options.includeRaw=true` when you need provider-native raw payloads for debugging.

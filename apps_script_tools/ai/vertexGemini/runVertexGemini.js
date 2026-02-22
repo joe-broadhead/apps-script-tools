@@ -95,14 +95,6 @@ function runVertexGemini(request, config) {
   let structuredJson = null;
   if (request.operation === 'structured') {
     structuredJson = astAiSafeJsonParse(parsed.text);
-
-    if (structuredJson == null) {
-      throw new AstAiResponseParseError('Failed to parse vertex_gemini structured response as JSON', {
-        provider: 'vertex_gemini',
-        operation: 'structured',
-        text: parsed.text
-      });
-    }
   }
 
   return normalizeAiResponse({

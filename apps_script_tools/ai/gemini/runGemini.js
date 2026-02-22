@@ -103,14 +103,6 @@ function runGemini(request, config) {
   let structuredJson = null;
   if (request.operation === 'structured') {
     structuredJson = astAiSafeJsonParse(parsed.text);
-
-    if (structuredJson == null) {
-      throw new AstAiResponseParseError('Failed to parse Gemini structured response as JSON', {
-        provider: 'gemini',
-        operation: 'structured',
-        text: parsed.text
-      });
-    }
   }
 
   if (request.operation === 'image' && parsed.images.length === 0) {
