@@ -153,6 +153,41 @@ test('Telemetry drive_json sink appends records to Drive file', () => {
   assert.equal(payload.type, 'span_end');
 });
 
+test('Telemetry drive_json sink uses script lock when LockService is available', () => {
+  const drive = createDriveMock();
+  let tryLockCalls = 0;
+  let releaseCalls = 0;
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: _timeoutMs => {
+          tryLockCalls += 1;
+          return true;
+        },
+        releaseLock: () => {
+          releaseCalls += 1;
+        }
+      })
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'drive_json',
+    driveFileName: 'telemetry-lock-test.ndjson'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.drive.lock', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+
+  assert.equal(tryLockCalls, 1);
+  assert.equal(releaseCalls, 1);
+});
+
 test('runAiRequest emits telemetry span_end records', () => {
   const logger = createLoggerCapture();
   const context = createGasContext({

@@ -72,17 +72,55 @@ function astTelemetryWriteDriveText(file, content) {
   throw new AstTelemetryCapabilityError('Drive file handle does not support content updates');
 }
 
+function astTelemetryRunDriveWriteWithLock(task, config = {}) {
+  if (typeof task !== 'function') {
+    throw new AstTelemetryCapabilityError('Telemetry drive sink task must be a function');
+  }
+
+  if (
+    typeof LockService === 'undefined' ||
+    !LockService ||
+    typeof LockService.getScriptLock !== 'function'
+  ) {
+    return task();
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock || typeof lock.tryLock !== 'function') {
+    return task();
+  }
+
+  const timeoutMs = astTelemetryNormalizeNumber(config.lockTimeoutMs, 30000, 1, 300000);
+  const acquired = astTelemetryTryOrFallback(() => lock.tryLock(timeoutMs), false);
+  if (!acquired) {
+    throw new AstTelemetryCapabilityError('Unable to acquire telemetry drive sink lock', {
+      timeoutMs
+    });
+  }
+
+  try {
+    return task();
+  } finally {
+    if (typeof lock.releaseLock === 'function') {
+      astTelemetryTryOrFallback(() => lock.releaseLock(), null);
+    }
+  }
+}
+
 function astTelemetrySinkDriveJson(record, config = {}) {
   const safeFileName = astTelemetryNormalizeString(config.driveFileName, 'ast-telemetry.ndjson');
   const line = astTelemetryTryOrFallback(
     () => JSON.stringify(record),
     '{"error":"telemetry-serialize-failed"}'
   );
-  const folder = astTelemetryGetDriveFolder(config);
-  const file = astTelemetryResolveDriveFile(folder, safeFileName);
-  const existing = astTelemetryReadDriveText(file);
-  const nextContent = existing ? `${existing}\n${line}` : line;
-  astTelemetryWriteDriveText(file, nextContent);
+
+  astTelemetryRunDriveWriteWithLock(() => {
+    const folder = astTelemetryGetDriveFolder(config);
+    const file = astTelemetryResolveDriveFile(folder, safeFileName);
+    const existing = astTelemetryReadDriveText(file);
+    const nextContent = existing ? `${existing}\n${line}` : line;
+    astTelemetryWriteDriveText(file, nextContent);
+  }, config);
 }
 
 const __astTelemetrySinkDriveRoot = typeof globalThis !== 'undefined' ? globalThis : this;

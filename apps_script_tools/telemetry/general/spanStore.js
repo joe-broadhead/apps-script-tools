@@ -141,14 +141,34 @@ function astTelemetryTrimTraceStore(config) {
   );
 
   while (AST_TELEMETRY_TRACE_ORDER.length > maxTraceCount) {
-    const oldestTraceId = AST_TELEMETRY_TRACE_ORDER.shift();
-    const trace = AST_TELEMETRY_TRACES[oldestTraceId];
-    if (trace && Array.isArray(trace.spans)) {
-      for (let idx = 0; idx < trace.spans.length; idx += 1) {
-        delete AST_TELEMETRY_SPAN_INDEX[trace.spans[idx].spanId];
+    let evictionIndex = -1;
+
+    for (let idx = 0; idx < AST_TELEMETRY_TRACE_ORDER.length; idx += 1) {
+      const traceId = AST_TELEMETRY_TRACE_ORDER[idx];
+      const trace = AST_TELEMETRY_TRACES[traceId];
+      const hasRunningSpans = trace
+        && Array.isArray(trace.spans)
+        && trace.spans.some(span => span && span.status === 'running');
+
+      if (!hasRunningSpans) {
+        evictionIndex = idx;
+        break;
       }
     }
-    delete AST_TELEMETRY_TRACES[oldestTraceId];
+
+    if (evictionIndex === -1) {
+      // Keep active traces so endSpan can complete and emit final records.
+      break;
+    }
+
+    const traceIdToEvict = AST_TELEMETRY_TRACE_ORDER.splice(evictionIndex, 1)[0];
+    const traceToEvict = AST_TELEMETRY_TRACES[traceIdToEvict];
+    if (traceToEvict && Array.isArray(traceToEvict.spans)) {
+      for (let idx = 0; idx < traceToEvict.spans.length; idx += 1) {
+        delete AST_TELEMETRY_SPAN_INDEX[traceToEvict.spans[idx].spanId];
+      }
+    }
+    delete AST_TELEMETRY_TRACES[traceIdToEvict];
   }
 }
 
@@ -327,6 +347,8 @@ function astTelemetryEndSpan(spanId, result = {}, options = {}) {
   if (trace.status !== 'running') {
     trace.endedAt = nowIso;
   }
+
+  astTelemetryTrimTraceStore(config);
 
   if (span.sampled) {
     astTelemetryEmitRecord({
