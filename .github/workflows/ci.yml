@@ -78,9 +78,25 @@ jobs:
       - name: Build docs
         run: mkdocs build --strict
 
+  gas-secrets-check:
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - name: Check clasp secrets
+        id: check
+        run: |
+          if [ -n "${{ secrets.CLASP_CLIENT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_SECRET }}" ] && [ -n "${{ secrets.CLASP_REFRESH_TOKEN }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
   gas-functional:
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.fork == false }}
-    needs: lint-and-local-tests
+    if: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.fork == false) && needs.gas-secrets-check.outputs.available == 'true' }}
+    needs:
+      - lint-and-local-tests
+      - gas-secrets-check
     uses: ./.github/workflows/integration-gas.yml
     with:
       suite: functional
