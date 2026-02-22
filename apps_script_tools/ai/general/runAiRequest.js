@@ -42,10 +42,26 @@ function astAiTelemetryEndSpan(spanId, normalizedRequest, response, error) {
     return;
   }
 
+  const route = response && response.route && typeof response.route === 'object'
+    ? response.route
+    : null;
+  const selectedProvider = route && typeof route.selectedProvider === 'string'
+    ? route.selectedProvider
+    : null;
+  const selectedModel = route && typeof route.selectedModel === 'string'
+    ? route.selectedModel
+    : null;
+  const resolvedProvider = response && typeof response.provider === 'string' && response.provider.trim().length > 0
+    ? response.provider
+    : (selectedProvider || (normalizedRequest ? normalizedRequest.provider : null));
+  const resolvedModel = response && typeof response.model === 'string' && response.model.trim().length > 0
+    ? response.model
+    : (selectedModel || (normalizedRequest ? normalizedRequest.model : null));
+
   const base = {
-    provider: normalizedRequest ? normalizedRequest.provider : null,
+    provider: resolvedProvider,
     operation: normalizedRequest ? normalizedRequest.operation : null,
-    model: normalizedRequest ? normalizedRequest.model : null
+    model: resolvedModel
   };
 
   if (error) {
@@ -62,6 +78,9 @@ function astAiTelemetryEndSpan(spanId, normalizedRequest, response, error) {
     status: 'ok',
     result: Object.assign({}, base, {
       finishReason: response && response.finishReason ? response.finishReason : null,
+      selectedProvider,
+      selectedModel,
+      attemptCount: route && Array.isArray(route.attempts) ? route.attempts.length : 1,
       usage
     })
   });

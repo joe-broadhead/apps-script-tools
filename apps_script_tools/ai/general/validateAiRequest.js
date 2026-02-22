@@ -200,10 +200,6 @@ function validateAiRequest(request = {}, forcedOperation) {
     throw new AstAiValidationError('Provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
   }
 
-  if (options.stream && routing && routing.candidates.length > 1) {
-    throw new AstAiValidationError('Streaming is only supported with a single routing candidate');
-  }
-
   const messages = astNormalizeMessages(request.input, request.system);
 
   let schema = null;
@@ -229,8 +225,18 @@ function validateAiRequest(request = {}, forcedOperation) {
     : 'none';
 
   const onEvent = typeof request.onEvent === 'function' ? request.onEvent : null;
+  const candidateStreamEnabled = Boolean(
+    routing
+    && Array.isArray(routing.candidates)
+    && routing.candidates.some(candidate => candidate.options && candidate.options.stream === true)
+  );
+  const streamEnabled = Boolean(options.stream || candidateStreamEnabled);
 
-  if (options.stream && !onEvent) {
+  if (streamEnabled && routing && routing.candidates.length > 1) {
+    throw new AstAiValidationError('Streaming is only supported with a single routing candidate');
+  }
+
+  if (streamEnabled && !onEvent) {
     throw new AstAiValidationError('options.stream=true requires onEvent callback function');
   }
 

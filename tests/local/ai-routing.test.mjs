@@ -281,3 +281,77 @@ test('runAiRequest preserves base options when routing candidate options are omi
   assert.equal(observedRequest.options.retries, 0);
   assert.equal(observedRequest.options.timeoutMs, 12000);
 });
+
+test('runAiRequest does not leak generic auth keys across provider fallback candidates', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          GEMINI_API_KEY: 'script-gemini-key',
+          GEMINI_MODEL: 'gemini-2.0-flash'
+        })
+      })
+    }
+  });
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  const originalRunGemini = context.runGemini;
+
+  context.runOpenAi = () => {
+    throw createProviderError(503, 'temporary upstream failure');
+  };
+  context.runGemini = (_request, config) => {
+    assert.equal(config.apiKey, 'script-gemini-key');
+    return createSuccessResponse(context, 'gemini', config.model, 'gemini-success');
+  };
+
+  const response = context.runAiRequest({
+    input: 'hello',
+    routing: {
+      strategy: 'priority',
+      candidates: [
+        {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          auth: { apiKey: 'openai-key' }
+        },
+        {
+          provider: 'gemini'
+        }
+      ]
+    }
+  });
+
+  context.runOpenAi = originalRunOpenAi;
+  context.runGemini = originalRunGemini;
+
+  assert.equal(response.provider, 'gemini');
+  assert.equal(response.output.text, 'gemini-success');
+});
+
+test('validateAiRequest rejects multi-candidate routing when stream is set in candidate options', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.validateAiRequest({
+      input: 'hello',
+      onEvent: () => {},
+      routing: {
+        candidates: [
+          {
+            provider: 'openai',
+            auth: { apiKey: 'openai-key' }
+          },
+          {
+            provider: 'gemini',
+            auth: { apiKey: 'gemini-key' },
+            options: { stream: true }
+          }
+        ]
+      }
+    }),
+    /single routing candidate/
+  );
+});
