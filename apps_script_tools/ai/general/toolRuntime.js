@@ -13,12 +13,14 @@ function astValidateToolDefinition(tool, index) {
     : { type: 'object', properties: {} };
 
   const description = typeof tool.description === 'string' ? tool.description : '';
+  const guardrails = astNormalizeToolGuardrails(tool.guardrails, name);
 
   return {
     name,
     description,
     inputSchema,
-    handler: tool.handler
+    handler: tool.handler,
+    guardrails
   };
 }
 
@@ -55,7 +57,8 @@ function astPrepareToolRegistry(tools) {
       name: normalized.name,
       description: normalized.description,
       inputSchema: normalized.inputSchema,
-      handler: astResolveToolHandler(normalized.handler, normalized.name)
+      handler: astResolveToolHandler(normalized.handler, normalized.name),
+      guardrails: normalized.guardrails
     };
   });
 
@@ -109,7 +112,57 @@ function astNormalizeToolArguments(toolCall) {
   return rawArguments;
 }
 
-function astExecuteToolCall(toolCall, registry, requestContext) {
+function astSerializeToolResult(toolName, result) {
+  let serializedResult = '';
+
+  try {
+    serializedResult = JSON.stringify(result);
+  } catch (error) {
+    throw new AstAiToolExecutionError(
+      `Tool handler '${toolName}' returned a non-serializable result`,
+      {
+        toolName
+      },
+      error
+    );
+  }
+
+  if (typeof serializedResult === 'undefined') {
+    return 'null';
+  }
+
+  return serializedResult;
+}
+
+function astSerializeToolArguments(toolName, args) {
+  let serializedArguments = '';
+
+  try {
+    serializedArguments = JSON.stringify(args);
+  } catch (error) {
+    throw new AstAiToolExecutionError(
+      `Tool handler '${toolName}' received non-serializable arguments`,
+      {
+        toolName
+      },
+      error
+    );
+  }
+
+  if (typeof serializedArguments === 'undefined') {
+    return 'null';
+  }
+
+  return serializedArguments;
+}
+
+function astNormalizeToolCallId(toolName, toolCall) {
+  return typeof toolCall.id === 'string' && toolCall.id.trim().length > 0
+    ? toolCall.id
+    : `${toolName}_${new Date().getTime()}`;
+}
+
+function astExecuteToolCall(toolCall, registry, requestContext, idempotencyStore) {
   if (!toolCall || typeof toolCall !== 'object') {
     throw new AstAiToolExecutionError('Tool call must be an object', {
       toolCall
@@ -131,45 +184,116 @@ function astExecuteToolCall(toolCall, registry, requestContext) {
   }
 
   const args = astNormalizeToolArguments(toolCall);
+  const callId = astNormalizeToolCallId(toolName, toolCall);
+  const guardrails = tool.guardrails || astNormalizeToolGuardrails(null, toolName);
 
-  try {
-    const result = tool.handler(args, {
-      request: requestContext,
-      toolCall
-    });
+  const serializedArguments = astSerializeToolArguments(toolName, args);
+  astAssertToolPayloadLimit(serializedArguments, guardrails.maxArgsBytes, {
+    toolName,
+    payloadType: 'arguments',
+    limitField: 'maxArgsBytes'
+  });
 
-    if (result && typeof result.then === 'function') {
-      throw new AstAiToolExecutionError(
-        `Tool handler '${toolName}' returned a Promise; async handlers are not supported`,
-        {
-          toolName,
-          arguments: args
-        }
-      );
-    }
+  const idempotencyKey = astResolveToolIdempotencyKey(tool, toolCall, args);
+  const argsFingerprint = idempotencyKey ? astBuildToolArgsFingerprint(args) : null;
+  const idempotencyHit = astGetToolIdempotencyResult(
+    idempotencyStore,
+    idempotencyKey,
+    argsFingerprint,
+    toolName
+  );
 
+  if (idempotencyHit) {
     return {
-      id: typeof toolCall.id === 'string' && toolCall.id.trim().length > 0
-        ? toolCall.id
-        : `${toolName}_${new Date().getTime()}`,
+      id: callId,
       name: toolName,
       arguments: args,
-      result
+      result: idempotencyHit.result,
+      idempotentReplay: true
     };
-  } catch (error) {
-    if (error && error.name === 'AstAiToolExecutionError') {
-      throw error;
-    }
-
-    throw new AstAiToolExecutionError(
-      `Tool handler '${toolName}' threw an error`,
-      {
-        toolName,
-        arguments: args
-      },
-      error
-    );
   }
+
+  const maxAttempts = guardrails.retries + 1;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = new Date().getTime();
+
+    try {
+      const result = tool.handler(args, {
+        request: requestContext,
+        toolCall
+      });
+
+      if (result && typeof result.then === 'function') {
+        throw new AstAiToolExecutionError(
+          `Tool handler '${toolName}' returned a Promise; async handlers are not supported`,
+          {
+            toolName,
+            arguments: args
+          }
+        );
+      }
+
+      const durationMs = new Date().getTime() - startedAt;
+      if (durationMs > guardrails.timeoutMs) {
+        throw new AstAiToolTimeoutError(
+          `Tool handler '${toolName}' exceeded timeoutMs`,
+          {
+            toolName,
+            timeoutMs: guardrails.timeoutMs,
+            durationMs,
+            attempt,
+            maxAttempts
+          }
+        );
+      }
+
+      const serializedResult = astSerializeToolResult(toolName, result);
+      astAssertToolPayloadLimit(serializedResult, guardrails.maxResultBytes, {
+        toolName,
+        payloadType: 'result',
+        limitField: 'maxResultBytes'
+      });
+
+      astSetToolIdempotencyResult(idempotencyStore, idempotencyKey, argsFingerprint, result);
+
+      return {
+        id: callId,
+        name: toolName,
+        arguments: args,
+        result
+      };
+    } catch (error) {
+      const wrapped = error && error.name && error.name.indexOf('AstAi') === 0
+        ? error
+        : new AstAiToolExecutionError(
+          `Tool handler '${toolName}' threw an error`,
+          {
+            toolName,
+            arguments: args,
+            attempt,
+            maxAttempts
+          },
+          error
+        );
+
+      const canRetry = attempt < maxAttempts && astShouldRetryToolError(wrapped);
+      if (!canRetry) {
+        throw wrapped;
+      }
+
+      lastError = wrapped;
+    }
+  }
+
+  throw lastError || new AstAiToolExecutionError(
+    `Tool handler '${toolName}' failed`,
+    {
+      toolName,
+      arguments: args
+    }
+  );
 }
 
 function astCloneMessages(messages) {
@@ -205,6 +329,7 @@ function astRunAiTools(request, config, providerExecutor) {
   const maxToolRounds = request.options.maxToolRounds;
   const workingMessages = astCloneMessages(request.messages || []);
   const allToolResults = [];
+  const idempotencyStore = astCreateToolIdempotencyStore();
 
   let latestResponse = null;
 
@@ -232,9 +357,12 @@ function astRunAiTools(request, config, providerExecutor) {
       return latestResponse;
     }
 
-    const roundToolResults = toolCalls.map(toolCall => {
-      return astExecuteToolCall(toolCall, registry, request);
-    });
+    const roundToolResults = toolCalls.map(toolCall => astExecuteToolCall(
+      toolCall,
+      registry,
+      request,
+      idempotencyStore
+    ));
 
     allToolResults.push(...roundToolResults);
 
@@ -249,18 +377,7 @@ function astRunAiTools(request, config, providerExecutor) {
     });
 
     roundToolResults.forEach(result => {
-      let serializedResult = '';
-      try {
-        serializedResult = JSON.stringify(result.result);
-      } catch (error) {
-        throw new AstAiToolExecutionError(
-          `Tool handler '${result.name}' returned a non-serializable result`,
-          {
-            toolName: result.name
-          },
-          error
-        );
-      }
+      const serializedResult = astSerializeToolResult(result.name, result.result);
 
       workingMessages.push({
         role: 'tool',

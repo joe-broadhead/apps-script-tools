@@ -44,6 +44,27 @@ class AstAiToolExecutionError extends AstAiError {
   }
 }
 
+class AstAiToolTimeoutError extends AstAiToolExecutionError {
+  constructor(message, details = {}, cause = null) {
+    super(message, details, cause);
+    this.name = 'AstAiToolTimeoutError';
+  }
+}
+
+class AstAiToolPayloadLimitError extends AstAiToolExecutionError {
+  constructor(message, details = {}, cause = null) {
+    super(message, details, cause);
+    this.name = 'AstAiToolPayloadLimitError';
+  }
+}
+
+class AstAiToolIdempotencyError extends AstAiToolExecutionError {
+  constructor(message, details = {}, cause = null) {
+    super(message, details, cause);
+    this.name = 'AstAiToolIdempotencyError';
+  }
+}
+
 class AstAiToolLoopError extends AstAiError {
   constructor(message, details = {}, cause = null) {
     super(message, details, cause);

@@ -185,3 +185,32 @@ test('validateAiRequest enforces onEvent callback when stream mode is enabled', 
     /requires onEvent callback/
   );
 });
+
+test('runAiRequest rejects invalid tool guardrails configuration', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.runAiRequest({
+      provider: 'openai',
+      operation: 'tools',
+      model: 'gpt-4.1-mini',
+      input: 'sum values',
+      auth: { apiKey: 'key' },
+      tools: [{
+        name: 'bad_guardrails_tool',
+        description: 'invalid guardrails',
+        inputSchema: { type: 'object', properties: {} },
+        guardrails: {
+          timeoutMs: 0
+        },
+        handler: () => 1
+      }]
+    }),
+    error => {
+      assert.equal(error.name, 'AstAiValidationError');
+      assert.match(error.message, /Tool guardrail 'timeoutMs'/);
+      return true;
+    }
+  );
+});

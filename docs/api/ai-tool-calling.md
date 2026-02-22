@@ -23,9 +23,25 @@ If exceeded, the library throws `AstAiToolLoopError`.
     type: 'object',
     properties: { ... }
   },
+  guardrails: {
+    timeoutMs: 5000,            // per tool invocation
+    maxArgsBytes: 50000,        // serialized arguments cap
+    maxResultBytes: 200000,     // serialized result cap
+    retries: 0,                 // retry handler on thrown errors
+    idempotencyKeyFromArgs: false,
+    idempotencyKey: 'optional-fixed-key'
+  },
   handler: function(args) { ... } // OR 'globalFunctionName'
 }
 ```
+
+## Guardrail behavior
+
+- `timeoutMs`: if handler duration exceeds this, throws `AstAiToolTimeoutError`.
+- `maxArgsBytes` / `maxResultBytes`: throws `AstAiToolPayloadLimitError` when exceeded.
+- `retries`: retries handler failures up to `retries + 1` total attempts.
+- `idempotencyKeyFromArgs`: replays prior result for identical tool arguments.
+- `idempotencyKey`: explicit fixed key when you need custom dedupe boundaries (scoped per tool name).
 
 ## Example: function handler
 
@@ -91,5 +107,8 @@ function runStringHandlerExample() {
 
 - Tool definition issues -> `AstAiValidationError`
 - Tool runtime failures -> `AstAiToolExecutionError`
+- Tool timeout failures -> `AstAiToolTimeoutError`
+- Tool payload-size failures -> `AstAiToolPayloadLimitError`
+- Tool idempotency conflicts -> `AstAiToolIdempotencyError`
 - Loop overflow -> `AstAiToolLoopError`
 - Provider call failures -> `AstAiProviderError`

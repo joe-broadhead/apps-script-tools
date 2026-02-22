@@ -70,7 +70,15 @@ Auth/model resolution order:
     name,
     description,
     inputSchema,
-    handler // function(args) or global function name string
+    handler, // function(args) or global function name string
+    guardrails: {
+      timeoutMs: 5000,
+      maxArgsBytes: 50000,
+      maxResultBytes: 200000,
+      retries: 0,
+      idempotencyKeyFromArgs: false,
+      idempotencyKey: 'optional-fixed-key' // scoped per tool name
+    }
   }],
   toolChoice: 'auto' | 'none' | { name: 'tool_name' },
   options: {
@@ -94,7 +102,7 @@ Auth/model resolution order:
     json,
     images,
     toolCalls,
-    toolResults
+    toolResults // includes idempotentReplay=true when replayed from idempotency guardrail
   },
   usage: {
     inputTokens,
@@ -115,6 +123,9 @@ Typed errors thrown by AI surface:
 - `AstAiCapabilityError`
 - `AstAiProviderError`
 - `AstAiToolExecutionError`
+- `AstAiToolTimeoutError`
+- `AstAiToolPayloadLimitError`
+- `AstAiToolIdempotencyError`
 - `AstAiToolLoopError`
 - `AstAiResponseParseError`
 

@@ -15,6 +15,15 @@
   - `storage_json` (AST.Storage-backed via `gcs://`, `s3://`, or `dbfs:/` URI)
 - Deterministic cache TTL semantics (`ttlSec`) and tag-based invalidation contracts.
 - New `AST.AI.stream(request)` helper with callback-based `start` / `token` / `tool_call` / `tool_result` / `done` / `error` event emission.
+- AI tool-runtime guardrails:
+  - per-tool timeout (`timeoutMs`)
+  - argument/result payload caps (`maxArgsBytes`, `maxResultBytes`)
+  - bounded handler retries (`retries`)
+  - idempotent replay controls (`idempotencyKeyFromArgs`, `idempotencyKey`)
+- New typed tool guardrail errors:
+  - `AstAiToolTimeoutError`
+  - `AstAiToolPayloadLimitError`
+  - `AstAiToolIdempotencyError`
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
@@ -79,6 +88,7 @@
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
 - GAS functional suite now includes telemetry namespace smoke coverage.
+- GAS and local AI tool-runtime suites now include idempotent replay coverage and guardrail contract validation.
 - Storage `options.timeoutMs` is now enforced as a retry-budget timeout window across GCS, S3, and DBFS HTTP execution paths.
 - Storage read paths now emit soft-cap warnings when payload size exceeds the 50 MB stability threshold.
 - GAS functional integration is now reusable from CI (`gas-functional`) instead of manual-dispatch only.

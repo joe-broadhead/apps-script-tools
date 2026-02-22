@@ -283,5 +283,102 @@ AI_TOOLS_TESTS = [
         runOpenAi = originalRunOpenAi;
       }
     }
+  },
+  {
+    description: 'AST.AI.tools() should replay idempotent tool calls without re-running handler',
+    test: () => {
+      const originalRunOpenAi = runOpenAi;
+      let providerCallCount = 0;
+      let handlerCallCount = 0;
+
+      runOpenAi = request => {
+        providerCallCount += 1;
+
+        if (providerCallCount === 1) {
+          return normalizeAiResponse({
+            provider: 'openai',
+            operation: 'tools',
+            model: 'gpt-4.1-mini',
+            output: {
+              toolCalls: [{
+                id: 'idem_1',
+                name: 'idempotent_tool',
+                arguments: { a: 2, b: 3 }
+              }]
+            }
+          });
+        }
+
+        if (providerCallCount === 2) {
+          return normalizeAiResponse({
+            provider: 'openai',
+            operation: 'tools',
+            model: 'gpt-4.1-mini',
+            output: {
+              toolCalls: [{
+                id: 'idem_2',
+                name: 'idempotent_tool',
+                arguments: { a: 2, b: 3 }
+              }]
+            }
+          });
+        }
+
+        return normalizeAiResponse({
+          provider: 'openai',
+          operation: 'tools',
+          model: 'gpt-4.1-mini',
+          output: {
+            text: 'idempotent done'
+          }
+        });
+      };
+
+      try {
+        const response = AST.AI.tools({
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          input: 'repeat tool calls',
+          auth: {
+            apiKey: 'test-key'
+          },
+          tools: [{
+            name: 'idempotent_tool',
+            description: 'adds two numbers once',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                a: { type: 'number' },
+                b: { type: 'number' }
+              }
+            },
+            guardrails: {
+              idempotencyKeyFromArgs: true
+            },
+            handler: args => {
+              handlerCallCount += 1;
+              return args.a + args.b;
+            }
+          }],
+          options: {
+            maxToolRounds: 4
+          }
+        });
+
+        if (response.output.text !== 'idempotent done') {
+          throw new Error(`Expected idempotent done text, but got ${response.output.text}`);
+        }
+
+        if (handlerCallCount !== 1) {
+          throw new Error(`Expected handler to run once, but ran ${handlerCallCount} times`);
+        }
+
+        if (!response.output.toolResults || response.output.toolResults.length !== 2) {
+          throw new Error('Expected 2 tool results including replayed call');
+        }
+      } finally {
+        runOpenAi = originalRunOpenAi;
+      }
+    }
   }
 ];
