@@ -13,31 +13,42 @@ function astRagHasAccessControlRules(accessControl = {}) {
   return listFields.some(field => Array.isArray(accessControl[field]) && accessControl[field].length > 0);
 }
 
-function astRagIsChunkAllowedByAccess(chunk = {}, accessControl = {}) {
-  if (!astRagHasAccessControlRules(accessControl)) {
+function astRagCompileAccessControl(accessControl = {}) {
+  if (!astRagIsPlainObject(accessControl)) {
+    accessControl = {};
+  }
+
+  return {
+    hasRules: astRagHasAccessControlRules(accessControl),
+    allowedFileIds: new Set(accessControl.allowedFileIds || []),
+    deniedFileIds: new Set(accessControl.deniedFileIds || []),
+    allowedMimeTypes: new Set(accessControl.allowedMimeTypes || []),
+    deniedMimeTypes: new Set(accessControl.deniedMimeTypes || [])
+  };
+}
+
+function astRagIsChunkAllowedByAccess(chunk = {}, accessControl = {}, compiledAccessControl = null) {
+  const compiled = compiledAccessControl || astRagCompileAccessControl(accessControl);
+  if (!compiled.hasRules) {
     return true;
   }
 
   const fileId = astRagNormalizeString(chunk.fileId, '');
   const mimeType = astRagNormalizeString(chunk.mimeType, '');
-  const allowedFileIds = new Set(accessControl.allowedFileIds || []);
-  const deniedFileIds = new Set(accessControl.deniedFileIds || []);
-  const allowedMimeTypes = new Set(accessControl.allowedMimeTypes || []);
-  const deniedMimeTypes = new Set(accessControl.deniedMimeTypes || []);
 
-  if (deniedFileIds.has(fileId)) {
+  if (compiled.deniedFileIds.has(fileId)) {
     return false;
   }
 
-  if (deniedMimeTypes.has(mimeType)) {
+  if (compiled.deniedMimeTypes.has(mimeType)) {
     return false;
   }
 
-  if (allowedFileIds.size > 0 && !allowedFileIds.has(fileId)) {
+  if (compiled.allowedFileIds.size > 0 && !compiled.allowedFileIds.has(fileId)) {
     return false;
   }
 
-  if (allowedMimeTypes.size > 0 && !allowedMimeTypes.has(mimeType)) {
+  if (compiled.allowedMimeTypes.size > 0 && !compiled.allowedMimeTypes.has(mimeType)) {
     return false;
   }
 
@@ -50,9 +61,10 @@ function astRagApplyAccessControl(chunks = [], accessControl = {}, options = {})
   }
 
   const enforceAccessControl = astRagNormalizeBoolean(options.enforceAccessControl, true);
-  if (!enforceAccessControl || !astRagHasAccessControlRules(accessControl)) {
+  const compiled = astRagCompileAccessControl(accessControl);
+  if (!enforceAccessControl || !compiled.hasRules) {
     return chunks.slice();
   }
 
-  return chunks.filter(chunk => astRagIsChunkAllowedByAccess(chunk, accessControl));
+  return chunks.filter(chunk => astRagIsChunkAllowedByAccess(chunk, accessControl, compiled));
 }

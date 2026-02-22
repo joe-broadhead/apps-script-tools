@@ -47,6 +47,10 @@ function astRagValidateGroundedAnswer({
   }
 
   const validCitationIds = citationIds.filter(citationId => allowedCitationIds.has(citationId));
+  const shouldEnforceAccessControl = astRagNormalizeBoolean(enforceAccessControl, true);
+  const compiledAccessControl = shouldEnforceAccessControl
+    ? astRagCompileAccessControl(accessControl || {})
+    : null;
 
   if (requireCitations && validCitationIds.length === 0) {
     return {
@@ -66,8 +70,8 @@ function astRagValidateGroundedAnswer({
     }
 
     if (
-      astRagNormalizeBoolean(enforceAccessControl, true) &&
-      !astRagIsChunkAllowedByAccess(result, accessControl || {})
+      shouldEnforceAccessControl &&
+      !astRagIsChunkAllowedByAccess(result, accessControl || {}, compiledAccessControl)
     ) {
       deniedCitationIds.push(citationId);
       return null;
@@ -98,7 +102,7 @@ function astRagValidateGroundedAnswer({
     };
   }).filter(Boolean);
 
-  if (astRagNormalizeBoolean(enforceAccessControl, true) && deniedCitationIds.length > 0) {
+  if (shouldEnforceAccessControl && deniedCitationIds.length > 0) {
     return {
       status: 'insufficient_context',
       answer: insufficientEvidenceMessage,
