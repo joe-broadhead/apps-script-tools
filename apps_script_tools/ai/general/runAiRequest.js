@@ -67,6 +67,24 @@ function astAiTelemetryEndSpan(spanId, normalizedRequest, response, error) {
   });
 }
 
+function astExecuteAiRequest(normalizedRequest) {
+  astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
+  astAssertAiInputCapabilities(normalizedRequest);
+
+  const config = resolveAiConfig(normalizedRequest);
+  const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
+
+  if (normalizedRequest.options.stream) {
+    return astRunAiStream(normalizedRequest, config, providerExecutor);
+  }
+
+  if (normalizedRequest.operation === 'tools') {
+    return astRunAiTools(normalizedRequest, config, providerExecutor);
+  }
+
+  return providerExecutor(normalizedRequest, config);
+}
+
 function runAiRequest(request = {}) {
   let normalizedRequest = null;
   const spanId = astAiTelemetryStartSpan(request, null);
@@ -74,18 +92,9 @@ function runAiRequest(request = {}) {
   try {
     normalizedRequest = validateAiRequest(request);
 
-    astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
-    astAssertAiInputCapabilities(normalizedRequest);
-
-    const config = resolveAiConfig(normalizedRequest);
-    const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
-    const response = normalizedRequest.options.stream
-      ? astRunAiStream(normalizedRequest, config, providerExecutor)
-      : (
-        normalizedRequest.operation === 'tools'
-          ? astRunAiTools(normalizedRequest, config, providerExecutor)
-          : providerExecutor(normalizedRequest, config)
-      );
+    const response = normalizedRequest.routing
+      ? astRunAiWithFallback(normalizedRequest, astExecuteAiRequest)
+      : astExecuteAiRequest(normalizedRequest);
 
     astAiTelemetryEndSpan(spanId, normalizedRequest, response, null);
     return response;
