@@ -127,6 +127,9 @@ test('runAiRequest supports llm_repair mode for malformed structured output', ()
     calls += 1;
 
     if (request.operation === 'text') {
+      assert.equal(Array.isArray(request.messages), true);
+      assert.equal(request.messages[0].role, 'system');
+      assert.equal(request.messages[1].role, 'user');
       return context.normalizeAiResponse({
         provider: 'openai',
         operation: 'text',

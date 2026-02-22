@@ -147,27 +147,31 @@ function astAiBuildLlmRepairPrompt(rawText, schema, validationErrors = []) {
 }
 
 function astAiBuildLlmRepairRequest(request, rawText, validationErrors) {
+  const messages = [
+    {
+      role: 'system',
+      content: 'You transform invalid structured outputs into strict JSON that matches a provided JSON schema.'
+    },
+    {
+      role: 'user',
+      content: astAiBuildLlmRepairPrompt(rawText, request.schema, validationErrors)
+    }
+  ];
+
   return {
     provider: request.provider,
     operation: 'text',
     model: request.model,
-    input: [
-      {
-        role: 'system',
-        content: 'You transform invalid structured outputs into strict JSON that matches a provided JSON schema.'
-      },
-      {
-        role: 'user',
-        content: astAiBuildLlmRepairPrompt(rawText, request.schema, validationErrors)
-      }
-    ],
+    input: messages,
+    messages,
+    system: null,
     auth: Object.assign({}, request.auth || {}),
     providerOptions: Object.assign({}, request.providerOptions || {}),
     options: Object.assign({}, request.options || {}, {
       stream: false,
       streamChunkSize: request.options && request.options.streamChunkSize ? request.options.streamChunkSize : 24
     }),
-    routing: request.routing || null
+    routing: null
   };
 }
 

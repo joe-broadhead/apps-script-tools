@@ -189,6 +189,82 @@ test('runAiRequest can fail over deterministic provider errors when retryOn.prov
   assert.equal(response.route.attempts[0].error.retryable, true);
 });
 
+test('runAiRequest routes structured schema failures to next candidate', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const originalRunOpenAi = context.runOpenAi;
+  const originalRunGemini = context.runGemini;
+  let openAiCalls = 0;
+  let geminiCalls = 0;
+
+  context.runOpenAi = request => {
+    openAiCalls += 1;
+    return createSuccessResponse(context, 'openai', request.model, '{"ok":"bad","source":"openai"}');
+  };
+
+  context.runGemini = request => {
+    geminiCalls += 1;
+    return context.normalizeAiResponse({
+      provider: 'gemini',
+      operation: 'structured',
+      model: request.model,
+      output: {
+        text: '{"ok":true,"source":"gemini"}',
+        json: { ok: true, source: 'gemini' }
+      }
+    });
+  };
+
+  const response = context.runAiRequest({
+    operation: 'structured',
+    input: 'return json',
+    options: {
+      reliability: {
+        maxSchemaRetries: 0,
+        repairMode: 'none',
+        strictValidation: true
+      }
+    },
+    schema: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        source: { type: 'string' }
+      },
+      required: ['ok', 'source'],
+      additionalProperties: false
+    },
+    routing: {
+      strategy: 'priority',
+      candidates: [
+        {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          auth: { apiKey: 'openai-key' }
+        },
+        {
+          provider: 'gemini',
+          model: 'gemini-2.0-flash',
+          auth: { apiKey: 'gemini-key' }
+        }
+      ]
+    }
+  });
+
+  context.runOpenAi = originalRunOpenAi;
+  context.runGemini = originalRunGemini;
+
+  assert.equal(openAiCalls, 1);
+  assert.equal(geminiCalls, 1);
+  assert.equal(response.provider, 'gemini');
+  assert.equal(JSON.stringify(response.output.json), JSON.stringify({ ok: true, source: 'gemini' }));
+  assert.equal(response.route.attempts.length, 2);
+  assert.equal(response.route.attempts[0].status, 'error');
+  assert.equal(response.route.attempts[0].error.name, 'AstAiResponseParseError');
+  assert.equal(response.route.attempts[1].status, 'ok');
+});
+
 test('runAiRequest applies cost_first strategy to routing candidates', () => {
   const context = createGasContext();
   loadAiScripts(context);
