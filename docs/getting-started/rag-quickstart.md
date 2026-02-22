@@ -68,7 +68,14 @@ function ragAnswer() {
     question: 'What are the current project risks?',
     retrieval: {
       topK: 8,
-      minScore: 0.2
+      minScore: 0.2,
+      mode: 'hybrid',
+      vectorWeight: 0.65,
+      lexicalWeight: 0.35,
+      rerank: {
+        enabled: true,
+        topN: 12
+      }
     },
     generation: {
       provider: 'openai',

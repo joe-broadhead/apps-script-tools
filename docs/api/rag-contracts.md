@@ -68,12 +68,23 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 {
   indexFileId: 'required',
   query: 'required',
-  topK: 8,
-  minScore: 0.2,
-  filters: {
-    fileIds: [],
-    mimeTypes: []
+  retrieval: {
+    topK: 8,
+    minScore: 0.2,
+    mode: 'vector' | 'hybrid',
+    vectorWeight: 0.65, // hybrid only
+    lexicalWeight: 0.35, // hybrid only
+    rerank: {
+      enabled: false,
+      topN: 20
+    },
+    filters: {
+      fileIds: [],
+      mimeTypes: []
+    }
   },
+  // Back-compat aliases are still accepted:
+  // topK, minScore, filters, mode, vectorWeight, lexicalWeight, rerank
   auth: {},
   embedding: {
     providerOptions: {}
@@ -91,6 +102,13 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   retrieval: {
     topK: 8,
     minScore: 0.2,
+    mode: 'vector' | 'hybrid',
+    vectorWeight: 0.65, // hybrid only
+    lexicalWeight: 0.35, // hybrid only
+    rerank: {
+      enabled: false,
+      topN: 20
+    },
     filters: { fileIds: [], mimeTypes: [] }
   },
   generation: {
@@ -127,10 +145,43 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       page: null | number,
       slide: null | number,
       score,
+      vectorScore,
+      lexicalScore, // null in vector mode
+      finalScore,
+      rerankScore, // null unless rerank produced a score
       snippet
     }
   ],
-  retrieval: { topK, minScore, returned },
+  retrieval: { topK, minScore, mode, returned },
+  usage
+}
+```
+
+## `search` response
+
+```javascript
+{
+  query: 'string',
+  topK: 8,
+  minScore: 0.2,
+  mode: 'vector' | 'hybrid',
+  results: [
+    {
+      chunkId,
+      fileId,
+      fileName,
+      mimeType,
+      page,
+      slide,
+      section,
+      text,
+      score, // alias of finalScore
+      vectorScore,
+      lexicalScore, // null in vector mode
+      finalScore,
+      rerankScore // present when rerank.enabled=true
+    }
+  ],
   usage
 }
 ```
@@ -140,6 +191,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 - Retrieval context is injected as stable citation IDs (`S1..Sn`).
 - Answers are validated against retrieved context.
 - If no valid citation grounding exists and `requireCitations=true`, status is `insufficient_context`.
+- Hybrid retrieval combines vector + lexical evidence and can optionally rerank top-N hits.
 
 ## Typed errors
 

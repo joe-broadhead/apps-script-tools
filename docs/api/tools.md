@@ -178,6 +178,30 @@ ASTX.Cache.configure({
 });
 ```
 
+## `ASTX.RAG` retrieval modes
+
+`ASTX.RAG.search(...)` and `ASTX.RAG.answer(...)` both support:
+
+- `retrieval.mode = 'vector'` (default cosine-only ranking)
+- `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
+- `retrieval.rerank` for optional top-N reranking
+
+```javascript
+const answer = ASTX.RAG.answer({
+  indexFileId: 'YOUR_INDEX_FILE_ID',
+  question: 'What are the top project risks?',
+  retrieval: {
+    mode: 'hybrid',
+    topK: 8,
+    minScore: 0.2,
+    vectorWeight: 0.6,
+    lexicalWeight: 0.4,
+    rerank: { enabled: true, topN: 12 }
+  },
+  generation: { provider: 'vertex_gemini' }
+});
+```
+
 ## `ASTX.Storage`
 
 Cross-provider object storage surface:

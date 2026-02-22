@@ -71,6 +71,18 @@ function astRagValidateGroundedAnswer({
       page: result.page,
       slide: result.slide,
       score: result.score,
+      vectorScore: (typeof result.vectorScore === 'number' && isFinite(result.vectorScore))
+        ? result.vectorScore
+        : null,
+      lexicalScore: (typeof result.lexicalScore === 'number' && isFinite(result.lexicalScore))
+        ? result.lexicalScore
+        : null,
+      finalScore: (typeof result.finalScore === 'number' && isFinite(result.finalScore))
+        ? result.finalScore
+        : result.score,
+      rerankScore: (typeof result.rerankScore === 'number' && isFinite(result.rerankScore))
+        ? result.rerankScore
+        : null,
       snippet: astRagTruncate(result.text, 280)
     };
   }).filter(Boolean);

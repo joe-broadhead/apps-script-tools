@@ -235,3 +235,67 @@ test('astRagHttpRequest does not retry deterministic 4xx and preserves status de
 
   assert.equal(callCount, 1);
 });
+
+test('astRagValidateSearchRequest normalizes hybrid retrieval contract', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_1',
+    query: 'project risks',
+    retrieval: {
+      mode: 'hybrid',
+      topK: 5,
+      minScore: 0.15,
+      vectorWeight: 2,
+      lexicalWeight: 1,
+      rerank: {
+        enabled: true,
+        topN: 3
+      },
+      filters: {
+        fileIds: ['f1'],
+        mimeTypes: ['text/plain']
+      }
+    }
+  });
+
+  assert.equal(normalized.retrieval.mode, 'hybrid');
+  assert.equal(normalized.retrieval.topK, 5);
+  assert.equal(normalized.retrieval.minScore, 0.15);
+  assert.equal(normalized.retrieval.vectorWeight, 2);
+  assert.equal(normalized.retrieval.lexicalWeight, 1);
+  assert.equal(normalized.retrieval.rerank.enabled, true);
+  assert.equal(normalized.retrieval.rerank.topN, 3);
+  assert.equal(JSON.stringify(normalized.retrieval.filters.fileIds), JSON.stringify(['f1']));
+  assert.equal(JSON.stringify(normalized.retrieval.filters.mimeTypes), JSON.stringify(['text/plain']));
+});
+
+test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagValidateSearchRequest({
+      indexFileId: 'idx_1',
+      query: 'project risks',
+      retrieval: {
+        mode: 'lexical_only'
+      }
+    }),
+    /must be one of: vector, hybrid/
+  );
+
+  assert.throws(
+    () => context.astRagValidateSearchRequest({
+      indexFileId: 'idx_1',
+      query: 'project risks',
+      retrieval: {
+        mode: 'hybrid',
+        vectorWeight: 0,
+        lexicalWeight: 0
+      }
+    }),
+    /requires vectorWeight \+ lexicalWeight > 0/
+  );
+});

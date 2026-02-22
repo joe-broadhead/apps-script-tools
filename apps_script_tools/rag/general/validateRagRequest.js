@@ -150,6 +150,90 @@ function astRagNormalizeEmbeddingRequest(embedding = {}) {
   };
 }
 
+function astRagNormalizeRetrievalMode(mode, fieldPath) {
+  const normalized = astRagNormalizeString(mode, AST_RAG_DEFAULT_RETRIEVAL.mode);
+  if (!['vector', 'hybrid'].includes(normalized)) {
+    throw new AstRagValidationError(`${fieldPath} must be one of: vector, hybrid`);
+  }
+  return normalized;
+}
+
+function astRagNormalizeRetrievalWeight(value, fallback, fieldPath) {
+  if (typeof value === 'undefined' || value === null) {
+    return fallback;
+  }
+
+  if (typeof value !== 'number' || !isFinite(value) || value < 0) {
+    throw new AstRagValidationError(`${fieldPath} must be a non-negative finite number when provided`);
+  }
+
+  return value;
+}
+
+function astRagNormalizeRetrievalRerank(rerank, defaults, fieldPath) {
+  if (typeof rerank === 'undefined' || rerank === null) {
+    return {
+      enabled: defaults.enabled,
+      topN: defaults.topN
+    };
+  }
+
+  if (!astRagIsPlainObject(rerank)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  return {
+    enabled: astRagNormalizeBoolean(rerank.enabled, defaults.enabled),
+    topN: astRagNormalizePositiveInt(rerank.topN, defaults.topN, 1)
+  };
+}
+
+function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
+  if (!astRagIsPlainObject(retrieval)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  const topK = astRagNormalizePositiveInt(retrieval.topK, defaults.topK, 1);
+  let minScore = defaults.minScore;
+
+  if (typeof retrieval.minScore !== 'undefined') {
+    if (typeof retrieval.minScore !== 'number' || !isFinite(retrieval.minScore)) {
+      throw new AstRagValidationError(`${fieldPath}.minScore must be a finite number when provided`);
+    }
+    minScore = Math.max(-1, Math.min(1, retrieval.minScore));
+  }
+
+  const mode = astRagNormalizeRetrievalMode(retrieval.mode, `${fieldPath}.mode`);
+  const vectorWeight = astRagNormalizeRetrievalWeight(
+    retrieval.vectorWeight,
+    defaults.vectorWeight,
+    `${fieldPath}.vectorWeight`
+  );
+  const lexicalWeight = astRagNormalizeRetrievalWeight(
+    retrieval.lexicalWeight,
+    defaults.lexicalWeight,
+    `${fieldPath}.lexicalWeight`
+  );
+  const rerank = astRagNormalizeRetrievalRerank(
+    retrieval.rerank,
+    defaults.rerank,
+    `${fieldPath}.rerank`
+  );
+
+  if (mode === 'hybrid' && (vectorWeight + lexicalWeight) <= 0) {
+    throw new AstRagValidationError(`${fieldPath} requires vectorWeight + lexicalWeight > 0 in hybrid mode`);
+  }
+
+  return {
+    topK,
+    minScore,
+    mode,
+    vectorWeight,
+    lexicalWeight,
+    rerank
+  };
+}
+
 function astRagValidateBuildRequest(request = {}) {
   if (!astRagIsPlainObject(request)) {
     throw new AstRagValidationError('buildIndex request must be an object');
@@ -205,27 +289,45 @@ function astRagValidateSearchRequest(request = {}) {
   }
 
   const defaults = astRagResolveRetrievalDefaults();
-  const topK = astRagNormalizePositiveInt(request.topK, defaults.topK, 1);
-  let minScore = defaults.minScore;
+  const retrieval = astRagIsPlainObject(request.retrieval) ? astRagCloneObject(request.retrieval) : {};
 
-  if (typeof request.minScore !== 'undefined') {
-    if (typeof request.minScore !== 'number' || !isFinite(request.minScore)) {
-      throw new AstRagValidationError('search.minScore must be a finite number when provided');
-    }
-    minScore = Math.max(-1, Math.min(1, request.minScore));
+  if (typeof retrieval.topK === 'undefined') {
+    retrieval.topK = request.topK;
+  }
+  if (typeof retrieval.minScore === 'undefined') {
+    retrieval.minScore = request.minScore;
+  }
+  if (typeof retrieval.mode === 'undefined') {
+    retrieval.mode = request.mode;
+  }
+  if (typeof retrieval.vectorWeight === 'undefined') {
+    retrieval.vectorWeight = request.vectorWeight;
+  }
+  if (typeof retrieval.lexicalWeight === 'undefined') {
+    retrieval.lexicalWeight = request.lexicalWeight;
+  }
+  if (typeof retrieval.rerank === 'undefined') {
+    retrieval.rerank = request.rerank;
   }
 
-  const filters = astRagIsPlainObject(request.filters) ? request.filters : {};
+  const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrieval, defaults, 'search.retrieval');
+  const filtersInput = astRagIsPlainObject(retrieval.filters)
+    ? retrieval.filters
+    : (astRagIsPlainObject(request.filters) ? request.filters : {});
+  const normalizedFilters = {
+    fileIds: astRagNormalizeStringArray(filtersInput.fileIds, 'search.retrieval.filters.fileIds', true),
+    mimeTypes: astRagNormalizeStringArray(filtersInput.mimeTypes, 'search.retrieval.filters.mimeTypes', true)
+  };
 
   return {
     indexFileId,
     query,
-    topK,
-    minScore,
-    filters: {
-      fileIds: astRagNormalizeStringArray(filters.fileIds, 'filters.fileIds', true),
-      mimeTypes: astRagNormalizeStringArray(filters.mimeTypes, 'filters.mimeTypes', true)
-    },
+    topK: normalizedRetrieval.topK,
+    minScore: normalizedRetrieval.minScore,
+    retrieval: Object.assign({}, normalizedRetrieval, {
+      filters: normalizedFilters
+    }),
+    filters: normalizedFilters,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
     embedding: astRagNormalizeEmbeddingRequest(request.embedding || {})
   };
@@ -249,14 +351,7 @@ function astRagValidateAnswerRequest(request = {}) {
   const history = Array.isArray(request.history) ? request.history.slice() : [];
   const retrieval = astRagIsPlainObject(request.retrieval) ? request.retrieval : {};
   const defaults = astRagResolveRetrievalDefaults();
-
-  let minScore = defaults.minScore;
-  if (typeof retrieval.minScore !== 'undefined') {
-    if (typeof retrieval.minScore !== 'number' || !isFinite(retrieval.minScore)) {
-      throw new AstRagValidationError('answer.retrieval.minScore must be a finite number when provided');
-    }
-    minScore = Math.max(-1, Math.min(1, retrieval.minScore));
-  }
+  const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrieval, defaults, 'answer.retrieval');
 
   const generation = astRagIsPlainObject(request.generation) ? request.generation : {};
   const generationProvider = astRagNormalizeString(generation.provider, 'vertex_gemini');
@@ -269,14 +364,12 @@ function astRagValidateAnswerRequest(request = {}) {
     indexFileId,
     question,
     history,
-    retrieval: {
-      topK: astRagNormalizePositiveInt(retrieval.topK, defaults.topK, 1),
-      minScore,
+    retrieval: Object.assign({}, normalizedRetrieval, {
       filters: {
         fileIds: astRagNormalizeStringArray((retrieval.filters || {}).fileIds, 'answer.retrieval.filters.fileIds', true),
         mimeTypes: astRagNormalizeStringArray((retrieval.filters || {}).mimeTypes, 'answer.retrieval.filters.mimeTypes', true)
       }
-    },
+    }),
     generation: {
       provider: generationProvider,
       model: astRagNormalizeString(generation.model, null),

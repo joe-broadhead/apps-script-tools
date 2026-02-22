@@ -923,6 +923,151 @@ test('search ranks and filters index chunks by cosine score', () => {
   assert.equal(output.results.length, 1);
   assert.equal(output.results[0].chunkId, 'c1');
   assert.equal(output.results[0].score > 0.99, true);
+  assert.equal(output.mode, 'vector');
+});
+
+test('search supports hybrid retrieval with lexical+vector score fusion', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_hybrid',
+    indexName: 'hybrid-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'vector_first',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'vector.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'General overview with limited keyword overlap.',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'lexical_first',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'lexical.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Project risks and mitigation plan with explicit project risks details.',
+        embedding: [0.4, 0.9, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_hybrid',
+    fileName: 'hybrid-index.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_hybrid',
+    query: 'project risks',
+    retrieval: {
+      mode: 'hybrid',
+      topK: 2,
+      minScore: 0,
+      vectorWeight: 0.15,
+      lexicalWeight: 0.85
+    }
+  });
+
+  assert.equal(output.mode, 'hybrid');
+  assert.equal(output.results.length, 2);
+  assert.equal(output.results[0].chunkId, 'lexical_first');
+  assert.equal(typeof output.results[0].vectorScore, 'number');
+  assert.equal(typeof output.results[0].lexicalScore, 'number');
+  assert.equal(typeof output.results[0].finalScore, 'number');
+  assert.equal(output.results[0].score, output.results[0].finalScore);
+});
+
+test('search rerank can promote phrase-exact chunk within topN', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_rerank',
+    indexName: 'rerank-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'vector_ahead',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'a.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Checklist details are described later.',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'phrase_exact',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'b.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Critical launch checklist includes rollback, owners, and approvals.',
+        embedding: [0.95, 0.31, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_rerank',
+    fileName: 'rerank-index.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_rerank',
+    query: 'critical launch checklist',
+    retrieval: {
+      mode: 'vector',
+      topK: 2,
+      minScore: 0,
+      rerank: {
+        enabled: true,
+        topN: 2
+      }
+    }
+  });
+
+  assert.equal(output.results.length, 2);
+  assert.equal(output.results[0].chunkId, 'phrase_exact');
+  assert.equal(typeof output.results[0].rerankScore, 'number');
 });
 
 test('answer enforces strict citation mapping and abstains on missing grounding', () => {
@@ -988,6 +1133,12 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
   assert.equal(grounded.status, 'ok');
   assert.equal(grounded.citations.length, 1);
   assert.equal(grounded.citations[0].chunkId, 'chunk_1');
+  assert.equal(grounded.retrieval.mode, 'vector');
+  assert.equal(typeof grounded.citations[0].vectorScore, 'number');
+  assert.equal(grounded.citations[0].lexicalScore, null);
+  assert.equal(typeof grounded.citations[0].finalScore, 'number');
+  assert.equal(grounded.citations[0].finalScore, grounded.citations[0].score);
+  assert.equal(grounded.citations[0].rerankScore, null);
 
   context.runAiRequest = () => ({
     output: {
