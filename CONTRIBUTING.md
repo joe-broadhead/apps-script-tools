@@ -2,7 +2,7 @@
 
 ## Branching
 
-- Use `codex/` branch prefixes for implementation branches.
+- Use `feature/` branch prefixes for implementation branches.
 - Keep PRs focused by scope (API/security, correctness, tests/CI, docs, release).
 
 ## Quality Gates

@@ -4,6 +4,17 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadStorageScripts } from './storage-helpers.mjs';
 
+function createResponse({ status = 200, body = '', headers = {}, blobBytes = null } = {}) {
+  return {
+    getResponseCode: () => status,
+    getContentText: () => body,
+    getAllHeaders: () => headers,
+    getBlob: () => ({
+      getBytes: () => Array.isArray(blobBytes) ? blobBytes : []
+    })
+  };
+}
+
 test('validateStorageRequest rejects unknown providers', () => {
   const context = createGasContext();
   loadStorageScripts(context);
@@ -96,5 +107,101 @@ test('validateStorageRequest applies option defaults and validates operation', (
       operation: 'copy'
     }),
     /operation must be one of/
+  );
+});
+
+test('astStorageBuildReadWarnings flags payloads above soft cap', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  const softLimit = context.astStorageGetSoftLimitBytes();
+  assert.equal(context.astStorageBuildReadWarnings(softLimit - 1).length, 0);
+
+  const warnings = context.astStorageBuildReadWarnings(softLimit + 1);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /read payload exceeds soft cap/);
+});
+
+test('astStorageHttpRequest enforces timeoutMs as a retry budget', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      nowMs += 50;
+      return nowMs;
+    }
+  }
+
+  const base = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...base.Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    },
+    UrlFetchApp: {
+      fetch: () => createResponse({
+        status: 503,
+        body: JSON.stringify({ error: { message: 'transient' } })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astStorageHttpRequest({
+      provider: 'gcs',
+      operation: 'list',
+      url: 'https://storage.googleapis.com/storage/v1/b/x/o',
+      method: 'get',
+      retries: 5,
+      timeoutMs: 120
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.match(error.message, /timeout budget/);
+      assert.equal(error.details.timeoutMs, 120);
+      return true;
+    }
+  );
+});
+
+test('astStorageHttpRequest reports timeout classification on final-attempt transport failure', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      nowMs += 50;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    UrlFetchApp: {
+      fetch: () => {
+        throw new Error('network failure');
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astStorageHttpRequest({
+      provider: 's3',
+      operation: 'read',
+      url: 'https://bucket.s3.amazonaws.com/path.txt',
+      method: 'get',
+      retries: 0,
+      timeoutMs: 60
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.match(error.message, /timeout budget/);
+      assert.equal(error.details.timeoutMs, 60);
+      return true;
+    }
   );
 });

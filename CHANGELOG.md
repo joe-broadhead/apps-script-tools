@@ -54,6 +54,10 @@
 - `AST` namespace now exposes `AST.Storage`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
+- Storage `options.timeoutMs` is now enforced as a retry-budget timeout window across GCS, S3, and DBFS HTTP execution paths.
+- Storage read paths now emit soft-cap warnings when payload size exceeds the 50 MB stability threshold.
+- GAS functional integration is now reusable from CI (`gas-functional`) instead of manual-dispatch only.
+- Removed unused storage URI parser helpers and removed dead `GCS_DEFAULT_BUCKET` config path.
 
 ## v0.0.3
 

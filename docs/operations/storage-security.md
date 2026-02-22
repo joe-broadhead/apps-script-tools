@@ -35,7 +35,8 @@ Prefer CI secrets or secure bootstrap logic for non-local environments.
 ## Reliability guardrails
 
 - Retry policy is limited to transient HTTP failures (`429`, `5xx`).
-- Soft payload cap defaults to 50 MB to avoid runtime instability.
+- `options.timeoutMs` is applied as a retry-budget timeout window.
+- Soft payload cap defaults to 50 MB for read/write payloads to avoid runtime instability.
 - Keep `includeRaw=false` by default in production calls.
 
 ## Release checklist

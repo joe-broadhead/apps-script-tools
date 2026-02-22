@@ -87,6 +87,8 @@ ASTX.Storage.clearConfig()
 }
 ```
 
+`options.timeoutMs` is enforced as a retry-budget timeout window in Apps Script. Because `UrlFetchApp.fetch` does not expose hard per-request timeout control, use provider-side timeout settings where available.
+
 ## Not-found behavior
 
 - `head`, `read`, and `delete` throw `AstStorageNotFoundError`.

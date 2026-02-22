@@ -22,7 +22,6 @@ function configureStorageRuntime() {
 Supported script property keys:
 
 - `GCS_SERVICE_ACCOUNT_JSON`
-- `GCS_DEFAULT_BUCKET`
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
 - `S3_SESSION_TOKEN`

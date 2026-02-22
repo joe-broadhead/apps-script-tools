@@ -179,3 +179,38 @@ test('GCS service-account mode exchanges JWT assertion token', () => {
   assert.equal(result.output.items.length, 0);
   assert.equal(calls.some(call => call.url === 'https://oauth2.googleapis.com/token'), true);
 });
+
+test('GCS read returns soft-cap warnings when payload exceeds configured limit', () => {
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token'
+    },
+    UrlFetchApp: {
+      fetch: url => {
+        if (url.includes('alt=media')) {
+          return createResponse({
+            status: 200,
+            body: 'hello',
+            headers: { 'content-type': 'text/plain' },
+            blobBytes: [104, 101, 108, 108, 111],
+            blobMimeType: 'text/plain'
+          });
+        }
+
+        return createResponse({ status: 500, body: '{}' });
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+  context.astStorageGetSoftLimitBytes = () => 1;
+
+  const out = context.runStorageRequest({
+    uri: 'gcs://bucket/path.txt',
+    operation: 'read'
+  });
+
+  assert.equal(Array.isArray(out.warnings), true);
+  assert.equal(out.warnings.length, 1);
+  assert.match(out.warnings[0], /read payload exceeds soft cap/);
+});

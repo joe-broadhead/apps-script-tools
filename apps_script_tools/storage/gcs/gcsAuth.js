@@ -138,7 +138,8 @@ function astGcsExchangeServiceAccountToken(serviceAccountJson, requestOptions = 
     method: 'post',
     contentType: 'application/x-www-form-urlencoded',
     payload,
-    retries: Math.max(0, Number.isInteger(requestOptions.retries) ? requestOptions.retries : 1)
+    retries: Math.max(0, Number.isInteger(requestOptions.retries) ? requestOptions.retries : 1),
+    timeoutMs: Number.isInteger(requestOptions.timeoutMs) ? requestOptions.timeoutMs : null
   });
 
   const token = astStorageNormalizeString(response.json && response.json.access_token, '');
