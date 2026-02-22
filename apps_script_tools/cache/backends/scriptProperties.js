@@ -34,11 +34,9 @@ function astCacheScriptPropertiesHandle() {
 }
 
 function astCacheScriptPropertiesNamespaceKey(namespace) {
-  const safeNamespace = astCacheNormalizeString(namespace, 'ast_cache')
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .toUpperCase();
-
-  return `AST_CACHE_${safeNamespace}_MAP`;
+  const normalizedNamespace = astCacheNormalizeString(namespace, 'ast_cache');
+  const namespaceHash = astCacheHashKey(normalizedNamespace);
+  return `AST_CACHE_NS_${namespaceHash}_MAP`;
 }
 
 function astCacheScriptPropertiesRunWithLock(task, config) {

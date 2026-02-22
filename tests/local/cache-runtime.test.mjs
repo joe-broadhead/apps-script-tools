@@ -247,7 +247,46 @@ test('drive_json backend supports persistence and invalidation', () => {
 
   const stats = context.AST.Cache.stats();
   assert.equal(stats.backend, 'drive_json');
-  assert.ok(drive.files['cache-drive-test.json']);
+  const driveFileNames = Object.keys(drive.files);
+  assert.equal(driveFileNames.length, 1);
+  assert.equal(driveFileNames[0].startsWith('cache-drive-test--'), true);
+  assert.equal(driveFileNames[0].endsWith('.json'), true);
+});
+
+test('drive_json backend isolates namespaces for equivalent sanitized names', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    driveFileName: 'cache-drive-shared.json'
+  });
+
+  context.AST.Cache.set('shared-key', { namespace: 'team-a' }, { namespace: 'team-a' });
+  context.AST.Cache.set('shared-key', { namespace: 'team_a' }, { namespace: 'team_a' });
+
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team-a' })),
+    JSON.stringify({ namespace: 'team-a' })
+  );
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team_a' })),
+    JSON.stringify({ namespace: 'team_a' })
+  );
+
+  const driveFileNames = Object.keys(drive.files).filter(name => name.startsWith('cache-drive-shared--'));
+  assert.equal(driveFileNames.length, 2);
 });
 
 test('script_properties backend supports set/get/delete/clear', () => {
@@ -284,4 +323,39 @@ test('script_properties backend supports set/get/delete/clear', () => {
   assert.equal(context.AST.Cache.clear(), 2);
   assert.equal(context.AST.Cache.get('props:b'), null);
   assert.equal(context.AST.Cache.get('props:c'), null);
+});
+
+test('script_properties backend isolates collision-prone namespace names', () => {
+  const properties = createPropertiesService();
+  const context = createGasContext({
+    PropertiesService: properties.service,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'script_properties'
+  });
+
+  context.AST.Cache.set('shared-key', { namespace: 'team-a' }, { namespace: 'team-a' });
+  context.AST.Cache.set('shared-key', { namespace: 'team_a' }, { namespace: 'team_a' });
+
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team-a' })),
+    JSON.stringify({ namespace: 'team-a' })
+  );
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team_a' })),
+    JSON.stringify({ namespace: 'team_a' })
+  );
+
+  const namespaceKeys = Object.keys(properties.store).filter(key => key.startsWith('AST_CACHE_NS_'));
+  assert.equal(namespaceKeys.length, 2);
 });

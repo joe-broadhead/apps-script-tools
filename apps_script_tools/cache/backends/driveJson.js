@@ -35,6 +35,28 @@ function astCacheDriveResolveFile(folder, fileName) {
   return folder.createFile(fileName, '', 'application/json');
 }
 
+function astCacheDriveNamespaceFileName(config) {
+  const baseFileName = astCacheNormalizeString(
+    config && config.driveFileName,
+    'ast-cache-drive.json'
+  );
+  const namespace = astCacheNormalizeString(config && config.namespace, 'ast_cache');
+
+  let namespaceHash = 'namespace';
+  try {
+    namespaceHash = astCacheHashKey(namespace).slice(0, 16);
+  } catch (_error) {
+    namespaceHash = namespace.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().slice(0, 32) || 'namespace';
+  }
+
+  const extensionIndex = baseFileName.lastIndexOf('.');
+  if (extensionIndex <= 0 || extensionIndex === baseFileName.length - 1) {
+    return `${baseFileName}--${namespaceHash}`;
+  }
+
+  return `${baseFileName.slice(0, extensionIndex)}--${namespaceHash}${baseFileName.slice(extensionIndex)}`;
+}
+
 function astCacheDriveReadText(file) {
   if (!file) {
     return '';
@@ -127,7 +149,8 @@ function astCacheDriveDefaultDocument(namespace) {
 
 function astCacheDriveReadDocument(config) {
   const folder = astCacheDriveGetFolder(config);
-  const file = astCacheDriveResolveFile(folder, config.driveFileName);
+  const fileName = astCacheDriveNamespaceFileName(config);
+  const file = astCacheDriveResolveFile(folder, fileName);
   const raw = astCacheDriveReadText(file);
 
   if (!raw) {
