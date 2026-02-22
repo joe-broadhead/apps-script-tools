@@ -10,11 +10,8 @@ on:
         type: string
     secrets:
       CLASP_CLIENT_ID:
-        required: false
       CLASP_CLIENT_SECRET:
-        required: false
       CLASP_REFRESH_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       suite:
