@@ -12,6 +12,7 @@
   - `memory`
   - `drive_json`
   - `script_properties`
+  - `storage_json` (AST.Storage-backed via `gcs://`, `s3://`, or `dbfs:/` URI)
 - Deterministic cache TTL semantics (`ttlSec`) and tag-based invalidation contracts.
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`

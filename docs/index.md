@@ -62,7 +62,7 @@ flowchart LR
 - Grounded answering with strict citation mapping and deterministic abstention behavior.
 - Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
 - `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
-- `AST.Cache` cache contracts (`get`, `set`, `delete`, `invalidateByTag`, `stats`) for `memory`, `drive_json`, and `script_properties`.
+- `AST.Cache` cache contracts (`get`, `set`, `delete`, `invalidateByTag`, `stats`) for `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/`).
 - `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`) with redaction and sink control.
 
 ## Import pattern

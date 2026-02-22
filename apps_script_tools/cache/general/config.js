@@ -5,6 +5,7 @@ const AST_CACHE_DEFAULT_CONFIG = Object.freeze({
   maxMemoryEntries: 2000,
   driveFolderId: '',
   driveFileName: 'ast-cache.json',
+  storageUri: '',
   lockTimeoutMs: 30000
 });
 
@@ -15,6 +16,7 @@ const AST_CACHE_CONFIG_KEYS = Object.freeze([
   'CACHE_MAX_MEMORY_ENTRIES',
   'CACHE_DRIVE_FOLDER_ID',
   'CACHE_DRIVE_FILE_NAME',
+  'CACHE_STORAGE_URI',
   'CACHE_LOCK_TIMEOUT_MS'
 ]);
 
@@ -211,6 +213,13 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_LOCK_TIMEOUT_MS
   ], AST_CACHE_DEFAULT_CONFIG.lockTimeoutMs, 1, 300000);
 
+  const storageUri = astCacheResolveConfigString([
+    overrides.storageUri,
+    runtimeConfig.CACHE_STORAGE_URI,
+    runtimeConfig.storageUri,
+    scriptConfig.CACHE_STORAGE_URI
+  ], AST_CACHE_DEFAULT_CONFIG.storageUri);
+
   return {
     backend,
     namespace,
@@ -218,6 +227,7 @@ function astCacheResolveConfig(overrides = {}) {
     maxMemoryEntries,
     driveFolderId,
     driveFileName,
+    storageUri,
     lockTimeoutMs
   };
 }

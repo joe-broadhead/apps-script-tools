@@ -182,5 +182,6 @@ ASTX.Telemetry.getTrace(traceId)
 - unsupported AI provider/operation combinations throw typed capability errors.
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
+- Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).

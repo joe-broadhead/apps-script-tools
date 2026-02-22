@@ -133,6 +133,7 @@ Backends:
 - `memory`
 - `drive_json`
 - `script_properties`
+- `storage_json` (persists via `AST.Storage` URI: `gcs://`, `s3://`, `dbfs:/`)
 
 Primary methods:
 
@@ -165,6 +166,16 @@ ASTX.Cache.set('rag:query:abc', { chunks: [1, 2, 3] }, {
 });
 
 const cached = ASTX.Cache.get('rag:query:abc');
+```
+
+`storage_json` example:
+
+```javascript
+ASTX.Cache.configure({
+  backend: 'storage_json',
+  namespace: 'my_project',
+  storageUri: 's3://my-bucket/cache/ast-cache.json'
+});
 ```
 
 ## `ASTX.Storage`

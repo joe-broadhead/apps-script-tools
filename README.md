@@ -33,7 +33,7 @@
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
-- `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties)
+- `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI)
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations

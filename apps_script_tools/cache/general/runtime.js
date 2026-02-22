@@ -11,6 +11,7 @@ function astCacheExtractConfigOverrides(options = {}) {
     'maxMemoryEntries',
     'driveFolderId',
     'driveFileName',
+    'storageUri',
     'lockTimeoutMs'
   ];
 
@@ -28,34 +29,43 @@ function astCacheExtractConfigOverrides(options = {}) {
   return inline;
 }
 
-function astCacheSelectBackendAdapter(config) {
+function astCacheSelectBackendAdapter(config, requestOptions = {}) {
   switch (config.backend) {
     case 'memory':
       return {
-        get: keyHash => astCacheMemoryGet(keyHash, astCacheNowMs(), config),
-        set: entry => astCacheMemorySet(entry, astCacheNowMs(), config),
-        delete: keyHash => astCacheMemoryDelete(keyHash, astCacheNowMs(), config),
-        invalidateByTag: tag => astCacheMemoryInvalidateByTag(tag, astCacheNowMs(), config),
+        get: keyHash => astCacheMemoryGet(keyHash, astCacheNowMs(), config, requestOptions),
+        set: entry => astCacheMemorySet(entry, astCacheNowMs(), config, requestOptions),
+        delete: keyHash => astCacheMemoryDelete(keyHash, astCacheNowMs(), config, requestOptions),
+        invalidateByTag: tag => astCacheMemoryInvalidateByTag(tag, astCacheNowMs(), config, requestOptions),
         stats: () => astCacheMemoryStats(astCacheNowMs(), config),
         clear: () => astCacheMemoryClearNamespace(config)
       };
     case 'drive_json':
       return {
-        get: keyHash => astCacheDriveGet(keyHash, config),
-        set: entry => astCacheDriveSet(entry, config),
-        delete: keyHash => astCacheDriveDelete(keyHash, config),
-        invalidateByTag: tag => astCacheDriveInvalidateByTag(tag, config),
+        get: keyHash => astCacheDriveGet(keyHash, config, requestOptions),
+        set: entry => astCacheDriveSet(entry, config, requestOptions),
+        delete: keyHash => astCacheDriveDelete(keyHash, config, requestOptions),
+        invalidateByTag: tag => astCacheDriveInvalidateByTag(tag, config, requestOptions),
         stats: () => astCacheDriveStats(config),
         clear: () => astCacheDriveClearNamespace(config)
       };
     case 'script_properties':
       return {
-        get: keyHash => astCacheScriptPropertiesGet(keyHash, config),
-        set: entry => astCacheScriptPropertiesSet(entry, config),
-        delete: keyHash => astCacheScriptPropertiesDelete(keyHash, config),
-        invalidateByTag: tag => astCacheScriptPropertiesInvalidateByTag(tag, config),
+        get: keyHash => astCacheScriptPropertiesGet(keyHash, config, requestOptions),
+        set: entry => astCacheScriptPropertiesSet(entry, config, requestOptions),
+        delete: keyHash => astCacheScriptPropertiesDelete(keyHash, config, requestOptions),
+        invalidateByTag: tag => astCacheScriptPropertiesInvalidateByTag(tag, config, requestOptions),
         stats: () => astCacheScriptPropertiesStatsSnapshot(config),
         clear: () => astCacheScriptPropertiesClearNamespace(config)
+      };
+    case 'storage_json':
+      return {
+        get: keyHash => astCacheStorageGet(keyHash, config, requestOptions),
+        set: entry => astCacheStorageSet(entry, config, requestOptions),
+        delete: keyHash => astCacheStorageDelete(keyHash, config, requestOptions),
+        invalidateByTag: tag => astCacheStorageInvalidateByTag(tag, config, requestOptions),
+        stats: () => astCacheStorageStats(config, requestOptions),
+        clear: () => astCacheStorageClearNamespace(config, requestOptions)
       };
     default:
       throw new AstCacheValidationError(
@@ -77,7 +87,7 @@ function astCacheBuildResolvedContext(options = {}) {
   const safeOptions = astCacheGetOptions(options);
   const configOverrides = astCacheExtractConfigOverrides(safeOptions);
   const config = astCacheResolveConfig(configOverrides);
-  const adapter = astCacheSelectBackendAdapter(config);
+  const adapter = astCacheSelectBackendAdapter(config, safeOptions);
 
   return {
     options: safeOptions,

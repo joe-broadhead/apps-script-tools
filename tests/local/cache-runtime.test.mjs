@@ -83,6 +83,83 @@ function createPropertiesService(seed = {}) {
   };
 }
 
+function createStorageRunnerMock() {
+  const objects = {};
+
+  function normalizeUri(uri) {
+    return String(uri || '');
+  }
+
+  return {
+    objects,
+    runStorageRequest: request => {
+      const operation = String(request && request.operation || '').toLowerCase();
+      const uri = normalizeUri(request && request.uri);
+
+      if (!uri) {
+        throw new Error('uri is required');
+      }
+
+      if (operation === 'read') {
+        if (!Object.prototype.hasOwnProperty.call(objects, uri)) {
+          const error = new Error('not found');
+          error.name = 'AstStorageNotFoundError';
+          throw error;
+        }
+
+        return {
+          provider: uri.startsWith('s3://') ? 's3' : (uri.startsWith('gcs://') ? 'gcs' : 'dbfs'),
+          operation: 'read',
+          uri,
+          output: {
+            data: {
+              text: objects[uri],
+              mimeType: 'application/json'
+            }
+          },
+          usage: {
+            requestCount: 1,
+            bytesIn: 0,
+            bytesOut: String(objects[uri]).length
+          }
+        };
+      }
+
+      if (operation === 'write') {
+        const payload = request && request.payload ? request.payload : {};
+
+        if (typeof payload.text === 'string') {
+          objects[uri] = payload.text;
+        } else if (typeof payload.base64 === 'string') {
+          objects[uri] = Buffer.from(payload.base64, 'base64').toString('utf8');
+        } else if (typeof payload.json !== 'undefined') {
+          objects[uri] = JSON.stringify(payload.json);
+        } else {
+          throw new Error('unsupported payload');
+        }
+
+        return {
+          provider: uri.startsWith('s3://') ? 's3' : (uri.startsWith('gcs://') ? 'gcs' : 'dbfs'),
+          operation: 'write',
+          uri,
+          output: {
+            written: {
+              uri
+            }
+          },
+          usage: {
+            requestCount: 1,
+            bytesIn: String(objects[uri]).length,
+            bytesOut: 0
+          }
+        };
+      }
+
+      throw new Error(`unsupported operation: ${operation}`);
+    }
+  };
+}
+
 test('AST exposes Cache surface and backend helpers', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });
@@ -107,7 +184,7 @@ test('AST exposes Cache surface and backend helpers', () => {
 
   assert.equal(
     JSON.stringify(context.AST.Cache.backends()),
-    JSON.stringify(['memory', 'drive_json', 'script_properties'])
+    JSON.stringify(['memory', 'drive_json', 'script_properties', 'storage_json'])
   );
 });
 
@@ -358,4 +435,86 @@ test('script_properties backend isolates collision-prone namespace names', () =>
 
   const namespaceKeys = Object.keys(properties.store).filter(key => key.startsWith('AST_CACHE_NS_'));
   assert.equal(namespaceKeys.length, 2);
+});
+
+test('storage_json backend supports persistence through AST.Storage providers', () => {
+  const storage = createStorageRunnerMock();
+  const context = createGasContext({
+    runStorageRequest: storage.runStorageRequest,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    namespace: 'storage_ns',
+    storageUri: 's3://cache-bucket/app/cache.json'
+  });
+
+  context.AST.Cache.set('storage:a', { id: 'a' }, { tags: ['rag'] });
+  context.AST.Cache.set('storage:b', { id: 'b' }, { tags: ['other'] });
+
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('storage:a')),
+    JSON.stringify({ id: 'a' })
+  );
+
+  const removed = context.AST.Cache.invalidateByTag('rag');
+  assert.equal(removed, 1);
+  assert.equal(context.AST.Cache.get('storage:a'), null);
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('storage:b')),
+    JSON.stringify({ id: 'b' })
+  );
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.backend, 'storage_json');
+
+  const persistedUris = Object.keys(storage.objects);
+  assert.equal(persistedUris.length, 1);
+  assert.equal(persistedUris[0].startsWith('s3://cache-bucket/app/cache--'), true);
+  assert.equal(persistedUris[0].endsWith('.json'), true);
+});
+
+test('storage_json backend isolates collision-prone namespace names', () => {
+  const storage = createStorageRunnerMock();
+  const context = createGasContext({
+    runStorageRequest: storage.runStorageRequest,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    storageUri: 'gcs://cache-bucket/shared/cache.json'
+  });
+
+  context.AST.Cache.set('shared-key', { namespace: 'team-a' }, { namespace: 'team-a' });
+  context.AST.Cache.set('shared-key', { namespace: 'team_a' }, { namespace: 'team_a' });
+
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team-a' })),
+    JSON.stringify({ namespace: 'team-a' })
+  );
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('shared-key', { namespace: 'team_a' })),
+    JSON.stringify({ namespace: 'team_a' })
+  );
+
+  const persistedUris = Object.keys(storage.objects).filter(uri => uri.startsWith('gcs://cache-bucket/shared/cache--'));
+  assert.equal(persistedUris.length, 2);
 });

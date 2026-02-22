@@ -1,4 +1,4 @@
-const AST_CACHE_BACKENDS = Object.freeze(['memory', 'drive_json', 'script_properties']);
+const AST_CACHE_BACKENDS = Object.freeze(['memory', 'drive_json', 'script_properties', 'storage_json']);
 
 const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
   memory: Object.freeze({
@@ -16,6 +16,13 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
     stats: true
   }),
   script_properties: Object.freeze({
+    get: true,
+    set: true,
+    delete: true,
+    invalidateByTag: true,
+    stats: true
+  }),
+  storage_json: Object.freeze({
     get: true,
     set: true,
     delete: true,
