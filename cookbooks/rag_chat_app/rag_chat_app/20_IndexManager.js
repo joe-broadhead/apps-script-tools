@@ -245,7 +245,10 @@ function buildIndexMutationRequest_(runtime, settings, request) {
       auth: runtime.embeddingAuth
     },
     syncRequest: {
-      indexFileId: settings.indexFileId,
+      index: {
+        indexFileId: settings.indexFileId,
+        indexName: settings.indexName
+      },
       source: buildRagSourceRequest_(request, settings.folderId),
       embedding: {
         provider: runtime.embeddingProvider,

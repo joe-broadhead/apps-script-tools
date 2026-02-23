@@ -621,7 +621,7 @@ function deleteThreadWeb(request) {
 function configureAstRuntime_(ASTX, cfg) {
   try {
     ASTX.Cache.configure(buildCacheOptions_(cfg, cfg.cache.namespace + '_threads', {
-      ttlSec: cfg.threads.ttlSec
+      defaultTtlSec: cfg.threads.ttlSec
     }));
   } catch (_e) {
     // Ignore configure failures in cookbook.

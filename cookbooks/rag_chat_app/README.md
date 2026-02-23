@@ -202,6 +202,21 @@ Important:
 - `AI_MODEL_DEEP`
 - `AI_EMBEDDING_MODEL`
 
+Provider-specific model keys are also supported and now preferred for multi-provider setups:
+
+- Generation:
+  - `OPENAI_MODEL`
+  - `GEMINI_MODEL`
+  - `VERTEX_GEMINI_MODEL_FAST` / `VERTEX_GEMINI_MODEL_DEEP` / `VERTEX_GEMINI_MODEL`
+  - `OPENROUTER_MODEL`
+  - `PERPLEXITY_MODEL`
+- Embeddings:
+  - `OPENAI_EMBED_MODEL`
+  - `GEMINI_EMBED_MODEL`
+  - `VERTEX_EMBED_MODEL`
+  - `OPENROUTER_EMBED_MODEL`
+  - `PERPLEXITY_EMBED_MODEL`
+
 Auth keys required if you move off Vertex:
 
 - OpenAI: `OPENAI_API_KEY`

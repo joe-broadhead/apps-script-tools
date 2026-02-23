@@ -46,28 +46,9 @@ function resolveRuntime_(request) {
     'vertex_gemini'
   ]).toLowerCase();
 
-  var embeddingModel = firstNonEmpty_([
-    request.embeddingModel,
-    props.AI_EMBEDDING_MODEL,
-    props.VERTEX_EMBED_MODEL,
-    'text-embedding-005'
-  ]);
-
-  var modelFast = firstNonEmpty_([
-    request.modelFast,
-    props.AI_MODEL_FAST,
-    props.VERTEX_GEMINI_MODEL_FAST,
-    props.VERTEX_GEMINI_MODEL,
-    'gemini-2.5-flash'
-  ]);
-
-  var modelDeep = firstNonEmpty_([
-    request.modelDeep,
-    props.AI_MODEL_DEEP,
-    props.VERTEX_GEMINI_MODEL_DEEP,
-    props.VERTEX_GEMINI_MODEL,
-    'gemini-2.5-pro'
-  ]);
+  var embeddingModel = resolveEmbeddingModelForProvider_(embeddingProvider, request, props);
+  var modelFast = resolveGenerationModelForProvider_(generationProvider, 'fast', request, props);
+  var modelDeep = resolveGenerationModelForProvider_(generationProvider, 'deep', request, props);
 
   return {
     embeddingProvider: embeddingProvider,
@@ -86,6 +67,70 @@ function resolveRuntime_(request) {
       props
     )
   };
+}
+
+function resolveEmbeddingModelForProvider_(provider, request, props) {
+  var resolved = firstNonEmpty_([
+    request.embeddingModel,
+    request.modelEmbedding,
+    props.AI_EMBEDDING_MODEL,
+    resolveProviderModelProperty_(provider, 'embed', props)
+  ]);
+
+  if (resolved) return resolved;
+
+  if (provider === 'vertex_gemini') {
+    return 'text-embedding-005';
+  }
+
+  return '';
+}
+
+function resolveGenerationModelForProvider_(provider, mode, request, props) {
+  var isDeep = mode === 'deep';
+  var resolved = firstNonEmpty_([
+    isDeep ? request.modelDeep : request.modelFast,
+    request.model,
+    isDeep ? props.AI_MODEL_DEEP : props.AI_MODEL_FAST,
+    isDeep ? props.AI_MODEL_FAST : props.AI_MODEL_DEEP,
+    resolveProviderModelProperty_(provider, mode, props)
+  ]);
+
+  if (resolved) return resolved;
+
+  if (provider === 'vertex_gemini') {
+    return isDeep ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+  }
+
+  return '';
+}
+
+function resolveProviderModelProperty_(provider, mode, props) {
+  provider = stringOrEmpty_(provider).toLowerCase();
+  mode = stringOrEmpty_(mode).toLowerCase();
+  props = props || {};
+
+  if (mode === 'embed') {
+    if (provider === 'openai') return firstNonEmpty_([props.OPENAI_EMBED_MODEL]);
+    if (provider === 'gemini') return firstNonEmpty_([props.GEMINI_EMBED_MODEL]);
+    if (provider === 'vertex_gemini') return firstNonEmpty_([props.VERTEX_EMBED_MODEL]);
+    if (provider === 'openrouter') return firstNonEmpty_([props.OPENROUTER_EMBED_MODEL]);
+    if (provider === 'perplexity') return firstNonEmpty_([props.PERPLEXITY_EMBED_MODEL]);
+    return '';
+  }
+
+  if (provider === 'vertex_gemini') {
+    if (mode === 'deep') {
+      return firstNonEmpty_([props.VERTEX_GEMINI_MODEL_DEEP, props.VERTEX_GEMINI_MODEL]);
+    }
+    return firstNonEmpty_([props.VERTEX_GEMINI_MODEL_FAST, props.VERTEX_GEMINI_MODEL]);
+  }
+
+  if (provider === 'openai') return firstNonEmpty_([props.OPENAI_MODEL]);
+  if (provider === 'gemini') return firstNonEmpty_([props.GEMINI_MODEL]);
+  if (provider === 'openrouter') return firstNonEmpty_([props.OPENROUTER_MODEL]);
+  if (provider === 'perplexity') return firstNonEmpty_([props.PERPLEXITY_MODEL]);
+  return '';
 }
 
 function resolveAuthForProvider_(provider, overrides, props) {

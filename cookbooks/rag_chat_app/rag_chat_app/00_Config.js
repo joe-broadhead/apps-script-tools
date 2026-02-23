@@ -397,6 +397,11 @@ function buildCacheOptions_(cfg, namespace, overrides) {
     if (ttl != null) out.ttlSec = ttl;
   }
 
+  if (typeof overrides.defaultTtlSec !== 'undefined') {
+    var defaultTtlSec = integerOr_(overrides.defaultTtlSec, null);
+    if (defaultTtlSec != null) out.defaultTtlSec = defaultTtlSec;
+  }
+
   return out;
 }
 
