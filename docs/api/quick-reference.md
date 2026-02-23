@@ -41,6 +41,7 @@ ASTX.DataFrame.enforceSchema(dataFrame, schema, options)
 ```javascript
 df.select(columns)
 df.selectExpr(map, options)
+df.selectExprDsl(map, options)
 df.assign(map)
 df.sort(by, ascending)
 df.merge(other, how, options)

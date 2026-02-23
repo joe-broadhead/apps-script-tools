@@ -48,7 +48,7 @@ Creation:
 
 Transform:
 
-- `select`, `selectExpr`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`, `window`.
+- `select`, `selectExpr`, `selectExprDsl`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`, `window`.
 - `dropDuplicates(subset = [])` with explicit subset semantics.
 
 Output:

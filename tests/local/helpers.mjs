@@ -177,12 +177,14 @@ export function listScriptFiles(relativeDir) {
 export function loadCoreDataContext(context) {
   const utilityFiles = listScriptFiles('apps_script_tools/utilities');
   const dataFrameSchemaFiles = listScriptFiles('apps_script_tools/dataFrame/schema');
+  const dataFrameExprFiles = listScriptFiles('apps_script_tools/dataFrame/expr');
   const coreFiles = [
     'apps_script_tools/series/_StringMethods.js',
     'apps_script_tools/series/_DateMethods.js',
     'apps_script_tools/series/Series.js',
     'apps_script_tools/groupBy/GroupBy.js',
     ...dataFrameSchemaFiles,
+    ...dataFrameExprFiles,
     'apps_script_tools/dataFrame/DataFrame.js'
   ];
 
