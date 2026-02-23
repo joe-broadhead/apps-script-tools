@@ -109,4 +109,3 @@ function astRagSetAnswerCache(identity, value, ttlSec) {
 
   astRagSetLocalCachedAnswer(cacheKey, value, normalizedTtl);
 }
-
