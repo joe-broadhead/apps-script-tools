@@ -22,6 +22,7 @@ ASTX.RAG
 ASTX.Cache
 ASTX.Storage
 ASTX.Telemetry
+ASTX.Jobs
 ASTX.Sql
 ASTX.Utils
 ```
@@ -193,6 +194,20 @@ ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
 ```
 
+## `Jobs` essentials
+
+```javascript
+ASTX.Jobs.run(request)
+ASTX.Jobs.enqueue(request)
+ASTX.Jobs.resume(jobId, options)
+ASTX.Jobs.status(jobId, options)
+ASTX.Jobs.list(filters, options)
+ASTX.Jobs.cancel(jobId, options)
+ASTX.Jobs.configure(config, options)
+ASTX.Jobs.getConfig()
+ASTX.Jobs.clearConfig()
+```
+
 ## High-signal behavior notes
 
 - `Series.query` rejects string predicates.
@@ -223,3 +238,5 @@ ASTX.Telemetry.getTrace(traceId)
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
 - Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).
+- Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
+- Jobs checkpoint storage currently supports `checkpointStore='properties'` only.

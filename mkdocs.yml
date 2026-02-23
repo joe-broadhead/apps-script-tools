@@ -108,6 +108,7 @@ nav:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
     - Telemetry Contracts: api/telemetry-contracts.md
+    - Jobs Contracts: api/jobs-contracts.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md
     - AI Tool Calling: api/ai-tool-calling.md

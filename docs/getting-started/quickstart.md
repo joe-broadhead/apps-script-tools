@@ -98,6 +98,33 @@ function quickstartUtils() {
 }
 ```
 
+## Jobs workflow
+
+```javascript
+function quickstartJobs() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const queued = ASTX.Jobs.enqueue({
+    name: 'quickstart-job',
+    steps: [
+      { id: 'step_one', handler: 'quickstartStepOne' },
+      { id: 'step_two', handler: 'quickstartStepTwo', dependsOn: ['step_one'] }
+    ]
+  });
+
+  const result = ASTX.Jobs.resume(queued.id);
+  Logger.log(result.status);
+}
+
+function quickstartStepOne() {
+  return { ok: true };
+}
+
+function quickstartStepTwo(context) {
+  return { previous: context.results.step_one };
+}
+```
+
 ## AI text workflow
 
 ```javascript

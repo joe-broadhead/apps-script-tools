@@ -8,6 +8,9 @@
   - `get`, `set`, `delete`, `invalidateByTag`, `stats`
   - `backends`, `capabilities`
   - `configure`, `getConfig`, `clearConfig`, `clear`
+- New `AST.Jobs` namespace with:
+  - `run`, `enqueue`, `resume`, `status`, `list`, `cancel`
+  - `configure`, `getConfig`, `clearConfig`
 - Cache backend support:
   - `memory`
   - `drive_json`
