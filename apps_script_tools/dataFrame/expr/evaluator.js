@@ -98,7 +98,7 @@ function __astExprCallFunction(name, args) {
       if (args.length !== 1) {
         throw __astExprBuildRuntimeError('abs requires exactly 1 argument');
       }
-      return __astExprToNumber(args[0], 'abs requires a numeric argument');
+      return Math.abs(__astExprToNumber(args[0], 'abs requires a numeric argument'));
     case 'round': {
       if (args.length < 1 || args.length > 2) {
         throw __astExprBuildRuntimeError('round requires 1 or 2 arguments');

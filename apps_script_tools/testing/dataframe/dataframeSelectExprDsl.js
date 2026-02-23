@@ -10,11 +10,16 @@ DATAFRAME_SELECT_EXPR_DSL_TESTS = [
       const result = df.selectExprDsl({
         id: 'id',
         amount_x2: 'amount * 2',
+        amount_abs_delta: 'abs(amount - 15)',
         score_bucket: "case when score >= 80 then 'high' else 'standard' end"
       });
 
       if (JSON.stringify(result.amount_x2.array) !== JSON.stringify([20, 40])) {
         throw new Error(`Expected [20, 40], got ${JSON.stringify(result.amount_x2.array)}`);
+      }
+
+      if (JSON.stringify(result.amount_abs_delta.array) !== JSON.stringify([5, 5])) {
+        throw new Error(`Expected [5, 5], got ${JSON.stringify(result.amount_abs_delta.array)}`);
       }
 
       if (JSON.stringify(result.score_bucket.array) !== JSON.stringify(['high', 'standard'])) {

@@ -47,12 +47,14 @@ test('DataFrame.selectExprDsl evaluates arithmetic/functions/case expressions', 
   const projected = df.selectExprDsl({
     id: 'id',
     amount_usd: 'round(amount * fx_rate, 2)',
+    amount_abs_delta: 'abs(amount - 15)',
     score_band: "case when score >= 80 then 'high' else 'standard' end",
     region_lower: 'lower(region)'
   });
 
-  assert.equal(JSON.stringify(projected.columns), JSON.stringify(['id', 'amount_usd', 'score_band', 'region_lower']));
+  assert.equal(JSON.stringify(projected.columns), JSON.stringify(['id', 'amount_usd', 'amount_abs_delta', 'score_band', 'region_lower']));
   assert.equal(JSON.stringify(projected.amount_usd.array), JSON.stringify([13, 22]));
+  assert.equal(JSON.stringify(projected.amount_abs_delta.array), JSON.stringify([5, 5]));
   assert.equal(JSON.stringify(projected.score_band.array), JSON.stringify(['high', 'standard']));
   assert.equal(JSON.stringify(projected.region_lower.array), JSON.stringify(['east', 'west']));
   assert.equal(JSON.stringify(projected.index), JSON.stringify(['row_a', 'row_b']));
