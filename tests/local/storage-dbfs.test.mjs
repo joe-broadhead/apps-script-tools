@@ -250,3 +250,138 @@ test('DBFS list marks truncated when maxItems caps file list', () => {
   assert.equal(out.output.items.length, 1);
   assert.equal(out.page.truncated, true);
 });
+
+test('DBFS exists returns false instead of throwing for missing paths', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => createResponse({
+        status: 404,
+        body: JSON.stringify({
+          error_code: 'RESOURCE_DOES_NOT_EXIST',
+          message: 'missing'
+        })
+      })
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 'dbfs:/mnt/missing.txt',
+    operation: 'exists'
+  });
+
+  assert.equal(out.output.exists.exists, false);
+  assert.equal(out.output.exists.uri, 'dbfs:/mnt/missing.txt');
+});
+
+test('DBFS copy/move/multipart_write operations return normalized output', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('/dbfs/read?')) {
+          return createResponse({
+            body: JSON.stringify({
+              bytes_read: 2,
+              data: 'aGk='
+            })
+          });
+        }
+
+        if (url.includes('/dbfs/put') || url.includes('/dbfs/create') || url.includes('/dbfs/add-block') || url.includes('/dbfs/close')) {
+          return createResponse({ body: '{}' });
+        }
+
+        if (url.includes('/dbfs/delete')) {
+          return createResponse({ body: '{}' });
+        }
+
+        if (url.includes('/dbfs/get-status?')) {
+          return createResponse({
+            status: 404,
+            body: JSON.stringify({
+              error_code: 'RESOURCE_DOES_NOT_EXIST',
+              message: 'missing'
+            })
+          });
+        }
+
+        return createResponse({ body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const copied = context.runStorageRequest({
+    operation: 'copy',
+    fromUri: 'dbfs:/mnt/data/source.txt',
+    toUri: 'dbfs:/mnt/data/copied.txt'
+  });
+  assert.equal(copied.output.copied.fromUri, 'dbfs:/mnt/data/source.txt');
+  assert.equal(copied.output.copied.toUri, 'dbfs:/mnt/data/copied.txt');
+
+  const moved = context.runStorageRequest({
+    operation: 'move',
+    fromUri: 'dbfs:/mnt/data/source.txt',
+    toUri: 'dbfs:/mnt/data/moved.txt'
+  });
+  assert.equal(moved.output.moved.deletedSource, true);
+
+  const multipart = context.runStorageRequest({
+    operation: 'multipart_write',
+    uri: 'dbfs:/mnt/data/multipart.txt',
+    payload: {
+      text: 'hello'
+    }
+  });
+  assert.equal(multipart.output.multipartWritten.size, 5);
+
+  assert.equal(calls.some(call => call.url.includes('/dbfs/read?')), true);
+  assert.equal(calls.some(call => call.url.includes('/dbfs/put')), true);
+});
+
+test('DBFS signed_url is rejected as unsupported capability', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.runStorageRequest({
+      uri: 'dbfs:/mnt/data/file.txt',
+      operation: 'signed_url'
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageCapabilityError');
+      return true;
+    }
+  );
+});

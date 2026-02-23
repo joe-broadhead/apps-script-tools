@@ -14,6 +14,98 @@ function astGcsBuildUploadUrl(bucket, key) {
   return `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${astGcsEncodeObjectKey(key)}`;
 }
 
+function astGcsBuildRewriteUrl(fromLocation, toLocation, rewriteToken = null) {
+  const base = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(fromLocation.bucket)}/o/${astGcsEncodeObjectKey(fromLocation.key)}/rewriteTo/b/${encodeURIComponent(toLocation.bucket)}/o/${astGcsEncodeObjectKey(toLocation.key)}`;
+  if (!rewriteToken) {
+    return base;
+  }
+  return `${base}?rewriteToken=${encodeURIComponent(rewriteToken)}`;
+}
+
+function astGcsBuildResumableUploadUrl(bucket, key) {
+  return `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=resumable&name=${astGcsEncodeObjectKey(key)}`;
+}
+
+function astGcsBuildObjectPath(location) {
+  const encodedKey = astStorageNormalizeKey(location && location.key ? location.key : '')
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+  return `/${encodeURIComponent(location.bucket)}/${encodedKey}`;
+}
+
+function astGcsBytesToHex(bytes = []) {
+  let output = '';
+  for (let idx = 0; idx < bytes.length; idx += 1) {
+    const value = bytes[idx] < 0 ? bytes[idx] + 256 : bytes[idx];
+    const hex = value.toString(16);
+    output += hex.length === 1 ? `0${hex}` : hex;
+  }
+  return output;
+}
+
+function astGcsSha256Hex(value) {
+  if (
+    typeof Utilities === 'undefined' ||
+    !Utilities ||
+    typeof Utilities.computeDigest !== 'function' ||
+    !Utilities.DigestAlgorithm ||
+    !Utilities.DigestAlgorithm.SHA_256
+  ) {
+    throw new AstStorageAuthError('Utilities.computeDigest with SHA_256 is required for GCS signed URL generation');
+  }
+
+  return astGcsBytesToHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value));
+}
+
+function astGcsExtractHeaderValue(headers = {}, headerName, fallback = null) {
+  const target = String(headerName || '').toLowerCase();
+  const key = Object.keys(headers || {}).find(entry => String(entry || '').toLowerCase() === target);
+  if (!key) {
+    return fallback;
+  }
+  return headers[key];
+}
+
+function astGcsNormalizeServiceAccountJson(value) {
+  if (astStorageIsPlainObject(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new AstStorageAuthError('GCS serviceAccountJson must be valid JSON', {}, error);
+  }
+}
+
+function astGcsResolveSignedUrlDate(providerOptions = {}) {
+  const raw = providerOptions.requestDate || providerOptions.now || null;
+  if (!raw) {
+    return new Date();
+  }
+
+  const resolved = raw instanceof Date ? new Date(raw.getTime()) : new Date(raw);
+  if (Number.isNaN(resolved.getTime())) {
+    throw new AstStorageValidationError('providerOptions.requestDate must be a valid date');
+  }
+
+  return resolved;
+}
+
+function astGcsFormatDateParts(inputDate) {
+  const iso = new Date(inputDate).toISOString();
+  const amzDate = iso.replace(/[:-]|\.\d{3}/g, '');
+  return {
+    amzDate,
+    dateStamp: amzDate.slice(0, 8)
+  };
+}
+
 function astGcsBuildHeaders(accessToken, request = {}) {
   const headers = {
     Authorization: `Bearer ${accessToken}`
@@ -292,7 +384,331 @@ function astGcsDelete({ request, accessToken }) {
   };
 }
 
+function astGcsExists({ request, accessToken }) {
+  try {
+    const head = astGcsHead({ request, accessToken });
+    return {
+      output: {
+        exists: {
+          exists: true,
+          uri: request.uri,
+          object: head.output.object
+        }
+      },
+      usage: head.usage,
+      raw: head.raw
+    };
+  } catch (error) {
+    if (
+      (error && error.name === 'AstStorageNotFoundError')
+      || (error && error.name === 'AstStorageProviderError' && Number(error.details?.statusCode) === 404)
+    ) {
+      return {
+        output: {
+          exists: {
+            exists: false,
+            uri: request.uri
+          }
+        },
+        usage: {
+          requestCount: 1,
+          bytesIn: 0,
+          bytesOut: 0
+        },
+        raw: null
+      };
+    }
+
+    throw error;
+  }
+}
+
+function astGcsCopy({ request, accessToken }) {
+  if (!request.options.overwrite) {
+    try {
+      astGcsHead({
+        request: {
+          provider: request.provider,
+          operation: 'head',
+          uri: request.to.uri,
+          location: request.to.location,
+          options: request.options
+        },
+        accessToken
+      });
+      throw new AstStorageProviderError('Storage object already exists and overwrite=false', {
+        provider: 'gcs',
+        operation: 'copy',
+        uri: request.to.uri,
+        statusCode: 409
+      });
+    } catch (error) {
+      if (error && error.name === 'AstStorageNotFoundError') {
+        // continue
+      } else if (error && error.name === 'AstStorageProviderError' && error.details?.statusCode === 404) {
+        // continue
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  let rewriteToken = null;
+  let requestCount = 0;
+  let payload = null;
+
+  do {
+    const response = astStorageHttpRequest({
+      provider: 'gcs',
+      operation: 'copy',
+      url: astGcsBuildRewriteUrl(request.from.location, request.to.location, rewriteToken),
+      method: 'post',
+      headers: astGcsBuildHeaders(accessToken),
+      retries: request.options.retries,
+      timeoutMs: request.options.timeoutMs
+    });
+
+    payload = response.json || {};
+    rewriteToken = astStorageNormalizeString(payload.rewriteToken, null);
+    requestCount += 1;
+  } while (rewriteToken);
+
+  const resource = astStorageIsPlainObject(payload && payload.resource) ? payload.resource : {};
+
+  return {
+    id: resource.id || null,
+    output: {
+      copied: {
+        uri: request.to.uri,
+        fromUri: request.from.uri,
+        toUri: request.to.uri,
+        bucket: request.to.location.bucket,
+        key: request.to.location.key,
+        size: Number(resource.size || 0),
+        etag: resource.etag || null,
+        generation: resource.generation || null,
+        mimeType: resource.contentType || null
+      }
+    },
+    usage: {
+      requestCount,
+      bytesIn: 0,
+      bytesOut: 0
+    },
+    raw: payload
+  };
+}
+
+function astGcsMove({ request, accessToken }) {
+  const copied = astGcsCopy({ request, accessToken });
+
+  const deleteSourceRequest = {
+    provider: request.provider,
+    operation: 'delete',
+    uri: request.from.uri,
+    location: request.from.location,
+    options: request.options
+  };
+  const deleted = astGcsDelete({
+    request: deleteSourceRequest,
+    accessToken
+  });
+
+  return {
+    id: copied.id || null,
+    output: {
+      moved: {
+        uri: request.to.uri,
+        fromUri: request.from.uri,
+        toUri: request.to.uri,
+        deletedSource: Boolean(deleted.output && deleted.output.deleted && deleted.output.deleted.deleted)
+      }
+    },
+    usage: {
+      requestCount: (copied.usage?.requestCount || 0) + (deleted.usage?.requestCount || 0),
+      bytesIn: copied.usage?.bytesIn || 0,
+      bytesOut: (copied.usage?.bytesOut || 0) + (deleted.usage?.bytesOut || 0)
+    },
+    raw: copied.raw
+  };
+}
+
+function astGcsSignedUrl({ request, config }) {
+  const serviceAccount = astGcsNormalizeServiceAccountJson(config.serviceAccountJson);
+
+  if (!serviceAccount || !serviceAccount.client_email || !serviceAccount.private_key) {
+    throw new AstStorageAuthError('GCS signedUrl requires service account JSON with client_email and private_key');
+  }
+
+  if (
+    typeof Utilities === 'undefined' ||
+    !Utilities ||
+    typeof Utilities.computeRsaSha256Signature !== 'function'
+  ) {
+    throw new AstStorageAuthError('Utilities.computeRsaSha256Signature is required for GCS signed URL generation');
+  }
+
+  const requestDate = astGcsResolveSignedUrlDate(request.providerOptions || {});
+  const { amzDate, dateStamp } = astGcsFormatDateParts(requestDate);
+  const credentialScope = `${dateStamp}/auto/storage/goog4_request`;
+  const host = 'storage.googleapis.com';
+  const canonicalUri = astGcsBuildObjectPath(request.location);
+
+  const queryParams = {
+    'X-Goog-Algorithm': 'GOOG4-RSA-SHA256',
+    'X-Goog-Credential': `${serviceAccount.client_email}/${credentialScope}`,
+    'X-Goog-Date': amzDate,
+    'X-Goog-Expires': String(request.options.expiresInSec),
+    'X-Goog-SignedHeaders': 'host'
+  };
+
+  const canonicalQuery = Object.keys(queryParams)
+    .sort((a, b) => a.localeCompare(b))
+    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
+    .join('&');
+
+  const canonicalRequest = [
+    request.options.method,
+    canonicalUri,
+    canonicalQuery,
+    `host:${host}\n`,
+    'host',
+    'UNSIGNED-PAYLOAD'
+  ].join('\n');
+
+  const stringToSign = [
+    'GOOG4-RSA-SHA256',
+    amzDate,
+    credentialScope,
+    astGcsSha256Hex(canonicalRequest)
+  ].join('\n');
+
+  const signatureBytes = Utilities.computeRsaSha256Signature(
+    stringToSign,
+    serviceAccount.private_key
+  );
+  const signatureHex = astGcsBytesToHex(signatureBytes);
+
+  const url = `https://${host}${canonicalUri}?${canonicalQuery}&X-Goog-Signature=${signatureHex}`;
+
+  return {
+    output: {
+      signedUrl: {
+        uri: request.uri,
+        url,
+        method: request.options.method,
+        expiresInSec: request.options.expiresInSec,
+        expiresAt: new Date(requestDate.getTime() + (request.options.expiresInSec * 1000)).toISOString()
+      }
+    },
+    usage: {
+      requestCount: 0,
+      bytesIn: 0,
+      bytesOut: 0
+    },
+    raw: request.options.includeRaw
+      ? {
+          canonicalRequest,
+          stringToSign
+        }
+      : null
+  };
+}
+
+function astGcsMultipartWrite({ request, accessToken }) {
+  if (!request.options.overwrite) {
+    try {
+      astGcsHead({ request, accessToken });
+      throw new AstStorageProviderError('Storage object already exists and overwrite=false', {
+        provider: 'gcs',
+        operation: 'multipart_write',
+        uri: request.uri,
+        statusCode: 409
+      });
+    } catch (error) {
+      if (error && error.name === 'AstStorageNotFoundError') {
+        // continue
+      } else if (error && error.name === 'AstStorageProviderError' && error.details?.statusCode === 404) {
+        // continue
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  const bytes = astStorageBase64ToBytes(request.payload.base64);
+  const startResponse = astStorageHttpRequest({
+    provider: 'gcs',
+    operation: 'multipart_write',
+    url: astGcsBuildResumableUploadUrl(request.location.bucket, request.location.key),
+    method: 'post',
+    headers: Object.assign({}, astGcsBuildHeaders(accessToken), {
+      'X-Upload-Content-Type': request.payload.mimeType
+    }),
+    contentType: 'application/json',
+    payload: '{}',
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
+  });
+
+  const sessionUrl = astStorageNormalizeString(
+    astGcsExtractHeaderValue(startResponse.headers, 'location', ''),
+    ''
+  );
+  if (!sessionUrl) {
+    throw new AstStorageProviderError('GCS resumable upload did not return session location', {
+      provider: 'gcs',
+      operation: 'multipart_write',
+      uri: request.uri
+    });
+  }
+
+  const uploadResponse = astStorageHttpRequest({
+    provider: 'gcs',
+    operation: 'multipart_write',
+    url: sessionUrl,
+    method: 'put',
+    headers: astGcsBuildHeaders(accessToken, request),
+    contentType: request.payload.mimeType,
+    payload: bytes,
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
+  });
+
+  const payload = uploadResponse.json || {};
+
+  return {
+    id: payload.id || null,
+    output: {
+      multipartWritten: {
+        uri: request.uri,
+        bucket: request.location.bucket,
+        key: request.location.key,
+        size: Number(payload.size || request.payload.sizeBytes || 0),
+        etag: payload.etag || null,
+        generation: payload.generation || null,
+        mimeType: payload.contentType || request.payload.mimeType
+      }
+    },
+    usage: {
+      requestCount: 2,
+      bytesIn: request.payload.sizeBytes,
+      bytesOut: (typeof startResponse.body === 'string' ? startResponse.body.length : 0)
+        + (typeof uploadResponse.body === 'string' ? uploadResponse.body.length : 0)
+    },
+    raw: payload
+  };
+}
+
 function astRunGcsStorage({ request, config }) {
+  if (request.operation === 'signed_url') {
+    try {
+      return astGcsSignedUrl({ request, config });
+    } catch (error) {
+      astGcsMapProviderError(error, request);
+    }
+  }
+
   const accessToken = astGcsResolveAccessToken(config, {
     retries: request.options.retries,
     timeoutMs: request.options.timeoutMs
@@ -310,6 +726,14 @@ function astRunGcsStorage({ request, config }) {
         return astGcsWrite({ request, accessToken });
       case 'delete':
         return astGcsDelete({ request, accessToken });
+      case 'exists':
+        return astGcsExists({ request, accessToken });
+      case 'copy':
+        return astGcsCopy({ request, accessToken });
+      case 'move':
+        return astGcsMove({ request, accessToken });
+      case 'multipart_write':
+        return astGcsMultipartWrite({ request, accessToken });
       default:
         throw new AstStorageCapabilityError('Unsupported GCS operation', {
           operation: request.operation

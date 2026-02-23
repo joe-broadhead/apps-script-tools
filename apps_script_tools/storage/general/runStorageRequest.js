@@ -40,7 +40,12 @@ function astStorageNormalizeOutput(operation, output = {}) {
     object: null,
     data: null,
     written: null,
-    deleted: null
+    deleted: null,
+    exists: null,
+    copied: null,
+    moved: null,
+    signedUrl: null,
+    multipartWritten: null
   };
 
   if (!astStorageIsPlainObject(output)) {
@@ -65,6 +70,37 @@ function astStorageNormalizeOutput(operation, output = {}) {
 
   if (operation === 'delete') {
     normalized.deleted = astStorageIsPlainObject(output.deleted) ? output.deleted : null;
+  }
+
+  if (operation === 'exists') {
+    if (astStorageIsPlainObject(output.exists)) {
+      normalized.exists = {
+        exists: Boolean(output.exists.exists),
+        uri: astStorageNormalizeString(output.exists.uri, null)
+      };
+    } else {
+      normalized.exists = {
+        exists: Boolean(output.exists)
+      };
+    }
+  }
+
+  if (operation === 'copy') {
+    normalized.copied = astStorageIsPlainObject(output.copied) ? output.copied : null;
+  }
+
+  if (operation === 'move') {
+    normalized.moved = astStorageIsPlainObject(output.moved) ? output.moved : null;
+  }
+
+  if (operation === 'signed_url') {
+    normalized.signedUrl = astStorageIsPlainObject(output.signedUrl) ? output.signedUrl : null;
+  }
+
+  if (operation === 'multipart_write') {
+    normalized.multipartWritten = astStorageIsPlainObject(output.multipartWritten)
+      ? output.multipartWritten
+      : null;
   }
 
   return normalized;

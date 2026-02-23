@@ -13,6 +13,11 @@ STORAGE_NAMESPACE_TESTS = [
         'read',
         'write',
         'delete',
+        'exists',
+        'copy',
+        'move',
+        'signedUrl',
+        'multipartWrite',
         'providers',
         'capabilities',
         'configure',
@@ -39,11 +44,11 @@ STORAGE_NAMESPACE_TESTS = [
     }
   },
   {
-    description: 'AST.Storage.capabilities(gcs) should report CRUD support',
+    description: 'AST.Storage.capabilities(gcs) should report advanced storage support',
     test: () => {
       const capabilities = AST.Storage.capabilities('gcs');
 
-      ['list', 'head', 'read', 'write', 'delete'].forEach(key => {
+      ['list', 'head', 'read', 'write', 'delete', 'exists', 'copy', 'move', 'signed_url', 'multipart_write'].forEach(key => {
         if (capabilities[key] !== true) {
           throw new Error(`Expected gcs capability ${key}=true, got ${JSON.stringify(capabilities)}`);
         }

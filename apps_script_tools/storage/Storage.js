@@ -22,6 +22,26 @@ function astStorageDelete(request = {}) {
   return runStorageRequest(Object.assign({}, request, { operation: 'delete' }));
 }
 
+function astStorageExists(request = {}) {
+  return runStorageRequest(Object.assign({}, request, { operation: 'exists' }));
+}
+
+function astStorageCopy(request = {}) {
+  return runStorageRequest(Object.assign({}, request, { operation: 'copy' }));
+}
+
+function astStorageMove(request = {}) {
+  return runStorageRequest(Object.assign({}, request, { operation: 'move' }));
+}
+
+function astStorageSignedUrl(request = {}) {
+  return runStorageRequest(Object.assign({}, request, { operation: 'signed_url' }));
+}
+
+function astStorageMultipartWrite(request = {}) {
+  return runStorageRequest(Object.assign({}, request, { operation: 'multipart_write' }));
+}
+
 function astStorageConfigure(config = {}, options = {}) {
   return astStorageSetRuntimeConfig(config, options);
 }
@@ -41,6 +61,11 @@ const AST_STORAGE = Object.freeze({
   read: astStorageRead,
   write: astStorageWrite,
   delete: astStorageDelete,
+  exists: astStorageExists,
+  copy: astStorageCopy,
+  move: astStorageMove,
+  signedUrl: astStorageSignedUrl,
+  multipartWrite: astStorageMultipartWrite,
   providers: astStorageListProviders,
   capabilities: astStorageGetCapabilities,
   configure: astStorageConfigure,

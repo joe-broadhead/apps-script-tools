@@ -85,6 +85,11 @@ test('AST exposes Storage surface and runtime config methods', () => {
   assert.equal(typeof context.AST.Storage.read, 'function');
   assert.equal(typeof context.AST.Storage.write, 'function');
   assert.equal(typeof context.AST.Storage.delete, 'function');
+  assert.equal(typeof context.AST.Storage.exists, 'function');
+  assert.equal(typeof context.AST.Storage.copy, 'function');
+  assert.equal(typeof context.AST.Storage.move, 'function');
+  assert.equal(typeof context.AST.Storage.signedUrl, 'function');
+  assert.equal(typeof context.AST.Storage.multipartWrite, 'function');
   assert.equal(typeof context.AST.Storage.providers, 'function');
   assert.equal(typeof context.AST.Storage.capabilities, 'function');
   assert.equal(typeof context.AST.Storage.configure, 'function');

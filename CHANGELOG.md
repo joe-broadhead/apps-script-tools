@@ -66,6 +66,7 @@
   - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.
 - New `AST.Storage` namespace with:
   - `run`, `list`, `head`, `read`, `write`, `delete`
+  - `exists`, `copy`, `move`, `signedUrl`, `multipartWrite`
   - `providers`, `capabilities`
   - `configure`, `getConfig`, `clearConfig`
 - Unified storage URI model:

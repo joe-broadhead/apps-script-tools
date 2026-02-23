@@ -6,7 +6,10 @@ const AST_STORAGE_DEFAULT_OPTIONS = Object.freeze({
   timeoutMs: 45000,
   retries: 2,
   includeRaw: false,
-  overwrite: true
+  overwrite: true,
+  expiresInSec: 900,
+  method: 'GET',
+  partSizeBytes: 5 * 1024 * 1024
 });
 
 function astStorageNormalizeBoolean(value, fallback = false) {
@@ -61,7 +64,7 @@ function astStorageNormalizeMimeType(value, fallback = 'application/octet-stream
 }
 
 function astStorageNormalizePayload(payload, operation) {
-  if (operation !== 'write') {
+  if (operation !== 'write' && operation !== 'multipart_write') {
     return null;
   }
 
@@ -138,6 +141,19 @@ function astStorageNormalizePayload(payload, operation) {
   };
 }
 
+function astStorageNormalizeSignedUrlMethod(value) {
+  const normalized = astStorageNormalizeString(value, AST_STORAGE_DEFAULT_OPTIONS.method).toUpperCase();
+  const supported = ['GET', 'PUT', 'HEAD', 'DELETE'];
+
+  if (!supported.includes(normalized)) {
+    throw new AstStorageValidationError('options.method must be one of GET, PUT, HEAD, DELETE', {
+      method: normalized
+    });
+  }
+
+  return normalized;
+}
+
 function astStorageNormalizeOptions(options = {}) {
   if (!astStorageIsPlainObject(options)) {
     throw new AstStorageValidationError('options must be an object when provided');
@@ -151,7 +167,10 @@ function astStorageNormalizeOptions(options = {}) {
     timeoutMs: astStorageNormalizePositiveInt(options.timeoutMs, AST_STORAGE_DEFAULT_OPTIONS.timeoutMs, 1),
     retries: astStorageNormalizePositiveInt(options.retries, AST_STORAGE_DEFAULT_OPTIONS.retries, 0),
     includeRaw: astStorageNormalizeBoolean(options.includeRaw, AST_STORAGE_DEFAULT_OPTIONS.includeRaw),
-    overwrite: astStorageNormalizeBoolean(options.overwrite, AST_STORAGE_DEFAULT_OPTIONS.overwrite)
+    overwrite: astStorageNormalizeBoolean(options.overwrite, AST_STORAGE_DEFAULT_OPTIONS.overwrite),
+    expiresInSec: astStorageNormalizePositiveInt(options.expiresInSec, AST_STORAGE_DEFAULT_OPTIONS.expiresInSec, 1),
+    method: astStorageNormalizeSignedUrlMethod(options.method),
+    partSizeBytes: astStorageNormalizePositiveInt(options.partSizeBytes, AST_STORAGE_DEFAULT_OPTIONS.partSizeBytes, 1)
   };
 
   return normalized;
@@ -159,7 +178,7 @@ function astStorageNormalizeOptions(options = {}) {
 
 function astStorageAssertLocationForOperation(provider, operation, location) {
   if (provider === 'dbfs') {
-    if (operation !== 'list' && operation !== 'delete' && !location.path) {
+    if (!location.path) {
       throw new AstStorageValidationError(`dbfs ${operation} operation requires location.path`);
     }
 
@@ -175,6 +194,85 @@ function astStorageAssertLocationForOperation(provider, operation, location) {
   }
 }
 
+function astStorageAssertTransferLocations(provider, operation, fromLocation, toLocation) {
+  if (provider === 'dbfs') {
+    if (!fromLocation.path) {
+      throw new AstStorageValidationError(`dbfs ${operation} operation requires fromLocation.path`);
+    }
+    if (!toLocation.path) {
+      throw new AstStorageValidationError(`dbfs ${operation} operation requires toLocation.path`);
+    }
+    return;
+  }
+
+  if (!fromLocation.bucket || !fromLocation.key) {
+    throw new AstStorageValidationError(`${provider} ${operation} operation requires fromLocation.bucket and fromLocation.key`);
+  }
+
+  if (!toLocation.bucket || !toLocation.key) {
+    throw new AstStorageValidationError(`${provider} ${operation} operation requires toLocation.bucket and toLocation.key`);
+  }
+}
+
+function astStorageNormalizeTransferLocationInput(input) {
+  if (astStorageIsPlainObject(input)) {
+    return input;
+  }
+
+  return {};
+}
+
+function astStorageResolveRequestProvider({
+  request,
+  operation,
+  parsedUri,
+  parsedFromUri,
+  parsedToUri
+}) {
+  const providerFromRequest = astStorageNormalizeProvider(request.provider || '');
+  const transferOperation = operation === 'copy' || operation === 'move';
+
+  if (!transferOperation) {
+    const provider = providerFromRequest || (parsedUri ? parsedUri.provider : '');
+    if (!provider) {
+      throw new AstStorageValidationError('Storage request requires provider or uri');
+    }
+
+    if (parsedUri && providerFromRequest && parsedUri.provider !== providerFromRequest) {
+      throw new AstStorageValidationError('provider and uri provider must match', {
+        provider: providerFromRequest,
+        uriProvider: parsedUri.provider
+      });
+    }
+
+    return provider;
+  }
+
+  const inferredProviders = [parsedFromUri?.provider, parsedToUri?.provider, parsedUri?.provider]
+    .filter(Boolean);
+  const uniqueInferred = Array.from(new Set(inferredProviders));
+
+  if (uniqueInferred.length > 1) {
+    throw new AstStorageValidationError('copy/move operations require from/to URIs to use the same provider', {
+      providers: uniqueInferred
+    });
+  }
+
+  const provider = providerFromRequest || uniqueInferred[0] || '';
+  if (!provider) {
+    throw new AstStorageValidationError('copy/move requests require provider or fromUri/toUri');
+  }
+
+  if (providerFromRequest && uniqueInferred.length > 0 && uniqueInferred[0] !== providerFromRequest) {
+    throw new AstStorageValidationError('provider must match fromUri/toUri provider for copy/move', {
+      provider: providerFromRequest,
+      uriProvider: uniqueInferred[0]
+    });
+  }
+
+  return provider;
+}
+
 function validateStorageRequest(request = {}) {
   if (!astStorageIsPlainObject(request)) {
     throw new AstStorageValidationError('Storage request must be an object');
@@ -183,35 +281,67 @@ function validateStorageRequest(request = {}) {
   const parsedUri = typeof request.uri !== 'undefined' && request.uri !== null
     ? astParseStorageUri(request.uri)
     : null;
-
-  const providerFromRequest = astStorageNormalizeProvider(request.provider || '');
-  const provider = providerFromRequest || (parsedUri ? parsedUri.provider : '');
-
-  if (!provider) {
-    throw new AstStorageValidationError('Storage request requires provider or uri');
-  }
-
-  if (parsedUri && providerFromRequest && parsedUri.provider !== providerFromRequest) {
-    throw new AstStorageValidationError('provider and uri provider must match', {
-      provider: providerFromRequest,
-      uriProvider: parsedUri.provider
-    });
-  }
+  const parsedFromUri = typeof request.fromUri !== 'undefined' && request.fromUri !== null
+    ? astParseStorageUri(request.fromUri)
+    : null;
+  const parsedToUri = typeof request.toUri !== 'undefined' && request.toUri !== null
+    ? astParseStorageUri(request.toUri)
+    : null;
 
   const operation = astStorageNormalizeOperation(request.operation);
-  const location = astStorageNormalizeLocation(provider, request.location || {}, parsedUri);
-  astStorageAssertLocationForOperation(provider, operation, location);
+  const provider = astStorageResolveRequestProvider({
+    request,
+    operation,
+    parsedUri,
+    parsedFromUri,
+    parsedToUri
+  });
 
   const options = astStorageNormalizeOptions(request.options || {});
   const payload = astStorageNormalizePayload(request.payload || {}, operation);
 
-  const normalizedUri = astStorageBuildUri(provider, location);
+  let location = null;
+  let from = null;
+  let to = null;
+  let normalizedUri = null;
+
+  if (operation === 'copy' || operation === 'move') {
+    const fromLocation = astStorageNormalizeLocation(
+      provider,
+      astStorageNormalizeTransferLocationInput(request.fromLocation || request.from),
+      parsedFromUri
+    );
+    const toLocation = astStorageNormalizeLocation(
+      provider,
+      astStorageNormalizeTransferLocationInput(request.toLocation || request.to),
+      parsedToUri || parsedUri
+    );
+
+    astStorageAssertTransferLocations(provider, operation, fromLocation, toLocation);
+
+    from = {
+      uri: astStorageBuildUri(provider, fromLocation),
+      location: fromLocation
+    };
+    to = {
+      uri: astStorageBuildUri(provider, toLocation),
+      location: toLocation
+    };
+    location = toLocation;
+    normalizedUri = to.uri;
+  } else {
+    location = astStorageNormalizeLocation(provider, request.location || {}, parsedUri);
+    astStorageAssertLocationForOperation(provider, operation, location);
+    normalizedUri = astStorageBuildUri(provider, location);
+  }
 
   return {
     provider,
     operation,
     uri: normalizedUri,
     location,
+    from,
+    to,
     payload,
     options,
     auth: astStorageIsPlainObject(request.auth) ? astStorageCloneObject(request.auth) : {},

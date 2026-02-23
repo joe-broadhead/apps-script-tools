@@ -1,5 +1,16 @@
 const AST_STORAGE_PROVIDERS = Object.freeze(['gcs', 's3', 'dbfs']);
-const AST_STORAGE_OPERATIONS = Object.freeze(['list', 'head', 'read', 'write', 'delete']);
+const AST_STORAGE_OPERATIONS = Object.freeze([
+  'list',
+  'head',
+  'read',
+  'write',
+  'delete',
+  'exists',
+  'copy',
+  'move',
+  'signed_url',
+  'multipart_write'
+]);
 
 const AST_STORAGE_CAPABILITY_MATRIX = Object.freeze({
   gcs: Object.freeze({
@@ -7,21 +18,36 @@ const AST_STORAGE_CAPABILITY_MATRIX = Object.freeze({
     head: true,
     read: true,
     write: true,
-    delete: true
+    delete: true,
+    exists: true,
+    copy: true,
+    move: true,
+    signed_url: true,
+    multipart_write: true
   }),
   s3: Object.freeze({
     list: true,
     head: true,
     read: true,
     write: true,
-    delete: true
+    delete: true,
+    exists: true,
+    copy: true,
+    move: true,
+    signed_url: true,
+    multipart_write: true
   }),
   dbfs: Object.freeze({
     list: true,
     head: true,
     read: true,
     write: true,
-    delete: true
+    delete: true,
+    exists: true,
+    copy: true,
+    move: true,
+    signed_url: false,
+    multipart_write: true
   })
 });
 

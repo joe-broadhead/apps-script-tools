@@ -9,11 +9,11 @@ ASTX.Storage.providers();
 
 ## Capability matrix
 
-| Provider | list | head | read | write | delete |
-|---|---|---|---|---|---|
-| `gcs` | Yes | Yes | Yes | Yes | Yes |
-| `s3` | Yes | Yes | Yes | Yes | Yes |
-| `dbfs` | Yes | Yes | Yes | Yes | Yes |
+| Provider | list | head | read | write | delete | exists | copy | move | signed_url | multipart_write |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `gcs` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| `s3` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| `dbfs` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | No | Yes |
 
 Use runtime checks:
 
@@ -42,6 +42,8 @@ Optional:
 
 Requests are signed with SigV4.
 
+Signed URLs and multipart uploads both use SigV4 primitives.
+
 ## DBFS auth
 
 Requires:
@@ -50,6 +52,8 @@ Requires:
 - `token` (`DATABRICKS_TOKEN`)
 
 Uses Databricks DBFS REST API (`/api/2.0/dbfs/*`).
+
+DBFS does not support pre-signed URL generation in this release (`signed_url` returns `AstStorageCapabilityError`).
 
 ## URI examples
 

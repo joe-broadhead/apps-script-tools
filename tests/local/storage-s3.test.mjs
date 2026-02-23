@@ -41,6 +41,26 @@ test('S3 signer builds authorization header deterministically', () => {
   assert.equal(typeof signed.canonicalRequest, 'string');
 });
 
+test('S3 presign helper builds deterministic query signature', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  const presigned = context.astS3PresignUrl({
+    method: 'GET',
+    location: { bucket: 'bucket-1', key: 'path/file.txt' },
+    config: {
+      accessKeyId: 'AKIA_TEST',
+      secretAccessKey: 'SECRET_TEST',
+      region: 'us-east-1'
+    },
+    expiresInSec: 900,
+    requestDate: new Date('2026-02-21T00:00:00.000Z')
+  });
+
+  assert.match(presigned.url, /X-Amz-Algorithm=AWS4-HMAC-SHA256/);
+  assert.match(presigned.url, /X-Amz-Signature=[0-9a-f]{64}/);
+});
+
 test('S3 list/read/write/delete operations return normalized output', () => {
   const calls = [];
 
@@ -224,4 +244,148 @@ test('S3 list marks truncated when maxItems caps provider results', () => {
 
   assert.equal(out.output.items.length, 1);
   assert.equal(out.page.truncated, true);
+});
+
+test('S3 exists returns false instead of throwing for missing objects', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (_url, options = {}) => {
+        if (options.method === 'head') {
+          return createResponse({ status: 404, body: 'Not Found' });
+        }
+
+        return createResponse({ status: 500, body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          S3_ACCESS_KEY_ID: 'AKIA_TEST',
+          S3_SECRET_ACCESS_KEY: 'SECRET_TEST',
+          S3_REGION: 'us-east-1'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 's3://bucket/missing.txt',
+    operation: 'exists'
+  });
+
+  assert.equal(out.output.exists.exists, false);
+  assert.equal(out.output.exists.uri, 's3://bucket/missing.txt');
+});
+
+test('S3 copy/move/signed_url/multipart_write operations return normalized output', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('uploads=')) {
+          return createResponse({
+            status: 200,
+            body: '<InitiateMultipartUploadResult><UploadId>upload-123</UploadId></InitiateMultipartUploadResult>'
+          });
+        }
+
+        if (url.includes('partNumber=')) {
+          return createResponse({
+            status: 200,
+            headers: {
+              etag: '"etag-part-1"'
+            }
+          });
+        }
+
+        if (url.includes('uploadId=') && options.method === 'post') {
+          return createResponse({
+            status: 200,
+            body: '<CompleteMultipartUploadResult><ETag>"etag-complete"</ETag></CompleteMultipartUploadResult>'
+          });
+        }
+
+        if (options.method === 'put' && options.headers['x-amz-copy-source']) {
+          return createResponse({
+            status: 200,
+            headers: {
+              etag: '"etag-copy"'
+            }
+          });
+        }
+
+        if (options.method === 'delete') {
+          return createResponse({
+            status: 204,
+            body: ''
+          });
+        }
+
+        return createResponse({
+          status: 200,
+          body: ''
+        });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          S3_ACCESS_KEY_ID: 'AKIA_TEST',
+          S3_SECRET_ACCESS_KEY: 'SECRET_TEST',
+          S3_REGION: 'us-east-1'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const copied = context.runStorageRequest({
+    operation: 'copy',
+    fromUri: 's3://bucket-a/path/source.txt',
+    toUri: 's3://bucket-a/path/copied.txt'
+  });
+  assert.equal(copied.output.copied.fromUri, 's3://bucket-a/path/source.txt');
+  assert.equal(copied.output.copied.toUri, 's3://bucket-a/path/copied.txt');
+
+  const moved = context.runStorageRequest({
+    operation: 'move',
+    fromUri: 's3://bucket-a/path/source.txt',
+    toUri: 's3://bucket-a/path/moved.txt'
+  });
+  assert.equal(moved.output.moved.deletedSource, true);
+
+  const signed = context.runStorageRequest({
+    operation: 'signed_url',
+    uri: 's3://bucket-a/path/moved.txt',
+    options: {
+      method: 'GET',
+      expiresInSec: 300
+    },
+    providerOptions: {
+      requestDate: '2026-02-21T00:00:00.000Z'
+    }
+  });
+  assert.match(signed.output.signedUrl.url, /X-Amz-Signature=/);
+  assert.equal(signed.output.signedUrl.expiresInSec, 300);
+
+  const multipart = context.runStorageRequest({
+    operation: 'multipart_write',
+    uri: 's3://bucket-a/path/large.txt',
+    payload: {
+      text: 'hello world'
+    },
+    options: {
+      partSizeBytes: 5
+    }
+  });
+  assert.equal(multipart.output.multipartWritten.uploadId, 'upload-123');
+  assert.equal(multipart.output.multipartWritten.partCount >= 2, true);
+
+  assert.equal(calls.some(call => call.url.includes('uploads=')), true);
+  assert.equal(calls.some(call => call.url.includes('partNumber=')), true);
 });

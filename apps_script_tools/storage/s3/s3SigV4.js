@@ -182,3 +182,59 @@ function astS3SignRequest({
     payloadHash
   };
 }
+
+function astS3PresignUrl({
+  method = 'get',
+  location,
+  query = {},
+  config,
+  expiresInSec = 900,
+  requestDate = new Date()
+}) {
+  const endpoint = astS3NormalizeEndpoint(config.endpoint, config.region);
+  const host = astS3ExtractHost(endpoint);
+  const uriPath = astS3EncodeUriPath(location);
+  const methodUpper = String(method || 'GET').toUpperCase();
+  const { amzDate, dateStamp } = astS3FormatAmzDate(requestDate);
+  const credentialScope = `${dateStamp}/${config.region}/s3/aws4_request`;
+
+  const presignQuery = Object.assign({}, query, {
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': `${config.accessKeyId}/${credentialScope}`,
+    'X-Amz-Date': amzDate,
+    'X-Amz-Expires': String(expiresInSec),
+    'X-Amz-SignedHeaders': 'host'
+  });
+
+  if (config.sessionToken) {
+    presignQuery['X-Amz-Security-Token'] = config.sessionToken;
+  }
+
+  const canonicalQuery = astS3CanonicalQuery(presignQuery);
+  const canonicalRequest = [
+    methodUpper,
+    uriPath,
+    canonicalQuery,
+    `host:${host}\n`,
+    'host',
+    'UNSIGNED-PAYLOAD'
+  ].join('\n');
+
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    astS3Sha256Hex(canonicalRequest)
+  ].join('\n');
+
+  const signingKey = astS3BuildSigningKey(config.secretAccessKey, dateStamp, config.region);
+  const signature = astS3BytesToHex(astS3HmacSha256(signingKey, stringToSign));
+  const url = `${endpoint}${uriPath}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+
+  return {
+    url,
+    signature,
+    canonicalRequest,
+    stringToSign
+  };
+}
