@@ -140,5 +140,47 @@ DATAFRAME_SCHEMA_TESTS = [
         throw new Error('Expected enforceSchema to throw in strict mode');
       }
     }
+  },
+  {
+    description: 'DataFrame.enforceSchema() should honor coerce=false without implicit type coercion',
+    test: () => {
+      const df = DataFrame.fromRecords([{ id: '1' }]);
+
+      const out = df.enforceSchema(
+        { id: { type: 'integer', nullable: false } },
+        { coerce: false, strict: false }
+      );
+
+      if (JSON.stringify(out.id.array) !== JSON.stringify(['1'])) {
+        throw new Error(`Expected id ['1'], got ${JSON.stringify(out.id.array)}`);
+      }
+
+      if (out.schema().id !== 'string') {
+        throw new Error(`Expected schema type 'string', got ${out.schema().id}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.validateSchema() should report invalid Date mismatch without throwing in non-strict mode',
+    test: () => {
+      const df = DataFrame.fromRecords([{ happened_at: new Date('bad') }]);
+
+      const report = df.validateSchema(
+        { happened_at: { type: 'date', nullable: false } },
+        { strict: false }
+      );
+
+      if (report.valid !== false) {
+        throw new Error('Expected validation report to be invalid');
+      }
+
+      if (report.violations.typeMismatches.length !== 1) {
+        throw new Error(`Expected 1 type mismatch, got ${report.violations.typeMismatches.length}`);
+      }
+
+      if (report.violations.typeMismatches[0].actualType !== 'invalid_date') {
+        throw new Error(`Expected actualType invalid_date, got ${report.violations.typeMismatches[0].actualType}`);
+      }
+    }
   }
 ];

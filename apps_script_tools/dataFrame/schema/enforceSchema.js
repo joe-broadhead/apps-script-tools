@@ -74,7 +74,9 @@ function astDataFrameEnforceSchema(dataframe, schema, options = {}) {
     }
 
     outputColumns[column] = normalizedValues;
-    if (descriptor.type !== 'mixed') {
+    // `coerce=false` is validation-only mode: do not set typeMap because
+    // DataFrame.fromColumns would coerce values during Series construction.
+    if (normalizedOptions.coerce && descriptor.type !== 'mixed') {
       typeMap[column] = descriptor.type;
     }
   }

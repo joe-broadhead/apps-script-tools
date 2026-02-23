@@ -167,7 +167,7 @@ function astDataFramePreviewValue(value) {
   }
 
   if (value instanceof Date) {
-    return value.toISOString();
+    return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
   }
 
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {

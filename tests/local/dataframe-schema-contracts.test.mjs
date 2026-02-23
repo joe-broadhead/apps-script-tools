@@ -95,3 +95,31 @@ test('DataFrame.enforceSchema strict mode throws on non-coercible non-nullable v
     /DataFrame\.enforceSchema schema validation failed/
   );
 });
+
+test('DataFrame.enforceSchema honors coerce=false without mutating values via typeMap', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([{ id: '1' }]);
+  const out = df.enforceSchema(
+    { id: { type: 'integer', nullable: false } },
+    { coerce: false, strict: false }
+  );
+
+  assert.equal(JSON.stringify(out.id.array), JSON.stringify(['1']));
+  assert.equal(out.schema().id, 'string');
+});
+
+test('DataFrame.validateSchema reports invalid Date mismatch without throwing in non-strict mode', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([{ happened_at: new Date('bad') }]);
+  const report = df.validateSchema(
+    { happened_at: { type: 'date', nullable: false } },
+    { strict: false }
+  );
+
+  assert.equal(report.valid, false);
+  assert.equal(report.violations.typeMismatches.length, 1);
+  assert.equal(report.violations.typeMismatches[0].actualType, 'invalid_date');
+  assert.equal(report.violations.typeMismatches[0].value, 'Invalid Date');
+});
