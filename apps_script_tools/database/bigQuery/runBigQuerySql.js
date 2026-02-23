@@ -171,6 +171,25 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
   return executeBigQuerySqlDetailed(query, parameters, placeholders, options).dataFrame;
 }
 
+function astIsBigQueryCanceledError(errorResult) {
+  if (!errorResult || typeof errorResult !== 'object') {
+    return false;
+  }
+
+  const reason = typeof errorResult.reason === 'string'
+    ? errorResult.reason.toLowerCase()
+    : '';
+  const message = typeof errorResult.message === 'string'
+    ? errorResult.message.toLowerCase()
+    : '';
+
+  return reason === 'stopped'
+    || reason === 'canceled'
+    || reason === 'cancelled'
+    || message.includes('stopped')
+    || message.includes('cancel');
+}
+
 function getBigQuerySqlStatus(parameters, jobId) {
   const projectId = astAssertBigQueryProjectId(parameters);
   const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
@@ -185,7 +204,9 @@ function getBigQuerySqlStatus(parameters, jobId) {
     const rawState = typeof status.state === 'string' ? status.state.toUpperCase() : 'UNKNOWN';
     const isComplete = rawState === 'DONE';
     const mappedState = isComplete
-      ? (status.errorResult ? 'FAILED' : 'SUCCEEDED')
+      ? (status.errorResult
+        ? (astIsBigQueryCanceledError(status.errorResult) ? 'CANCELED' : 'FAILED')
+        : 'SUCCEEDED')
       : rawState;
 
     return {

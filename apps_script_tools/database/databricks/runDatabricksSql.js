@@ -80,6 +80,32 @@ function astDatabricksBuildStatementsApiBase(host) {
   return `https://${host}/api/2.0/sql/statements/`;
 }
 
+function astDatabricksGetHttpStatus(response) {
+  if (!response || typeof response.getResponseCode !== 'function') {
+    return 200;
+  }
+
+  const statusCode = Number(response.getResponseCode());
+  return Number.isFinite(statusCode) ? statusCode : 200;
+}
+
+function astDatabricksParseResponseBody(response) {
+  if (!response || typeof response.getContentText !== 'function') {
+    return null;
+  }
+
+  const responseBody = response.getContentText();
+  if (typeof responseBody !== 'string' || responseBody.trim() === '') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(responseBody);
+  } catch (_error) {
+    return responseBody;
+  }
+}
+
 function astDatabricksSubmitStatement(apiBaseUrl, token, payload) {
   const response = UrlFetchApp.fetch(apiBaseUrl, {
     method: 'post',
@@ -255,18 +281,37 @@ function cancelDatabricksSql(parameters, statementId) {
 
   try {
     const apiBaseUrl = astDatabricksBuildStatementsApiBase(normalizedParameters.host);
-    UrlFetchApp.fetch(`${apiBaseUrl}${normalizedStatementId}/cancel`, {
+    const cancelResponse = UrlFetchApp.fetch(`${apiBaseUrl}${normalizedStatementId}/cancel`, {
       method: 'post',
       headers: {
         Authorization: `Bearer ${normalizedParameters.token}`
       },
       muteHttpExceptions: true
     });
+    const statusCode = astDatabricksGetHttpStatus(cancelResponse);
+
+    if (statusCode < 200 || statusCode >= 300) {
+      throw buildDatabricksSqlError(
+        'Databricks cancel request failed',
+        {
+          host: normalizedParameters.host,
+          statementId: normalizedStatementId,
+          statusCode,
+          response: astDatabricksParseResponseBody(cancelResponse)
+        }
+      );
+    }
 
     const latest = getDatabricksSqlStatus(normalizedParameters, normalizedStatementId);
-    return Object.assign({}, latest, {
-      canceled: true
-    });
+    const latestState = typeof latest.state === 'string' ? latest.state.toUpperCase() : '';
+    const isCanceled = latestState === 'CANCELED' || latestState === 'CLOSED';
+    const response = Object.assign({}, latest, { canceled: isCanceled });
+
+    if (!isCanceled) {
+      response.cancelRequested = true;
+    }
+
+    return response;
   } catch (error) {
     if (error && error.name === 'DatabricksSqlError') {
       throw error;

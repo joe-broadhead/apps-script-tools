@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGasContext, loadScripts } from './helpers.mjs';
 
-function createResponse(body = '{}') {
+function createResponse(body = '{}', statusCode = 200) {
   return {
-    getContentText: () => body
+    getContentText: () => body,
+    getResponseCode: () => statusCode
   };
 }
 
@@ -59,6 +60,34 @@ test('cancelBigQuerySql delegates to BigQuery.Jobs.cancel', () => {
   assert.equal(called.projectId, 'project-1');
   assert.equal(called.jobId, 'job-2');
   assert.equal(status.canceled, true);
+});
+
+test('getBigQuerySqlStatus maps DONE + stopped reason to CANCELED', () => {
+  const context = createGasContext({
+    BigQuery: {
+      Jobs: {
+        get: (_projectId, _jobId) => ({
+          status: {
+            state: 'DONE',
+            errorResult: {
+              reason: 'stopped',
+              message: 'Job was cancelled by user'
+            }
+          }
+        })
+      }
+    }
+  });
+
+  loadScripts(context, ['apps_script_tools/database/bigQuery/runBigQuerySql.js']);
+
+  const status = context.getBigQuerySqlStatus(
+    { projectId: 'project-1' },
+    'job-3'
+  );
+
+  assert.equal(status.state, 'CANCELED');
+  assert.equal(status.complete, true);
 });
 
 test('getDatabricksSqlStatus returns normalized statement status', () => {
@@ -128,4 +157,39 @@ test('cancelDatabricksSql posts cancel and returns latest status', () => {
   assert.equal(calls[0].options.method, 'post');
   assert.equal(status.canceled, true);
   assert.equal(status.state, 'CANCELED');
+});
+
+test('cancelDatabricksSql throws when cancel endpoint returns non-2xx', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: url => {
+        if (String(url).endsWith('/cancel')) {
+          return createResponse(JSON.stringify({ message: 'forbidden' }), 403);
+        }
+
+        return createResponse(JSON.stringify({
+          status: {
+            state: 'RUNNING'
+          }
+        }), 200);
+      }
+    }
+  });
+
+  loadScripts(context, ['apps_script_tools/database/databricks/runDatabricksSql.js']);
+
+  assert.throws(
+    () => context.cancelDatabricksSql(
+      {
+        host: 'dbc.example.com',
+        token: 'token'
+      },
+      'stmt-3'
+    ),
+    error => {
+      assert.equal(error.name, 'DatabricksSqlError');
+      assert.equal(error.details.statusCode, 403);
+      return true;
+    }
+  );
 });
