@@ -1,8 +1,24 @@
 # SQL Contracts
 
+## `ASTX.Sql.providers()` and `ASTX.Sql.capabilities(provider)`
+
+Supported providers:
+
+- `bigquery`
+- `databricks`
+
+Capabilities currently expose:
+
+- `supportsPlaceholders`
+- `supportsTimeoutOptions`
+- `supportsTableLoad`
+- `supportsPreparedStatements`
+- `supportsStatus`
+- `supportsCancel`
+
 ## `ASTX.Sql.run(request)`
 
-`request` shape:
+Direct SQL execution contract:
 
 ```javascript
 {
@@ -27,13 +43,116 @@ Validation rules:
 - `options.maxWaitMs` and `options.pollIntervalMs` must be positive integers when provided.
 - `options.pollIntervalMs` cannot be greater than `options.maxWaitMs`.
 
-Internal routing notes:
+## `ASTX.Sql.prepare(request)`
 
-- `ASTX.Sql.run(...)` resolves provider execution through an internal adapter registry.
-- adapters expose `validateRequest`, `executeQuery`, and `classifyError` contracts.
-- this adapter layer is internal; public request/response behavior remains unchanged.
+Prepared statement compilation contract:
 
-### Databricks parameters
+```javascript
+{
+  provider: 'databricks' | 'bigquery',
+  sql: 'select * from t where id = {{id}} and region = {{region}}',
+  paramsSchema: {
+    id: 'integer',
+    region: { type: 'string', required: true }
+  },
+  parameters: { ... }, // optional default provider parameters
+  options: { ... }     // optional default execution options
+}
+```
+
+Returns:
+
+```javascript
+{
+  statementId: 'sqlprep_...',
+  provider: 'bigquery',
+  templateParams: ['id', 'region'],
+  createdAt: 'ISO-8601',
+  paramSchema: { ...normalized schema... }
+}
+```
+
+Notes:
+
+- Placeholder tokens for prepared mode are `{{paramName}}`.
+- Parameter schema supports types:
+  - `string`, `number`, `integer`, `boolean`, `date`, `timestamp`, `json`, `raw`.
+- Prepared statements are cached in runtime memory (in-process), keyed by `statementId`.
+
+## `ASTX.Sql.executePrepared(request)`
+
+Prepared execution contract:
+
+```javascript
+{
+  statementId: 'sqlprep_...',
+  params: { id: 1, region: 'north' },
+  parameters: { ... }, // optional overrides on top of prepared defaults
+  options: { ... }     // optional overrides on top of prepared defaults
+}
+```
+
+Returns:
+
+```javascript
+{
+  provider: 'bigquery' | 'databricks',
+  statementId: 'sqlprep_...',
+  sql: 'rendered sql ...',
+  dataFrame: DataFrame,
+  execution: {
+    provider,
+    executionId,
+    state,
+    complete,
+    ...provider metadata
+  } | null
+}
+```
+
+## `ASTX.Sql.status(request)`
+
+Execution status contract:
+
+```javascript
+// BigQuery
+{
+  provider: 'bigquery',
+  executionId: 'job-id', // or jobId
+  parameters: { projectId: 'my-project' }
+}
+
+// Databricks
+{
+  provider: 'databricks',
+  executionId: 'statement-id', // or statementId
+  parameters: { host: 'dbc....', token: 'dapi...' }
+}
+```
+
+## `ASTX.Sql.cancel(request)`
+
+Execution cancellation contract:
+
+```javascript
+// BigQuery
+{
+  provider: 'bigquery',
+  executionId: 'job-id', // or jobId
+  parameters: { projectId: 'my-project' }
+}
+
+// Databricks
+{
+  provider: 'databricks',
+  executionId: 'statement-id', // or statementId
+  parameters: { host: 'dbc....', token: 'dapi...' }
+}
+```
+
+### Provider parameters
+
+Databricks execution parameters:
 
 ```javascript
 {
@@ -44,26 +163,13 @@ Internal routing notes:
 }
 ```
 
-Notes:
-
-- Query execution uses Databricks SQL statements API.
-- Polling timeout is controlled by `options.maxWaitMs` / `options.pollIntervalMs`.
-- Results are downloaded in chunks and combined into a `DataFrame`.
-- Provider errors throw `DatabricksSqlError`.
-
-### BigQuery parameters
+BigQuery execution parameters:
 
 ```javascript
 {
   projectId: 'my-gcp-project'
 }
 ```
-
-Notes:
-
-- Uses BigQuery Jobs API (`Jobs.query` + `getQueryResults`).
-- Polling timeout is controlled by `options.maxWaitMs` / `options.pollIntervalMs`.
-- Empty result sets return an empty `DataFrame` with schema columns.
 
 ## `DataFrame.toTable(request)`
 
@@ -121,6 +227,9 @@ Use `toTable` to write dataframe rows to provider tables.
 - Invalid provider: throws.
 - Empty SQL string: throws.
 - Unsafe placeholders without explicit opt-in: throws.
+- Unknown `statementId` for `executePrepared`: throws `SqlPreparedStatementError`.
+- Missing or type-invalid prepared params: throws `SqlPreparedStatementError`.
+- Missing provider execution IDs (`jobId`/`statementId`) for `status`/`cancel`: throws `SqlExecutionControlError`.
 - `toTable` with missing `config.tableSchema`: throws.
 - BigQuery load mode not in (`insert`, `overwrite`): throws.
 - Databricks load mode not in (`insert`, `overwrite`, `merge`): throws.
@@ -144,8 +253,20 @@ Recommended usage:
 
 ```javascript
 try {
-  const df = ASTX.Sql.run(request);
-  Logger.log(df.len());
+  const prepared = ASTX.Sql.prepare({
+    provider: 'bigquery',
+    sql: 'select * from events where user_id = {{user_id}}',
+    paramsSchema: { user_id: 'integer' },
+    parameters: { projectId: 'my-project' }
+  });
+
+  const result = ASTX.Sql.executePrepared({
+    statementId: prepared.statementId,
+    params: { user_id: 42 }
+  });
+
+  Logger.log(result.dataFrame.len());
+  Logger.log(result.execution && result.execution.executionId);
 } catch (error) {
   Logger.log(`${error.name}: ${error.message}`);
 }

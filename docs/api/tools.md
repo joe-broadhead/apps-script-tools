@@ -130,13 +130,28 @@ Create grouped workflows from `DataFrame.groupBy(keys)`.
 const grouped = df.groupBy(['region']).agg({ amount: ['sum', 'mean'] });
 ```
 
-## `ASTX.Sql.run`
+## `ASTX.Sql`
 
-Executes SQL against supported providers with request validation.
+SQL runtime surface with direct execution, prepared execution, and provider execution control.
+
+Primary methods:
+
+- `ASTX.Sql.run(request)`
+- `ASTX.Sql.prepare(request)`
+- `ASTX.Sql.executePrepared(request)`
+- `ASTX.Sql.status(request)`
+- `ASTX.Sql.cancel(request)`
+- `ASTX.Sql.providers()`
+- `ASTX.Sql.capabilities(provider)`
+
+High-signal behavior:
 
 - providers: `databricks`, `bigquery`.
-- validates provider/sql/parameters/placeholders/options shape.
-- unsafe placeholder interpolation is disabled by default.
+- `run(...)` validates provider/sql/parameters/placeholders/options shape.
+- unsafe placeholder interpolation is disabled by default for `run(...)`.
+- `prepare(...)` compiles `{{param}}` template placeholders and returns a runtime `statementId`.
+- `executePrepared(...)` safely serializes typed params and returns `{ dataFrame, execution }`.
+- `status(...)` and `cancel(...)` call provider-specific execution-control helpers.
 
 See [SQL Contracts](sql-contracts.md) for provider-specific request details.
 

@@ -37,7 +37,7 @@
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
-- `AST.Sql`: Databricks/BigQuery query execution
+- `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
 Current release state:
@@ -55,6 +55,7 @@ Current release state:
 - RAG retrieval access-control (`retrieval.access`) and citation/source policy enforcement (`options.enforceAccessControl`).
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - Storage advanced ops: `exists`, `copy`, `move`, `signedUrl`, and `multipartWrite` for production object workflows.
+- SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.

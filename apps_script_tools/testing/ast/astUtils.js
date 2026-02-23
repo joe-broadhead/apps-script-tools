@@ -55,5 +55,29 @@ AST_UTILS_TESTS = [
         throw new Error('AST.Storage does not expose read/write functions');
       }
     }
+  },
+  {
+    description: 'AST namespace should expose SQL runtime helper surface',
+    test: () => {
+      if (!AST || !AST.Sql) {
+        throw new Error('AST.Sql is not available');
+      }
+
+      const requiredMethods = [
+        'run',
+        'prepare',
+        'executePrepared',
+        'status',
+        'cancel',
+        'providers',
+        'capabilities'
+      ];
+
+      requiredMethods.forEach(method => {
+        if (typeof AST.Sql[method] !== 'function') {
+          throw new Error(`AST.Sql.${method} is not available`);
+        }
+      });
+    }
   }
 ];
