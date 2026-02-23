@@ -530,6 +530,48 @@ function astS3MultipartWrite({ request, config }) {
     }
   }
 
+  const bytes = astStorageBase64ToBytes(request.payload.base64);
+  const partSizeBytes = request.options.partSizeBytes;
+
+  // S3 multipart completion requires at least one uploaded part.
+  // For zero-byte payloads, create an empty object with a single PUT instead.
+  if (bytes.length === 0) {
+    const wroteEmpty = astS3Request({
+      request,
+      config,
+      method: 'put',
+      operation: 'multipart_write',
+      payload: [],
+      headers: {
+        'content-type': request.payload.mimeType || 'application/octet-stream'
+      }
+    });
+
+    const etag = astStorageNormalizeString(astS3GetHeaderValue(wroteEmpty.headers, 'etag', ''), null);
+
+    return {
+      id: etag,
+      output: {
+        multipartWritten: {
+          uri: request.uri,
+          bucket: request.location.bucket,
+          key: request.location.key,
+          uploadId: null,
+          partCount: 0,
+          size: 0,
+          etag,
+          mimeType: request.payload.mimeType || null
+        }
+      },
+      usage: {
+        requestCount: 1,
+        bytesIn: 0,
+        bytesOut: typeof wroteEmpty.body === 'string' ? wroteEmpty.body.length : 0
+      },
+      raw: wroteEmpty.headers
+    };
+  }
+
   const initiated = astS3Request({
     request,
     config,
@@ -549,8 +591,6 @@ function astS3MultipartWrite({ request, config }) {
     });
   }
 
-  const bytes = astStorageBase64ToBytes(request.payload.base64);
-  const partSizeBytes = request.options.partSizeBytes;
   const parts = [];
   let requestCount = 1;
 

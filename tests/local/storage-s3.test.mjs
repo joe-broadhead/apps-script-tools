@@ -389,3 +389,55 @@ test('S3 copy/move/signed_url/multipart_write operations return normalized outpu
   assert.equal(calls.some(call => call.url.includes('uploads=')), true);
   assert.equal(calls.some(call => call.url.includes('partNumber=')), true);
 });
+
+test('S3 multipart_write handles zero-byte payloads without multipart completion', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (options.method === 'put') {
+          return createResponse({
+            status: 200,
+            headers: {
+              etag: '"etag-empty"'
+            }
+          });
+        }
+
+        return createResponse({ status: 500, body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          S3_ACCESS_KEY_ID: 'AKIA_TEST',
+          S3_SECRET_ACCESS_KEY: 'SECRET_TEST',
+          S3_REGION: 'us-east-1'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    operation: 'multipart_write',
+    uri: 's3://bucket-a/path/empty.txt',
+    payload: {
+      text: ''
+    },
+    options: {
+      partSizeBytes: 5
+    }
+  });
+
+  assert.equal(out.output.multipartWritten.uploadId, null);
+  assert.equal(out.output.multipartWritten.partCount, 0);
+  assert.equal(out.output.multipartWritten.size, 0);
+  assert.equal(out.output.multipartWritten.etag, '"etag-empty"');
+
+  assert.equal(calls.some(call => call.url.includes('uploads=')), false);
+  assert.equal(calls.some(call => call.url.includes('partNumber=')), false);
+});
