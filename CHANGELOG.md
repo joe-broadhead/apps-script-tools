@@ -61,6 +61,9 @@
 - Optional RAG reranking (`retrieval.rerank`) for top-N post-rank refinement.
 - RAG access-control contract for retrieval and answer flows (`retrieval.access`) with enforceable source/citation boundaries.
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
+- DataFrame schema contract APIs:
+  - `DataFrame.validateSchema(...)` / `df.validateSchema(...)` for deterministic validation reports.
+  - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.
 - New `AST.Storage` namespace with:
   - `run`, `list`, `head`, `read`, `write`, `delete`
   - `providers`, `capabilities`

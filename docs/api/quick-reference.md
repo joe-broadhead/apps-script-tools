@@ -34,6 +34,8 @@ ASTX.DataFrame.fromColumns(columns, options)
 ASTX.DataFrame.fromArrays(arrays, options)
 ASTX.DataFrame.fromSheet(sheet, headerRow)
 ASTX.DataFrame.fromQuery(request)
+ASTX.DataFrame.validateSchema(dataFrame, schema, options)
+ASTX.DataFrame.enforceSchema(dataFrame, schema, options)
 ```
 
 ```javascript
@@ -51,6 +53,8 @@ df.toArrays(headerOrder)
 df.toJson(options)
 df.toMarkdown()
 df.toTable(request)
+df.validateSchema(schema, options)
+df.enforceSchema(schema, options)
 ```
 
 ## `Series` essentials
@@ -177,6 +181,8 @@ ASTX.Telemetry.getTrace(traceId)
 - `dropDuplicates()` uses all columns by default.
 - `dropDuplicates(['a', 'b'])` uses only the provided subset.
 - key-based comparisons canonicalize object/date values and normalize null/undefined/missing.
+- `validateSchema` reports missing/extra/type/nullability violations; set `strict: true` to throw.
+- `enforceSchema` can coerce schema columns and optionally drop non-schema columns.
 - `Sql.run` validates provider/request shape before execution.
 - placeholder interpolation is blocked unless explicitly enabled.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).

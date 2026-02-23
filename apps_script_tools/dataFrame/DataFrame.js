@@ -938,6 +938,14 @@ var DataFrame = class DataFrame {
     }, dataframe[firstCol]).str.sha256();
   }
 
+  static validateSchema(dataframe, schema, options = {}) {
+    return astDataFrameValidateSchema(dataframe, schema, options);
+  }
+
+  static enforceSchema(dataframe, schema, options = {}) {
+    return astDataFrameEnforceSchema(dataframe, schema, options);
+  }
+
   getColumns() {
     return Object.keys(this.data);
   }
@@ -1121,6 +1129,14 @@ var DataFrame = class DataFrame {
       acc[series.name] = series.type;
       return acc;
     }, {});
+  }
+
+  validateSchema(schema, options = {}) {
+    return DataFrame.validateSchema(this, schema, options);
+  }
+
+  enforceSchema(schema, options = {}) {
+    return DataFrame.enforceSchema(this, schema, options);
   }
 
   union(other, distinct = false) {

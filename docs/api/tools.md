@@ -55,6 +55,9 @@ Output:
 
 - `toColumns(options)`
 - `toRecords`, `toArrays`, `toJson`, `toMarkdown`, `toSheet`, `toTable`.
+- schema contracts:
+  - `DataFrame.validateSchema(dataFrame, schema, options)` / `df.validateSchema(schema, options)`
+  - `DataFrame.enforceSchema(dataFrame, schema, options)` / `df.enforceSchema(schema, options)`
 
 ```javascript
 const df = ASTX.DataFrame.fromColumns({
@@ -95,6 +98,26 @@ Complexity guidance:
 - `sort`: `O(n log n)`
 - `dropDuplicates`: `O(n * k)` where `k` is subset key count
 - hash-join style `merge` is approximately `O(n + m + matches)`
+
+Schema contract example:
+
+```javascript
+const schema = {
+  id: { type: 'integer', nullable: false },
+  amount: { type: 'float', nullable: true }
+};
+
+const report = df.validateSchema(schema, { allowExtraColumns: false });
+if (!report.valid) {
+  Logger.log(report.violations);
+}
+
+const enforced = df.enforceSchema(schema, {
+  coerce: true,
+  dropExtraColumns: false,
+  strict: true
+});
+```
 
 ## `ASTX.GroupBy`
 
