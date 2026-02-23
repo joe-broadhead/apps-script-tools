@@ -233,6 +233,7 @@ ASTX.Jobs.clearConfig()
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
 - RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
+- `RAG.search(...)` / `RAG.answer(...)` can cache embeddings/results with `cache.enabled` and backend overrides.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Cache bulk helpers are available through `getMany`, `setMany`, and `deleteMany`.

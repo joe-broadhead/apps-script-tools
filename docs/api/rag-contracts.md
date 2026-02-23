@@ -92,6 +92,17 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   options: {
     enforceAccessControl: true
   },
+  cache: {
+    enabled: false,
+    backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json',
+    namespace: 'ast_rag',
+    ttlSec: 300,
+    searchTtlSec: 300,
+    embeddingTtlSec: 900,
+    storageUri: 's3://bucket/cache',
+    lockTimeoutMs: 5000,
+    updateStatsOnGet: false
+  },
   // Back-compat aliases are still accepted:
   // topK, minScore, filters, mode, vectorWeight, lexicalWeight, rerank
   auth: {},
@@ -140,6 +151,15 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     requireCitations: true,
     enforceAccessControl: true,
     insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
+  },
+  cache: {
+    enabled: false,
+    backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json',
+    namespace: 'ast_rag',
+    ttlSec: 300,
+    answerTtlSec: 180,
+    embeddingTtlSec: 900,
+    storageUri: 's3://bucket/cache'
   },
   auth: {}
 }
@@ -210,6 +230,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 - Hybrid retrieval combines vector + lexical evidence and can optionally rerank top-N hits.
 - Access control can be enforced with `retrieval.access` + `options.enforceAccessControl=true`.
 - When access policy excludes all relevant chunks or cited chunks are inaccessible, `answer` deterministically returns `status=insufficient_context`.
+- Optional cache controls can reduce repeated embedding/generation cost on hot queries.
 
 ## Typed errors
 

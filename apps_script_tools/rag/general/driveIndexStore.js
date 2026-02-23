@@ -4,6 +4,21 @@ function astRagEnsureDriveAvailable() {
   }
 }
 
+function astRagGetFileUpdatedAtToken(file) {
+  try {
+    if (file && typeof file.getLastUpdated === 'function') {
+      const updatedAt = file.getLastUpdated();
+      if (updatedAt && typeof updatedAt.toISOString === 'function') {
+        return updatedAt.toISOString();
+      }
+    }
+  } catch (_error) {
+    // Ignore and fallback to null.
+  }
+
+  return null;
+}
+
 function astRagHydrateLoadedChunk(chunk = {}) {
   const hydrated = astRagCloneObject(chunk);
   hydrated.chunkHash = astRagNormalizeString(hydrated.chunkHash, null) || astRagBuildChunkFingerprint(hydrated);
@@ -55,10 +70,29 @@ function astRagUpdateIndexFile(indexFileId, payload) {
   return file;
 }
 
-function astRagLoadIndexDocument(indexFileId) {
+function astRagLoadIndexDocument(indexFileId, options = {}) {
   astRagEnsureDriveAvailable();
 
   const file = DriveApp.getFileById(indexFileId);
+  const fileName = file.getName();
+  const versionToken = astRagGetFileUpdatedAtToken(file) || 'unknown';
+  const cacheConfig = astRagResolveCacheConfig(
+    astRagIsPlainObject(options) && astRagIsPlainObject(options.cache) ? options.cache : {}
+  );
+  const cacheKey = astRagBuildIndexDocumentCacheKey(indexFileId, versionToken);
+  const cached = astRagCacheGet(cacheConfig, cacheKey);
+
+  if (cached && astRagIsPlainObject(cached.document) && Array.isArray(cached.document.chunks)) {
+    cached.document.sources = (cached.document.sources || []).map(astRagHydrateLoadedSource);
+    cached.document.chunks = (cached.document.chunks || []).map(astRagHydrateLoadedChunk);
+    return {
+      indexFileId,
+      fileName,
+      versionToken,
+      document: cached.document
+    };
+  }
+
   const text = file.getBlob().getDataAsString();
   const json = astRagSafeJsonParse(text, null);
 
@@ -83,9 +117,14 @@ function astRagLoadIndexDocument(indexFileId) {
   json.sources = json.sources.map(astRagHydrateLoadedSource);
   json.chunks = json.chunks.map(astRagHydrateLoadedChunk);
 
+  astRagCacheSet(cacheConfig, cacheKey, {
+    document: json
+  }, cacheConfig.searchTtlSec);
+
   return {
     indexFileId,
-    fileName: file.getName(),
+    fileName,
+    versionToken,
     document: json
   };
 }

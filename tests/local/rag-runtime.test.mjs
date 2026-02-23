@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createGasContext } from './helpers.mjs';
+import { createGasContext, listScriptFiles, loadScripts } from './helpers.mjs';
 import { loadRagScripts } from './rag-helpers.mjs';
 
 const MIME_TEXT = 'text/plain';
@@ -134,6 +134,15 @@ function createEmbeddingFetchMock(tracker = null) {
   };
 }
 
+function loadRagWithCacheScripts(context, options = {}) {
+  const cachePaths = [];
+  cachePaths.push(...listScriptFiles('apps_script_tools/cache/backends'));
+  cachePaths.push(...listScriptFiles('apps_script_tools/cache/general'));
+  cachePaths.push('apps_script_tools/cache/Cache.js');
+  loadScripts(context, cachePaths);
+  return loadRagScripts(context, options);
+}
+
 test('Slides extraction includes slide body and speaker notes metadata', () => {
   const context = createGasContext({
     SlidesApp: {
@@ -232,8 +241,6 @@ test('buildIndex skips PDF parse failures as warnings when skipParseFailures=tru
   const inspected = context.AST.RAG.inspectIndex({ indexFileId: output.indexFileId });
   assert.equal(inspected.chunkCount > 0, true);
   assert.equal(inspected.sourceCount, 1);
-  assert.equal(typeof inspected.indexVersion, 'string');
-  assert.equal(inspected.indexVersion.length > 0, true);
 });
 
 test('PDF extraction throws typed auth error when Vertex config is missing', () => {
@@ -674,8 +681,6 @@ test('syncIndex re-embeds only changed chunks for edited source', () => {
   assert.equal(after.sync.lastSyncSummary.reembeddedChunks, 1);
   const inspected = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
   assert.equal(typeof inspected.lastSyncAt, 'string');
-  assert.equal(typeof inspected.indexVersion, 'string');
-  assert.equal(inspected.indexVersion.length > 0, true);
 });
 
 test('syncIndex dryRun reports delta without persisting index', () => {
@@ -928,6 +933,74 @@ test('search ranks and filters index chunks by cosine score', () => {
   assert.equal(output.results[0].chunkId, 'c1');
   assert.equal(output.results[0].score > 0.99, true);
   assert.equal(output.mode, 'vector');
+});
+
+test('search cache reuses query embedding and ranked results when enabled', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_cache',
+    indexName: 'cache-index',
+    updatedAt: '2026-02-01T00:00:00.000Z',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'c1',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'one.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'cache me once',
+        embedding: [1, 0, 0]
+      }
+    ]
+  };
+
+  let embedCalls = 0;
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_cache',
+    fileName: 'cache-index.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 2, totalTokens: 2 }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_cache',
+    query: 'cache me',
+    retrieval: {
+      topK: 2,
+      minScore: 0
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_test_cache'
+    }
+  };
+
+  const first = context.AST.RAG.search(request);
+  const second = context.AST.RAG.search(request);
+
+  assert.equal(first.results.length, 1);
+  assert.equal(second.results.length, 1);
+  assert.equal(embedCalls, 1, 'second search should reuse cached embedding/ranking');
 });
 
 test('search supports hybrid retrieval with lexical+vector score fusion', () => {
@@ -1257,7 +1330,6 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
     },
     options: {
       requireCitations: true,
-      answerCache: false,
       insufficientEvidenceMessage: 'Insufficient context.'
     }
   });
@@ -1266,32 +1338,25 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
   assert.equal(abstain.answer, 'Insufficient context.');
 });
 
-test('answer reuses cached response for identical request and indexVersion', () => {
-  const cacheStore = {};
-  const context = createGasContext({
-    CacheService: {
-      getScriptCache: () => ({
-        get: key => (Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null),
-        put: (key, value) => {
-          cacheStore[key] = String(value);
-        }
-      })
-    }
-  });
-  loadRagScripts(context, { includeAst: true });
+test('answer cache reuses grounded response when history is empty', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
 
+  let embedCalls = 0;
+  let generationCalls = 0;
   context.astRagLoadIndexDocument = () => ({
-    indexFileId: 'index_cached_answer',
-    fileName: 'index-cached-answer.json',
+    indexFileId: 'index_answer_cache',
+    fileName: 'answer-cache.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
     document: {
-      indexVersion: 'idxv_test_1',
+      updatedAt: '2026-02-01T00:00:00.000Z',
       embedding: {
         provider: 'openai',
         model: 'text-embedding-3-small'
       },
       chunks: [
         {
-          chunkId: 'chunk_1',
+          chunkId: 'chunk_cache_1',
           sourceId: 'src_1',
           fileId: 'f_1',
           fileName: 'doc.txt',
@@ -1299,46 +1364,47 @@ test('answer reuses cached response for identical request and indexVersion', () 
           page: null,
           slide: null,
           section: 'body',
-          text: 'Cached response test context',
+          text: 'Cached answer grounding text.',
           embedding: [1, 0, 0]
         }
       ]
     }
   });
-  context.astRagEmbedTexts = () => ({
-    vectors: [[1, 0, 0]],
-    usage: { inputTokens: 1, totalTokens: 1 }
-  });
-
-  let aiCallCount = 0;
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 1, totalTokens: 1 }
+    };
+  };
   context.runAiRequest = () => {
-    aiCallCount += 1;
+    generationCalls += 1;
     return {
       output: {
         json: {
-          answer: 'Cached response test context [S1]',
+          answer: 'Cached answer [S1]',
           citations: ['S1']
         }
       },
       usage: {
-        inputTokens: 2,
-        outputTokens: 3,
-        totalTokens: 5
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
       }
     };
   };
 
   const request = {
-    indexFileId: 'index_cached_answer',
-    question: 'What is the cached context?',
+    indexFileId: 'index_answer_cache',
+    question: 'What is cached?',
     generation: {
       provider: 'openai',
       auth: { apiKey: 'test-key' }
     },
-    options: {
-      answerCache: true,
-      answerCacheTtlSec: 300,
-      requireCitations: true
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_answer_cache_test'
     }
   };
 
@@ -1347,115 +1413,8 @@ test('answer reuses cached response for identical request and indexVersion', () 
 
   assert.equal(first.status, 'ok');
   assert.equal(second.status, 'ok');
-  assert.equal(second.cached, true);
-  assert.equal(aiCallCount, 1);
-});
-
-test('answer cache key differentiates generation options and providerOptions', () => {
-  const cacheStore = {};
-  const context = createGasContext({
-    CacheService: {
-      getScriptCache: () => ({
-        get: key => (Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null),
-        put: (key, value) => {
-          cacheStore[key] = String(value);
-        }
-      })
-    }
-  });
-  loadRagScripts(context, { includeAst: true });
-
-  context.astRagLoadIndexDocument = () => ({
-    indexFileId: 'index_cached_answer_options',
-    fileName: 'index-cached-answer-options.json',
-    document: {
-      indexVersion: 'idxv_test_2',
-      embedding: {
-        provider: 'openai',
-        model: 'text-embedding-3-small'
-      },
-      chunks: [
-        {
-          chunkId: 'chunk_1',
-          sourceId: 'src_1',
-          fileId: 'f_1',
-          fileName: 'doc.txt',
-          mimeType: MIME_TEXT,
-          page: null,
-          slide: null,
-          section: 'body',
-          text: 'Cache identity context',
-          embedding: [1, 0, 0]
-        }
-      ]
-    }
-  });
-  context.astRagEmbedTexts = () => ({
-    vectors: [[1, 0, 0]],
-    usage: { inputTokens: 1, totalTokens: 1 }
-  });
-
-  let aiCallCount = 0;
-  context.runAiRequest = () => {
-    aiCallCount += 1;
-    return {
-      output: {
-        json: {
-          answer: `answer-${aiCallCount} [S1]`,
-          citations: ['S1']
-        }
-      },
-      usage: {
-        inputTokens: 2,
-        outputTokens: 3,
-        totalTokens: 5
-      }
-    };
-  };
-
-  const baseRequest = {
-    indexFileId: 'index_cached_answer_options',
-    question: 'What is the cache identity context?',
-    generation: {
-      provider: 'openai',
-      auth: { apiKey: 'test-key' }
-    },
-    options: {
-      answerCache: true,
-      answerCacheTtlSec: 300,
-      requireCitations: true
-    }
-  };
-
-  const requestA = JSON.parse(JSON.stringify(baseRequest));
-  requestA.generation.options = { temperature: 0.1 };
-  const requestA2 = JSON.parse(JSON.stringify(requestA));
-
-  const first = context.AST.RAG.answer(requestA);
-  const second = context.AST.RAG.answer(requestA2);
-
-  const requestB = JSON.parse(JSON.stringify(baseRequest));
-  requestB.generation.options = { temperature: 0.9 };
-  const third = context.AST.RAG.answer(requestB);
-
-  const requestC = JSON.parse(JSON.stringify(baseRequest));
-  requestC.generation.options = { temperature: 0.9 };
-  requestC.generation.providerOptions = {
-    responseFormat: 'json'
-  };
-  const fourth = context.AST.RAG.answer(requestC);
-
-  assert.equal(first.answer, 'answer-1 [S1]');
-  assert.equal(second.answer, 'answer-1 [S1]');
-  assert.equal(second.cached, true);
-
-  assert.equal(third.answer, 'answer-2 [S1]');
-  assert.equal(third.cached, undefined);
-
-  assert.equal(fourth.answer, 'answer-3 [S1]');
-  assert.equal(fourth.cached, undefined);
-
-  assert.equal(aiCallCount, 3);
+  assert.equal(embedCalls, 1);
+  assert.equal(generationCalls, 1, 'second answer should reuse cached grounded output');
 });
 
 test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {

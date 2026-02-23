@@ -19,7 +19,17 @@ const AST_RAG_CONFIG_KEYS = Object.freeze([
   'VERTEX_EMBED_MODEL',
   'RAG_DEFAULT_INDEX_FOLDER_ID',
   'RAG_DEFAULT_TOP_K',
-  'RAG_DEFAULT_MIN_SCORE'
+  'RAG_DEFAULT_MIN_SCORE',
+  'RAG_CACHE_ENABLED',
+  'RAG_CACHE_BACKEND',
+  'RAG_CACHE_NAMESPACE',
+  'RAG_CACHE_TTL_SEC',
+  'RAG_CACHE_SEARCH_TTL_SEC',
+  'RAG_CACHE_ANSWER_TTL_SEC',
+  'RAG_CACHE_EMBEDDING_TTL_SEC',
+  'RAG_CACHE_STORAGE_URI',
+  'RAG_CACHE_LOCK_TIMEOUT_MS',
+  'RAG_CACHE_UPDATE_STATS_ON_GET'
 ]);
 
 let AST_RAG_RUNTIME_CONFIG = {};
@@ -335,5 +345,98 @@ function astRagResolveRetrievalDefaults() {
       topN: AST_RAG_DEFAULT_RETRIEVAL.rerank.topN
     },
     defaultFolderId
+  };
+}
+
+function astRagResolveCacheConfig(overrides = {}) {
+  const snapshot = astRagResolveConfigSnapshot();
+  const input = astRagIsPlainObject(overrides) ? overrides : {};
+
+  const normalizeBoolean = (value, fallback) => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const token = value.trim().toLowerCase();
+      if (token === 'true') {
+        return true;
+      }
+      if (token === 'false') {
+        return false;
+      }
+    }
+    return fallback;
+  };
+
+  const normalizeInt = (value, fallback, min) => {
+    return astRagNormalizePositiveInt(value, fallback, min);
+  };
+
+  const enabled = normalizeBoolean(
+    input.enabled,
+    normalizeBoolean(snapshot.RAG_CACHE_ENABLED, AST_RAG_CACHE_DEFAULTS.enabled)
+  );
+
+  const backend = astRagNormalizeCacheBackend(
+    astRagNormalizeString(input.backend, astRagNormalizeString(snapshot.RAG_CACHE_BACKEND, AST_RAG_CACHE_DEFAULTS.backend)),
+    AST_RAG_CACHE_DEFAULTS.backend
+  );
+
+  const namespace = astRagNormalizeString(
+    input.namespace,
+    astRagNormalizeString(snapshot.RAG_CACHE_NAMESPACE, AST_RAG_CACHE_DEFAULTS.namespace)
+  );
+
+  const ttlSec = normalizeInt(
+    input.ttlSec,
+    normalizeInt(snapshot.RAG_CACHE_TTL_SEC, AST_RAG_CACHE_DEFAULTS.ttlSec, 1),
+    1
+  );
+
+  const searchTtlSec = normalizeInt(
+    input.searchTtlSec,
+    normalizeInt(snapshot.RAG_CACHE_SEARCH_TTL_SEC, AST_RAG_CACHE_DEFAULTS.searchTtlSec, 1),
+    1
+  );
+
+  const answerTtlSec = normalizeInt(
+    input.answerTtlSec,
+    normalizeInt(snapshot.RAG_CACHE_ANSWER_TTL_SEC, AST_RAG_CACHE_DEFAULTS.answerTtlSec, 1),
+    1
+  );
+
+  const embeddingTtlSec = normalizeInt(
+    input.embeddingTtlSec,
+    normalizeInt(snapshot.RAG_CACHE_EMBEDDING_TTL_SEC, AST_RAG_CACHE_DEFAULTS.embeddingTtlSec, 1),
+    1
+  );
+
+  const storageUri = astRagNormalizeString(
+    input.storageUri,
+    astRagNormalizeString(snapshot.RAG_CACHE_STORAGE_URI, AST_RAG_CACHE_DEFAULTS.storageUri)
+  );
+
+  const lockTimeoutMs = normalizeInt(
+    input.lockTimeoutMs,
+    normalizeInt(snapshot.RAG_CACHE_LOCK_TIMEOUT_MS, AST_RAG_CACHE_DEFAULTS.lockTimeoutMs, 1),
+    1
+  );
+
+  const updateStatsOnGet = normalizeBoolean(
+    input.updateStatsOnGet,
+    normalizeBoolean(snapshot.RAG_CACHE_UPDATE_STATS_ON_GET, AST_RAG_CACHE_DEFAULTS.updateStatsOnGet)
+  );
+
+  return {
+    enabled,
+    backend,
+    namespace,
+    ttlSec,
+    searchTtlSec,
+    answerTtlSec,
+    embeddingTtlSec,
+    storageUri,
+    lockTimeoutMs,
+    updateStatsOnGet
   };
 }

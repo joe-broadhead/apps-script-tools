@@ -230,6 +230,7 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
 - `retrieval.rerank` for optional top-N reranking
 - `retrieval.access` for source-level allow/deny constraints
+- optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)
 
 ```javascript
 const answer = ASTX.RAG.answer({
@@ -248,7 +249,15 @@ const answer = ASTX.RAG.answer({
     }
   },
   generation: { provider: 'vertex_gemini' },
-  options: { enforceAccessControl: true }
+  options: { enforceAccessControl: true },
+  cache: {
+    enabled: true,
+    backend: 'storage_json',
+    namespace: 'rag_prod',
+    storageUri: 's3://my-bucket/ast-cache',
+    embeddingTtlSec: 900,
+    answerTtlSec: 180
+  }
 });
 ```
 
@@ -501,6 +510,7 @@ High-signal behavior:
 - embedding provider/model is bound at index build time and enforced for retrieval.
 - `answer(...)` returns `status='insufficient_context'` when citation grounding fails.
 - source parse failures can be downgraded to warnings with `options.skipParseFailures=true`.
+- repeated hot queries can be accelerated by enabling cache controls on `search(...)`/`answer(...)`.
 
 See:
 

@@ -5,27 +5,15 @@ function astRagAnswerCore(request = {}) {
 
   try {
     const normalizedRequest = astRagValidateAnswerRequest(request);
-    const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId);
+    const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
+    const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId, {
+      cache: cacheConfig
+    });
     const indexDocument = loaded.document;
-    const useAnswerCache = normalizedRequest.options.answerCache !== false;
-    const answerCacheIdentity = astRagBuildAnswerCacheIdentity(normalizedRequest, indexDocument);
-
-    if (useAnswerCache) {
-      const cachedResult = astRagGetAnswerCache(answerCacheIdentity);
-      if (cachedResult && typeof cachedResult === 'object') {
-        const clonedCached = astRagSafeJsonParse(JSON.stringify(cachedResult), cachedResult);
-        clonedCached.cached = true;
-        astRagTelemetryEndSpan(spanId, {
-          indexFileId: normalizedRequest.indexFileId,
-          status: clonedCached.status || 'ok',
-          returnedChunks: clonedCached.retrieval && clonedCached.retrieval.returned
-            ? clonedCached.retrieval.returned
-            : 0,
-          cache: 'hit'
-        });
-        return clonedCached;
-      }
-    }
+    const versionToken = astRagNormalizeString(
+      loaded.versionToken,
+      astRagNormalizeString(indexDocument.updatedAt, 'unknown')
+    );
 
     const indexEmbedding = indexDocument.embedding || {};
     const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
@@ -37,18 +25,71 @@ function astRagAnswerCore(request = {}) {
       });
     }
 
-    const queryEmbedding = astRagEmbedTexts({
-      provider: embeddingProvider,
-      model: embeddingModel,
-      texts: [normalizedRequest.question],
-      auth: normalizedRequest.auth,
-      options: { retries: 2 }
-    });
+    const answerCacheKey = astRagBuildAnswerCacheKey(
+      normalizedRequest.indexFileId,
+      versionToken,
+      normalizedRequest.question,
+      normalizedRequest.history,
+      normalizedRequest.retrieval,
+      {
+        provider: normalizedRequest.generation.provider,
+        model: normalizedRequest.generation.model,
+        options: normalizedRequest.generation.options,
+        providerOptions: normalizedRequest.generation.providerOptions
+      },
+      normalizedRequest.options
+    );
+    const useAnswerCache = Array.isArray(normalizedRequest.history) && normalizedRequest.history.length === 0;
+    if (useAnswerCache) {
+      const cachedAnswer = astRagCacheGet(cacheConfig, answerCacheKey);
+      if (cachedAnswer && astRagIsPlainObject(cachedAnswer) && typeof cachedAnswer.answer === 'string') {
+        astRagTelemetryEndSpan(spanId, {
+          indexFileId: normalizedRequest.indexFileId,
+          status: cachedAnswer.status || 'ok',
+          cached: true,
+          citationCount: Array.isArray(cachedAnswer.citations) ? cachedAnswer.citations.length : 0
+        });
+        return cachedAnswer;
+      }
+    }
+
+    const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+      normalizedRequest.indexFileId,
+      versionToken,
+      embeddingProvider,
+      embeddingModel,
+      normalizedRequest.question
+    );
+
+    const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
+    let queryVector = null;
+    let queryUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0
+    };
+
+    if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+      queryVector = cachedEmbedding.vector.slice();
+    } else {
+      const queryEmbedding = astRagEmbedTexts({
+        provider: embeddingProvider,
+        model: embeddingModel,
+        texts: [normalizedRequest.question],
+        auth: normalizedRequest.auth,
+        options: { retries: 2 }
+      });
+      queryVector = queryEmbedding.vectors[0];
+      queryUsage = queryEmbedding.usage || queryUsage;
+      astRagCacheSet(cacheConfig, embeddingCacheKey, {
+        vector: queryVector
+      }, cacheConfig.embeddingTtlSec);
+    }
 
     const rankedResults = astRagRetrieveRankedChunks(
       indexDocument,
       normalizedRequest.question,
-      queryEmbedding.vectors[0],
+      queryVector,
       normalizedRequest.retrieval
     );
 
@@ -63,22 +104,17 @@ function astRagAnswerCore(request = {}) {
           mode: normalizedRequest.retrieval.mode,
           returned: 0
         },
-        usage: queryEmbedding.usage
+        usage: queryUsage
       };
 
       if (useAnswerCache) {
-        astRagSetAnswerCache(
-          answerCacheIdentity,
-          insufficient,
-          astRagResolveAnswerCacheTtlSec(normalizedRequest)
-        );
+        astRagCacheSet(cacheConfig, answerCacheKey, insufficient, cacheConfig.answerTtlSec);
       }
 
       astRagTelemetryEndSpan(spanId, {
         indexFileId: normalizedRequest.indexFileId,
         status: insufficient.status,
-        returnedChunks: 0,
-        cache: useAnswerCache ? 'miss' : 'disabled'
+        returnedChunks: 0
       });
       return insufficient;
     }
@@ -138,25 +174,20 @@ function astRagAnswerCore(request = {}) {
         returned: rankedResults.length
       },
       usage: {
-        retrieval: queryEmbedding.usage,
+        retrieval: queryUsage,
         generation: aiResponse.usage || {}
       }
     };
 
     if (useAnswerCache) {
-      astRagSetAnswerCache(
-        answerCacheIdentity,
-        result,
-        astRagResolveAnswerCacheTtlSec(normalizedRequest)
-      );
+      astRagCacheSet(cacheConfig, answerCacheKey, result, cacheConfig.answerTtlSec);
     }
 
     astRagTelemetryEndSpan(spanId, {
       indexFileId: normalizedRequest.indexFileId,
       status: result.status,
       citationCount: Array.isArray(result.citations) ? result.citations.length : 0,
-      returnedChunks: rankedResults.length,
-      cache: useAnswerCache ? 'miss' : 'disabled'
+      returnedChunks: rankedResults.length
     });
     return result;
   } catch (error) {
