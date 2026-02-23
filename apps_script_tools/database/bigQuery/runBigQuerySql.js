@@ -1,35 +1,6 @@
 /**
  * @function runBigQuerySql
- * @description Executes a SQL query in BigQuery and returns the results as a DataFrame. Handles pagination 
- *              for large result sets and supports query parameter placeholders.
- * @param {String} query - The SQL query to execute.
- * @param {Object} parameters - BigQuery connection parameters.
- * @param {String} parameters.projectId - The GCP project ID where the query will be executed.
- * @param {Object} [placeholders={}] - Optional placeholders to replace in the query before execution.
- * @param {Object} [options={}] - Optional polling controls.
- * @param {Number} [options.maxWaitMs=120000] - Maximum wait time while polling for query completion.
- * @param {Number} [options.pollIntervalMs=500] - Poll interval while waiting for query completion.
- * @returns {DataFrame} A DataFrame containing the query results. If no rows are returned, a DataFrame 
- *                      with only column headers is returned.
- * 
- * @example
- * const parameters = {
- *   projectId: 'my-gcp-project'
- * };
- * 
- * const query = "SELECT id, name FROM dataset.users WHERE region = @region";
- * const placeholders = { region: 'North' };
- * 
- * const dataFrame = runBigQuerySql(query, parameters, placeholders);
- * console.log(dataFrame);
- * 
- * @note
- * - Behavior:
- *   - Replaces placeholders in the query before execution.
- *   - Handles pagination for large result sets using the `pageToken`.
- *   - Waits for the query job to complete with bounded polling.
- * - Time Complexity: O(n), where `n` is the number of rows in the result set.
- * - Space Complexity: O(n), as all rows are stored in memory as records before being converted to a DataFrame.
+ * @description Executes SQL against BigQuery and returns a DataFrame.
  */
 function buildBigQuerySqlError(message, details = {}, cause = null) {
   const error = new Error(message);
@@ -65,20 +36,51 @@ function normalizeBigQueryQueryOptions(options = {}) {
   };
 }
 
-function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
-  if (typeof query !== 'string' || query.trim().length === 0) {
-    throw buildBigQuerySqlError('BigQuery SQL query must be a non-empty string');
-  }
-
+function astAssertBigQueryProjectId(parameters) {
   if (parameters == null || typeof parameters !== 'object' || Array.isArray(parameters)) {
     throw buildBigQuerySqlError('BigQuery parameters must be an object');
   }
 
-  const { projectId } = parameters;
-  if (typeof projectId !== 'string' || projectId.trim().length === 0) {
+  const projectId = typeof parameters.projectId === 'string'
+    ? parameters.projectId.trim()
+    : '';
+
+  if (!projectId) {
     throw buildBigQuerySqlError('BigQuery parameters.projectId must be a non-empty string');
   }
 
+  return projectId;
+}
+
+function astBigQueryRowsToDataFrame(schemaFields, rows) {
+  const headers = schemaFields.map(field => field.name);
+  const dataRows = Array.isArray(rows) ? rows : [];
+
+  if (dataRows.length === 0) {
+    const emptyFrame = headers.reduce((acc, header) => {
+      acc[header] = new Series([], header);
+      return acc;
+    }, {});
+    return new DataFrame(emptyFrame);
+  }
+
+  const records = dataRows.map(row => {
+    const fields = Array.isArray(row && row.f) ? row.f : [];
+    return fields.reduce((record, col, index) => {
+      record[headers[index]] = col && Object.prototype.hasOwnProperty.call(col, 'v') ? col.v : null;
+      return record;
+    }, {});
+  });
+
+  return DataFrame.fromRecords(records);
+}
+
+function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, options = {}) {
+  if (typeof query !== 'string' || query.trim().length === 0) {
+    throw buildBigQuerySqlError('BigQuery SQL query must be a non-empty string');
+  }
+
+  const projectId = astAssertBigQueryProjectId(parameters);
   const normalizedOptions = normalizeBigQueryQueryOptions(options);
 
   const request = {
@@ -89,9 +91,9 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
   try {
     let queryResults = BigQuery.Jobs.query(request, projectId);
     const jobReference = queryResults && queryResults.jobReference ? queryResults.jobReference : {};
-    const { jobId } = jobReference;
+    const jobId = typeof jobReference.jobId === 'string' ? jobReference.jobId.trim() : '';
 
-    if (typeof jobId !== 'string' || jobId.trim().length === 0) {
+    if (!jobId) {
       throw buildBigQuerySqlError('BigQuery query response did not include a valid jobId', {
         response: queryResults
       });
@@ -99,6 +101,7 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
 
     const pollStartedAt = Date.now();
     let pollCount = 0;
+
     while (!queryResults.jobComplete) {
       const elapsedMs = Date.now() - pollStartedAt;
       const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
@@ -124,9 +127,7 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
     const schemaFields = queryResults && queryResults.schema && Array.isArray(queryResults.schema.fields)
       ? queryResults.schema.fields
       : [];
-
-    const headers = schemaFields.map(field => field.name);
-    const rows = Array.isArray(queryResults.rows) ? [...queryResults.rows] : [];
+    const rows = Array.isArray(queryResults.rows) ? queryResults.rows.slice() : [];
 
     while (queryResults.pageToken) {
       queryResults = BigQuery.Jobs.getQueryResults(projectId, jobId, {
@@ -138,22 +139,21 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
       }
     }
 
-    if (rows.length === 0) {
-      const emptyFrame = headers.reduce((acc, header) => {
-        acc[header] = new Series([], header);
-        return acc;
-      }, {});
-      return new DataFrame(emptyFrame);
-    }
-
-    const records = rows.map(row => {
-      return row.f.reduce((record, col, index) => {
-        record[headers[index]] = col.v;
-        return record;
-      }, {});
-    });
-
-    return DataFrame.fromRecords(records);
+    const elapsedMs = Date.now() - pollStartedAt;
+    return {
+      dataFrame: astBigQueryRowsToDataFrame(schemaFields, rows),
+      execution: {
+        provider: 'bigquery',
+        executionId: jobId,
+        jobId,
+        state: 'SUCCEEDED',
+        complete: true,
+        pollCount,
+        elapsedMs,
+        maxWaitMs: normalizedOptions.maxWaitMs,
+        pollIntervalMs: normalizedOptions.pollIntervalMs
+      }
+    };
   } catch (error) {
     if (error && error.name === 'BigQuerySqlError') {
       throw error;
@@ -162,6 +162,89 @@ function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
     throw buildBigQuerySqlError(
       'BigQuery SQL execution failed',
       { projectId },
+      error
+    );
+  }
+}
+
+function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
+  return executeBigQuerySqlDetailed(query, parameters, placeholders, options).dataFrame;
+}
+
+function getBigQuerySqlStatus(parameters, jobId) {
+  const projectId = astAssertBigQueryProjectId(parameters);
+  const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
+
+  if (!normalizedJobId) {
+    throw buildBigQuerySqlError('BigQuery status requires a non-empty jobId');
+  }
+
+  try {
+    const response = BigQuery.Jobs.get(projectId, normalizedJobId);
+    const status = response && response.status ? response.status : {};
+    const rawState = typeof status.state === 'string' ? status.state.toUpperCase() : 'UNKNOWN';
+    const isComplete = rawState === 'DONE';
+    const mappedState = isComplete
+      ? (status.errorResult ? 'FAILED' : 'SUCCEEDED')
+      : rawState;
+
+    return {
+      provider: 'bigquery',
+      executionId: normalizedJobId,
+      jobId: normalizedJobId,
+      state: mappedState,
+      complete: isComplete,
+      error: status.errorResult || null,
+      errors: Array.isArray(status.errors) ? status.errors : []
+    };
+  } catch (error) {
+    if (error && error.name === 'BigQuerySqlError') {
+      throw error;
+    }
+
+    throw buildBigQuerySqlError(
+      'BigQuery status lookup failed',
+      { projectId, jobId: normalizedJobId },
+      error
+    );
+  }
+}
+
+function cancelBigQuerySql(parameters, jobId) {
+  const projectId = astAssertBigQueryProjectId(parameters);
+  const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
+
+  if (!normalizedJobId) {
+    throw buildBigQuerySqlError('BigQuery cancel requires a non-empty jobId');
+  }
+
+  try {
+    if (!BigQuery.Jobs || typeof BigQuery.Jobs.cancel !== 'function') {
+      throw buildBigQuerySqlError('BigQuery.Jobs.cancel is not available in this runtime');
+    }
+
+    const response = BigQuery.Jobs.cancel(projectId, normalizedJobId);
+    const job = response && response.job ? response.job : response;
+    const status = job && job.status ? job.status : {};
+    const rawState = typeof status.state === 'string' ? status.state.toUpperCase() : 'UNKNOWN';
+
+    return {
+      provider: 'bigquery',
+      executionId: normalizedJobId,
+      jobId: normalizedJobId,
+      canceled: true,
+      state: rawState === 'DONE' ? 'CANCELED' : (rawState || 'CANCEL_REQUESTED'),
+      complete: rawState === 'DONE',
+      error: status.errorResult || null
+    };
+  } catch (error) {
+    if (error && error.name === 'BigQuerySqlError') {
+      throw error;
+    }
+
+    throw buildBigQuerySqlError(
+      'BigQuery cancel failed',
+      { projectId, jobId: normalizedJobId },
       error
     );
   }

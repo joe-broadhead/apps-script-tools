@@ -62,15 +62,25 @@ function quickstartGroupBy() {
 function quickstartBigQuery() {
   const ASTX = ASTLib.AST || ASTLib;
 
-  const result = ASTX.Sql.run({
+  const prepared = ASTX.Sql.prepare({
     provider: 'bigquery',
-    sql: 'select 1 as ok',
+    sql: 'select {{value}} as ok',
+    paramsSchema: {
+      value: 'integer'
+    },
     parameters: {
       projectId: 'my-gcp-project'
     }
   });
 
-  Logger.log(result.toMarkdown());
+  const result = ASTX.Sql.executePrepared({
+    statementId: prepared.statementId,
+    params: {
+      value: 1
+    }
+  });
+
+  Logger.log(result.dataFrame.toMarkdown());
 }
 ```
 

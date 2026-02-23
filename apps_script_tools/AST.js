@@ -155,7 +155,13 @@ Object.defineProperties(AST, {
   },
   Sql: {
     get: () => ({
-      run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery))
+      run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery)),
+      prepare: resolveAstBinding('astSqlPrepare', () => (typeof astSqlPrepare === 'undefined' ? undefined : astSqlPrepare)),
+      executePrepared: resolveAstBinding('astSqlExecutePrepared', () => (typeof astSqlExecutePrepared === 'undefined' ? undefined : astSqlExecutePrepared)),
+      status: resolveAstBinding('astSqlStatus', () => (typeof astSqlStatus === 'undefined' ? undefined : astSqlStatus)),
+      cancel: resolveAstBinding('astSqlCancel', () => (typeof astSqlCancel === 'undefined' ? undefined : astSqlCancel)),
+      providers: resolveAstBinding('astListSqlProviders', () => (typeof astListSqlProviders === 'undefined' ? undefined : astListSqlProviders)),
+      capabilities: resolveAstBinding('astGetSqlProviderCapabilities', () => (typeof astGetSqlProviderCapabilities === 'undefined' ? undefined : astGetSqlProviderCapabilities))
     }),
     enumerable: true
   },

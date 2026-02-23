@@ -91,6 +91,18 @@ series.dt.*
 }
 ```
 
+## `Sql` essentials
+
+```javascript
+ASTX.Sql.run(request)
+ASTX.Sql.prepare(request)
+ASTX.Sql.executePrepared(request)
+ASTX.Sql.status(request)
+ASTX.Sql.cancel(request)
+ASTX.Sql.providers()
+ASTX.Sql.capabilities(provider)
+```
+
 ## `RAG` essentials
 
 ```javascript
@@ -189,6 +201,9 @@ ASTX.Telemetry.getTrace(traceId)
 - `validateSchema` reports missing/extra/type/nullability violations; set `strict: true` to throw.
 - `enforceSchema` can coerce schema columns and optionally drop non-schema columns.
 - `Sql.run` validates provider/request shape before execution.
+- `Sql.prepare` stores compiled prepared statements in runtime memory and returns `statementId`.
+- `Sql.executePrepared` returns `{ dataFrame, execution }` for provider detailed paths.
+- `Sql.status` and `Sql.cancel` route through provider-specific execution control helpers.
 - placeholder interpolation is blocked unless explicitly enabled.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - AI tools support per-tool guardrails: `timeoutMs`, `maxArgsBytes`, `maxResultBytes`, `retries`, and idempotent replay.

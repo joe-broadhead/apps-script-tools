@@ -69,6 +69,12 @@
   - `exists`, `copy`, `move`, `signedUrl`, `multipartWrite`
   - `providers`, `capabilities`
   - `configure`, `getConfig`, `clearConfig`
+- SQL ergonomics APIs:
+  - `AST.Sql.prepare(...)`
+  - `AST.Sql.executePrepared(...)`
+  - `AST.Sql.status(...)`
+  - `AST.Sql.cancel(...)`
+  - `AST.Sql.providers()` / `AST.Sql.capabilities(provider)`
 - Unified storage URI model:
   - `gcs://bucket/key`
   - `s3://bucket/key`
@@ -110,6 +116,8 @@
 - Storage read paths now emit soft-cap warnings when payload size exceeds the 50 MB stability threshold.
 - GAS functional integration is now reusable from CI (`gas-functional`) instead of manual-dispatch only.
 - Removed unused storage URI parser helpers and removed dead `GCS_DEFAULT_BUCKET` config path.
+- SQL provider adapters now expose execution-control hooks (`executePrepared`, `getStatus`, `cancelExecution`) in addition to `executeQuery`.
+- BigQuery and Databricks SQL modules now expose detailed execution metadata helpers used by prepared execution and status/cancel workflows.
 
 ## v0.0.3
 

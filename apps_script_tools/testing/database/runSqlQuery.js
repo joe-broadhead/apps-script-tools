@@ -207,6 +207,128 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
     },
   },
   {
+    description: 'astSqlPrepare()/astSqlExecutePrepared() should bind params and route to detailed provider execution',
+    test: () => {
+      const originalExecuteBigQuerySqlDetailed = executeBigQuerySqlDetailed;
+      let captured = null;
+
+      executeBigQuerySqlDetailed = (sql, parameters, placeholders, options) => {
+        captured = { sql, parameters, placeholders, options };
+        return {
+          dataFrame: DataFrame.fromRecords([{ ok: true }]),
+          execution: {
+            provider: 'bigquery',
+            executionId: 'job-123',
+            state: 'SUCCEEDED'
+          }
+        };
+      };
+
+      try {
+        const prepared = astSqlPrepare({
+          provider: 'bigquery',
+          sql: 'select * from t where id = {{id}} and region = {{region}}',
+          paramsSchema: {
+            id: 'integer',
+            region: 'string'
+          },
+          parameters: { projectId: 'test' }
+        });
+
+        const out = astSqlExecutePrepared({
+          statementId: prepared.statementId,
+          params: {
+            id: 9,
+            region: 'north'
+          }
+        });
+
+        if (!captured) {
+          throw new Error('Expected executeBigQuerySqlDetailed to be called');
+        }
+        if (!/id = 9/.test(captured.sql) || !/region = 'north'/.test(captured.sql)) {
+          throw new Error(`Unexpected rendered SQL: ${captured.sql}`);
+        }
+        if (!out.execution || out.execution.executionId !== 'job-123') {
+          throw new Error(`Unexpected execution payload: ${JSON.stringify(out.execution)}`);
+        }
+      } finally {
+        executeBigQuerySqlDetailed = originalExecuteBigQuerySqlDetailed;
+      }
+    },
+  },
+  {
+    description: 'astSqlStatus() should route status requests through provider adapter',
+    test: () => {
+      const originalGetBigQuerySqlStatus = getBigQuerySqlStatus;
+      let captured = null;
+
+      getBigQuerySqlStatus = (parameters, jobId) => {
+        captured = { parameters, jobId };
+        return {
+          provider: 'bigquery',
+          executionId: jobId,
+          state: 'RUNNING',
+          complete: false
+        };
+      };
+
+      try {
+        const status = astSqlStatus({
+          provider: 'bigquery',
+          executionId: 'job-77',
+          parameters: { projectId: 'test' }
+        });
+
+        if (!captured || captured.jobId !== 'job-77') {
+          throw new Error(`Unexpected status routing payload: ${JSON.stringify(captured)}`);
+        }
+        if (status.state !== 'RUNNING') {
+          throw new Error(`Expected RUNNING, got ${status.state}`);
+        }
+      } finally {
+        getBigQuerySqlStatus = originalGetBigQuerySqlStatus;
+      }
+    },
+  },
+  {
+    description: 'astSqlCancel() should route cancel requests through provider adapter',
+    test: () => {
+      const originalCancelDatabricksSql = cancelDatabricksSql;
+      let captured = null;
+
+      cancelDatabricksSql = (parameters, statementId) => {
+        captured = { parameters, statementId };
+        return {
+          provider: 'databricks',
+          executionId: statementId,
+          state: 'CANCELED',
+          canceled: true
+        };
+      };
+
+      try {
+        const status = astSqlCancel({
+          provider: 'databricks',
+          statementId: 'stmt-99',
+          parameters: {
+            host: 'dbc.example.com',
+            token: 'token'
+          }
+        });
+
+        if (!captured || captured.statementId !== 'stmt-99') {
+          throw new Error(`Unexpected cancel routing payload: ${JSON.stringify(captured)}`);
+        }
+        if (status.canceled !== true) {
+          throw new Error(`Expected canceled=true, got ${JSON.stringify(status)}`);
+        }
+      } finally {
+        cancelDatabricksSql = originalCancelDatabricksSql;
+      }
+    },
+  },
+  {
     description: 'replacePlaceHoldersInQuery() should escape regex placeholder keys safely',
     test: () => {
       const output = replacePlaceHoldersInQuery(

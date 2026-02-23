@@ -79,3 +79,22 @@ test('runSqlQuery uses adapter registry dispatch for provider execution', () => 
 
   assert.equal(JSON.stringify(calls), JSON.stringify(['bigquery', 'databricks']));
 });
+
+test('astGetSqlProviderCapabilities exposes execution-control support', () => {
+  const context = createContext();
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/sqlProviderAdapters.js'
+  ]);
+
+  const bigquery = context.astGetSqlProviderCapabilities('bigquery');
+  const databricks = context.astGetSqlProviderCapabilities('databricks');
+
+  assert.equal(bigquery.supportsPreparedStatements, true);
+  assert.equal(bigquery.supportsStatus, true);
+  assert.equal(bigquery.supportsCancel, true);
+
+  assert.equal(databricks.supportsPreparedStatements, true);
+  assert.equal(databricks.supportsStatus, true);
+  assert.equal(databricks.supportsCancel, true);
+});
