@@ -26,6 +26,7 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
   return {
     schemaVersion: AST_RAG_SCHEMA_VERSION,
     indexId,
+    indexVersion: astRagBuildIndexVersion(),
     indexName: normalizedRequest.index.indexName,
     createdAt: now,
     updatedAt: now,

@@ -301,38 +301,7 @@ function astCacheStorageWriteDocument(uri, document, runtimeOptions = {}) {
 }
 
 function astCacheStorageRunWithLock(task, config) {
-  if (typeof task !== 'function') {
-    throw new AstCacheCapabilityError('Cache storage_json lock task must be a function');
-  }
-
-  if (
-    typeof LockService === 'undefined' ||
-    !LockService ||
-    typeof LockService.getScriptLock !== 'function'
-  ) {
-    return task();
-  }
-
-  const lock = LockService.getScriptLock();
-  if (!lock || typeof lock.tryLock !== 'function') {
-    return task();
-  }
-
-  const timeoutMs = astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000);
-  const acquired = astCacheTryOrFallback(() => lock.tryLock(timeoutMs), false);
-  if (!acquired) {
-    throw new AstCacheCapabilityError('Unable to acquire cache storage_json lock', {
-      timeoutMs
-    });
-  }
-
-  try {
-    return task();
-  } finally {
-    if (typeof lock.releaseLock === 'function') {
-      astCacheTryOrFallback(() => lock.releaseLock(), null);
-    }
-  }
+  return astCacheRunWithLock(task, config);
 }
 
 function astCacheStoragePruneExpired(document, nowMs) {
@@ -391,6 +360,16 @@ function astCacheStorageWithDocument(config, runtimeOptions, mutator) {
 }
 
 function astCacheStorageGet(keyHash, config, runtimeOptions = {}) {
+  if (config.updateStatsOnGet === false) {
+    const loaded = astCacheStorageReadDocument(config, runtimeOptions);
+    const nowMs = astCacheNowMs();
+    const entry = loaded.document.entries[keyHash];
+    if (!entry || astCacheIsExpired(entry, nowMs)) {
+      return null;
+    }
+    return astCacheJsonClone(entry);
+  }
+
   return astCacheStorageWithDocument(config, runtimeOptions, (document, nowMs) => {
     const entry = document.entries[keyHash];
     if (!entry) {

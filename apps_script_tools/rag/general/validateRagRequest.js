@@ -92,6 +92,60 @@ function astRagNormalizeSearchOptions(options = {}) {
   };
 }
 
+function astRagNormalizeCacheRequest(cache = {}) {
+  if (typeof cache === 'undefined' || cache === null) {
+    return {};
+  }
+
+  if (!astRagIsPlainObject(cache)) {
+    throw new AstRagValidationError('cache must be an object when provided');
+  }
+
+  const normalized = {};
+
+  if (typeof cache.enabled !== 'undefined') {
+    normalized.enabled = astRagNormalizeBoolean(cache.enabled, false);
+  }
+
+  if (typeof cache.backend !== 'undefined') {
+    normalized.backend = astRagNormalizeCacheBackend(cache.backend);
+  }
+
+  if (typeof cache.namespace !== 'undefined') {
+    normalized.namespace = astRagNormalizeString(cache.namespace, null);
+  }
+
+  if (typeof cache.ttlSec !== 'undefined') {
+    normalized.ttlSec = astRagNormalizePositiveInt(cache.ttlSec, 300, 1);
+  }
+
+  if (typeof cache.searchTtlSec !== 'undefined') {
+    normalized.searchTtlSec = astRagNormalizePositiveInt(cache.searchTtlSec, 300, 1);
+  }
+
+  if (typeof cache.answerTtlSec !== 'undefined') {
+    normalized.answerTtlSec = astRagNormalizePositiveInt(cache.answerTtlSec, 180, 1);
+  }
+
+  if (typeof cache.embeddingTtlSec !== 'undefined') {
+    normalized.embeddingTtlSec = astRagNormalizePositiveInt(cache.embeddingTtlSec, 900, 1);
+  }
+
+  if (typeof cache.storageUri !== 'undefined') {
+    normalized.storageUri = astRagNormalizeString(cache.storageUri, null);
+  }
+
+  if (typeof cache.lockTimeoutMs !== 'undefined') {
+    normalized.lockTimeoutMs = astRagNormalizePositiveInt(cache.lockTimeoutMs, 5000, 1);
+  }
+
+  if (typeof cache.updateStatsOnGet !== 'undefined') {
+    normalized.updateStatsOnGet = astRagNormalizeBoolean(cache.updateStatsOnGet, false);
+  }
+
+  return normalized;
+}
+
 function astRagNormalizeAnswerOptions(options = {}) {
   if (!astRagIsPlainObject(options)) {
     throw new AstRagValidationError('answer.options must be an object when provided');
@@ -397,7 +451,8 @@ function astRagValidateSearchRequest(request = {}) {
     filters: normalizedFilters,
     options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
-    embedding: astRagNormalizeEmbeddingRequest(request.embedding || {})
+    embedding: astRagNormalizeEmbeddingRequest(request.embedding || {}),
+    cache: astRagNormalizeCacheRequest(request.cache)
   };
 }
 
@@ -455,7 +510,8 @@ function astRagValidateAnswerRequest(request = {}) {
       options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {}
     },
     options: normalizedOptions,
-    auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {}
+    auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
+    cache: astRagNormalizeCacheRequest(request.cache)
   };
 }
 

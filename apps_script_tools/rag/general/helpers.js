@@ -75,6 +75,31 @@ function astRagUniqueId(prefix = 'id') {
   return `${prefix}_${new Date().getTime()}_${randomPart}`;
 }
 
+function astRagHashString(value) {
+  const source = String(value == null ? '' : value);
+  try {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.computeDigest === 'function' &&
+      Utilities.DigestAlgorithm &&
+      Utilities.DigestAlgorithm.SHA_256 &&
+      typeof Utilities.base64EncodeWebSafe === 'function'
+    ) {
+      const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source);
+      return Utilities.base64EncodeWebSafe(digest).replace(/=+$/g, '');
+    }
+  } catch (_error) {
+    // fall through
+  }
+
+  return source.slice(0, 256);
+}
+
+function astRagBuildIndexVersion() {
+  return `idxv_${new Date().getTime()}_${Math.floor(Math.random() * 1000000)}`;
+}
+
 function astRagTruncate(text, maxChars) {
   if (typeof text !== 'string') {
     return '';

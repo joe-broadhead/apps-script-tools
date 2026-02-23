@@ -4,6 +4,16 @@ const AST_TELEMETRY_DEFAULT_CONFIG = Object.freeze({
   sampleRate: 1,
   driveFolderId: '',
   driveFileName: 'ast-telemetry.ndjson',
+  storageUri: '',
+  storageAuth: null,
+  storageProviderOptions: null,
+  flushMode: 'threshold',
+  batchMaxEvents: 25,
+  batchMaxBytes: 65536,
+  partitionByHour: true,
+  storageTimeoutMs: 45000,
+  storageRetries: 2,
+  lockTimeoutMs: 30000,
   maxTraceCount: 200,
   maxSpansPerTrace: 200
 });
@@ -15,7 +25,7 @@ let AST_TELEMETRY_SPAN_INDEX = {};
 
 function astTelemetryNormalizeSink(value) {
   const normalized = astTelemetryNormalizeString(value, AST_TELEMETRY_DEFAULT_CONFIG.sink);
-  if (normalized === 'logger' || normalized === 'drive_json') {
+  if (normalized === 'logger' || normalized === 'drive_json' || normalized === 'storage_json') {
     return normalized;
   }
 
@@ -58,6 +68,60 @@ function astTelemetryNormalizeConfig(config = {}) {
       config.driveFileName,
       AST_TELEMETRY_DEFAULT_CONFIG.driveFileName
     );
+  }
+
+  if (typeof config.storageUri !== 'undefined') {
+    output.storageUri = astTelemetryNormalizeString(config.storageUri, '');
+  }
+
+  if (typeof config.storageAuth !== 'undefined') {
+    output.storageAuth = astTelemetryIsPlainObject(config.storageAuth)
+      ? astTelemetryDeepClone(config.storageAuth)
+      : null;
+  }
+
+  if (typeof config.storageProviderOptions !== 'undefined') {
+    output.storageProviderOptions = astTelemetryIsPlainObject(config.storageProviderOptions)
+      ? astTelemetryDeepClone(config.storageProviderOptions)
+      : null;
+  }
+
+  if (typeof config.flushMode !== 'undefined') {
+    const flushMode = astTelemetryNormalizeString(config.flushMode, AST_TELEMETRY_DEFAULT_CONFIG.flushMode);
+    if (!['immediate', 'threshold', 'manual'].includes(flushMode)) {
+      throw new AstTelemetryValidationError(
+        'Telemetry flushMode must be one of: immediate, threshold, manual',
+        { flushMode }
+      );
+    }
+    output.flushMode = flushMode;
+  }
+
+  if (typeof config.batchMaxEvents !== 'undefined') {
+    output.batchMaxEvents = astTelemetryNormalizeNumber(config.batchMaxEvents, AST_TELEMETRY_DEFAULT_CONFIG.batchMaxEvents, 1, 10000);
+  }
+
+  if (typeof config.batchMaxBytes !== 'undefined') {
+    output.batchMaxBytes = astTelemetryNormalizeNumber(config.batchMaxBytes, AST_TELEMETRY_DEFAULT_CONFIG.batchMaxBytes, 512, 5 * 1024 * 1024);
+  }
+
+  if (typeof config.partitionByHour !== 'undefined') {
+    output.partitionByHour = astTelemetryNormalizeBoolean(
+      config.partitionByHour,
+      AST_TELEMETRY_DEFAULT_CONFIG.partitionByHour
+    );
+  }
+
+  if (typeof config.storageTimeoutMs !== 'undefined') {
+    output.storageTimeoutMs = astTelemetryNormalizeNumber(config.storageTimeoutMs, AST_TELEMETRY_DEFAULT_CONFIG.storageTimeoutMs, 1, 300000);
+  }
+
+  if (typeof config.storageRetries !== 'undefined') {
+    output.storageRetries = astTelemetryNormalizeNumber(config.storageRetries, AST_TELEMETRY_DEFAULT_CONFIG.storageRetries, 0, 10);
+  }
+
+  if (typeof config.lockTimeoutMs !== 'undefined') {
+    output.lockTimeoutMs = astTelemetryNormalizeNumber(config.lockTimeoutMs, AST_TELEMETRY_DEFAULT_CONFIG.lockTimeoutMs, 1, 300000);
   }
 
   if (typeof config.maxTraceCount !== 'undefined') {
@@ -126,10 +190,39 @@ function astTelemetryEmitRecord(record, config) {
       return;
     }
 
+    if (sink === 'storage_json') {
+      astTelemetrySinkStorageJson(record, config);
+      return;
+    }
+
     astTelemetrySinkLogger(record, config);
   } catch (_error) {
     // Telemetry should never block runtime behavior.
   }
+}
+
+function astTelemetryFlush(options = {}) {
+  if (!astTelemetryIsPlainObject(options)) {
+    throw new AstTelemetryValidationError('Telemetry flush options must be an object');
+  }
+
+  const config = astTelemetryGetResolvedConfig(options.config || {});
+  const sink = astTelemetryNormalizeSink(config.sink);
+
+  try {
+    if (sink === 'storage_json' && typeof astTelemetryFlushStorageJson === 'function') {
+      return astTelemetryFlushStorageJson(config, options);
+    }
+  } catch (_error) {
+    // Telemetry flushing is best-effort.
+  }
+
+  return {
+    flushed: 0,
+    pending: 0,
+    bytes: 0,
+    uri: null
+  };
 }
 
 function astTelemetryTrimTraceStore(config) {
@@ -459,6 +552,7 @@ __astTelemetrySpanStoreRoot.astTelemetryStartSpan = astTelemetryStartSpan;
 __astTelemetrySpanStoreRoot.astTelemetryEndSpan = astTelemetryEndSpan;
 __astTelemetrySpanStoreRoot.astTelemetryRecordEvent = astTelemetryRecordEvent;
 __astTelemetrySpanStoreRoot.astTelemetryGetTrace = astTelemetryGetTrace;
+__astTelemetrySpanStoreRoot.astTelemetryFlush = astTelemetryFlush;
 __astTelemetrySpanStoreRoot.astTelemetryResetStore = astTelemetryResetStore;
 __astTelemetrySpanStoreRoot.astTelemetryStartSpanSafe = astTelemetryStartSpanSafe;
 __astTelemetrySpanStoreRoot.astTelemetryEndSpanSafe = astTelemetryEndSpanSafe;
@@ -472,6 +566,7 @@ this.astTelemetryStartSpan = astTelemetryStartSpan;
 this.astTelemetryEndSpan = astTelemetryEndSpan;
 this.astTelemetryRecordEvent = astTelemetryRecordEvent;
 this.astTelemetryGetTrace = astTelemetryGetTrace;
+this.astTelemetryFlush = astTelemetryFlush;
 this.astTelemetryResetStore = astTelemetryResetStore;
 this.astTelemetryStartSpanSafe = astTelemetryStartSpanSafe;
 this.astTelemetryEndSpanSafe = astTelemetryEndSpanSafe;

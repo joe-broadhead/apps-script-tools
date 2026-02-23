@@ -192,6 +192,7 @@ ASTX.Telemetry.startSpan(name, context)
 ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
+ASTX.Telemetry.flush(options)
 ```
 
 ## `Jobs` essentials
@@ -232,11 +233,15 @@ ASTX.Jobs.clearConfig()
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
 - RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
+- `RAG.search(...)` / `RAG.answer(...)` can cache embeddings/results with `cache.enabled` and backend overrides.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
+- Cache bulk helpers are available through `getMany`, `setMany`, and `deleteMany`.
+- Cache `updateStatsOnGet` defaults to `false` for scalable storage-backed read paths.
+- Cache production default should be `storage_json`; keep `memory`/`drive_json`/`script_properties` for low-scale or execution-local workloads.
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
-- Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).
+- Telemetry records redact secrets by default and can emit to `logger`, Drive NDJSON (`drive_json`), or storage NDJSON batches (`storage_json`).
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.

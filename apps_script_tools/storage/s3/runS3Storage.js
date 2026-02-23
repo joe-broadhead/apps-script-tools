@@ -59,7 +59,35 @@ function astS3ParseListXml(xmlText, bucket) {
   };
 }
 
+function astS3BuildConditionalHeaders(request) {
+  const preconditions = request && request.preconditions ? request.preconditions : {};
+  const ifMatch = astStorageNormalizeString(preconditions.ifMatch, null);
+  const ifNoneMatch = astStorageNormalizeString(preconditions.ifNoneMatch, null);
+
+  const headers = {};
+  if (ifMatch) {
+    headers['if-match'] = ifMatch;
+  }
+  if (ifNoneMatch) {
+    headers['if-none-match'] = ifNoneMatch;
+  }
+  return headers;
+}
+
 function astS3MapProviderError(error, request) {
+  if (
+    error &&
+    error.name === 'AstStorageProviderError' &&
+    Number(error.details && error.details.statusCode) === 412
+  ) {
+    throw new AstStorageProviderError('Storage precondition failed', {
+      provider: request.provider,
+      operation: request.operation,
+      uri: request.uri,
+      statusCode: 412
+    }, error);
+  }
+
   if (
     error &&
     error.name === 'AstStorageProviderError' &&
@@ -119,12 +147,13 @@ function astS3Request({
   operation,
   location
 }) {
+  const conditionalHeaders = astS3BuildConditionalHeaders(request);
   const signed = astS3SignRequest({
     method,
     location: location || request.location,
     query,
     payload,
-    headers,
+    headers: Object.assign({}, conditionalHeaders, headers || {}),
     config
   });
 

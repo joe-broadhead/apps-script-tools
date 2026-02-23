@@ -26,6 +26,10 @@ function astTelemetryApiGetTrace(traceId) {
   return astTelemetryGetTrace(traceId);
 }
 
+function astTelemetryApiFlush(options = {}) {
+  return astTelemetryFlush(options);
+}
+
 function astTelemetryApiReset() {
   astTelemetryResetStore();
 }
@@ -38,5 +42,6 @@ const AST_TELEMETRY = Object.freeze({
   endSpan: astTelemetryApiEndSpan,
   recordEvent: astTelemetryApiRecordEvent,
   getTrace: astTelemetryApiGetTrace,
+  flush: astTelemetryApiFlush,
   _reset: astTelemetryApiReset
 });

@@ -6,7 +6,9 @@ const AST_CACHE_DEFAULT_CONFIG = Object.freeze({
   driveFolderId: '',
   driveFileName: 'ast-cache.json',
   storageUri: '',
-  lockTimeoutMs: 30000
+  lockTimeoutMs: 30000,
+  lockScope: 'script',
+  updateStatsOnGet: true
 });
 
 const AST_CACHE_CONFIG_KEYS = Object.freeze([
@@ -17,7 +19,9 @@ const AST_CACHE_CONFIG_KEYS = Object.freeze([
   'CACHE_DRIVE_FOLDER_ID',
   'CACHE_DRIVE_FILE_NAME',
   'CACHE_STORAGE_URI',
-  'CACHE_LOCK_TIMEOUT_MS'
+  'CACHE_LOCK_TIMEOUT_MS',
+  'CACHE_LOCK_SCOPE',
+  'CACHE_UPDATE_STATS_ON_GET'
 ]);
 
 let AST_CACHE_RUNTIME_CONFIG = {};
@@ -154,6 +158,27 @@ function astCacheResolveConfigNumber(candidates, fallback, min, max) {
   return fallback;
 }
 
+function astCacheResolveConfigBoolean(candidates, fallback) {
+  for (let idx = 0; idx < candidates.length; idx += 1) {
+    const value = candidates[idx];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+      continue;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) continue;
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+      if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    }
+  }
+  return fallback;
+}
+
 function astCacheResolveConfig(overrides = {}) {
   if (!astCacheIsPlainObject(overrides)) {
     throw new AstCacheValidationError('Cache config overrides must be an object');
@@ -220,6 +245,26 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_STORAGE_URI
   ], AST_CACHE_DEFAULT_CONFIG.storageUri);
 
+  const lockScope = astCacheResolveConfigString([
+    overrides.lockScope,
+    runtimeConfig.CACHE_LOCK_SCOPE,
+    runtimeConfig.lockScope,
+    scriptConfig.CACHE_LOCK_SCOPE
+  ], AST_CACHE_DEFAULT_CONFIG.lockScope).toLowerCase();
+
+  if (['script', 'user', 'none'].indexOf(lockScope) === -1) {
+    throw new AstCacheValidationError('Cache lockScope must be one of: script, user, none', {
+      lockScope
+    });
+  }
+
+  const updateStatsOnGet = astCacheResolveConfigBoolean([
+    overrides.updateStatsOnGet,
+    runtimeConfig.CACHE_UPDATE_STATS_ON_GET,
+    runtimeConfig.updateStatsOnGet,
+    scriptConfig.CACHE_UPDATE_STATS_ON_GET
+  ], AST_CACHE_DEFAULT_CONFIG.updateStatsOnGet);
+
   return {
     backend,
     namespace,
@@ -228,6 +273,8 @@ function astCacheResolveConfig(overrides = {}) {
     driveFolderId,
     driveFileName,
     storageUri,
-    lockTimeoutMs
+    lockTimeoutMs,
+    lockScope,
+    updateStatsOnGet
   };
 }

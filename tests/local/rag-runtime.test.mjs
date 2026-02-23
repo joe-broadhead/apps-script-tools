@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createGasContext } from './helpers.mjs';
+import { createGasContext, listScriptFiles, loadScripts } from './helpers.mjs';
 import { loadRagScripts } from './rag-helpers.mjs';
 
 const MIME_TEXT = 'text/plain';
@@ -132,6 +132,15 @@ function createEmbeddingFetchMock(tracker = null) {
       };
     }
   };
+}
+
+function loadRagWithCacheScripts(context, options = {}) {
+  const cachePaths = [];
+  cachePaths.push(...listScriptFiles('apps_script_tools/cache/backends'));
+  cachePaths.push(...listScriptFiles('apps_script_tools/cache/general'));
+  cachePaths.push('apps_script_tools/cache/Cache.js');
+  loadScripts(context, cachePaths);
+  return loadRagScripts(context, options);
 }
 
 test('Slides extraction includes slide body and speaker notes metadata', () => {
@@ -926,6 +935,74 @@ test('search ranks and filters index chunks by cosine score', () => {
   assert.equal(output.mode, 'vector');
 });
 
+test('search cache reuses query embedding and ranked results when enabled', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_cache',
+    indexName: 'cache-index',
+    updatedAt: '2026-02-01T00:00:00.000Z',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'c1',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'one.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'cache me once',
+        embedding: [1, 0, 0]
+      }
+    ]
+  };
+
+  let embedCalls = 0;
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_cache',
+    fileName: 'cache-index.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 2, totalTokens: 2 }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_cache',
+    query: 'cache me',
+    retrieval: {
+      topK: 2,
+      minScore: 0
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_test_cache'
+    }
+  };
+
+  const first = context.AST.RAG.search(request);
+  const second = context.AST.RAG.search(request);
+
+  assert.equal(first.results.length, 1);
+  assert.equal(second.results.length, 1);
+  assert.equal(embedCalls, 1, 'second search should reuse cached embedding/ranking');
+});
+
 test('search supports hybrid retrieval with lexical+vector score fusion', () => {
   const indexDoc = {
     schemaVersion: '1.0',
@@ -1259,6 +1336,85 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
 
   assert.equal(abstain.status, 'insufficient_context');
   assert.equal(abstain.answer, 'Insufficient context.');
+});
+
+test('answer cache reuses grounded response when history is empty', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  let embedCalls = 0;
+  let generationCalls = 0;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_cache',
+    fileName: 'answer-cache.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-01T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_cache_1',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'doc.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Cached answer grounding text.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 1, totalTokens: 1 }
+    };
+  };
+  context.runAiRequest = () => {
+    generationCalls += 1;
+    return {
+      output: {
+        json: {
+          answer: 'Cached answer [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
+      }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_answer_cache',
+    question: 'What is cached?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_answer_cache_test'
+    }
+  };
+
+  const first = context.AST.RAG.answer(request);
+  const second = context.AST.RAG.answer(request);
+
+  assert.equal(first.status, 'ok');
+  assert.equal(second.status, 'ok');
+  assert.equal(embedCalls, 1);
+  assert.equal(generationCalls, 1, 'second answer should reuse cached grounded output');
 });
 
 test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {

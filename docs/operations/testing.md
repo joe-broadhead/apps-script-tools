@@ -69,6 +69,15 @@ Optional live-provider smoke workflow:
 - `.github/workflows/integration-ai-live.yml` (manual dispatch only)
 - executes `runAiLiveSmoke(provider, prompt, model)` against configured provider credentials (runtime config or script properties)
 
+## Production backend posture
+
+For app workloads with concurrent users:
+
+- prefer `ASTX.Cache` backend `storage_json`
+- use `ASTX.Jobs` with `checkpointStore='storage'` and provider URI (`gcs://`, `s3://`, or `dbfs:/`)
+- keep telemetry sink on `logger` for low overhead unless a storage-backed sink is configured
+- treat `drive_json` and `script_properties` cache backends as low-scale options
+
 ## Consumer smoke test
 
 Before release, validate from a clean consumer project:

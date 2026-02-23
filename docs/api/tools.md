@@ -173,6 +173,12 @@ Backends:
 - `script_properties`
 - `storage_json` (persists via `AST.Storage` URI: `gcs://`, `s3://`, `dbfs:/`)
 
+Production recommendation:
+
+- use `storage_json` for shared multi-user app traffic.
+- use `memory` for per-execution memoization only.
+- avoid `drive_json` and `script_properties` for high-concurrency hot paths.
+
 Primary methods:
 
 - `ASTX.Cache.get(key, options)`
@@ -224,6 +230,7 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
 - `retrieval.rerank` for optional top-N reranking
 - `retrieval.access` for source-level allow/deny constraints
+- optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)
 
 ```javascript
 const answer = ASTX.RAG.answer({
@@ -242,7 +249,15 @@ const answer = ASTX.RAG.answer({
     }
   },
   generation: { provider: 'vertex_gemini' },
-  options: { enforceAccessControl: true }
+  options: { enforceAccessControl: true },
+  cache: {
+    enabled: true,
+    backend: 'storage_json',
+    namespace: 'rag_prod',
+    storageUri: 's3://my-bucket/ast-cache',
+    embeddingTtlSec: 900,
+    answerTtlSec: 180
+  }
 });
 ```
 
@@ -300,15 +315,17 @@ Primary methods:
 - `ASTX.Telemetry.endSpan(spanId, result)` to close span state and persist sink output.
 - `ASTX.Telemetry.recordEvent(event)` to append structured event records.
 - `ASTX.Telemetry.getTrace(traceId)` to retrieve in-memory trace state.
+- `ASTX.Telemetry.flush(options)` to force buffered sink flushes (used by `storage_json` manual mode).
 
 Sink support:
 
 - `logger` (default) emits JSON payloads to Apps Script `Logger`.
 - `drive_json` appends NDJSON records to a Drive file.
+- `storage_json` writes NDJSON batch files to `gcs://`, `s3://`, or `dbfs:/` via `AST.Storage`.
 
 High-signal behavior:
 
-- `configure(...)` supports `sink`, `redactSecrets`, `sampleRate`, `driveFolderId`, `driveFileName`, and trace limits.
+- `configure(...)` supports `sink`, redaction/sampling, drive settings, storage sink settings (`storageUri`, `flushMode`, `batchMaxEvents`, `batchMaxBytes`, retries/timeouts), and trace limits.
 - sensitive keys and token-like values are redacted by default.
 - telemetry calls should never block functional execution paths.
 - span IDs and trace IDs are generated if not supplied.
@@ -493,6 +510,7 @@ High-signal behavior:
 - embedding provider/model is bound at index build time and enforced for retrieval.
 - `answer(...)` returns `status='insufficient_context'` when citation grounding fails.
 - source parse failures can be downgraded to warnings with `options.skipParseFailures=true`.
+- repeated hot queries can be accelerated by enabling cache controls on `search(...)`/`answer(...)`.
 
 See:
 

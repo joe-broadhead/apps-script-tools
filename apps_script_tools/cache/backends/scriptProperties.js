@@ -40,38 +40,7 @@ function astCacheScriptPropertiesNamespaceKey(namespace) {
 }
 
 function astCacheScriptPropertiesRunWithLock(task, config) {
-  if (typeof task !== 'function') {
-    throw new AstCacheCapabilityError('Cache script_properties lock task must be a function');
-  }
-
-  if (
-    typeof LockService === 'undefined' ||
-    !LockService ||
-    typeof LockService.getScriptLock !== 'function'
-  ) {
-    return task();
-  }
-
-  const lock = LockService.getScriptLock();
-  if (!lock || typeof lock.tryLock !== 'function') {
-    return task();
-  }
-
-  const timeoutMs = astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000);
-  const acquired = astCacheTryOrFallback(() => lock.tryLock(timeoutMs), false);
-  if (!acquired) {
-    throw new AstCacheCapabilityError('Unable to acquire cache script_properties lock', {
-      timeoutMs
-    });
-  }
-
-  try {
-    return task();
-  } finally {
-    if (typeof lock.releaseLock === 'function') {
-      astCacheTryOrFallback(() => lock.releaseLock(), null);
-    }
-  }
+  return astCacheRunWithLock(task, config);
 }
 
 function astCacheScriptPropertiesDefaultDocument(namespace) {
@@ -180,6 +149,18 @@ function astCacheScriptPropertiesWithDocument(config, mutator) {
 }
 
 function astCacheScriptPropertiesGet(keyHash, config) {
+  if (config.updateStatsOnGet === false) {
+    const handle = astCacheScriptPropertiesHandle();
+    const propertyKey = astCacheScriptPropertiesNamespaceKey(config.namespace);
+    const document = astCacheScriptPropertiesReadDocument(handle, propertyKey, config.namespace);
+    const nowMs = astCacheNowMs();
+    const entry = document.entries[keyHash];
+    if (!entry || astCacheIsExpired(entry, nowMs)) {
+      return null;
+    }
+    return astCacheJsonClone(entry);
+  }
+
   return astCacheScriptPropertiesWithDocument(config, (document, nowMs, stats) => {
     const entry = document.entries[keyHash];
     if (!entry) {

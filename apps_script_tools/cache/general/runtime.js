@@ -12,7 +12,9 @@ function astCacheExtractConfigOverrides(options = {}) {
     'driveFolderId',
     'driveFileName',
     'storageUri',
-    'lockTimeoutMs'
+    'lockTimeoutMs',
+    'lockScope',
+    'updateStatsOnGet'
   ];
 
   for (let idx = 0; idx < keys.length; idx += 1) {

@@ -394,3 +394,43 @@ test('GCS copy/move/signed_url/multipart_write operations return normalized outp
   assert.equal(calls.some(call => call.url.includes('/rewriteTo/')), true);
   assert.equal(calls.some(call => call.url.includes('uploadType=resumable')), true);
 });
+
+test('GCS write maps ifNoneMatch="*" to create-only generation precondition', () => {
+  const calls = [];
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token'
+    },
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            id: 'obj-1',
+            size: '5',
+            etag: 'etag-write',
+            generation: '17',
+            contentType: 'text/plain'
+          })
+        });
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 'gcs://my-bucket/path/new.txt',
+    operation: 'write',
+    payload: { text: 'hello' },
+    options: {
+      ifNoneMatch: true
+    }
+  });
+
+  assert.equal(out.output.written.generation, '17');
+  const writeCall = calls.find(call => String(call.url || '').includes('uploadType=media'));
+  assert.equal(Boolean(writeCall), true);
+  assert.match(writeCall.url, /ifGenerationMatch=0/);
+});

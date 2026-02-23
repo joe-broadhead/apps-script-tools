@@ -46,6 +46,24 @@ function astDbfsMapProviderError(error, request) {
   throw error;
 }
 
+function astDbfsAssertNoConditionalPreconditions(request) {
+  const preconditions = request && request.preconditions ? request.preconditions : {};
+  const ifMatch = astStorageNormalizeString(preconditions.ifMatch, null);
+  const ifNoneMatch = astStorageNormalizeString(preconditions.ifNoneMatch, null);
+
+  if (!ifMatch && !ifNoneMatch) {
+    return;
+  }
+
+  throw new AstStorageCapabilityError('DBFS provider does not support conditional write preconditions', {
+    provider: request.provider,
+    operation: request.operation,
+    uri: request.uri,
+    ifMatch: ifMatch || null,
+    ifNoneMatch: ifNoneMatch || null
+  });
+}
+
 function astDbfsRequest({ request, config, endpoint, method = 'get', query = {}, payload }) {
   return astStorageHttpRequest({
     provider: 'dbfs',
@@ -269,6 +287,8 @@ function astDbfsWriteChunked({ request, config, bytes }) {
 }
 
 function astDbfsWrite({ request, config }) {
+  astDbfsAssertNoConditionalPreconditions(request);
+
   const base64 = request.payload.base64;
   const bytes = astStorageBase64ToBytes(base64);
   const sizeBytes = astStorageBytesLength(bytes);
@@ -301,6 +321,8 @@ function astDbfsWrite({ request, config }) {
 }
 
 function astDbfsDelete({ request, config }) {
+  astDbfsAssertNoConditionalPreconditions(request);
+
   const response = astDbfsRequest({
     request,
     config,
@@ -367,6 +389,8 @@ function astDbfsExists({ request, config }) {
 }
 
 function astDbfsCopy({ request, config }) {
+  astDbfsAssertNoConditionalPreconditions(request);
+
   if (!request.options.overwrite) {
     try {
       astDbfsHead({
@@ -446,6 +470,8 @@ function astDbfsCopy({ request, config }) {
 }
 
 function astDbfsMove({ request, config }) {
+  astDbfsAssertNoConditionalPreconditions(request);
+
   const copied = astDbfsCopy({ request, config });
   const deleted = astDbfsDelete({
     request: {
@@ -478,6 +504,8 @@ function astDbfsMove({ request, config }) {
 }
 
 function astDbfsMultipartWrite({ request, config }) {
+  astDbfsAssertNoConditionalPreconditions(request);
+
   const writeResult = astDbfsWrite({ request, config });
   return {
     id: writeResult.id || null,

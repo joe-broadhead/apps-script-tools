@@ -5,8 +5,15 @@ function astRagAnswerCore(request = {}) {
 
   try {
     const normalizedRequest = astRagValidateAnswerRequest(request);
-    const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId);
+    const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
+    const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId, {
+      cache: cacheConfig
+    });
     const indexDocument = loaded.document;
+    const versionToken = astRagNormalizeString(
+      loaded.versionToken,
+      astRagNormalizeString(indexDocument.updatedAt, 'unknown')
+    );
 
     const indexEmbedding = indexDocument.embedding || {};
     const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
@@ -18,18 +25,71 @@ function astRagAnswerCore(request = {}) {
       });
     }
 
-    const queryEmbedding = astRagEmbedTexts({
-      provider: embeddingProvider,
-      model: embeddingModel,
-      texts: [normalizedRequest.question],
-      auth: normalizedRequest.auth,
-      options: { retries: 2 }
-    });
+    const answerCacheKey = astRagBuildAnswerCacheKey(
+      normalizedRequest.indexFileId,
+      versionToken,
+      normalizedRequest.question,
+      normalizedRequest.history,
+      normalizedRequest.retrieval,
+      {
+        provider: normalizedRequest.generation.provider,
+        model: normalizedRequest.generation.model,
+        options: normalizedRequest.generation.options,
+        providerOptions: normalizedRequest.generation.providerOptions
+      },
+      normalizedRequest.options
+    );
+    const useAnswerCache = Array.isArray(normalizedRequest.history) && normalizedRequest.history.length === 0;
+    if (useAnswerCache) {
+      const cachedAnswer = astRagCacheGet(cacheConfig, answerCacheKey);
+      if (cachedAnswer && astRagIsPlainObject(cachedAnswer) && typeof cachedAnswer.answer === 'string') {
+        astRagTelemetryEndSpan(spanId, {
+          indexFileId: normalizedRequest.indexFileId,
+          status: cachedAnswer.status || 'ok',
+          cached: true,
+          citationCount: Array.isArray(cachedAnswer.citations) ? cachedAnswer.citations.length : 0
+        });
+        return cachedAnswer;
+      }
+    }
+
+    const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+      normalizedRequest.indexFileId,
+      versionToken,
+      embeddingProvider,
+      embeddingModel,
+      normalizedRequest.question
+    );
+
+    const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
+    let queryVector = null;
+    let queryUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0
+    };
+
+    if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+      queryVector = cachedEmbedding.vector.slice();
+    } else {
+      const queryEmbedding = astRagEmbedTexts({
+        provider: embeddingProvider,
+        model: embeddingModel,
+        texts: [normalizedRequest.question],
+        auth: normalizedRequest.auth,
+        options: { retries: 2 }
+      });
+      queryVector = queryEmbedding.vectors[0];
+      queryUsage = queryEmbedding.usage || queryUsage;
+      astRagCacheSet(cacheConfig, embeddingCacheKey, {
+        vector: queryVector
+      }, cacheConfig.embeddingTtlSec);
+    }
 
     const rankedResults = astRagRetrieveRankedChunks(
       indexDocument,
       normalizedRequest.question,
-      queryEmbedding.vectors[0],
+      queryVector,
       normalizedRequest.retrieval
     );
 
@@ -44,8 +104,12 @@ function astRagAnswerCore(request = {}) {
           mode: normalizedRequest.retrieval.mode,
           returned: 0
         },
-        usage: queryEmbedding.usage
+        usage: queryUsage
       };
+
+      if (useAnswerCache) {
+        astRagCacheSet(cacheConfig, answerCacheKey, insufficient, cacheConfig.answerTtlSec);
+      }
 
       astRagTelemetryEndSpan(spanId, {
         indexFileId: normalizedRequest.indexFileId,
@@ -110,10 +174,14 @@ function astRagAnswerCore(request = {}) {
         returned: rankedResults.length
       },
       usage: {
-        retrieval: queryEmbedding.usage,
+        retrieval: queryUsage,
         generation: aiResponse.usage || {}
       }
     };
+
+    if (useAnswerCache) {
+      astRagCacheSet(cacheConfig, answerCacheKey, result, cacheConfig.answerTtlSec);
+    }
 
     astRagTelemetryEndSpan(spanId, {
       indexFileId: normalizedRequest.indexFileId,

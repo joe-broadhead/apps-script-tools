@@ -80,6 +80,7 @@ test('AST exposes Telemetry namespace and core methods', () => {
   assert.equal(typeof context.AST.Telemetry.endSpan, 'function');
   assert.equal(typeof context.AST.Telemetry.recordEvent, 'function');
   assert.equal(typeof context.AST.Telemetry.getTrace, 'function');
+  assert.equal(typeof context.AST.Telemetry.flush, 'function');
 });
 
 test('Telemetry redacts sensitive keys in span context', () => {
@@ -186,6 +187,77 @@ test('Telemetry drive_json sink uses script lock when LockService is available',
 
   assert.equal(tryLockCalls, 1);
   assert.equal(releaseCalls, 1);
+});
+
+test('Telemetry storage_json sink supports manual flush mode', () => {
+  const writes = [];
+  const context = createGasContext({
+    runStorageRequest: request => {
+      writes.push(request);
+      return {
+        provider: 's3',
+        operation: 'write',
+        uri: request.uri
+      };
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'storage_json',
+    storageUri: 's3://ast-telemetry/tests',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.storage.manual', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+
+  assert.equal(writes.length, 0, 'manual flush mode should not write on endSpan');
+
+  const flushResult = context.AST.Telemetry.flush();
+  assert.equal(flushResult.flushed, 1);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].uri, /^s3:\/\/ast-telemetry\/tests\/events\/\d{4}\/\d{2}\/\d{2}\/\d{2}\/telemetry_batch_/);
+  assert.match(writes[0].payload.text, /"type":"span_end"/);
+});
+
+test('Telemetry storage_json sink flushes on threshold', () => {
+  const writes = [];
+  const context = createGasContext({
+    runStorageRequest: request => {
+      writes.push(request);
+      return {
+        provider: 'gcs',
+        operation: 'write',
+        uri: request.uri
+      };
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'storage_json',
+    storageUri: 'gcs://ast-telemetry/tests',
+    flushMode: 'threshold',
+    batchMaxEvents: 2
+  });
+
+  const spanA = context.AST.Telemetry.startSpan('telemetry.storage.threshold.a', {});
+  context.AST.Telemetry.endSpan(spanA, { status: 'ok' });
+  assert.equal(writes.length, 0);
+
+  const spanB = context.AST.Telemetry.startSpan('telemetry.storage.threshold.b', {});
+  context.AST.Telemetry.endSpan(spanB, { status: 'ok' });
+  assert.equal(writes.length, 1);
+
+  const flushResult = context.AST.Telemetry.flush();
+  assert.equal(flushResult.flushed, 0);
+  assert.equal(flushResult.pending, 0);
 });
 
 test('Telemetry keeps running traces eligible for endSpan under maxTraceCount pressure', () => {

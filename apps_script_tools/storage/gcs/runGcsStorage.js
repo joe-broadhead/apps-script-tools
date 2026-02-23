@@ -118,6 +118,127 @@ function astGcsBuildHeaders(accessToken, request = {}) {
   return headers;
 }
 
+function astGcsBuildPreconditionFailedError(request, precondition) {
+  return new AstStorageProviderError('Storage precondition failed', {
+    provider: 'gcs',
+    operation: request.operation,
+    uri: request.uri,
+    statusCode: 412,
+    precondition
+  });
+}
+
+function astGcsNormalizeGenerationToken(value) {
+  const token = astStorageNormalizeString(value, null);
+  if (!token) {
+    return null;
+  }
+  if (!/^[0-9]+$/.test(token)) {
+    return null;
+  }
+  return token;
+}
+
+function astGcsResolveCurrentObjectForPreconditions({ request, accessToken }) {
+  return astGcsHead({
+    request: {
+      provider: request.provider,
+      operation: 'head',
+      uri: request.uri,
+      location: request.location,
+      options: request.options
+    },
+    accessToken
+  }).output.object || {};
+}
+
+function astGcsBuildWritePreconditions({ request, accessToken }) {
+  const preconditions = request.preconditions || {};
+  const ifMatch = astStorageNormalizeString(preconditions.ifMatch, null);
+  const ifNoneMatch = astStorageNormalizeString(preconditions.ifNoneMatch, null);
+  const query = {};
+
+  if (!ifMatch && !ifNoneMatch) {
+    return query;
+  }
+
+  if (ifMatch && ifNoneMatch) {
+    throw new AstStorageValidationError('ifMatch and ifNoneMatch cannot both be specified for a single request');
+  }
+
+  if (ifMatch) {
+    const generationToken = astGcsNormalizeGenerationToken(ifMatch);
+    if (generationToken) {
+      query.ifGenerationMatch = generationToken;
+      return query;
+    }
+
+    const current = astGcsResolveCurrentObjectForPreconditions({ request, accessToken });
+    const currentGeneration = astStorageNormalizeString(current.generation, null);
+    const currentEtag = astStorageNormalizeString(current.etag, null);
+
+    if (!currentGeneration) {
+      throw new AstStorageCapabilityError('GCS object generation is required for conditional write checks', {
+        uri: request.uri
+      });
+    }
+
+    if (ifMatch !== '*' && ifMatch !== currentEtag && ifMatch !== currentGeneration) {
+      throw astGcsBuildPreconditionFailedError(request, 'ifMatch');
+    }
+
+    query.ifGenerationMatch = currentGeneration;
+    return query;
+  }
+
+  if (ifNoneMatch === '*') {
+    query.ifGenerationMatch = 0;
+    return query;
+  }
+
+  const noneMatchGeneration = astGcsNormalizeGenerationToken(ifNoneMatch);
+  if (noneMatchGeneration) {
+    query.ifGenerationNotMatch = noneMatchGeneration;
+    return query;
+  }
+
+  let current = null;
+  try {
+    current = astGcsResolveCurrentObjectForPreconditions({ request, accessToken });
+  } catch (error) {
+    if (error && error.name === 'AstStorageNotFoundError') {
+      return query;
+    }
+    throw error;
+  }
+
+  const currentEtag = astStorageNormalizeString(current && current.etag, null);
+  const currentGeneration = astStorageNormalizeString(current && current.generation, null);
+  if (ifNoneMatch === currentEtag || ifNoneMatch === currentGeneration) {
+    throw astGcsBuildPreconditionFailedError(request, 'ifNoneMatch');
+  }
+
+  return query;
+}
+
+function astGcsAppendQueryParams(url, params = {}) {
+  const keys = Object.keys(params || {});
+  if (keys.length === 0) {
+    return url;
+  }
+
+  const query = keys
+    .filter(key => params[key] != null)
+    .sort()
+    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(String(params[key]))}`)
+    .join('&');
+
+  if (!query) {
+    return url;
+  }
+  return `${url}${url.indexOf('?') === -1 ? '?' : '&'}${query}`;
+}
+
 function astGcsMapProviderError(error, request) {
   if (
     error &&
@@ -320,11 +441,15 @@ function astGcsWrite({ request, accessToken }) {
   }
 
   const bytes = astStorageBase64ToBytes(request.payload.base64);
+  const writeQuery = astGcsBuildWritePreconditions({ request, accessToken });
 
   const response = astStorageHttpRequest({
     provider: 'gcs',
     operation: 'write',
-    url: astGcsBuildUploadUrl(request.location.bucket, request.location.key),
+    url: astGcsAppendQueryParams(
+      astGcsBuildUploadUrl(request.location.bucket, request.location.key),
+      writeQuery
+    ),
     method: 'post',
     headers: astGcsBuildHeaders(accessToken, request),
     contentType: request.payload.mimeType,
