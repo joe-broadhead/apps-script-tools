@@ -57,7 +57,8 @@ Current release state:
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - Storage advanced ops: `exists`, `copy`, `move`, `signedUrl`, and `multipartWrite` for production object workflows.
 - SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
-- New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
+- New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and bulk helpers (`getMany`, `setMany`, `deleteMany`).
+- Cache backend posture for production: prefer `storage_json`; use `drive_json` and `script_properties` only for low-scale paths.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.
 - New `AST.Jobs` module with persisted checkpoint store and run/enqueue/resume/status/list/cancel contracts.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.

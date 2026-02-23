@@ -120,4 +120,4 @@ Telemetry spans currently instrument:
 - `ASTX.RAG.buildIndex(...)` (`rag.buildIndex`)
 - `ASTX.RAG.answer(...)` (`rag.answer`)
 
-SQL and Storage instrumentation are planned as a follow-up slice in `v0.0.4`.
+Telemetry is intentionally non-blocking; sink failures are swallowed so business paths continue.

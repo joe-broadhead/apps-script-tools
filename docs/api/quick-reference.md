@@ -234,6 +234,9 @@ ASTX.Jobs.clearConfig()
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
+- Cache bulk helpers are available through `getMany`, `setMany`, and `deleteMany`.
+- Cache `updateStatsOnGet` defaults to `false` for scalable storage-backed read paths.
+- Cache production default should be `storage_json`; keep `memory`/`drive_json`/`script_properties` for low-scale or execution-local workloads.
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.

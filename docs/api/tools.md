@@ -173,6 +173,12 @@ Backends:
 - `script_properties`
 - `storage_json` (persists via `AST.Storage` URI: `gcs://`, `s3://`, `dbfs:/`)
 
+Production recommendation:
+
+- use `storage_json` for shared multi-user app traffic.
+- use `memory` for per-execution memoization only.
+- avoid `drive_json` and `script_properties` for high-concurrency hot paths.
+
 Primary methods:
 
 - `ASTX.Cache.get(key, options)`

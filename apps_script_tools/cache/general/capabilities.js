@@ -6,28 +6,56 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
     set: true,
     delete: true,
     invalidateByTag: true,
-    stats: true
+    stats: true,
+    scalableRead: false,
+    scalableWrite: false,
+    recommendedUse: 'single_execution',
+    notes: [
+      'Execution-local process cache',
+      'Not shared across concurrent users or executions'
+    ]
   }),
   drive_json: Object.freeze({
     get: true,
     set: true,
     delete: true,
     invalidateByTag: true,
-    stats: true
+    stats: true,
+    scalableRead: false,
+    scalableWrite: false,
+    recommendedUse: 'small_team_prototype',
+    notes: [
+      'Monolithic Drive document with lock-serialized writes',
+      'Use storage_json for shared production traffic'
+    ]
   }),
   script_properties: Object.freeze({
     get: true,
     set: true,
     delete: true,
     invalidateByTag: true,
-    stats: true
+    stats: true,
+    scalableRead: false,
+    scalableWrite: false,
+    recommendedUse: 'tiny_config_cache',
+    notes: [
+      'Bound by Apps Script property size/throughput limits',
+      'Not recommended for high-volume runtime cache traffic'
+    ]
   }),
   storage_json: Object.freeze({
     get: true,
     set: true,
     delete: true,
     invalidateByTag: true,
-    stats: true
+    stats: true,
+    scalableRead: true,
+    scalableWrite: true,
+    recommendedUse: 'shared_production',
+    notes: [
+      'Object-per-entry storage layout via AST.Storage',
+      'Recommended backend for concurrent app workloads'
+    ]
   })
 });
 
