@@ -12,11 +12,11 @@ function createResponse({ status = 200, body = '{}' } = {}) {
   };
 }
 
-function createServiceAccountJson() {
+function createServiceAccountJson({ clientEmail = 'svc-rag@example.iam.gserviceaccount.com' } = {}) {
   const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
   return JSON.stringify({
-    client_email: 'svc-rag@example.iam.gserviceaccount.com',
+    client_email: clientEmail,
     private_key: privateKeyPem,
     token_uri: 'https://oauth2.googleapis.com/token'
   });
@@ -261,6 +261,69 @@ test('RAG vertex_gemini config supports service-account auth mode with token cac
   assert.equal(configA.authMode, 'auto');
   assert.equal(configB.oauthToken, 'rag-sa-token');
   assert.equal(exchangeCalls, 1);
+});
+
+test('RAG vertex_gemini invalidates service-account token cache when private key rotates', () => {
+  const clientEmail = 'svc-rag-rotate@example.iam.gserviceaccount.com';
+  const serviceAccountJsonA = createServiceAccountJson({ clientEmail });
+  const serviceAccountJsonB = createServiceAccountJson({ clientEmail });
+  let exchangeCalls = 0;
+  let activeServiceAccount = serviceAccountJsonA;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: `rag-sa-token-${exchangeCalls}`,
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        throw new Error('OAuth path should not run when service-account JSON is configured');
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: activeServiceAccount
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  const configA = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+  const configB = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+  activeServiceAccount = serviceAccountJsonB;
+  const configC = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+
+  assert.equal(configA.oauthToken, 'rag-sa-token-1');
+  assert.equal(configB.oauthToken, 'rag-sa-token-1');
+  assert.equal(configC.oauthToken, 'rag-sa-token-2');
+  assert.equal(exchangeCalls, 2);
 });
 
 test('RAG vertex_gemini oauth mode ignores service-account json', () => {

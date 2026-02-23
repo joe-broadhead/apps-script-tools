@@ -135,12 +135,40 @@ function astRagParseVertexServiceAccountJson(rawServiceAccountJson) {
   return parsed;
 }
 
+function astRagSha256Hex(value) {
+  if (
+    typeof Utilities === 'undefined' ||
+    !Utilities ||
+    typeof Utilities.computeDigest !== 'function' ||
+    !Utilities.DigestAlgorithm ||
+    !Utilities.DigestAlgorithm.SHA_256
+  ) {
+    throw new AstRagAuthError(
+      'Utilities.computeDigest with SHA_256 is required for vertex_gemini service-account auth cache key derivation'
+    );
+  }
+
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value == null ? '' : value),
+    Utilities.Charset && Utilities.Charset.UTF_8 ? Utilities.Charset.UTF_8 : undefined
+  );
+
+  return digest
+    .map(byte => {
+      const unsigned = byte < 0 ? byte + 256 : byte;
+      const hex = unsigned.toString(16);
+      return hex.length === 1 ? `0${hex}` : hex;
+    })
+    .join('');
+}
+
 function astRagBuildVertexServiceAccountCacheKey(serviceAccount, tokenUri, scope) {
   return [
     astRagNormalizeString(serviceAccount.client_email, ''),
     astRagNormalizeString(tokenUri, ''),
     astRagNormalizeString(scope, ''),
-    astRagNormalizeString(serviceAccount.private_key, '').slice(0, 24)
+    astRagSha256Hex(astRagNormalizeString(serviceAccount.private_key, ''))
   ].join('::');
 }
 

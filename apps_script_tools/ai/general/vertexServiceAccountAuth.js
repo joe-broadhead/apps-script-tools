@@ -140,12 +140,40 @@ function astAiParseVertexServiceAccountJson(rawServiceAccountJson) {
   return parsed;
 }
 
+function astAiSha256Hex(value) {
+  if (
+    typeof Utilities === 'undefined' ||
+    !Utilities ||
+    typeof Utilities.computeDigest !== 'function' ||
+    !Utilities.DigestAlgorithm ||
+    !Utilities.DigestAlgorithm.SHA_256
+  ) {
+    throw new AstAiAuthError(
+      'Utilities.computeDigest with SHA_256 is required for vertex_gemini service-account auth cache key derivation'
+    );
+  }
+
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value == null ? '' : value),
+    Utilities.Charset && Utilities.Charset.UTF_8 ? Utilities.Charset.UTF_8 : undefined
+  );
+
+  return digest
+    .map(byte => {
+      const unsigned = byte < 0 ? byte + 256 : byte;
+      const hex = unsigned.toString(16);
+      return hex.length === 1 ? `0${hex}` : hex;
+    })
+    .join('');
+}
+
 function astAiBuildVertexServiceAccountCacheKey(serviceAccount, tokenUri, scope) {
   return [
     String(serviceAccount.client_email || '').trim(),
     String(tokenUri || '').trim(),
     String(scope || '').trim(),
-    String(serviceAccount.private_key || '').trim().slice(0, 24)
+    astAiSha256Hex(String(serviceAccount.private_key || '').trim())
   ].join('::');
 }
 
