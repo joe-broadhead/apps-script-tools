@@ -18,17 +18,28 @@ ASTX.Telemetry.startSpan(name, context)
 ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
+ASTX.Telemetry.flush(options)
 ```
 
 ## Config contract
 
 ```javascript
 {
-  sink: 'logger' | 'drive_json',
+  sink: 'logger' | 'drive_json' | 'storage_json',
   redactSecrets: true,
   sampleRate: 1.0,
   driveFolderId: '',
   driveFileName: 'ast-telemetry.ndjson',
+  storageUri: 's3://my-bucket/telemetry',
+  storageAuth: {},
+  storageProviderOptions: {},
+  flushMode: 'threshold', // immediate | threshold | manual
+  batchMaxEvents: 25,
+  batchMaxBytes: 65536,
+  partitionByHour: true,
+  storageTimeoutMs: 45000,
+  storageRetries: 2,
+  lockTimeoutMs: 30000,
   maxTraceCount: 200,
   maxSpansPerTrace: 200
 }
@@ -38,6 +49,9 @@ Notes:
 
 - `sink='logger'` is default.
 - `sink='drive_json'` appends NDJSON records in Drive.
+- `sink='storage_json'` writes NDJSON batches to `gcs://`, `s3://`, or `dbfs:/`.
+- `flushMode='threshold'` flushes when event/byte thresholds are reached.
+- call `ASTX.Telemetry.flush()` when using `flushMode='manual'`.
 - `sampleRate` is clamped to `[0, 1]`.
 
 ## Span lifecycle
@@ -85,6 +99,19 @@ ASTX.Telemetry.recordEvent({
 
 ```javascript
 const trace = ASTX.Telemetry.getTrace(traceId);
+```
+
+Manual flush example:
+
+```javascript
+ASTX.Telemetry.configure({
+  sink: 'storage_json',
+  storageUri: 's3://my-bucket/telemetry',
+  flushMode: 'manual'
+});
+
+// ...run workload...
+ASTX.Telemetry.flush();
 ```
 
 Trace response includes:

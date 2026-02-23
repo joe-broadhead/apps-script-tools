@@ -192,6 +192,7 @@ ASTX.Telemetry.startSpan(name, context)
 ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
+ASTX.Telemetry.flush(options)
 ```
 
 ## `Jobs` essentials
@@ -240,6 +241,6 @@ ASTX.Jobs.clearConfig()
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
-- Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).
+- Telemetry records redact secrets by default and can emit to `logger`, Drive NDJSON (`drive_json`), or storage NDJSON batches (`storage_json`).
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.

@@ -13,7 +13,8 @@ TELEMETRY_NAMESPACE_TESTS = [
         'startSpan',
         'endSpan',
         'recordEvent',
-        'getTrace'
+        'getTrace',
+        'flush'
       ];
 
       requiredMethods.forEach(method => {

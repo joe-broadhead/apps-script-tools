@@ -24,11 +24,24 @@ ASTX.Telemetry.configure({
 });
 ```
 
+For object-storage batching:
+
+```javascript
+ASTX.Telemetry.configure({
+  sink: 'storage_json',
+  storageUri: 's3://my-bucket/telemetry',
+  flushMode: 'threshold',
+  batchMaxEvents: 50,
+  batchMaxBytes: 131072
+});
+```
+
 ## Recommended defaults
 
 - `redactSecrets: true` in all environments.
 - `sampleRate: 1.0` for test/staging, then tune for production.
 - rotate Drive NDJSON files periodically for long-running projects.
+- for shared, high-volume workloads, prefer `storage_json` sink over `drive_json`.
 
 ## Trace usage pattern
 
@@ -83,6 +96,12 @@ function runWorkflowWithTelemetry() {
 - Verify script has Drive scopes enabled.
 - Confirm `driveFolderId` points to an accessible folder.
 - If `drive_json` is not required, fallback to `sink: 'logger'`.
+
+### Storage sink buffering
+
+- `flushMode='threshold'` auto-flushes when `batchMaxEvents` or `batchMaxBytes` is reached.
+- `flushMode='manual'` keeps records buffered until `ASTX.Telemetry.flush()` is called.
+- `flushMode='immediate'` writes one batch per emitted record.
 
 ### Missing trace when calling `getTrace(traceId)`
 
