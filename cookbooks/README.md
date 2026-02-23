@@ -50,3 +50,7 @@ clasp push
 - Do not place cookbook code under `apps_script_tools/`.
 - Do not commit `.clasp.json`, `.clasprc.json`, or credentials.
 - Use `const ASTX = ASTLib.AST || ASTLib;` inside cookbook scripts.
+
+## Included Cookbook
+
+- `rag_chat_app/`: customizable web app starter for Drive-grounded RAG chat using `AST.RAG`, `AST.AI`, `AST.Cache`, and `AST.Jobs` (async index jobs, runtime guardrails, and ops status helpers).

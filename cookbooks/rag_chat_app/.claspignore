@@ -1,0 +1,3 @@
+# `rootDir` is `rag_chat_app`, so ignore local clasp credentials only.
+.clasp.json
+.clasprc.json
