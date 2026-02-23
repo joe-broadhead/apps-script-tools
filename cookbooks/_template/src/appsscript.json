@@ -1,0 +1,21 @@
+{
+  "timeZone": "Etc/UTC",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "ASTLib",
+        "libraryId": "1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_",
+        "version": "<PUBLISHED_AST_LIBRARY_VERSION>"
+      }
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/presentations.readonly",
+    "https://www.googleapis.com/auth/cloud-platform"
+  ]
+}

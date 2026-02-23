@@ -45,8 +45,9 @@ Use a local `.clasp.json` (not committed):
 
 `.claspignore` model:
 
-- root `.claspignore` is the only authoritative ignore file for `clasp` operations.
+- for the core library publish flow, root `.claspignore` is authoritative.
 - do not add nested `.claspignore` files under `apps_script_tools/`.
+- cookbook projects under `cookbooks/` are separate `clasp` workspaces and may include their own local `.claspignore` and `.clasp.json`.
 - keep `.clasp.json` local-only (untracked) and use `.clasp.json.example` as the committed template.
 
 Repository guardrails (enforced by `npm run lint`):
