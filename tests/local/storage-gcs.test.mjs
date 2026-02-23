@@ -252,3 +252,145 @@ test('GCS list marks truncated when maxItems caps merged results', () => {
   assert.equal(out.output.items.length, 1);
   assert.equal(out.page.truncated, true);
 });
+
+test('GCS exists returns false instead of throwing for missing objects', () => {
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token'
+    },
+    UrlFetchApp: {
+      fetch: () => createResponse({
+        status: 404,
+        body: JSON.stringify({ error: { message: 'not found' } })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 'gcs://my-bucket/missing.txt',
+    operation: 'exists'
+  });
+
+  assert.equal(out.output.exists.exists, false);
+  assert.equal(out.output.exists.uri, 'gcs://my-bucket/missing.txt');
+});
+
+test('GCS copy/move/signed_url/multipart_write operations return normalized output', () => {
+  const calls = [];
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Utilities: {
+      ...baseContext.Utilities,
+      computeRsaSha256Signature: () => [1, 2, 3, 4]
+    },
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token'
+    },
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('/rewriteTo/')) {
+          return createResponse({
+            status: 200,
+            body: JSON.stringify({
+              done: true,
+              resource: {
+                id: 'copied-object',
+                size: '5',
+                etag: 'etag-copy',
+                generation: '11',
+                contentType: 'text/plain'
+              }
+            })
+          });
+        }
+
+        if (url.includes('/upload/storage/v1/') && url.includes('uploadType=resumable')) {
+          return createResponse({
+            status: 200,
+            headers: {
+              location: 'https://upload.test/session-1'
+            },
+            body: ''
+          });
+        }
+
+        if (url === 'https://upload.test/session-1') {
+          return createResponse({
+            status: 200,
+            body: JSON.stringify({
+              id: 'multipart-object',
+              size: '5',
+              etag: 'etag-multi',
+              generation: '17',
+              contentType: 'text/plain'
+            })
+          });
+        }
+
+        if (options.method === 'delete') {
+          return createResponse({ status: 204, body: '' });
+        }
+
+        if (options.method === 'get') {
+          return createResponse({ status: 404, body: '{}' });
+        }
+
+        return createResponse({ status: 200, body: '{}' });
+      }
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const copied = context.runStorageRequest({
+    operation: 'copy',
+    fromUri: 'gcs://source-bucket/path/a.txt',
+    toUri: 'gcs://target-bucket/path/b.txt'
+  });
+  assert.equal(copied.output.copied.fromUri, 'gcs://source-bucket/path/a.txt');
+  assert.equal(copied.output.copied.toUri, 'gcs://target-bucket/path/b.txt');
+
+  const moved = context.runStorageRequest({
+    operation: 'move',
+    fromUri: 'gcs://source-bucket/path/a.txt',
+    toUri: 'gcs://target-bucket/path/c.txt'
+  });
+  assert.equal(moved.output.moved.deletedSource, true);
+
+  const signed = context.runStorageRequest({
+    operation: 'signed_url',
+    uri: 'gcs://target-bucket/path/b.txt',
+    options: {
+      method: 'PUT',
+      expiresInSec: 600
+    },
+    providerOptions: {
+      requestDate: '2026-02-21T00:00:00.000Z'
+    },
+    auth: {
+      authMode: 'service_account',
+      serviceAccountJson: JSON.stringify({
+        client_email: 'svc@example.iam.gserviceaccount.com',
+        private_key: '-----BEGIN PRIVATE KEY-----\\nFAKE\\n-----END PRIVATE KEY-----\\n'
+      })
+    }
+  });
+  assert.equal(signed.output.signedUrl.method, 'PUT');
+  assert.match(signed.output.signedUrl.url, /X-Goog-Signature=/);
+
+  const multipart = context.runStorageRequest({
+    operation: 'multipart_write',
+    uri: 'gcs://target-bucket/path/upload.txt',
+    payload: {
+      text: 'hello'
+    }
+  });
+  assert.equal(multipart.output.multipartWritten.size, 5);
+
+  assert.equal(calls.some(call => call.url.includes('/rewriteTo/')), true);
+  assert.equal(calls.some(call => call.url.includes('uploadType=resumable')), true);
+});

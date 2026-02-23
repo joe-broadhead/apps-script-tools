@@ -328,6 +328,172 @@ function astDbfsDelete({ request, config }) {
   };
 }
 
+function astDbfsExists({ request, config }) {
+  try {
+    const head = astDbfsHead({ request, config });
+    return {
+      output: {
+        exists: {
+          exists: true,
+          uri: request.uri,
+          object: head.output.object
+        }
+      },
+      usage: head.usage,
+      raw: head.raw
+    };
+  } catch (error) {
+    if (
+      (error && error.name === 'AstStorageNotFoundError')
+      || (error && error.name === 'AstStorageProviderError' && Number(error.details?.statusCode) === 404)
+    ) {
+      return {
+        output: {
+          exists: {
+            exists: false,
+            uri: request.uri
+          }
+        },
+        usage: {
+          requestCount: 1,
+          bytesIn: 0,
+          bytesOut: 0
+        },
+        raw: null
+      };
+    }
+    throw error;
+  }
+}
+
+function astDbfsCopy({ request, config }) {
+  if (!request.options.overwrite) {
+    try {
+      astDbfsHead({
+        request: {
+          provider: request.provider,
+          operation: 'head',
+          uri: request.to.uri,
+          location: request.to.location,
+          options: request.options
+        },
+        config
+      });
+      throw new AstStorageProviderError('Storage object already exists and overwrite=false', {
+        provider: 'dbfs',
+        operation: 'copy',
+        uri: request.to.uri,
+        statusCode: 409
+      });
+    } catch (error) {
+      if (error && error.name === 'AstStorageNotFoundError') {
+        // continue
+      } else if (error && error.name === 'AstStorageProviderError' && error.details?.statusCode === 404) {
+        // continue
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  const readResult = astDbfsRead({
+    request: {
+      provider: request.provider,
+      operation: 'read',
+      uri: request.from.uri,
+      location: request.from.location,
+      options: request.options,
+      providerOptions: request.providerOptions
+    },
+    config
+  });
+
+  const writeResult = astDbfsWrite({
+    request: {
+      provider: request.provider,
+      operation: 'write',
+      uri: request.to.uri,
+      location: request.to.location,
+      options: request.options,
+      providerOptions: request.providerOptions,
+      payload: {
+        base64: readResult.output.data.base64,
+        mimeType: readResult.output.data.mimeType,
+        sizeBytes: readResult.usage.bytesOut
+      }
+    },
+    config
+  });
+
+  return {
+    id: writeResult.id || null,
+    output: {
+      copied: {
+        uri: request.to.uri,
+        fromUri: request.from.uri,
+        toUri: request.to.uri,
+        size: writeResult.output.written.size,
+        mimeType: writeResult.output.written.mimeType
+      }
+    },
+    usage: {
+      requestCount: (readResult.usage?.requestCount || 0) + (writeResult.usage?.requestCount || 0),
+      bytesIn: writeResult.usage?.bytesIn || 0,
+      bytesOut: readResult.usage?.bytesOut || 0
+    },
+    raw: null
+  };
+}
+
+function astDbfsMove({ request, config }) {
+  const copied = astDbfsCopy({ request, config });
+  const deleted = astDbfsDelete({
+    request: {
+      provider: request.provider,
+      operation: 'delete',
+      uri: request.from.uri,
+      location: request.from.location,
+      options: request.options
+    },
+    config
+  });
+
+  return {
+    id: copied.id || null,
+    output: {
+      moved: {
+        uri: request.to.uri,
+        fromUri: request.from.uri,
+        toUri: request.to.uri,
+        deletedSource: Boolean(deleted.output && deleted.output.deleted && deleted.output.deleted.deleted)
+      }
+    },
+    usage: {
+      requestCount: (copied.usage?.requestCount || 0) + (deleted.usage?.requestCount || 0),
+      bytesIn: copied.usage?.bytesIn || 0,
+      bytesOut: copied.usage?.bytesOut || 0
+    },
+    raw: null
+  };
+}
+
+function astDbfsMultipartWrite({ request, config }) {
+  const writeResult = astDbfsWrite({ request, config });
+  return {
+    id: writeResult.id || null,
+    output: {
+      multipartWritten: {
+        uri: request.uri,
+        path: request.location.path,
+        size: writeResult.output.written.size,
+        mimeType: writeResult.output.written.mimeType
+      }
+    },
+    usage: writeResult.usage,
+    raw: writeResult.raw
+  };
+}
+
 function astRunDbfsStorage({ request, config }) {
   try {
     switch (request.operation) {
@@ -341,6 +507,19 @@ function astRunDbfsStorage({ request, config }) {
         return astDbfsWrite({ request, config });
       case 'delete':
         return astDbfsDelete({ request, config });
+      case 'exists':
+        return astDbfsExists({ request, config });
+      case 'copy':
+        return astDbfsCopy({ request, config });
+      case 'move':
+        return astDbfsMove({ request, config });
+      case 'signed_url':
+        throw new AstStorageCapabilityError('DBFS signed URLs are not supported', {
+          provider: 'dbfs',
+          operation: request.operation
+        });
+      case 'multipart_write':
+        return astDbfsMultipartWrite({ request, config });
       default:
         throw new AstStorageCapabilityError('Unsupported DBFS operation', {
           operation: request.operation

@@ -104,10 +104,26 @@ test('validateStorageRequest applies option defaults and validates operation', (
   assert.throws(
     () => context.validateStorageRequest({
       uri: 's3://my-bucket/key',
-      operation: 'copy'
+      operation: 'clone'
     }),
     /operation must be one of/
   );
+});
+
+test('validateStorageRequest normalizes copy request fromUri/toUri and inferred provider', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  const request = context.validateStorageRequest({
+    operation: 'copy',
+    fromUri: 'gcs://source-bucket/path/a.txt',
+    toUri: 'gcs://target-bucket/path/b.txt'
+  });
+
+  assert.equal(request.provider, 'gcs');
+  assert.equal(request.from.uri, 'gcs://source-bucket/path/a.txt');
+  assert.equal(request.to.uri, 'gcs://target-bucket/path/b.txt');
+  assert.equal(request.uri, 'gcs://target-bucket/path/b.txt');
 });
 
 test('astStorageBuildReadWarnings flags payloads above soft cap', () => {

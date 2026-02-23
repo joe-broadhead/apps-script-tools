@@ -236,13 +236,14 @@ const answer = ASTX.RAG.answer({
 Cross-provider object storage surface:
 
 - providers: `gcs`, `s3`, `dbfs`
-- operations: `list`, `head`, `read`, `write`, `delete`
+- operations: `list`, `head`, `read`, `write`, `delete`, `exists`, `copy`, `move`, `signed_url`, `multipart_write`
 - URI model: `gcs://`, `s3://`, `dbfs:/`
 
 Primary methods:
 
 - `ASTX.Storage.run(request)` for explicit operation routing.
 - `ASTX.Storage.list/head/read/write/delete(request)` convenience wrappers.
+- `ASTX.Storage.exists/copy/move/signedUrl/multipartWrite(request)` advanced object lifecycle wrappers.
 - `ASTX.Storage.providers()` and `ASTX.Storage.capabilities(provider)` for runtime checks.
 - `ASTX.Storage.configure(config)` to set runtime defaults from script properties.
 - `ASTX.Storage.getConfig()` and `ASTX.Storage.clearConfig()` for runtime config inspection/reset.
@@ -252,6 +253,9 @@ High-signal behavior:
 - auth/config resolution: per-call override first, then `ASTX.Storage.configure(...)`, then script properties.
 - write payload contract is base64-first with `text/json` helper inputs.
 - `head/read/delete` missing objects throw `AstStorageNotFoundError`.
+- `exists` returns `output.exists.exists=false` for missing objects.
+- `copy/move` require same-provider `fromUri` and `toUri` in this release.
+- `signedUrl` is supported for `gcs` and `s3`; DBFS reports typed capability error.
 - transport retries apply to transient HTTP statuses (`429`, `5xx`) only.
 
 ```javascript

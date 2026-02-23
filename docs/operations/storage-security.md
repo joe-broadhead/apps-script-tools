@@ -39,6 +39,12 @@ Prefer CI secrets or secure bootstrap logic for non-local environments.
 - Soft payload cap defaults to 50 MB for read/write payloads to avoid runtime instability.
 - Keep `includeRaw=false` by default in production calls.
 
+## Signed URL guidance
+
+- Treat signed URLs as bearer credentials; never log them in plaintext.
+- Use the shortest feasible `expiresInSec`.
+- For GCS signed URLs, use dedicated service-account keys with minimal scope and frequent rotation.
+
 ## Release checklist
 
 - Verify no secrets are tracked.

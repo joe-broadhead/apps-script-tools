@@ -37,17 +37,24 @@ function astStorageNormalizeProvider(provider) {
 }
 
 function astStorageNormalizeOperation(operation) {
-  const normalized = astStorageNormalizeString(operation, '').toLowerCase();
+  const input = astStorageNormalizeString(operation, '').toLowerCase();
+  const aliases = {
+    signedurl: 'signed_url',
+    signed_url: 'signed_url',
+    multipartwrite: 'multipart_write',
+    multipart_write: 'multipart_write'
+  };
+  const normalized = aliases[input] || input;
 
   if (!normalized) {
     throw new AstStorageValidationError(
-      'operation must be one of: list, head, read, write, delete'
+      'operation must be one of: list, head, read, write, delete, exists, copy, move, signed_url, multipart_write'
     );
   }
 
   if (!AST_STORAGE_OPERATIONS.includes(normalized)) {
     throw new AstStorageValidationError(
-      'operation must be one of: list, head, read, write, delete',
+      'operation must be one of: list, head, read, write, delete, exists, copy, move, signed_url, multipart_write',
       { operation: normalized }
     );
   }

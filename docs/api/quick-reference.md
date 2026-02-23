@@ -140,6 +140,11 @@ ASTX.Storage.head(request)
 ASTX.Storage.read(request)
 ASTX.Storage.write(request)
 ASTX.Storage.delete(request)
+ASTX.Storage.exists(request)
+ASTX.Storage.copy(request)
+ASTX.Storage.move(request)
+ASTX.Storage.signedUrl(request)
+ASTX.Storage.multipartWrite(request)
 ASTX.Storage.providers()
 ASTX.Storage.capabilities(provider)
 ASTX.Storage.configure(config, options)
@@ -199,4 +204,6 @@ ASTX.Telemetry.getTrace(traceId)
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
+- Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
+- Storage `copy/move` require same-provider source and destination in this release.
 - Telemetry records redact secrets by default and can emit to `logger` or Drive NDJSON (`drive_json`).

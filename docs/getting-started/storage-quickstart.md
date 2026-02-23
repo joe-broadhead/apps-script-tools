@@ -96,8 +96,78 @@ function storageDeleteExample() {
 }
 ```
 
+## Exists check
+
+```javascript
+function storageExistsExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Storage.exists({
+    uri: 's3://my-bucket/config/settings.json'
+  });
+
+  Logger.log(out.output.exists.exists); // true/false
+}
+```
+
+## Copy / move
+
+```javascript
+function storageCopyMoveExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.Storage.copy({
+    fromUri: 'gcs://my-bucket/inbound/run.json',
+    toUri: 'gcs://my-bucket/archive/run.json'
+  });
+
+  ASTX.Storage.move({
+    fromUri: 'dbfs:/mnt/staging/a.csv',
+    toUri: 'dbfs:/mnt/processed/a.csv'
+  });
+}
+```
+
+## Signed URL
+
+```javascript
+function storageSignedUrlExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Storage.signedUrl({
+    uri: 's3://my-bucket/reports/latest.csv',
+    options: {
+      method: 'GET',
+      expiresInSec: 900
+    }
+  });
+
+  Logger.log(out.output.signedUrl.url);
+}
+```
+
+## Multipart write
+
+```javascript
+function storageMultipartWriteExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.Storage.multipartWrite({
+    uri: 's3://my-bucket/large/events.ndjson',
+    payload: {
+      text: '...large content...'
+    },
+    options: {
+      partSizeBytes: 5 * 1024 * 1024
+    }
+  });
+}
+```
+
 ## Behavior notes
 
 - Not found in `head`, `read`, or `delete` throws `AstStorageNotFoundError`.
+- `exists` returns `output.exists.exists=false` for missing objects.
+- `copy/move` requires same-provider `fromUri` and `toUri`.
 - Payloads are normalized to base64 internally (`text`/`json` are helper inputs).
 - Config resolution precedence: request auth > `ASTX.Storage.configure(...)` > script properties.
