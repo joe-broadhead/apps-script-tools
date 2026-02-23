@@ -385,3 +385,35 @@ test('DBFS signed_url is rejected as unsupported capability', () => {
     }
   );
 });
+
+test('DBFS write rejects conditional preconditions as unsupported capability', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.runStorageRequest({
+      uri: 'dbfs:/mnt/data/file.txt',
+      operation: 'write',
+      options: {
+        ifMatch: '"etag-1"'
+      },
+      payload: {
+        text: 'hello'
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageCapabilityError');
+      return true;
+    }
+  );
+});

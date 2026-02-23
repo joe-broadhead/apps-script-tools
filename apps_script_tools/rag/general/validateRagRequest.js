@@ -102,6 +102,8 @@ function astRagNormalizeAnswerOptions(options = {}) {
       ? options.requireCitations
       : true,
     enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
+    answerCache: astRagNormalizeBoolean(options.answerCache, true),
+    answerCacheTtlSec: astRagNormalizePositiveInt(options.answerCacheTtlSec, 120, 1),
     insufficientEvidenceMessage: astRagNormalizeString(
       options.insufficientEvidenceMessage,
       'I do not have enough grounded context to answer that.'

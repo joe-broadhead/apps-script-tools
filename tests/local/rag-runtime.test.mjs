@@ -232,6 +232,8 @@ test('buildIndex skips PDF parse failures as warnings when skipParseFailures=tru
   const inspected = context.AST.RAG.inspectIndex({ indexFileId: output.indexFileId });
   assert.equal(inspected.chunkCount > 0, true);
   assert.equal(inspected.sourceCount, 1);
+  assert.equal(typeof inspected.indexVersion, 'string');
+  assert.equal(inspected.indexVersion.length > 0, true);
 });
 
 test('PDF extraction throws typed auth error when Vertex config is missing', () => {
@@ -672,6 +674,8 @@ test('syncIndex re-embeds only changed chunks for edited source', () => {
   assert.equal(after.sync.lastSyncSummary.reembeddedChunks, 1);
   const inspected = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
   assert.equal(typeof inspected.lastSyncAt, 'string');
+  assert.equal(typeof inspected.indexVersion, 'string');
+  assert.equal(inspected.indexVersion.length > 0, true);
 });
 
 test('syncIndex dryRun reports delta without persisting index', () => {
@@ -1253,12 +1257,98 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
     },
     options: {
       requireCitations: true,
+      answerCache: false,
       insufficientEvidenceMessage: 'Insufficient context.'
     }
   });
 
   assert.equal(abstain.status, 'insufficient_context');
   assert.equal(abstain.answer, 'Insufficient context.');
+});
+
+test('answer reuses cached response for identical request and indexVersion', () => {
+  const cacheStore = {};
+  const context = createGasContext({
+    CacheService: {
+      getScriptCache: () => ({
+        get: key => (Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null),
+        put: (key, value) => {
+          cacheStore[key] = String(value);
+        }
+      })
+    }
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_cached_answer',
+    fileName: 'index-cached-answer.json',
+    document: {
+      indexVersion: 'idxv_test_1',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_1',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'doc.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Cached response test context',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  let aiCallCount = 0;
+  context.runAiRequest = () => {
+    aiCallCount += 1;
+    return {
+      output: {
+        json: {
+          answer: 'Cached response test context [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 2,
+        outputTokens: 3,
+        totalTokens: 5
+      }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_cached_answer',
+    question: 'What is the cached context?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      answerCache: true,
+      answerCacheTtlSec: 300,
+      requireCitations: true
+    }
+  };
+
+  const first = context.AST.RAG.answer(request);
+  const second = context.AST.RAG.answer(request);
+
+  assert.equal(first.status, 'ok');
+  assert.equal(second.status, 'ok');
+  assert.equal(second.cached, true);
+  assert.equal(aiCallCount, 1);
 });
 
 test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {

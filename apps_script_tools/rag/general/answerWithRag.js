@@ -7,6 +7,25 @@ function astRagAnswerCore(request = {}) {
     const normalizedRequest = astRagValidateAnswerRequest(request);
     const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId);
     const indexDocument = loaded.document;
+    const useAnswerCache = normalizedRequest.options.answerCache !== false;
+    const answerCacheIdentity = astRagBuildAnswerCacheIdentity(normalizedRequest, indexDocument);
+
+    if (useAnswerCache) {
+      const cachedResult = astRagGetAnswerCache(answerCacheIdentity);
+      if (cachedResult && typeof cachedResult === 'object') {
+        const clonedCached = astRagSafeJsonParse(JSON.stringify(cachedResult), cachedResult);
+        clonedCached.cached = true;
+        astRagTelemetryEndSpan(spanId, {
+          indexFileId: normalizedRequest.indexFileId,
+          status: clonedCached.status || 'ok',
+          returnedChunks: clonedCached.retrieval && clonedCached.retrieval.returned
+            ? clonedCached.retrieval.returned
+            : 0,
+          cache: 'hit'
+        });
+        return clonedCached;
+      }
+    }
 
     const indexEmbedding = indexDocument.embedding || {};
     const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
@@ -47,10 +66,19 @@ function astRagAnswerCore(request = {}) {
         usage: queryEmbedding.usage
       };
 
+      if (useAnswerCache) {
+        astRagSetAnswerCache(
+          answerCacheIdentity,
+          insufficient,
+          astRagResolveAnswerCacheTtlSec(normalizedRequest)
+        );
+      }
+
       astRagTelemetryEndSpan(spanId, {
         indexFileId: normalizedRequest.indexFileId,
         status: insufficient.status,
-        returnedChunks: 0
+        returnedChunks: 0,
+        cache: useAnswerCache ? 'miss' : 'disabled'
       });
       return insufficient;
     }
@@ -115,11 +143,20 @@ function astRagAnswerCore(request = {}) {
       }
     };
 
+    if (useAnswerCache) {
+      astRagSetAnswerCache(
+        answerCacheIdentity,
+        result,
+        astRagResolveAnswerCacheTtlSec(normalizedRequest)
+      );
+    }
+
     astRagTelemetryEndSpan(spanId, {
       indexFileId: normalizedRequest.indexFileId,
       status: result.status,
       citationCount: Array.isArray(result.citations) ? result.citations.length : 0,
-      returnedChunks: rankedResults.length
+      returnedChunks: rankedResults.length,
+      cache: useAnswerCache ? 'miss' : 'disabled'
     });
     return result;
   } catch (error) {

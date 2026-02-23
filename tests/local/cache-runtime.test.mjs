@@ -10,7 +10,8 @@ function createDriveMock() {
   function createFileHandle(name, content = '') {
     const state = {
       name,
-      content: String(content || '')
+      content: String(content || ''),
+      writeCount: 0
     };
 
     return {
@@ -18,8 +19,10 @@ function createDriveMock() {
       getBlob: () => ({
         getDataAsString: () => state.content
       }),
+      __getWriteCount: () => state.writeCount,
       setContent: value => {
         state.content = String(value || '');
+        state.writeCount += 1;
       }
     };
   }
@@ -517,4 +520,78 @@ test('storage_json backend isolates collision-prone namespace names', () => {
 
   const persistedUris = Object.keys(storage.objects).filter(uri => uri.startsWith('gcs://cache-bucket/shared/cache--'));
   assert.equal(persistedUris.length, 2);
+});
+
+test('drive_json backend supports user lock scope', () => {
+  const drive = createDriveMock();
+  const lockCalls = {
+    script: 0,
+    user: 0
+  };
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => {
+        lockCalls.script += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      },
+      getUserLock: () => {
+        lockCalls.user += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      }
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_lock_scope_user',
+    driveFileName: 'cache-drive-lock-scope.json',
+    lockScope: 'user'
+  });
+
+  context.AST.Cache.set('k', { ok: true });
+  assert.equal(lockCalls.user > 0, true);
+  assert.equal(lockCalls.script, 0);
+});
+
+test('drive_json get avoids write-on-read when updateStatsOnGet=false', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_no_write_on_read',
+    driveFileName: 'cache-drive-no-write-on-read.json',
+    updateStatsOnGet: false
+  });
+
+  context.AST.Cache.set('k', { ok: true });
+
+  const driveFile = Object.values(drive.files)[0];
+  assert.equal(Boolean(driveFile), true);
+  const writesBeforeGet = driveFile.__getWriteCount();
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('k')),
+    JSON.stringify({ ok: true })
+  );
+  const writesAfterGet = driveFile.__getWriteCount();
+  assert.equal(writesAfterGet, writesBeforeGet);
 });

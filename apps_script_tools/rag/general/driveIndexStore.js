@@ -126,6 +126,7 @@ function astRagInspectIndex(indexFileId) {
     indexFileId,
     indexName: document.indexName || loaded.fileName,
     schemaVersion: document.schemaVersion || null,
+    indexVersion: document.indexVersion || null,
     embedding: document.embedding || null,
     chunking: document.chunking || null,
     sourceCount: Array.isArray(document.sources) ? document.sources.length : 0,

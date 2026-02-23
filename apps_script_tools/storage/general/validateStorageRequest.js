@@ -7,6 +7,8 @@ const AST_STORAGE_DEFAULT_OPTIONS = Object.freeze({
   retries: 2,
   includeRaw: false,
   overwrite: true,
+  ifMatch: null,
+  ifNoneMatch: null,
   expiresInSec: 900,
   method: 'GET',
   partSizeBytes: 5 * 1024 * 1024
@@ -154,6 +156,37 @@ function astStorageNormalizeSignedUrlMethod(value) {
   return normalized;
 }
 
+function astStorageNormalizePreconditionToken(value, optionName) {
+  if (typeof value === 'undefined' || value === null) {
+    return null;
+  }
+
+  if (typeof value === 'boolean') {
+    if (optionName === 'ifNoneMatch') {
+      return value ? '*' : null;
+    }
+    throw new AstStorageValidationError(`${optionName} must be a non-empty string or number`);
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new AstStorageValidationError(`${optionName} must be a finite number when provided as numeric`);
+    }
+    return String(Math.floor(value));
+  }
+
+  if (typeof value !== 'string') {
+    throw new AstStorageValidationError(`${optionName} must be a string, number, boolean, or null`);
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized;
+}
+
 function astStorageNormalizeOptions(options = {}) {
   if (!astStorageIsPlainObject(options)) {
     throw new AstStorageValidationError('options must be an object when provided');
@@ -168,10 +201,16 @@ function astStorageNormalizeOptions(options = {}) {
     retries: astStorageNormalizePositiveInt(options.retries, AST_STORAGE_DEFAULT_OPTIONS.retries, 0),
     includeRaw: astStorageNormalizeBoolean(options.includeRaw, AST_STORAGE_DEFAULT_OPTIONS.includeRaw),
     overwrite: astStorageNormalizeBoolean(options.overwrite, AST_STORAGE_DEFAULT_OPTIONS.overwrite),
+    ifMatch: astStorageNormalizePreconditionToken(options.ifMatch, 'ifMatch'),
+    ifNoneMatch: astStorageNormalizePreconditionToken(options.ifNoneMatch, 'ifNoneMatch'),
     expiresInSec: astStorageNormalizePositiveInt(options.expiresInSec, AST_STORAGE_DEFAULT_OPTIONS.expiresInSec, 1),
     method: astStorageNormalizeSignedUrlMethod(options.method),
     partSizeBytes: astStorageNormalizePositiveInt(options.partSizeBytes, AST_STORAGE_DEFAULT_OPTIONS.partSizeBytes, 1)
   };
+
+  if (normalized.ifMatch && normalized.ifNoneMatch) {
+    throw new AstStorageValidationError('options.ifMatch and options.ifNoneMatch cannot both be set');
+  }
 
   return normalized;
 }
@@ -297,7 +336,17 @@ function validateStorageRequest(request = {}) {
     parsedToUri
   });
 
-  const options = astStorageNormalizeOptions(request.options || {});
+  const rawOptions = astStorageIsPlainObject(request.options)
+    ? astStorageCloneObject(request.options)
+    : {};
+  if (typeof request.ifMatch !== 'undefined') {
+    rawOptions.ifMatch = request.ifMatch;
+  }
+  if (typeof request.ifNoneMatch !== 'undefined') {
+    rawOptions.ifNoneMatch = request.ifNoneMatch;
+  }
+
+  const options = astStorageNormalizeOptions(rawOptions);
   const payload = astStorageNormalizePayload(request.payload || {}, operation);
 
   let location = null;
@@ -344,6 +393,10 @@ function validateStorageRequest(request = {}) {
     to,
     payload,
     options,
+    preconditions: {
+      ifMatch: options.ifMatch,
+      ifNoneMatch: options.ifNoneMatch
+    },
     auth: astStorageIsPlainObject(request.auth) ? astStorageCloneObject(request.auth) : {},
     providerOptions: astStorageIsPlainObject(request.providerOptions)
       ? astStorageCloneObject(request.providerOptions)

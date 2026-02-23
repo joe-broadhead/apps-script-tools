@@ -441,3 +441,48 @@ test('S3 multipart_write handles zero-byte payloads without multipart completion
   assert.equal(calls.some(call => call.url.includes('uploads=')), false);
   assert.equal(calls.some(call => call.url.includes('partNumber=')), false);
 });
+
+test('S3 write forwards if-none-match precondition headers', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+        if (options.method === 'put') {
+          return createResponse({
+            status: 200,
+            headers: {
+              etag: '"etag-precondition-write"'
+            }
+          });
+        }
+        return createResponse({ status: 500, body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          S3_ACCESS_KEY_ID: 'AKIA_TEST',
+          S3_SECRET_ACCESS_KEY: 'SECRET_TEST',
+          S3_REGION: 'us-east-1'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const out = context.runStorageRequest({
+    uri: 's3://bucket-a/path/create-only.txt',
+    operation: 'write',
+    payload: { text: 'hello' },
+    options: {
+      ifNoneMatch: '*'
+    }
+  });
+
+  assert.equal(out.output.written.etag, '"etag-precondition-write"');
+  const putCall = calls.find(call => call.options && call.options.method === 'put');
+  assert.equal(Boolean(putCall), true);
+  assert.equal(putCall.options.headers['if-none-match'], '*');
+});

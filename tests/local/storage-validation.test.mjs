@@ -110,6 +110,46 @@ test('validateStorageRequest applies option defaults and validates operation', (
   );
 });
 
+test('validateStorageRequest normalizes conditional preconditions', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  const request = context.validateStorageRequest({
+    uri: 's3://my-bucket/key.txt',
+    operation: 'write',
+    options: {
+      ifMatch: 12345
+    },
+    payload: { text: 'hello' }
+  });
+
+  assert.equal(request.preconditions.ifMatch, '12345');
+  assert.equal(request.preconditions.ifNoneMatch, null);
+
+  const requestCreateOnly = context.validateStorageRequest({
+    uri: 's3://my-bucket/key.txt',
+    operation: 'write',
+    options: {
+      ifNoneMatch: true
+    },
+    payload: { text: 'hello' }
+  });
+  assert.equal(requestCreateOnly.preconditions.ifNoneMatch, '*');
+
+  assert.throws(
+    () => context.validateStorageRequest({
+      uri: 's3://my-bucket/key.txt',
+      operation: 'write',
+      options: {
+        ifMatch: '"etag-a"',
+        ifNoneMatch: '"etag-b"'
+      },
+      payload: { text: 'hello' }
+    }),
+    /cannot both be set/
+  );
+});
+
 test('validateStorageRequest normalizes copy request fromUri/toUri and inferred provider', () => {
   const context = createGasContext();
   loadStorageScripts(context);

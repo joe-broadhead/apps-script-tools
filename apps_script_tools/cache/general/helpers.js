@@ -123,3 +123,59 @@ function astCacheNormalizeTags(tags) {
 
   return output;
 }
+
+function astCacheResolveLockService(lockScope) {
+  if (
+    typeof LockService === 'undefined' ||
+    !LockService
+  ) {
+    return null;
+  }
+
+  if (lockScope === 'none') {
+    return null;
+  }
+
+  if (lockScope === 'user' && typeof LockService.getUserLock === 'function') {
+    return LockService.getUserLock();
+  }
+
+  if (typeof LockService.getScriptLock === 'function') {
+    return LockService.getScriptLock();
+  }
+
+  return null;
+}
+
+function astCacheRunWithLock(task, config = {}) {
+  if (typeof task !== 'function') {
+    throw new AstCacheCapabilityError('Cache lock task must be a function');
+  }
+
+  const lockScope = astCacheNormalizeString(config.lockScope, 'script').toLowerCase();
+  if (lockScope === 'none') {
+    return task();
+  }
+
+  const lock = astCacheResolveLockService(lockScope);
+  if (!lock || typeof lock.tryLock !== 'function') {
+    return task();
+  }
+
+  const timeoutMs = astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000);
+  const acquired = astCacheTryOrFallback(() => lock.tryLock(timeoutMs), false);
+  if (!acquired) {
+    throw new AstCacheCapabilityError('Unable to acquire cache lock', {
+      timeoutMs,
+      lockScope
+    });
+  }
+
+  try {
+    return task();
+  } finally {
+    if (typeof lock.releaseLock === 'function') {
+      astCacheTryOrFallback(() => lock.releaseLock(), null);
+    }
+  }
+}

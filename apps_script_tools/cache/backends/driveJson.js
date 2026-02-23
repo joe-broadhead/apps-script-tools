@@ -95,38 +95,7 @@ function astCacheDriveWriteText(file, content) {
 }
 
 function astCacheDriveRunWithLock(task, config) {
-  if (typeof task !== 'function') {
-    throw new AstCacheCapabilityError('Cache drive_json lock task must be a function');
-  }
-
-  if (
-    typeof LockService === 'undefined' ||
-    !LockService ||
-    typeof LockService.getScriptLock !== 'function'
-  ) {
-    return task();
-  }
-
-  const lock = LockService.getScriptLock();
-  if (!lock || typeof lock.tryLock !== 'function') {
-    return task();
-  }
-
-  const timeoutMs = astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000);
-  const acquired = astCacheTryOrFallback(() => lock.tryLock(timeoutMs), false);
-  if (!acquired) {
-    throw new AstCacheCapabilityError('Unable to acquire cache drive_json lock', {
-      timeoutMs
-    });
-  }
-
-  try {
-    return task();
-  } finally {
-    if (typeof lock.releaseLock === 'function') {
-      astCacheTryOrFallback(() => lock.releaseLock(), null);
-    }
-  }
+  return astCacheRunWithLock(task, config);
 }
 
 function astCacheDriveDefaultDocument(namespace) {
@@ -262,6 +231,16 @@ function astCacheDriveWithDocument(config, mutator) {
 }
 
 function astCacheDriveGet(keyHash, config) {
+  if (config.updateStatsOnGet === false) {
+    const loaded = astCacheDriveReadDocument(config);
+    const nowMs = astCacheNowMs();
+    const entry = loaded.document.entries[keyHash];
+    if (!entry || astCacheIsExpired(entry, nowMs)) {
+      return null;
+    }
+    return astCacheJsonClone(entry);
+  }
+
   return astCacheDriveWithDocument(config, (document, nowMs) => {
     const entry = document.entries[keyHash];
     if (!entry) {

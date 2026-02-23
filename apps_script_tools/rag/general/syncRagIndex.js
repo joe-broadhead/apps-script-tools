@@ -88,6 +88,7 @@ function astRagBuildSyncedIndexDocument(current, normalizedRequest, nextSources,
   return {
     schemaVersion: current.schemaVersion || AST_RAG_SCHEMA_VERSION,
     indexId: current.indexId || astRagUniqueId('rag_index'),
+    indexVersion: astRagBuildIndexVersion(),
     indexName: current.indexName || normalizedRequest.index.indexName,
     createdAt: current.createdAt || now,
     updatedAt: now,
