@@ -7,7 +7,12 @@ const AST_AI_PROVIDER_AUTH_KEYS = Object.freeze({
   gemini: Object.freeze(['GEMINI_API_KEY']),
   openrouter: Object.freeze(['OPENROUTER_API_KEY', 'OPENROUTER_HTTP_REFERER', 'OPENROUTER_X_TITLE']),
   perplexity: Object.freeze(['PERPLEXITY_API_KEY']),
-  vertex_gemini: Object.freeze(['VERTEX_PROJECT_ID', 'VERTEX_LOCATION'])
+  vertex_gemini: Object.freeze([
+    'VERTEX_PROJECT_ID',
+    'VERTEX_LOCATION',
+    'VERTEX_SERVICE_ACCOUNT_JSON',
+    'VERTEX_AUTH_MODE'
+  ])
 });
 
 const AST_AI_GENERIC_AUTH_KEYS = Object.freeze({
@@ -15,7 +20,17 @@ const AST_AI_GENERIC_AUTH_KEYS = Object.freeze({
   gemini: Object.freeze(['apiKey', 'model']),
   openrouter: Object.freeze(['apiKey', 'httpReferer', 'xTitle', 'model']),
   perplexity: Object.freeze(['apiKey', 'model']),
-  vertex_gemini: Object.freeze(['projectId', 'location', 'oauthToken', 'accessToken', 'model'])
+  vertex_gemini: Object.freeze([
+    'projectId',
+    'location',
+    'oauthToken',
+    'accessToken',
+    'model',
+    'authMode',
+    'serviceAccountJson',
+    'VERTEX_SERVICE_ACCOUNT_JSON',
+    'VERTEX_AUTH_MODE'
+  ])
 });
 
 function astAiPickAuthKeys(source, keys) {

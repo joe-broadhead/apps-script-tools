@@ -11,7 +11,9 @@ const AST_AI_CONFIG_KEYS = Object.freeze([
   'PERPLEXITY_MODEL',
   'VERTEX_PROJECT_ID',
   'VERTEX_LOCATION',
-  'VERTEX_GEMINI_MODEL'
+  'VERTEX_GEMINI_MODEL',
+  'VERTEX_SERVICE_ACCOUNT_JSON',
+  'VERTEX_AUTH_MODE'
 ]);
 
 let AST_AI_RUNTIME_CONFIG = {};
@@ -167,35 +169,6 @@ function astResolveConfigString({
   }
 
   return null;
-}
-
-function astResolveVertexToken(auth) {
-  const authObject = auth || {};
-  const explicitToken = astResolveConfigString({
-    requestValue: authObject.oauthToken,
-    authValue: authObject.accessToken,
-    scriptProperties: {},
-    scriptKey: '',
-    required: false,
-    field: 'oauthToken'
-  });
-
-  if (explicitToken) {
-    return explicitToken;
-  }
-
-  try {
-    if (typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getOAuthToken === 'function') {
-      const token = ScriptApp.getOAuthToken();
-      if (typeof token === 'string' && token.trim().length > 0) {
-        return token;
-      }
-    }
-  } catch (error) {
-    throw new AstAiAuthError('Unable to resolve OAuth token for vertex_gemini', {}, error);
-  }
-
-  throw new AstAiAuthError('Missing OAuth token for vertex_gemini provider');
 }
 
 function resolveAiConfig(request) {
@@ -374,14 +347,15 @@ function resolveAiConfig(request) {
         field: 'model'
       });
 
-      const oauthToken = astResolveVertexToken(auth);
+      const resolvedToken = astAiResolveVertexAccessToken(auth, runtimeConfig, scriptProperties);
 
       return {
         provider,
         projectId,
         location,
         model,
-        oauthToken
+        oauthToken: resolvedToken.oauthToken,
+        authMode: resolvedToken.authMode
       };
     }
 

@@ -58,7 +58,11 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     maxChunks: 2000,
     skipParseFailures: true
   },
-  auth: {}
+  auth: {
+    // for vertex_gemini embedding provider
+    // authMode: 'oauth' | 'service_account' | 'auto' (default auto)
+    // serviceAccountJson: object | JSON string (optional)
+  }
 }
 ```
 
@@ -140,7 +144,11 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   generation: {
     provider: 'openai|gemini|vertex_gemini|openrouter|perplexity',
     model: 'optional override',
-    auth: {},
+    auth: {
+      // for vertex_gemini generation provider
+      // authMode: 'oauth' | 'service_account' | 'auto' (default auto)
+      // serviceAccountJson: object | JSON string (optional)
+    },
     providerOptions: {},
     options: {
       temperature: 0.1,
@@ -164,6 +172,20 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   auth: {}
 }
 ```
+
+## Vertex service-account auth
+
+`ASTX.RAG` uses the same Vertex auth-mode contract as `ASTX.AI`:
+
+- `oauth`: OAuth token path only.
+- `service_account`: require `serviceAccountJson`.
+- `auto` (default): prefer service-account JSON when present, otherwise fallback to OAuth.
+
+Resolution precedence for Vertex service-account JSON:
+
+1. per-call `auth.serviceAccountJson` (or `generation.auth.serviceAccountJson`)
+2. runtime config `ASTX.RAG.configure({ VERTEX_SERVICE_ACCOUNT_JSON: ... })`
+3. script property `VERTEX_SERVICE_ACCOUNT_JSON`
 
 ## `answer` response
 

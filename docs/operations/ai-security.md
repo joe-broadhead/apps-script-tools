@@ -19,11 +19,22 @@ This makes override behavior explicit and deterministic.
 
 ## Vertex Gemini auth
 
-`vertex_gemini` uses OAuth bearer auth with `ScriptApp.getOAuthToken()` by default.
+`vertex_gemini` supports three auth modes:
+
+1. `oauth`: use bearer token from `request.auth.oauthToken` / `request.auth.accessToken` or `ScriptApp.getOAuthToken()`.
+2. `service_account`: use `request.auth.serviceAccountJson` or script property `VERTEX_SERVICE_ACCOUNT_JSON`.
+3. `auto` (default): prefer service-account JSON when present, otherwise fallback to OAuth.
+
+Optional script properties:
+
+- `VERTEX_SERVICE_ACCOUNT_JSON`
+- `VERTEX_AUTH_MODE` (`oauth` | `service_account` | `auto`)
 
 Required scope in `appsscript.json`:
 
 - `https://www.googleapis.com/auth/cloud-platform`
+
+Service-account token exchange is cached with a safe expiry buffer to reduce repeated JWT exchange calls.
 
 ## Provider controls
 
