@@ -37,6 +37,12 @@ clasp run runPerformanceBenchmarks
 clasp run runAiLiveSmoke --params '[\"openai\",\"Reply with OK\",\"\"]' # optional
 ```
 
+Core library vs cookbook projects:
+
+- Core library release uses repository root `.clasp.json` (local), root `.claspignore`, and `rootDir=apps_script_tools`.
+- Cookbook apps under `cookbooks/` should use their own local `.clasp.json` (`rootDir=src`) and isolated deployment lifecycle.
+- Keep cookbook-specific UI/workflow code out of `apps_script_tools/` unless promoting reusable library functionality.
+
 Consumer validation (recommended):
 
 - install library in a clean Apps Script project

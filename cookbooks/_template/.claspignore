@@ -1,0 +1,3 @@
+# Upload files from src only (see .clasp.json.example rootDir)
+**/**
+!src/**

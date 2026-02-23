@@ -148,6 +148,26 @@ Project docs are built with MkDocs and published to GitHub Pages:
 - Config: `mkdocs.yml`
 - Content: `docs/`
 
+## Cookbooks (Separate `clasp` Projects)
+
+Use `cookbooks/` for project-specific Apps Script apps so the core library code in `apps_script_tools/` stays clean.
+
+Quick start:
+
+```bash
+cp -R cookbooks/_template cookbooks/my-project
+cd cookbooks/my-project
+cp .clasp.json.example .clasp.json
+# edit .clasp.json with your project Script ID
+clasp push
+```
+
+Notes:
+
+- Keep project app code in `cookbooks/<project>/src/`.
+- Keep reusable logic in the library (`apps_script_tools/`).
+- `.clasp.json` and credentials stay local-only and untracked.
+
 ## Development
 
 - Local checks: `npm run lint && npm run test:local`

@@ -100,6 +100,7 @@ nav:
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
+    - Cookbooks: getting-started/cookbooks.md
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
     - Storage Quick Start: getting-started/storage-quickstart.md

@@ -73,6 +73,11 @@ if (fs.existsSync(nestedClaspIgnorePath)) {
   findings.push('Nested apps_script_tools/.claspignore is not allowed. Use root .claspignore only.');
 }
 
+const pollutedCookbooksPath = path.join(APPS_DIR, 'cookbooks');
+if (fs.existsSync(pollutedCookbooksPath)) {
+  findings.push('Cookbook projects must live under root cookbooks/, not inside apps_script_tools/.');
+}
+
 const blockedTrackedFiles = [
   '.clasp.json',
   '.clasprc.json',

@@ -103,6 +103,9 @@
   - `api/rag-contracts.md`
   - `api/rag-embedding-providers.md`
   - `operations/rag-indexing.md`
+- Cookbook scaffolding for project-specific Apps Script apps:
+  - `cookbooks/_template/` with isolated `clasp` project model (`rootDir=src`)
+  - `docs/getting-started/cookbooks.md` for setup and separation guidance
 
 ### Changed
 
