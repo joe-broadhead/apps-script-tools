@@ -22,6 +22,7 @@
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses.
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
+- `AST.Jobs`: checkpointed multi-step job runner with retry/resume and status controls.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -38,6 +39,7 @@ flowchart LR
     B --> M[AST.Storage]
     B --> Q[AST.Cache]
     B --> O[AST.Telemetry]
+    B --> T[AST.Jobs]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
@@ -45,6 +47,7 @@ flowchart LR
     M --> N[GCS / S3 / DBFS APIs]
     Q --> R[Memory / Drive JSON / Script Properties]
     O --> P[Logger / Drive NDJSON]
+    T --> U[Script Properties Checkpoints]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -64,6 +67,7 @@ flowchart LR
 - `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
 - `AST.Cache` cache contracts (`get`, `set`, `delete`, `invalidateByTag`, `stats`) for `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/`).
 - `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`) with redaction and sink control.
+- `AST.Jobs` orchestration contracts (`run`, `enqueue`, `resume`, `status`, `list`, `cancel`) with persisted checkpoint state.
 
 ## Import pattern
 

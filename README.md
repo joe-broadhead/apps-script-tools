@@ -35,6 +35,7 @@
 - `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
 - `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI)
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
+- `AST.Jobs`: checkpointed multi-step job orchestration with retry/resume semantics
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
 - `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
@@ -58,6 +59,7 @@ Current release state:
 - SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, and backend selection.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive NDJSON sinks.
+- New `AST.Jobs` module with persisted checkpoint store and run/enqueue/resume/status/list/cancel contracts.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
 - `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.

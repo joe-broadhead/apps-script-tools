@@ -338,6 +338,52 @@ See:
 - [Telemetry Contracts](telemetry-contracts.md)
 - [Telemetry Operations](../operations/telemetry.md)
 
+## `ASTX.Jobs`
+
+Checkpointed job orchestration for multi-step workflows that need retry and resume semantics.
+
+Primary methods:
+
+- `ASTX.Jobs.run(request)` to enqueue and execute immediately until completion/pause/failure.
+- `ASTX.Jobs.enqueue(request)` to persist a queued job without executing it.
+- `ASTX.Jobs.resume(jobId, options)` to continue a queued/paused job from checkpoint.
+- `ASTX.Jobs.status(jobId, options)` to fetch a single persisted job record.
+- `ASTX.Jobs.list(filters, options)` to list persisted job records.
+- `ASTX.Jobs.cancel(jobId, options)` to cancel a queued/paused job.
+- `ASTX.Jobs.configure(config, options)` / `ASTX.Jobs.getConfig()` / `ASTX.Jobs.clearConfig()`.
+
+High-signal behavior:
+
+- steps require unique `id`, `handler`, and optional `dependsOn`.
+- handlers must be globally resolvable named functions in Apps Script runtime.
+- async step handlers are not supported; handlers must return JSON-serializable outputs.
+- checkpoints are persisted in script properties with configurable key prefix.
+- retries are bounded by `maxRetries`; jobs pause on retryable step failure.
+- currently supported checkpoint store is `properties`.
+
+```javascript
+const queued = ASTX.Jobs.enqueue({
+  name: 'daily_reconciliation',
+  steps: [
+    { id: 'extract', handler: 'extractStep' },
+    { id: 'transform', handler: 'transformStep', dependsOn: ['extract'] },
+    { id: 'publish', handler: 'publishStep', dependsOn: ['transform'] }
+  ],
+  options: {
+    maxRetries: 2,
+    maxRuntimeMs: 240000,
+    propertyPrefix: 'AST_JOBS_JOB_'
+  }
+});
+
+const resumed = ASTX.Jobs.resume(queued.id);
+Logger.log(resumed.status);
+```
+
+See:
+
+- [Jobs Contracts](jobs-contracts.md)
+
 ## `ASTX.AI`
 
 Unified AI surface across:
