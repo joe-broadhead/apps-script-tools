@@ -64,6 +64,9 @@
 - DataFrame schema contract APIs:
   - `DataFrame.validateSchema(...)` / `df.validateSchema(...)` for deterministic validation reports.
   - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.
+- DataFrame expression DSL foundation:
+  - `df.selectExprDsl(map, options)` with a safe parser/evaluator contract (no dynamic code execution).
+  - bounded compiled-plan cache for repeated expression execution.
 - New `AST.Storage` namespace with:
   - `run`, `list`, `head`, `read`, `write`, `delete`
   - `exists`, `copy`, `move`, `signedUrl`, `multipartWrite`

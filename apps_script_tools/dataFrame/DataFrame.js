@@ -1107,6 +1107,100 @@ var DataFrame = class DataFrame {
     });
   }
 
+  selectExprDsl(map, options = {}) {
+    if (map == null || typeof map !== 'object' || Array.isArray(map)) {
+      throw new Error('selectExprDsl requires an object mapping of output columns');
+    }
+
+    if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('selectExprDsl options must be an object');
+    }
+
+    const {
+      strict = true,
+      onError = 'throw',
+      cachePlan = true
+    } = options;
+
+    if (typeof strict !== 'boolean') {
+      throw new Error('selectExprDsl option strict must be boolean');
+    }
+
+    if (!['throw', 'null'].includes(onError)) {
+      throw new Error("selectExprDsl option onError must be either 'throw' or 'null'");
+    }
+
+    if (typeof cachePlan !== 'boolean') {
+      throw new Error('selectExprDsl option cachePlan must be boolean');
+    }
+
+    if (typeof __astExprCompileMap !== 'function') {
+      throw new Error('selectExprDsl expression engine is not available');
+    }
+
+    const compiledEntries = __astExprCompileMap(map, {
+      strict,
+      cachePlan,
+      availableColumns: this.columns
+    });
+
+    const rowCount = this.len();
+    const outputColumns = {};
+    const sourceColumns = this.columns;
+    const sourceColumnArrays = sourceColumns.map(column => this.data[column].array);
+    let rowCache = null;
+
+    const buildRowObjectAt = rowIdx => {
+      if (rowCache == null) {
+        rowCache = new Array(rowCount);
+      }
+
+      if (rowCache[rowIdx] != null) {
+        return rowCache[rowIdx];
+      }
+
+      const row = {};
+      for (let colIdx = 0; colIdx < sourceColumns.length; colIdx++) {
+        row[sourceColumns[colIdx]] = sourceColumnArrays[colIdx][rowIdx];
+      }
+
+      rowCache[rowIdx] = row;
+      return row;
+    };
+
+    for (let planIdx = 0; planIdx < compiledEntries.length; planIdx++) {
+      const entry = compiledEntries[planIdx];
+      const values = new Array(rowCount);
+
+      for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+        let evaluated;
+        try {
+          evaluated = entry.evaluate(buildRowObjectAt(rowIdx), { strict });
+        } catch (error) {
+          if (onError === 'null') {
+            values[rowIdx] = null;
+            continue;
+          }
+
+          throw new Error(`selectExprDsl expression for '${entry.outputColumn}' failed at row ${rowIdx}: ${error.message}`);
+        }
+
+        if (evaluated && typeof evaluated.then === 'function') {
+          throw new Error(`selectExprDsl expression for '${entry.outputColumn}' returned a Promise at row ${rowIdx}; async expressions are not supported`);
+        }
+
+        values[rowIdx] = evaluated;
+      }
+
+      outputColumns[entry.outputColumn] = values;
+    }
+
+    return DataFrame.fromColumns(outputColumns, {
+      copy: false,
+      index: [...this.index]
+    });
+  }
+
   resetIndex() {
     this.index = this.len() === 0 ? [] : arrayFromRange(0, this.len() - 1);
     return this;
