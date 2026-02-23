@@ -1351,6 +1351,113 @@ test('answer reuses cached response for identical request and indexVersion', () 
   assert.equal(aiCallCount, 1);
 });
 
+test('answer cache key differentiates generation options and providerOptions', () => {
+  const cacheStore = {};
+  const context = createGasContext({
+    CacheService: {
+      getScriptCache: () => ({
+        get: key => (Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null),
+        put: (key, value) => {
+          cacheStore[key] = String(value);
+        }
+      })
+    }
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_cached_answer_options',
+    fileName: 'index-cached-answer-options.json',
+    document: {
+      indexVersion: 'idxv_test_2',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_1',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'doc.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Cache identity context',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  let aiCallCount = 0;
+  context.runAiRequest = () => {
+    aiCallCount += 1;
+    return {
+      output: {
+        json: {
+          answer: `answer-${aiCallCount} [S1]`,
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 2,
+        outputTokens: 3,
+        totalTokens: 5
+      }
+    };
+  };
+
+  const baseRequest = {
+    indexFileId: 'index_cached_answer_options',
+    question: 'What is the cache identity context?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      answerCache: true,
+      answerCacheTtlSec: 300,
+      requireCitations: true
+    }
+  };
+
+  const requestA = JSON.parse(JSON.stringify(baseRequest));
+  requestA.generation.options = { temperature: 0.1 };
+  const requestA2 = JSON.parse(JSON.stringify(requestA));
+
+  const first = context.AST.RAG.answer(requestA);
+  const second = context.AST.RAG.answer(requestA2);
+
+  const requestB = JSON.parse(JSON.stringify(baseRequest));
+  requestB.generation.options = { temperature: 0.9 };
+  const third = context.AST.RAG.answer(requestB);
+
+  const requestC = JSON.parse(JSON.stringify(baseRequest));
+  requestC.generation.options = { temperature: 0.9 };
+  requestC.generation.providerOptions = {
+    responseFormat: 'json'
+  };
+  const fourth = context.AST.RAG.answer(requestC);
+
+  assert.equal(first.answer, 'answer-1 [S1]');
+  assert.equal(second.answer, 'answer-1 [S1]');
+  assert.equal(second.cached, true);
+
+  assert.equal(third.answer, 'answer-2 [S1]');
+  assert.equal(third.cached, undefined);
+
+  assert.equal(fourth.answer, 'answer-3 [S1]');
+  assert.equal(fourth.cached, undefined);
+
+  assert.equal(aiCallCount, 3);
+});
+
 test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });

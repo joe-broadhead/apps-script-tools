@@ -31,7 +31,17 @@ function astRagBuildAnswerCacheIdentity(normalizedRequest = {}, indexDocument = 
     retrieval: normalizedRequest.retrieval || {},
     generation: {
       provider: normalizedRequest.generation && normalizedRequest.generation.provider,
-      model: normalizedRequest.generation && normalizedRequest.generation.model
+      model: normalizedRequest.generation && normalizedRequest.generation.model,
+      providerOptions: astRagIsPlainObject(
+        normalizedRequest.generation && normalizedRequest.generation.providerOptions
+      )
+        ? astRagCloneObject(normalizedRequest.generation.providerOptions)
+        : {},
+      options: astRagIsPlainObject(
+        normalizedRequest.generation && normalizedRequest.generation.options
+      )
+        ? astRagCloneObject(normalizedRequest.generation.options)
+        : {}
     },
     options: {
       requireCitations: Boolean(normalizedRequest.options && normalizedRequest.options.requireCitations),
