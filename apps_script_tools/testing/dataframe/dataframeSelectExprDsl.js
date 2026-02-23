@@ -58,5 +58,22 @@ DATAFRAME_SELECT_EXPR_DSL_TESTS = [
         }
       }
     }
+  },
+  {
+    description: 'DataFrame.selectExprDsl() should preserve null semantics for abs()',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { amount: -5 },
+        { amount: null }
+      ]);
+
+      const result = df.selectExprDsl({
+        magnitude: 'abs(amount)'
+      });
+
+      if (JSON.stringify(result.magnitude.array) !== JSON.stringify([5, null])) {
+        throw new Error(`Expected [5, null], got ${JSON.stringify(result.magnitude.array)}`);
+      }
+    }
   }
 ];

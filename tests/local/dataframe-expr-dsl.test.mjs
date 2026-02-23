@@ -97,6 +97,20 @@ test('DataFrame.selectExprDsl onError=null null-fills runtime evaluation failure
   assert.equal(JSON.stringify(projected.rounded.array), JSON.stringify([null, null]));
 });
 
+test('DataFrame.selectExprDsl abs(null) preserves null semantics', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromRecords([
+    { amount: -5 },
+    { amount: null }
+  ]);
+
+  const projected = df.selectExprDsl({
+    magnitude: 'abs(amount)'
+  });
+
+  assert.equal(JSON.stringify(projected.magnitude.array), JSON.stringify([5, null]));
+});
+
 test('expression parser raises deterministic parse error details', () => {
   const context = createContext();
 
