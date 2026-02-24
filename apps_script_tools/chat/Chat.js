@@ -50,18 +50,19 @@ function astChatCreateThreadStore(config = {}) {
     },
 
     newThread(userContext = {}, args = {}) {
+      const normalizedArgs = astChatIsPlainObject(args) ? args : {};
       const mutation = astChatWithMutableState(
         userContext,
         resolvedConfig,
         state => {
-          const thread = astChatCreateThreadInState(state, args, resolvedConfig);
+          const thread = astChatCreateThreadInState(state, normalizedArgs, resolvedConfig);
           return {
             threadId: thread.threadId,
             thread: astChatJsonClone(thread),
             activeThreadId: state.activeThreadId
           };
         },
-        args
+        normalizedArgs
       );
 
       return {
@@ -76,18 +77,19 @@ function astChatCreateThreadStore(config = {}) {
     },
 
     switchThread(userContext = {}, args = {}) {
+      const normalizedArgs = astChatIsPlainObject(args) ? args : {};
       const mutation = astChatWithMutableState(
         userContext,
         resolvedConfig,
         state => {
-          const thread = astChatSwitchThreadInState(state, args.threadId);
+          const thread = astChatSwitchThreadInState(state, normalizedArgs.threadId);
           return {
             threadId: thread.threadId,
             thread: astChatJsonClone(thread),
             activeThreadId: state.activeThreadId
           };
         },
-        args
+        normalizedArgs
       );
 
       return {
@@ -102,11 +104,12 @@ function astChatCreateThreadStore(config = {}) {
     },
 
     appendTurn(userContext = {}, args = {}) {
+      const normalizedArgs = astChatIsPlainObject(args) ? args : {};
       const mutation = astChatWithMutableState(
         userContext,
         resolvedConfig,
-        state => astChatAppendTurnInState(state, args, resolvedConfig),
-        args
+        state => astChatAppendTurnInState(state, normalizedArgs, resolvedConfig),
+        normalizedArgs
       );
 
       return {

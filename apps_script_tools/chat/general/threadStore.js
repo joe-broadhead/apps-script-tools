@@ -242,7 +242,17 @@ function astChatCreateThreadInState(state, args = {}, config) {
   astChatApplyThreadLimit(state, config.limits);
   state.updatedAt = nowIso;
 
-  return thread;
+  const persistedThread = state.threads.find(item => item.threadId === threadId);
+  if (!persistedThread) {
+    throw new AstChatValidationError('Unable to persist thread because threadMax limit was reached', {
+      threadId,
+      threadMax: config && config.limits ? config.limits.threadMax : null,
+      activeThreadId: state.activeThreadId,
+      activate
+    });
+  }
+
+  return persistedThread;
 }
 
 function astChatSwitchThreadInState(state, threadId) {

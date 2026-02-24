@@ -159,6 +159,12 @@ function astChatRunWithLock(task, config = {}, options = {}) {
   if (typeof task !== 'function') {
     throw new AstChatCapabilityError('Chat lock task must be a function');
   }
+  if (!astChatIsPlainObject(config)) {
+    config = {};
+  }
+  if (!astChatIsPlainObject(options)) {
+    options = {};
+  }
 
   const lockScope = astChatNormalizeString(
     options.lockScope,

@@ -248,6 +248,39 @@ test('ThreadStore uses degraded lock mode when lock acquisition fails and fallba
   assert.equal(result.diagnostics.lockMode, 'degraded');
 });
 
+test('ThreadStore lock path handles null args without raw TypeError', () => {
+  const { context } = createChatContext();
+  const namespace = `chat_null_args_${Date.now()}`;
+  const store = context.AST.Chat.ThreadStore.create({
+    keyPrefix: namespace,
+    lock: {
+      lockScope: 'none'
+    },
+    hot: {
+      backend: 'memory',
+      namespace: `${namespace}:hot`
+    },
+    durable: {
+      backend: 'memory',
+      namespace: `${namespace}:durable`
+    }
+  });
+
+  const user = { userKey: 'null-args-user' };
+  const created = store.newThread(user, null);
+  assert.ok(created.threadId);
+
+  assert.throws(
+    () => store.switchThread(user, null),
+    /AstChatValidationError|threadId is required/
+  );
+
+  assert.throws(
+    () => store.appendTurn(user, null),
+    /AstChatValidationError|turn\.role must be one of|turn must be an object/
+  );
+});
+
 test('ThreadStore throws AstChatLockError when lock acquisition fails and fallback is disabled', () => {
   const lock = {
     tryLock: () => false,
@@ -282,4 +315,40 @@ test('ThreadStore throws AstChatLockError when lock acquisition fails and fallba
     () => store.newThread({ userKey: 'lock-user' }, { title: 'Strict thread' }),
     /AstChatLockError|Unable to acquire chat lock/
   );
+});
+
+test('ThreadStore newThread does not return evicted thread IDs', () => {
+  const { context } = createChatContext();
+  const namespace = `chat_thread_eviction_${Date.now()}`;
+  const store = context.AST.Chat.ThreadStore.create({
+    keyPrefix: namespace,
+    lock: {
+      lockScope: 'none'
+    },
+    limits: {
+      threadMax: 1,
+      turnsMax: 10
+    },
+    hot: {
+      backend: 'memory',
+      namespace: `${namespace}:hot`
+    },
+    durable: {
+      backend: 'memory',
+      namespace: `${namespace}:durable`
+    }
+  });
+
+  const user = { userKey: 'evict-user' };
+  const active = store.newThread(user, { title: 'active', activate: true });
+  assert.ok(active.threadId);
+
+  assert.throws(
+    () => store.newThread(user, { title: 'inactive', activate: false }),
+    /AstChatValidationError|Unable to persist thread because threadMax limit was reached/
+  );
+
+  const listed = store.listThreads(user);
+  assert.equal(listed.threadCount, 1);
+  assert.equal(listed.threads[0].threadId, active.threadId);
 });
