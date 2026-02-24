@@ -26,6 +26,7 @@ ASTX.Runtime
 ASTX.Telemetry
 ASTX.TelemetryHelpers
 ASTX.Jobs
+ASTX.Chat
 ASTX.Sql
 ASTX.Utils
 ```
@@ -247,6 +248,29 @@ ASTX.Jobs.getConfig()
 ASTX.Jobs.clearConfig()
 ```
 
+## `Chat` essentials
+
+```javascript
+ASTX.Chat.configure(config, options)
+ASTX.Chat.getConfig()
+ASTX.Chat.clearConfig()
+ASTX.Chat.ThreadStore.create(config)
+```
+
+```javascript
+const store = ASTX.Chat.ThreadStore.create({
+  keyPrefix: 'my_app',
+  durable: { backend: 'drive_json' },
+  limits: { threadMax: 25, turnsMax: 200 }
+});
+
+store.getOrCreateState({ userKey: 'user-1' });
+store.newThread({ userKey: 'user-1' }, { title: 'New chat' });
+store.switchThread({ userKey: 'user-1' }, { threadId: 'thread_123' });
+store.appendTurn({ userKey: 'user-1' }, { turn: { role: 'user', content: 'Hello' } });
+store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You are helpful.' });
+```
+
 ## High-signal behavior notes
 
 - `Series.query` rejects string predicates.
@@ -268,6 +292,7 @@ ASTX.Jobs.clearConfig()
 - `RAG.answer(...)` supports retrieval recovery policy (`retrieval.recovery.*`) before generation.
 - `RAG.answer(...)` supports deterministic fallback controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 - `RAG.answer(...)` always returns `diagnostics` with retrieval/generation timings and pipeline path metadata.
+- `ASTX.Chat.ThreadStore` persists per-user thread state with lock-aware writes and deterministic thread/turn caps.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).

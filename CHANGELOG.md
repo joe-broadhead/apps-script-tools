@@ -11,6 +11,10 @@
 - New `AST.Jobs` namespace with:
   - `run`, `enqueue`, `resume`, `status`, `list`, `cancel`
   - `configure`, `getConfig`, `clearConfig`
+- New `AST.Chat` namespace with:
+  - `configure`, `getConfig`, `clearConfig`
+  - `ThreadStore.create(config)` for durable user-scoped chat state
+  - store methods: `getOrCreateState`, `listThreads`, `getThread`, `newThread`, `switchThread`, `appendTurn`, `buildHistory`, `clearUser`
 - New `AST.Config` namespace with:
   - `fromScriptProperties(options)` for normalized script property snapshots.
 - New `AST.Runtime` namespace with:
@@ -139,6 +143,7 @@
 - `AST` namespace now exposes `AST.Telemetry`.
 - `AST` namespace now exposes `AST.TelemetryHelpers`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
+- `AST` namespace now exposes `AST.Chat`.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
 - GAS functional suite now includes telemetry namespace smoke coverage.
 - GAS and local AI tool-runtime suites now include idempotent replay coverage and guardrail contract validation.

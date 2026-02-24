@@ -23,3 +23,24 @@ test('AST.Utils date helpers are callable', () => {
 
   assert.equal(out.toISOString(), '2024-01-12T00:00:00.000Z');
 });
+
+test('AST namespace exposes Chat.ThreadStore factory when chat module is loaded', () => {
+  const context = createGasContext();
+  const utilityFiles = listScriptFiles('apps_script_tools/utilities');
+  const cacheGeneral = listScriptFiles('apps_script_tools/cache/general');
+  const cacheBackends = listScriptFiles('apps_script_tools/cache/backends');
+  const chatGeneral = listScriptFiles('apps_script_tools/chat/general');
+
+  loadScripts(context, [
+    ...utilityFiles,
+    ...cacheGeneral,
+    ...cacheBackends,
+    'apps_script_tools/cache/Cache.js',
+    ...chatGeneral,
+    'apps_script_tools/chat/Chat.js',
+    'apps_script_tools/AST.js'
+  ]);
+
+  assert.equal(typeof context.AST.Chat.configure, 'function');
+  assert.equal(typeof context.AST.Chat.ThreadStore.create, 'function');
+});

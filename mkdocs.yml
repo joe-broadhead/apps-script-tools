@@ -104,10 +104,11 @@ nav:
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
     - Storage Quick Start: getting-started/storage-quickstart.md
-  - API:
-    - Quick Reference: api/quick-reference.md
-    - Tools: api/tools.md
-    - Telemetry Contracts: api/telemetry-contracts.md
+    - API:
+      - Quick Reference: api/quick-reference.md
+      - Tools: api/tools.md
+      - Chat Contracts: api/chat-contracts.md
+      - Telemetry Contracts: api/telemetry-contracts.md
     - Jobs Contracts: api/jobs-contracts.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md

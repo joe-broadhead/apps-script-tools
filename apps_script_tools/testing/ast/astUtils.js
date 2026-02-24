@@ -117,5 +117,21 @@ AST_UTILS_TESTS = [
         }
       });
     }
+  },
+  {
+    description: 'AST namespace should expose Chat thread store helper surface',
+    test: () => {
+      if (!AST || !AST.Chat) {
+        throw new Error('AST.Chat is not available');
+      }
+
+      if (typeof AST.Chat.configure !== 'function' || typeof AST.Chat.getConfig !== 'function') {
+        throw new Error('AST.Chat does not expose configure/getConfig methods');
+      }
+
+      if (!AST.Chat.ThreadStore || typeof AST.Chat.ThreadStore.create !== 'function') {
+        throw new Error('AST.Chat.ThreadStore.create is not available');
+      }
+    }
   }
 ];

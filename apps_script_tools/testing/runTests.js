@@ -17,6 +17,7 @@ async function runAllTests() {
     ...STORAGE_NAMESPACE_TESTS,
     ...TELEMETRY_NAMESPACE_TESTS,
     ...JOBS_NAMESPACE_TESTS,
+    ...CHAT_NAMESPACE_TESTS,
 
     // dataFrame/DataFrame Tests
 
