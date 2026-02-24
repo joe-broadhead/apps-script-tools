@@ -38,12 +38,14 @@ function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval
     return [];
   }
 
-  const lexical = retrieval.mode === 'hybrid'
+  const lexical = (retrieval.mode === 'hybrid' || retrieval.mode === 'lexical')
     ? astRagComputeLexicalScores(query, chunks)
     : { scores: {} };
 
   const scored = chunks.map(chunk => {
-    const vectorScore = astRagCosineSimilarity(queryVector, chunk.embedding);
+    const vectorScore = retrieval.mode === 'lexical'
+      ? null
+      : astRagCosineSimilarity(queryVector, chunk.embedding);
     const lexicalScore = lexical.scores[chunk.chunkId] || 0;
 
     return Object.assign(

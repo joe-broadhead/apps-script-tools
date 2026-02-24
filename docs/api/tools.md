@@ -228,6 +228,7 @@ ASTX.Cache.configure({
 
 - `retrieval.mode = 'vector'` (default cosine-only ranking)
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
+- `retrieval.mode = 'lexical'` (BM25-only ranking; no embedding call)
 - `retrieval.rerank` for optional top-N reranking
 - `retrieval.access` for source-level allow/deny constraints
 - optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)

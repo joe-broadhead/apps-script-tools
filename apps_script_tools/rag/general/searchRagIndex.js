@@ -33,6 +33,7 @@ function astRagSearchCore(request = {}) {
   const normalizedRequest = astRagValidateSearchRequest(request);
   const diagnosticsEnabled = normalizedRequest.options && normalizedRequest.options.diagnostics === true;
   const diagnostics = astRagBuildSearchDiagnostics(normalizedRequest);
+  const retrievalMode = normalizedRequest.retrieval.mode;
   diagnostics.timings.validationMs = Math.max(0, new Date().getTime() - validateStartMs);
 
   const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
@@ -64,7 +65,7 @@ function astRagSearchCore(request = {}) {
 
     const cachedResponse = astRagCloneObject(cachedSearch);
     diagnostics.cache.searchHit = true;
-    diagnostics.cache.embeddingHit = true;
+    diagnostics.cache.embeddingHit = retrievalMode !== 'lexical';
     diagnostics.retrieval.returned = cachedResponse.results.length;
     diagnostics.totalMs = Math.max(0, new Date().getTime() - totalStartMs);
     cachedResponse.diagnostics = diagnostics;
@@ -74,22 +75,24 @@ function astRagSearchCore(request = {}) {
   const indexEmbedding = document.embedding || {};
   const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
   const embeddingModel = astRagNormalizeString(indexEmbedding.model, null);
+  let embeddingCacheKey = null;
+  if (retrievalMode !== 'lexical') {
+    if (!embeddingProvider || !embeddingModel) {
+      throw new AstRagRetrievalError('Index is missing embedding provider/model metadata', {
+        indexFileId: normalizedRequest.indexFileId
+      });
+    }
 
-  if (!embeddingProvider || !embeddingModel) {
-    throw new AstRagRetrievalError('Index is missing embedding provider/model metadata', {
-      indexFileId: normalizedRequest.indexFileId
-    });
+    embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+      normalizedRequest.indexFileId,
+      versionToken,
+      embeddingProvider,
+      embeddingModel,
+      normalizedRequest.query
+    );
   }
 
-  const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
-    normalizedRequest.indexFileId,
-    versionToken,
-    embeddingProvider,
-    embeddingModel,
-    normalizedRequest.query
-  );
-
-  const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
+  const cachedEmbedding = embeddingCacheKey ? astRagCacheGet(cacheConfig, embeddingCacheKey) : null;
   let queryVector = null;
   let usage = {
     inputTokens: 0,
@@ -97,7 +100,9 @@ function astRagSearchCore(request = {}) {
     totalTokens: 0
   };
 
-  if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+  if (retrievalMode === 'lexical') {
+    queryVector = null;
+  } else if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
     diagnostics.cache.embeddingHit = true;
     queryVector = cachedEmbedding.vector.slice();
   } else {

@@ -688,6 +688,25 @@ test('astRagValidateSearchRequest normalizes hybrid retrieval contract', () => {
   assert.equal(JSON.stringify(normalized.retrieval.filters.mimeTypes), JSON.stringify(['text/plain']));
 });
 
+test('astRagValidateSearchRequest accepts lexical retrieval mode', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_lexical',
+    query: 'project risks',
+    retrieval: {
+      mode: 'lexical',
+      topK: 4,
+      minScore: 0.05
+    }
+  });
+
+  assert.equal(normalized.retrieval.mode, 'lexical');
+  assert.equal(normalized.retrieval.topK, 4);
+  assert.equal(normalized.retrieval.minScore, 0.05);
+});
+
 test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', () => {
   const context = createGasContext();
   loadRagScripts(context);
@@ -700,7 +719,7 @@ test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', (
         mode: 'lexical_only'
       }
     }),
-    /must be one of: vector, hybrid/
+    /must be one of: vector, hybrid, lexical/
   );
 
   assert.throws(

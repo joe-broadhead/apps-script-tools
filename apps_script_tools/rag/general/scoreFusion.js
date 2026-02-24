@@ -1,4 +1,11 @@
 function astRagResolveHybridWeights(retrieval = {}) {
+  if (retrieval.mode === 'lexical') {
+    return {
+      vectorWeight: 0,
+      lexicalWeight: 1
+    };
+  }
+
   if (retrieval.mode !== 'hybrid') {
     return {
       vectorWeight: 1,
@@ -45,7 +52,9 @@ function astRagNormalizeVectorScore(vectorScore) {
 }
 
 function astRagFuseRetrievalScores(scoredChunks = [], retrieval = {}) {
-  const mode = retrieval.mode === 'hybrid' ? 'hybrid' : 'vector';
+  const mode = retrieval.mode === 'hybrid'
+    ? 'hybrid'
+    : (retrieval.mode === 'lexical' ? 'lexical' : 'vector');
   const lexicalValues = scoredChunks
     .map(item => (typeof item.lexicalScore === 'number' && isFinite(item.lexicalScore)) ? item.lexicalScore : 0);
   const lexicalMin = lexicalValues.length > 0 ? Math.min.apply(null, lexicalValues) : 0;
@@ -56,10 +65,18 @@ function astRagFuseRetrievalScores(scoredChunks = [], retrieval = {}) {
     const vectorScore = typeof item.vectorScore === 'number' && isFinite(item.vectorScore) ? item.vectorScore : 0;
     const lexicalScore = typeof item.lexicalScore === 'number' && isFinite(item.lexicalScore) ? item.lexicalScore : 0;
 
-    if (mode !== 'hybrid') {
+    if (mode === 'vector') {
       return Object.assign({}, item, {
         lexicalScore: null,
         finalScore: vectorScore
+      });
+    }
+
+    if (mode === 'lexical') {
+      const lexicalNormalized = astRagNormalizeLexicalScore(lexicalScore, lexicalMin, lexicalMax);
+      return Object.assign({}, item, {
+        vectorScore: null,
+        finalScore: lexicalNormalized
       });
     }
 
