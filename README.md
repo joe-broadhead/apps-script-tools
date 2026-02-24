@@ -77,7 +77,7 @@ Current release state:
 - `AST.AI.OutputRepair.continueIfTruncated(...)` helper for bounded continuation of truncated outputs.
 - `AST.RAG.Citations.*` utility helpers for inline normalization, filtering, and source-link mapping.
 - `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback synthesis.
-- `AST.RAG.answer(...)` recovery controls (`retrieval.recovery`) and stable per-phase diagnostics.
+- `AST.RAG.answer(...)` recovery controls (`retrieval.recovery`) and optional per-phase diagnostics (`options.diagnostics` or `RAG_DIAGNOSTICS_ENABLED`).
 - `AST.RAG.answer(...)` fallback controls for retrieval error/empty paths (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 
 ## Install As Apps Script Library

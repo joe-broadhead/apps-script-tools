@@ -1003,6 +1003,88 @@ test('search cache reuses query embedding and ranked results when enabled', () =
   assert.equal(embedCalls, 1, 'second search should reuse cached embedding/ranking');
 });
 
+test('search diagnostics include phase timings and cache-hit metadata when enabled', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_diag_search',
+    indexName: 'diag-search-index',
+    updatedAt: '2026-02-01T00:00:00.000Z',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'diag_chunk_1',
+        sourceId: 'diag_src_1',
+        fileId: 'diag_file_1',
+        fileName: 'diag.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Diagnostics search content',
+        embedding: [1, 0, 0]
+      }
+    ]
+  };
+
+  let embedCalls = 0;
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_diag_search',
+    fileName: 'diag-search-index.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    cacheHit: true,
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 2, totalTokens: 2 }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_diag_search',
+    query: 'diagnostics',
+    retrieval: {
+      topK: 3,
+      minScore: 0
+    },
+    options: {
+      diagnostics: true
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_diag_search_cache'
+    }
+  };
+
+  const first = context.AST.RAG.search(request);
+  const second = context.AST.RAG.search(request);
+
+  assert.equal(embedCalls, 1);
+  assert.equal(typeof first.diagnostics, 'object');
+  assert.equal(first.diagnostics.cache.indexDocHit, true);
+  assert.equal(first.diagnostics.cache.searchHit, false);
+  assert.equal(typeof first.diagnostics.timings.indexLoadMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.embeddingMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.retrievalMs, 'number');
+  assert.equal(first.diagnostics.retrieval.mode, 'vector');
+  assert.equal(first.diagnostics.retrieval.returned, 1);
+
+  assert.equal(typeof second.diagnostics, 'object');
+  assert.equal(second.diagnostics.cache.searchHit, true);
+  assert.equal(second.diagnostics.cache.embeddingHit, true);
+});
+
 test('search supports hybrid retrieval with lexical+vector score fusion', () => {
   const indexDoc = {
     schemaVersion: '1.0',
@@ -1627,6 +1709,9 @@ test('answer diagnostics include stable retrieval and generation metadata', () =
     generation: {
       provider: 'openai',
       auth: { apiKey: 'test-key' }
+    },
+    options: {
+      diagnostics: true
     }
   });
 
@@ -1640,6 +1725,67 @@ test('answer diagnostics include stable retrieval and generation metadata', () =
   assert.equal(response.diagnostics.retrieval.usableSources, 1);
   assert.equal(response.diagnostics.generation.status, 'ok');
   assert.equal(response.diagnostics.generation.grounded, true);
+});
+
+test('answer omits diagnostics by default when diagnostics option is not enabled', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_no_diag',
+    fileName: 'answer-no-diag-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_no_diag_1',
+          sourceId: 'src_no_diag_1',
+          fileId: 'file_no_diag_1',
+          fileName: 'no-diag.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'No diagnostics by default.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'No diagnostics response [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 3,
+      outputTokens: 3,
+      totalTokens: 6
+    }
+  });
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_no_diag',
+    question: 'Do we include diagnostics?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(typeof response.diagnostics, 'undefined');
 });
 
 test('answer recovery policy relaxes retrieval and applies recovered candidates', () => {
@@ -1731,6 +1877,9 @@ test('answer recovery policy relaxes retrieval and applies recovered candidates'
       generation: {
         provider: 'openai',
         auth: { apiKey: 'test-key' }
+      },
+      options: {
+        diagnostics: true
       }
     });
 
@@ -1789,6 +1938,7 @@ test('answer fallback.onRetrievalError returns deterministic fallback instead of
       auth: { apiKey: 'test-key' }
     },
     options: {
+      diagnostics: true,
       insufficientEvidenceMessage: 'Fallback insufficient.'
     }
   });
@@ -1853,6 +2003,7 @@ test('answer fallback.onRetrievalEmpty can synthesize citation-grounded facts', 
       factCount: 1
     },
     options: {
+      diagnostics: true,
       insufficientEvidenceMessage: 'No grounded facts.'
     },
     generation: {
@@ -1877,6 +2028,7 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
     indexFileId: 'index_preview_1',
     fileName: 'preview-index.json',
     versionToken: '2026-02-24T00:00:00.000Z',
+    cacheHit: true,
     document: {
       updatedAt: '2026-02-24T00:00:00.000Z',
       embedding: {
@@ -1917,6 +2069,9 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
       backend: 'memory',
       namespace: 'rag_preview_search_cache'
     },
+    options: {
+      diagnostics: true
+    },
     preview: {
       cachePayload: true,
       payloadCache: {
@@ -1934,6 +2089,11 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
   );
   assert.equal(typeof response.cacheKey, 'string');
   assert.equal(response.payload.query, 'project launch');
+  assert.equal(typeof response.diagnostics, 'object');
+  assert.equal(typeof response.diagnostics.timings.searchMs, 'number');
+  assert.equal(typeof response.diagnostics.timings.payloadCacheWriteMs, 'number');
+  assert.equal(response.diagnostics.retrieval.returned, 1);
+  assert.equal(response.diagnostics.cache.indexDocHit, true);
 
   const payload = context.AST.RAG.getRetrievalPayload(response.cacheKey, {
     backend: 'memory',

@@ -654,7 +654,7 @@ High-signal behavior:
 - `answer(...)` supports retrieval recovery controls (`retrieval.recovery`) before generation.
 - `answer(...)` supports deterministic fallback policy controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 - `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
-- `answer(...)` returns stable `diagnostics` for retrieval/generation phase timing + pipeline path.
+- `answer(...)` can return stable `diagnostics` for retrieval/generation phase timing + pipeline path when `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
 
 See:
 

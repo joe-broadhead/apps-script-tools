@@ -87,8 +87,13 @@ function astRagNormalizeSearchOptions(options = {}) {
     throw new AstRagValidationError('search.options must be an object when provided');
   }
 
+  const diagnosticsDefault = typeof astRagResolveDiagnosticsEnabledDefault === 'function'
+    ? astRagResolveDiagnosticsEnabledDefault()
+    : false;
+
   return {
-    enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true)
+    enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
+    diagnostics: astRagNormalizeBoolean(options.diagnostics, diagnosticsDefault)
   };
 }
 
@@ -151,11 +156,16 @@ function astRagNormalizeAnswerOptions(options = {}) {
     throw new AstRagValidationError('answer.options must be an object when provided');
   }
 
+  const diagnosticsDefault = typeof astRagResolveDiagnosticsEnabledDefault === 'function'
+    ? astRagResolveDiagnosticsEnabledDefault()
+    : false;
+
   return {
     requireCitations: typeof options.requireCitations === 'boolean'
       ? options.requireCitations
       : true,
     enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
+    diagnostics: astRagNormalizeBoolean(options.diagnostics, diagnosticsDefault),
     insufficientEvidenceMessage: astRagNormalizeString(
       options.insufficientEvidenceMessage,
       'I do not have enough grounded context to answer that.'

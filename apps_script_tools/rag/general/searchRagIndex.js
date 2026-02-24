@@ -1,9 +1,49 @@
+function astRagBuildSearchDiagnostics(normalizedRequest) {
+  return {
+    totalMs: 0,
+    cache: {
+      indexDocHit: false,
+      searchHit: false,
+      embeddingHit: false,
+      retrievalPayloadHit: false,
+      answerHit: false
+    },
+    timings: {
+      validationMs: 0,
+      indexLoadMs: 0,
+      embeddingMs: 0,
+      retrievalMs: 0,
+      rerankMs: 0,
+      generationMs: 0,
+      searchMs: 0,
+      payloadCacheWriteMs: 0
+    },
+    retrieval: {
+      mode: normalizedRequest.retrieval.mode,
+      topK: normalizedRequest.retrieval.topK,
+      minScore: normalizedRequest.retrieval.minScore,
+      returned: 0
+    }
+  };
+}
+
 function astRagSearchCore(request = {}) {
+  const totalStartMs = new Date().getTime();
+  const validateStartMs = totalStartMs;
   const normalizedRequest = astRagValidateSearchRequest(request);
+  const diagnosticsEnabled = normalizedRequest.options && normalizedRequest.options.diagnostics === true;
+  const diagnostics = astRagBuildSearchDiagnostics(normalizedRequest);
+  diagnostics.timings.validationMs = Math.max(0, new Date().getTime() - validateStartMs);
+
   const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
+
+  const indexLoadStartMs = new Date().getTime();
   const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId, {
     cache: cacheConfig
   });
+  diagnostics.timings.indexLoadMs = Math.max(0, new Date().getTime() - indexLoadStartMs);
+  diagnostics.cache.indexDocHit = loaded && loaded.cacheHit === true;
+
   const document = loaded.document;
   const versionToken = astRagNormalizeString(
     loaded.versionToken,
@@ -18,7 +58,17 @@ function astRagSearchCore(request = {}) {
   );
   const cachedSearch = astRagCacheGet(cacheConfig, searchCacheKey);
   if (cachedSearch && Array.isArray(cachedSearch.results)) {
-    return cachedSearch;
+    if (!diagnosticsEnabled) {
+      return cachedSearch;
+    }
+
+    const cachedResponse = astRagCloneObject(cachedSearch);
+    diagnostics.cache.searchHit = true;
+    diagnostics.cache.embeddingHit = true;
+    diagnostics.retrieval.returned = cachedResponse.results.length;
+    diagnostics.totalMs = Math.max(0, new Date().getTime() - totalStartMs);
+    cachedResponse.diagnostics = diagnostics;
+    return cachedResponse;
   }
 
   const indexEmbedding = document.embedding || {};
@@ -48,8 +98,10 @@ function astRagSearchCore(request = {}) {
   };
 
   if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+    diagnostics.cache.embeddingHit = true;
     queryVector = cachedEmbedding.vector.slice();
   } else {
+    const embeddingStartMs = new Date().getTime();
     const queryEmbedding = astRagEmbedTexts({
       provider: embeddingProvider,
       model: embeddingModel,
@@ -61,17 +113,23 @@ function astRagSearchCore(request = {}) {
 
     queryVector = queryEmbedding.vectors[0];
     usage = queryEmbedding.usage || usage;
+    diagnostics.timings.embeddingMs = Math.max(0, new Date().getTime() - embeddingStartMs);
     astRagCacheSet(cacheConfig, embeddingCacheKey, {
       vector: queryVector
     }, cacheConfig.embeddingTtlSec);
   }
 
+  const retrievalStartMs = new Date().getTime();
   const ranked = astRagRetrieveRankedChunks(
     document,
     normalizedRequest.query,
     queryVector,
     normalizedRequest.retrieval
   );
+  diagnostics.timings.retrievalMs = Math.max(0, new Date().getTime() - retrievalStartMs);
+  diagnostics.retrieval.returned = ranked.length;
+  diagnostics.timings.searchMs = diagnostics.timings.indexLoadMs + diagnostics.timings.embeddingMs + diagnostics.timings.retrievalMs;
+  diagnostics.totalMs = Math.max(0, new Date().getTime() - totalStartMs);
 
   const response = {
     indexFileId: normalizedRequest.indexFileId,
@@ -84,7 +142,12 @@ function astRagSearchCore(request = {}) {
     results: ranked,
     usage
   };
+  if (diagnosticsEnabled) {
+    response.diagnostics = diagnostics;
+  }
 
-  astRagCacheSet(cacheConfig, searchCacheKey, response, cacheConfig.searchTtlSec);
+  const cacheableResponse = astRagCloneObject(response);
+  delete cacheableResponse.diagnostics;
+  astRagCacheSet(cacheConfig, searchCacheKey, cacheableResponse, cacheConfig.searchTtlSec);
   return response;
 }
