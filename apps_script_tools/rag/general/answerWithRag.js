@@ -362,7 +362,10 @@ function astRagAnswerCore(request = {}) {
         provider: normalizedRequest.generation.provider,
         model: normalizedRequest.generation.model,
         options: normalizedRequest.generation.options,
-        providerOptions: normalizedRequest.generation.providerOptions
+        providerOptions: normalizedRequest.generation.providerOptions,
+        instructions: normalizedRequest.generation.instructions,
+        style: normalizedRequest.generation.style,
+        forbiddenPhrases: normalizedRequest.generation.forbiddenPhrases
       },
       Object.assign({}, normalizedRequest.options, {
         fallback: normalizedRequest.fallback
@@ -374,6 +377,7 @@ function astRagAnswerCore(request = {}) {
       !normalizedRequest.retrievalPayload &&
       !normalizedRequest.retrievalPayloadKey
     );
+    let deferredRetrievalError = null;
     if (useAnswerCache) {
       const cachedAnswer = astRagCacheGet(
         cacheConfig,
@@ -381,7 +385,20 @@ function astRagAnswerCore(request = {}) {
         operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
         { path: 'answer' }
       );
+      try {
+        astRagAssertAnswerRetrievalBudget(
+          retrievalTimeoutMs,
+          retrievalBudgetStartedAtMs,
+          'cache_answer_get',
+          diagnostics
+        );
+      } catch (error) {
+        deferredRetrievalError = error;
+      }
       if (cachedAnswer && astRagIsPlainObject(cachedAnswer) && typeof cachedAnswer.answer === 'string') {
+        if (deferredRetrievalError) {
+          throw deferredRetrievalError;
+        }
         const cachedResponse = astRagCloneObject(cachedAnswer);
         diagnostics.cache.answerHit = true;
         diagnostics.cache.searchHit = false;
@@ -427,6 +444,9 @@ function astRagAnswerCore(request = {}) {
     const retrievalStartMs = retrievalBudgetStartedAtMs;
 
     try {
+      if (deferredRetrievalError) {
+        throw deferredRetrievalError;
+      }
       astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval_payload', diagnostics);
       retrievalPayload = astRagResolveAnswerRetrievalPayload(
         normalizedRequest,

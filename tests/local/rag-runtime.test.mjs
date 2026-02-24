@@ -1757,6 +1757,88 @@ test('answer cache reuses grounded response when history is empty', () => {
   assert.equal(generationCalls, 1, 'second answer should reuse cached grounded output');
 });
 
+test('answer cache key includes generation prompt controls', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  let generationCalls = 0;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_cache_prompt_controls',
+    fileName: 'answer-cache-prompt-controls.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-01T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_cache_prompt_1',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'doc.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Cache-key prompt control grounding text.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = () => {
+    generationCalls += 1;
+    return {
+      output: {
+        json: {
+          answer: `Prompt-control answer #${generationCalls} [S1]`,
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
+      }
+    };
+  };
+
+  const baseRequest = {
+    indexFileId: 'index_answer_cache_prompt_controls',
+    question: 'What is cached?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' },
+      style: 'concise'
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_answer_cache_prompt_controls'
+    }
+  };
+
+  const first = context.AST.RAG.answer(baseRequest);
+  const second = context.AST.RAG.answer(Object.assign({}, baseRequest, {
+    generation: Object.assign({}, baseRequest.generation, {
+      style: 'bullets'
+    })
+  }));
+
+  assert.equal(first.status, 'ok');
+  assert.equal(second.status, 'ok');
+  assert.equal(generationCalls, 2, 'different generation prompt controls should not collide in answer cache');
+  assert.notEqual(first.answer, second.answer);
+});
+
 test('answer returns insufficient_context when access policy excludes all retrieved chunks', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
@@ -2157,6 +2239,101 @@ test('answer maxRetrievalMs with default error policy throws timeout error', () 
       return true;
     }
   );
+});
+
+test('answer maxRetrievalMs is enforced on cached-answer fast path', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  let generationCalls = 0;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_timeout_cache',
+    fileName: 'answer-timeout-cache.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-01T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_timeout_cache_1',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'doc.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Timeout cache grounding text.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = () => {
+    generationCalls += 1;
+    return {
+      output: {
+        json: {
+          answer: 'Cached timeout answer [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
+      }
+    };
+  };
+
+  const request = {
+    indexFileId: 'index_answer_timeout_cache',
+    question: 'Should timeout on cached fast path?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_answer_timeout_cache'
+    }
+  };
+
+  const warm = context.AST.RAG.answer(request);
+  assert.equal(warm.status, 'ok');
+  assert.equal(generationCalls, 1);
+
+  let tick = 0;
+  context.astRagNowMs = () => {
+    tick += 5;
+    return tick;
+  };
+
+  assert.throws(
+    () => context.AST.RAG.answer(Object.assign({}, request, {
+      options: {
+        maxRetrievalMs: 1
+      }
+    })),
+    error => {
+      assert.equal(error.name, 'AstRagRetrievalError');
+      assert.equal(error.details.timedOut, true);
+      assert.equal(error.details.timeoutMs, 1);
+      assert.equal(error.details.timeoutStage, 'cache_answer_get');
+      return true;
+    }
+  );
+  assert.equal(generationCalls, 1, 'cached fast path should fail timeout before generation');
 });
 
 test('answer generation controls customize grounding prompt while keeping citations', () => {
