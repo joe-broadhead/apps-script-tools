@@ -41,7 +41,8 @@ function runOpenRouter(request, config) {
       method: 'post',
       headers: astBuildOpenRouterHeaders(config),
       payload,
-      retries: request.options.retries
+      retries: request.options.retries,
+      timeoutMs: request.options.timeoutMs
     });
 
     const responseJson = response.json || {};
@@ -115,7 +116,8 @@ function runOpenRouter(request, config) {
     method: 'post',
     headers: astBuildOpenRouterHeaders(config),
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const responseJson = response.json || {};

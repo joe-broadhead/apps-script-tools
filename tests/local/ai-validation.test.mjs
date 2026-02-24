@@ -420,6 +420,55 @@ test('astAiHttpRequest does not retry deterministic 4xx provider errors', () => 
   assert.equal(callCount, 1);
 });
 
+test('astAiHttpRequest enforces timeoutMs as a retry budget', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      nowMs += 50;
+      return nowMs;
+    }
+  }
+
+  const base = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...base.Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    },
+    UrlFetchApp: {
+      fetch: () => createResponse({
+        status: 503,
+        body: JSON.stringify({
+          error: {
+            message: 'transient'
+          }
+        })
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.astAiHttpRequest({
+      url: 'https://api.example.com/v1/test',
+      method: 'post',
+      payload: { ok: false },
+      retries: 5,
+      timeoutMs: 120
+    }),
+    error => {
+      assert.equal(error.name, 'AstAiProviderError');
+      assert.match(error.message, /timeout budget/);
+      assert.equal(error.details.timeoutMs, 120);
+      return true;
+    }
+  );
+});
+
 test('validateAiRequest enforces onEvent callback when stream mode is enabled', () => {
   const context = createGasContext();
   loadAiScripts(context);

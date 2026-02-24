@@ -265,6 +265,64 @@ test('PDF extraction throws typed auth error when Vertex config is missing', () 
   );
 });
 
+test('PDF extraction falls back to default Vertex model when generation model is not configured', () => {
+  const pdf = makeDriveFile({
+    id: 'file_pdf_3',
+    name: 'default-model.pdf',
+    mimeType: MIME_PDF,
+    text: '%PDF-1.4'
+  });
+
+  const callTracker = {
+    called: false,
+    url: null
+  };
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, _options) => {
+        callTracker.called = true;
+        callTracker.url = String(url || '');
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            candidates: [{
+              content: {
+                parts: [{
+                  text: '{"pages":[{"page":1,"text":"PDF page text"}]}'
+                }]
+              }
+            }]
+          })
+        };
+      }
+    }
+  });
+
+  loadRagScripts(context, { includeAi: false, includeUtilities: false });
+
+  const extracted = context.astRagReadDriveSourceText(
+    {
+      fileId: 'file_pdf_3',
+      fileName: 'default-model.pdf',
+      mimeType: MIME_PDF,
+      driveFile: pdf
+    },
+    {
+      vertex_gemini: {
+        projectId: 'project-1',
+        location: 'us-central1',
+        oauthToken: 'token'
+      }
+    }
+  );
+
+  assert.equal(callTracker.called, true);
+  assert.match(callTracker.url, /models\/gemini-2\.0-flash-001:generateContent/);
+  assert.equal(extracted.segments.length > 0, true);
+  assert.equal(extracted.segments[0].page, 1);
+});
+
 test('buildIndex + syncIndex update source and chunk counts deterministically', () => {
   const fileA = makeDriveFile({
     id: 'file_a',

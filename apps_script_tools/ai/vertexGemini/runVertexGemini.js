@@ -86,7 +86,8 @@ function runVertexGemini(request, config) {
       Authorization: `Bearer ${config.oauthToken}`
     },
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const responseJson = response.json || {};

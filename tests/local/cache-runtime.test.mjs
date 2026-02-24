@@ -595,3 +595,28 @@ test('drive_json get avoids write-on-read when updateStatsOnGet=false', () => {
   const writesAfterGet = driveFile.__getWriteCount();
   assert.equal(writesAfterGet, writesBeforeGet);
 });
+
+test('drive_json cold get miss does not create file when updateStatsOnGet=false', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_cold_read_no_create',
+    driveFileName: 'cache-drive-cold-read.json',
+    updateStatsOnGet: false
+  });
+
+  assert.equal(context.AST.Cache.get('missing-key'), null);
+  assert.equal(Object.keys(drive.files).length, 0);
+});

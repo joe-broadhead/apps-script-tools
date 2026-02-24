@@ -18,14 +18,19 @@ function astCacheDriveGetFolder(config) {
   return DriveApp.getFolderById(folderId);
 }
 
-function astCacheDriveResolveFile(folder, fileName) {
+function astCacheDriveResolveFile(folder, fileName, options = {}) {
   if (!folder || typeof folder.getFilesByName !== 'function') {
     throw new AstCacheCapabilityError('Cache drive_json folder handle does not support getFilesByName');
   }
 
+  const createIfMissing = options.createIfMissing !== false;
   const iterator = folder.getFilesByName(fileName);
   if (iterator && typeof iterator.hasNext === 'function' && iterator.hasNext()) {
     return iterator.next();
+  }
+
+  if (!createIfMissing) {
+    return null;
   }
 
   if (typeof folder.createFile !== 'function') {
@@ -116,10 +121,17 @@ function astCacheDriveDefaultDocument(namespace) {
   };
 }
 
-function astCacheDriveReadDocument(config) {
+function astCacheDriveReadDocument(config, options = {}) {
   const folder = astCacheDriveGetFolder(config);
   const fileName = astCacheDriveNamespaceFileName(config);
-  const file = astCacheDriveResolveFile(folder, fileName);
+  const file = astCacheDriveResolveFile(folder, fileName, options);
+
+  if (!file) {
+    return {
+      file: null,
+      document: astCacheDriveDefaultDocument(config.namespace)
+    };
+  }
   const raw = astCacheDriveReadText(file);
 
   if (!raw) {
@@ -232,7 +244,7 @@ function astCacheDriveWithDocument(config, mutator) {
 
 function astCacheDriveGet(keyHash, config) {
   if (config.updateStatsOnGet === false) {
-    const loaded = astCacheDriveReadDocument(config);
+    const loaded = astCacheDriveReadDocument(config, { createIfMissing: false });
     const nowMs = astCacheNowMs();
     const entry = loaded.document.entries[keyHash];
     if (!entry || astCacheIsExpired(entry, nowMs)) {

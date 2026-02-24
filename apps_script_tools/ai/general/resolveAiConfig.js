@@ -18,7 +18,7 @@ const AST_AI_CONFIG_KEYS = Object.freeze([
 
 let AST_AI_RUNTIME_CONFIG = {};
 
-function astIsPlainObject(value) {
+function astAiConfigIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
@@ -48,11 +48,11 @@ function astGetAiRuntimeConfig() {
 }
 
 function astSetAiRuntimeConfig(config = {}, options = {}) {
-  if (!astIsPlainObject(config)) {
+  if (!astAiConfigIsPlainObject(config)) {
     throw new AstAiValidationError('AI runtime config must be an object');
   }
 
-  if (!astIsPlainObject(options)) {
+  if (!astAiConfigIsPlainObject(options)) {
     throw new AstAiValidationError('AI runtime config options must be an object');
   }
 
@@ -94,7 +94,7 @@ function astGetScriptPropertiesByKey(scriptProperties) {
 
   if (typeof scriptProperties.getProperties === 'function') {
     const map = scriptProperties.getProperties();
-    if (astIsPlainObject(map)) {
+    if (astAiConfigIsPlainObject(map)) {
       Object.keys(map).forEach(key => {
         const normalizedValue = astNormalizeConfigValue(map[key]);
         if (normalizedValue != null) {
