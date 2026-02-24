@@ -62,6 +62,7 @@ function astRagPreviewSourcesCore(request = {}) {
       returned: 0
     }
   };
+  const previewValidationMs = diagnostics.timings.validationMs;
 
   const searchStartMs = new Date().getTime();
   const search = astRagSearchNormalizedCore(normalized.searchRequest, {
@@ -73,6 +74,7 @@ function astRagPreviewSourcesCore(request = {}) {
   if (search && astRagIsPlainObject(search.diagnostics)) {
     diagnostics.cache = Object.assign({}, diagnostics.cache, search.diagnostics.cache || {});
     diagnostics.timings = Object.assign({}, diagnostics.timings, search.diagnostics.timings || {});
+    diagnostics.timings.validationMs = previewValidationMs;
     diagnostics.retrieval = Object.assign({}, diagnostics.retrieval, search.diagnostics.retrieval || {});
     diagnostics.timings.searchMs = Math.max(0, diagnostics.timings.searchMs);
   }

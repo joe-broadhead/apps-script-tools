@@ -2299,6 +2299,59 @@ test('previewSources validates search contract once per request', () => {
   assert.equal(validateCalls, 1);
 });
 
+test('previewSources preserves preview validation timing when merging search diagnostics', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagSearchNormalizedCore = normalizedSearch => ({
+    indexFileId: normalizedSearch.indexFileId,
+    versionToken: '2026-02-24T00:00:00.000Z',
+    query: normalizedSearch.query,
+    retrieval: normalizedSearch.retrieval,
+    results: [],
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    diagnostics: {
+      cache: {
+        indexDocHit: false,
+        searchHit: false,
+        embeddingHit: false,
+        retrievalPayloadHit: false,
+        answerHit: false
+      },
+      timings: {
+        validationMs: 999,
+        indexLoadMs: 0,
+        embeddingMs: 0,
+        retrievalMs: 0,
+        rerankMs: 0,
+        generationMs: 0,
+        searchMs: 1,
+        payloadCacheWriteMs: 0
+      },
+      retrieval: {
+        mode: normalizedSearch.retrieval.mode,
+        topK: normalizedSearch.retrieval.topK,
+        minScore: normalizedSearch.retrieval.minScore,
+        returned: 0
+      }
+    }
+  });
+
+  const response = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_validation_merge',
+    query: 'validation diagnostics',
+    options: {
+      diagnostics: true
+    },
+    preview: {
+      cachePayload: false
+    }
+  });
+
+  assert.equal(typeof response.diagnostics.timings.validationMs, 'number');
+  assert.notEqual(response.diagnostics.timings.validationMs, 999);
+});
+
 test('previewSources supports lexical retrieval mode without embedding calls', () => {
   const context = createGasContext();
   loadRagWithCacheScripts(context, { includeAst: true });
