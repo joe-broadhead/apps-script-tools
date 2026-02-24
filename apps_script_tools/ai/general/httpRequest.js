@@ -26,6 +26,38 @@ function astAiIsTransientHttpError(statusCode) {
   return statusCode === 429 || statusCode >= 500;
 }
 
+function astAiNormalizeTimeoutMs(value) {
+  if (typeof value === 'undefined' || value === null) {
+    return null;
+  }
+
+  if (!isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.max(1, Math.floor(value));
+}
+
+function astAiElapsedMs(startedAtMs) {
+  return Math.max(0, Date.now() - startedAtMs);
+}
+
+function astAiRemainingMs(startedAtMs, timeoutMs) {
+  if (!timeoutMs) {
+    return null;
+  }
+
+  return Math.max(0, timeoutMs - astAiElapsedMs(startedAtMs));
+}
+
+function astAiTimedOut(startedAtMs, timeoutMs) {
+  if (!timeoutMs) {
+    return false;
+  }
+
+  return astAiElapsedMs(startedAtMs) >= timeoutMs;
+}
+
 function astAiHttpRequest(config = {}) {
   const url = typeof config.url === 'string' ? config.url.trim() : '';
 
@@ -41,11 +73,44 @@ function astAiHttpRequest(config = {}) {
   const retries = Number.isInteger(config.retries)
     ? Math.max(0, config.retries)
     : 0;
+  const timeoutMs = astAiNormalizeTimeoutMs(config.timeoutMs);
+  const startedAtMs = Date.now();
 
   let attempt = 0;
   let lastError = null;
 
+  function buildTimeoutError(cause) {
+    return new AstAiProviderError(
+      `AI provider request exceeded timeout budget (${timeoutMs}ms)`,
+      {
+        url,
+        timeoutMs,
+        attempts: attempt + 1,
+        elapsedMs: astAiElapsedMs(startedAtMs)
+      },
+      cause
+    );
+  }
+
+  function sleepWithTimeoutBudget(backoffMs) {
+    if (!timeoutMs) {
+      astSleep(backoffMs);
+      return;
+    }
+
+    const remainingMs = astAiRemainingMs(startedAtMs, timeoutMs);
+    if (remainingMs <= 0 || backoffMs >= remainingMs) {
+      throw buildTimeoutError(lastError);
+    }
+
+    astSleep(backoffMs);
+  }
+
   while (attempt <= retries) {
+    if (astAiTimedOut(startedAtMs, timeoutMs)) {
+      throw buildTimeoutError(lastError);
+    }
+
     try {
       const options = {
         method,
@@ -77,6 +142,19 @@ function astAiHttpRequest(config = {}) {
       const json = astParseJsonSafe(body);
 
       if (statusCode >= 200 && statusCode < 300) {
+        if (astAiTimedOut(startedAtMs, timeoutMs)) {
+          const lateSuccessError = new AstAiProviderError(
+            'AI provider request exceeded timeout budget before successful response',
+            {
+              url,
+              statusCode,
+              timeoutMs,
+              elapsedMs: astAiElapsedMs(startedAtMs)
+            }
+          );
+          throw buildTimeoutError(lateSuccessError);
+        }
+
         return {
           statusCode,
           body,
@@ -91,19 +169,29 @@ function astAiHttpRequest(config = {}) {
           url,
           statusCode,
           body,
-          json
+          json,
+          timeoutMs,
+          elapsedMs: astAiElapsedMs(startedAtMs)
         }
       );
 
       if (astAiIsTransientHttpError(statusCode) && attempt < retries) {
         lastError = providerError;
         attempt += 1;
-        astSleep(250 * attempt);
+        sleepWithTimeoutBudget(250 * attempt);
         continue;
+      }
+
+      if (astAiTimedOut(startedAtMs, timeoutMs)) {
+        throw buildTimeoutError(providerError);
       }
 
       throw providerError;
     } catch (error) {
+      if (astAiTimedOut(startedAtMs, timeoutMs)) {
+        throw buildTimeoutError(error);
+      }
+
       if (error && error.name === 'AstAiProviderError') {
         const statusCode = Number(error.details && error.details.statusCode);
         if (!astAiIsTransientHttpError(statusCode) || attempt >= retries) {
@@ -116,7 +204,9 @@ function astAiHttpRequest(config = {}) {
           'AI provider request failed',
           {
             url,
-            attempts: attempt + 1
+            attempts: attempt + 1,
+            timeoutMs,
+            elapsedMs: astAiElapsedMs(startedAtMs)
           },
           error
         );
@@ -124,7 +214,7 @@ function astAiHttpRequest(config = {}) {
 
       lastError = error;
       attempt += 1;
-      astSleep(250 * attempt);
+      sleepWithTimeoutBudget(250 * attempt);
     }
   }
 
@@ -132,7 +222,9 @@ function astAiHttpRequest(config = {}) {
     'AI provider request failed after retries',
     {
       url,
-      attempts: retries + 1
+      attempts: retries + 1,
+      timeoutMs,
+      elapsedMs: astAiElapsedMs(startedAtMs)
     },
     lastError
   );

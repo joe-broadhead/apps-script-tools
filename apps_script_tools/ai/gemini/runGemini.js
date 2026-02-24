@@ -94,7 +94,8 @@ function runGemini(request, config) {
     method: 'post',
     headers: {},
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const responseJson = response.json || {};

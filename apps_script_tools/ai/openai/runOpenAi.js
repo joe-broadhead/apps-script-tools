@@ -40,7 +40,8 @@ function runOpenAi(request, config) {
       method: 'post',
       headers: astBuildOpenAiHeaders(config),
       payload: imagePayload,
-      retries: request.options.retries
+      retries: request.options.retries,
+      timeoutMs: request.options.timeoutMs
     });
 
     const imageJson = imageResponse.json || {};
@@ -112,7 +113,8 @@ function runOpenAi(request, config) {
     method: 'post',
     headers: astBuildOpenAiHeaders(config),
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const responseJson = response.json || {};

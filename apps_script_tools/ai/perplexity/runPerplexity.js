@@ -60,7 +60,8 @@ function runPerplexity(request, config) {
       Authorization: `Bearer ${config.apiKey}`
     },
     payload,
-    retries: request.options.retries
+    retries: request.options.retries,
+    timeoutMs: request.options.timeoutMs
   });
 
   const responseJson = response.json || {};

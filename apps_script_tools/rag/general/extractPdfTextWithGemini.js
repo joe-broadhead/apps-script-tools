@@ -52,6 +52,28 @@ function astRagNormalizePdfSegments(parsed, fallbackText) {
   return segments;
 }
 
+function astRagResolvePdfExtractionModel(options = {}, auth = {}, config = {}) {
+  const providerAuth = astRagResolveProviderAuth(auth, 'vertex_gemini');
+  const candidates = [
+    options.model,
+    providerAuth.model,
+    providerAuth.VERTEX_PDF_EXTRACT_MODEL,
+    providerAuth.VERTEX_GEMINI_MODEL,
+    config.VERTEX_PDF_EXTRACT_MODEL,
+    config.VERTEX_GEMINI_MODEL,
+    'gemini-2.0-flash-001'
+  ];
+
+  for (let idx = 0; idx < candidates.length; idx += 1) {
+    const normalized = astRagNormalizeString(candidates[idx], null);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return 'gemini-2.0-flash-001';
+}
+
 function astRagExtractPdfTextWithGemini(sourceDescriptor, auth = {}, options = {}) {
   const file = sourceDescriptor.driveFile;
   const blob = file.getBlob();
@@ -71,11 +93,12 @@ function astRagExtractPdfTextWithGemini(sourceDescriptor, auth = {}, options = {
     });
   }
 
+  const configSnapshot = astRagResolveConfigSnapshot();
   const vertexConfig = astRagResolveProviderConfig({
     provider: 'vertex_gemini',
     mode: 'generation',
-    model: options.model,
-    auth
+    model: astRagResolvePdfExtractionModel(options, auth, configSnapshot),
+    auth: astRagResolveProviderAuth(auth, 'vertex_gemini')
   });
 
   const endpoint = `https://${encodeURIComponent(vertexConfig.location)}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(vertexConfig.projectId)}/locations/${encodeURIComponent(vertexConfig.location)}/publishers/google/models/${encodeURIComponent(vertexConfig.model)}:generateContent`;
