@@ -54,7 +54,9 @@ Current release state:
 - New `AST.RAG` module with Drive ingestion (`txt`, `pdf`, Docs, Slides + notes).
 - RAG embedding registry with built-in providers and runtime custom provider registration.
 - Grounded `RAG.answer(...)` orchestration with strict citation mapping and abstention.
-- Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`.
+- Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `previewSources`, `answer`, `inspectIndex`.
+- RAG retrieval payload interop APIs for preview-to-answer reuse: `buildRetrievalCacheKey`, `putRetrievalPayload`, `getRetrievalPayload`, `deleteRetrievalPayload`.
+- RAG index orchestration wrapper: `AST.RAG.IndexManager.create(...).ensure/sync/fastState`.
 - Hybrid retrieval + reranking support in `RAG.search(...)` / `RAG.answer(...)` with explainable score fields (`vectorScore`, `lexicalScore`, `finalScore`).
 - RAG retrieval access-control (`retrieval.access`) and citation/source policy enforcement (`options.enforceAccessControl`).
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.

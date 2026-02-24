@@ -33,12 +33,19 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.buildIndex, 'function');
   assert.equal(typeof context.AST.RAG.syncIndex, 'function');
   assert.equal(typeof context.AST.RAG.search, 'function');
+  assert.equal(typeof context.AST.RAG.previewSources, 'function');
   assert.equal(typeof context.AST.RAG.answer, 'function');
   assert.equal(typeof context.AST.RAG.inspectIndex, 'function');
+  assert.equal(typeof context.AST.RAG.buildRetrievalCacheKey, 'function');
+  assert.equal(typeof context.AST.RAG.putRetrievalPayload, 'function');
+  assert.equal(typeof context.AST.RAG.getRetrievalPayload, 'function');
+  assert.equal(typeof context.AST.RAG.deleteRetrievalPayload, 'function');
   assert.equal(typeof context.AST.RAG.embeddingProviders, 'function');
   assert.equal(typeof context.AST.RAG.embeddingCapabilities, 'function');
   assert.equal(typeof context.AST.RAG.registerEmbeddingProvider, 'function');
   assert.equal(typeof context.AST.RAG.unregisterEmbeddingProvider, 'function');
+  assert.equal(typeof context.AST.RAG.IndexManager, 'object');
+  assert.equal(typeof context.AST.RAG.IndexManager.create, 'function');
 
   assert.equal(
     JSON.stringify(context.AST.RAG.embeddingProviders()),
@@ -603,4 +610,64 @@ test('astRagValidateSearchRequest rejects overlapping allow/deny access constrai
       return true;
     }
   );
+});
+
+test('buildRetrievalCacheKey is deterministic for equivalent retrieval requests', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const keyA = context.AST.RAG.buildRetrievalCacheKey({
+    indexFileId: 'idx_det',
+    query: 'project risks',
+    retrieval: {
+      mode: 'hybrid',
+      topK: 5,
+      minScore: 0.2,
+      vectorWeight: 0.7,
+      lexicalWeight: 0.3
+    }
+  });
+
+  const keyB = context.AST.RAG.buildRetrievalCacheKey({
+    indexFileId: 'idx_det',
+    query: 'project risks',
+    retrieval: {
+      lexicalWeight: 0.3,
+      vectorWeight: 0.7,
+      minScore: 0.2,
+      topK: 5,
+      mode: 'hybrid'
+    }
+  });
+
+  const keyC = context.AST.RAG.buildRetrievalCacheKey({
+    indexFileId: 'idx_det',
+    query: 'project timeline',
+    retrieval: {
+      mode: 'hybrid',
+      topK: 5,
+      minScore: 0.2,
+      vectorWeight: 0.7,
+      lexicalWeight: 0.3
+    }
+  });
+
+  const keyD = context.AST.RAG.buildRetrievalCacheKey({
+    indexFileId: 'idx_det',
+    query: 'project risks',
+    retrieval: {
+      mode: 'hybrid',
+      topK: 5,
+      minScore: 0.2,
+      vectorWeight: 0.7,
+      lexicalWeight: 0.3,
+      filters: {
+        fileIds: ['file_only']
+      }
+    }
+  });
+
+  assert.equal(keyA, keyB);
+  assert.notEqual(keyA, keyC);
+  assert.notEqual(keyA, keyD);
 });

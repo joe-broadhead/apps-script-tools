@@ -13,8 +13,13 @@ RAG_NAMESPACE_TESTS = [
         'buildIndex',
         'syncIndex',
         'search',
+        'previewSources',
         'answer',
         'inspectIndex',
+        'buildRetrievalCacheKey',
+        'putRetrievalPayload',
+        'getRetrievalPayload',
+        'deleteRetrievalPayload',
         'embeddingProviders',
         'embeddingCapabilities',
         'registerEmbeddingProvider',
@@ -26,6 +31,10 @@ RAG_NAMESPACE_TESTS = [
           throw new Error(`AST.RAG.${method} is not available`);
         }
       });
+
+      if (!AST.RAG.IndexManager || typeof AST.RAG.IndexManager.create !== 'function') {
+        throw new Error('AST.RAG.IndexManager.create is not available');
+      }
     }
   },
   {

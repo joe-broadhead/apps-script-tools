@@ -456,6 +456,44 @@ function astRagValidateSearchRequest(request = {}) {
   };
 }
 
+function astRagValidatePreviewRequest(request = {}) {
+  const searchRequest = astRagValidateSearchRequest(request);
+  const previewInput = astRagIsPlainObject(request.preview) ? astRagCloneObject(request.preview) : {};
+
+  if (typeof previewInput.snippetMaxChars === 'undefined') {
+    previewInput.snippetMaxChars = request.snippetMaxChars;
+  }
+  if (typeof previewInput.includeText === 'undefined') {
+    previewInput.includeText = request.includeText;
+  }
+  if (typeof previewInput.includePayload === 'undefined') {
+    previewInput.includePayload = request.includePayload;
+  }
+  if (typeof previewInput.cachePayload === 'undefined') {
+    previewInput.cachePayload = request.cachePayload;
+  }
+  if (typeof previewInput.payloadTtlSec === 'undefined') {
+    previewInput.payloadTtlSec = request.payloadTtlSec;
+  }
+  if (typeof previewInput.payloadCache === 'undefined') {
+    previewInput.payloadCache = request.payloadCache;
+  }
+
+  return {
+    searchRequest,
+    preview: {
+      snippetMaxChars: astRagNormalizePositiveInt(previewInput.snippetMaxChars, 280, 40),
+      includeText: astRagNormalizeBoolean(previewInput.includeText, false),
+      includePayload: astRagNormalizeBoolean(previewInput.includePayload, true),
+      cachePayload: astRagNormalizeBoolean(previewInput.cachePayload, false),
+      payloadTtlSec: astRagNormalizePositiveInt(previewInput.payloadTtlSec, 600, 1),
+      payloadCache: astRagNormalizeCacheRequest(
+        astRagIsPlainObject(previewInput.payloadCache) ? previewInput.payloadCache : {}
+      )
+    }
+  };
+}
+
 function astRagValidateAnswerRequest(request = {}) {
   if (!astRagIsPlainObject(request)) {
     throw new AstRagValidationError('answer request must be an object');
@@ -481,6 +519,15 @@ function astRagValidateAnswerRequest(request = {}) {
   const normalizedAccess = astRagNormalizeAccessControl(retrieval.access, 'answer.retrieval.access');
   const normalizedOptions = astRagNormalizeAnswerOptions(
     astRagIsPlainObject(request.options) ? request.options : {}
+  );
+  const retrievalPayload = astRagIsPlainObject(request.retrievalPayload)
+    ? astRagCloneObject(request.retrievalPayload)
+    : null;
+  const retrievalPayloadKey = astRagNormalizeString(request.retrievalPayloadKey, null);
+  const retrievalPayloadCache = astRagNormalizeCacheRequest(
+    astRagIsPlainObject(request.retrievalPayloadCache)
+      ? request.retrievalPayloadCache
+      : (astRagIsPlainObject(request.payloadCache) ? request.payloadCache : {})
   );
 
   const generation = astRagIsPlainObject(request.generation) ? request.generation : {};
@@ -511,7 +558,10 @@ function astRagValidateAnswerRequest(request = {}) {
     },
     options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
-    cache: astRagNormalizeCacheRequest(request.cache)
+    cache: astRagNormalizeCacheRequest(request.cache),
+    retrievalPayload,
+    retrievalPayloadKey,
+    retrievalPayloadCache
   };
 }
 

@@ -115,8 +115,14 @@ ASTX.RAG.configure(config, options)
 ASTX.RAG.buildIndex(request)
 ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
+ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
 ASTX.RAG.inspectIndex({ indexFileId })
+ASTX.RAG.buildRetrievalCacheKey(args)
+ASTX.RAG.putRetrievalPayload(key, payload, options)
+ASTX.RAG.getRetrievalPayload(key, options)
+ASTX.RAG.deleteRetrievalPayload(key, options)
+ASTX.RAG.IndexManager.create(config)
 ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
 ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
@@ -260,6 +266,9 @@ ASTX.Jobs.clearConfig()
 - RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
 - `RAG.search(...)` / `RAG.answer(...)` can cache embeddings/results with `cache.enabled` and backend overrides.
+- `RAG.previewSources(...)` returns citation-ready cards and optional reusable retrieval payloads.
+- retrieval payload interop APIs (`buildRetrievalCacheKey`/`put`/`get`/`delete`) support search-to-answer reuse without re-search.
+- `RAG.IndexManager.create(...).ensure/sync/fastState` wraps index lifecycle operations for app-level orchestration.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Cache bulk helpers are available through `getMany`, `setMany`, and `deleteMany`.

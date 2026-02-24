@@ -74,10 +74,13 @@ function astRagSearchCore(request = {}) {
   );
 
   const response = {
+    indexFileId: normalizedRequest.indexFileId,
+    versionToken,
     query: normalizedRequest.query,
     topK: normalizedRequest.retrieval.topK,
     minScore: normalizedRequest.retrieval.minScore,
     mode: normalizedRequest.retrieval.mode,
+    retrieval: normalizedRequest.retrieval,
     results: ranked,
     usage
   };
