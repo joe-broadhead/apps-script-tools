@@ -1068,6 +1068,18 @@ function astJobsAcquireLease(jobId, workerId, leaseTtlMs, options = {}) {
   );
 
   const job = astJobsReadJobRecord(jobId, options);
+  const normalizedStatus = astJobsNormalizeString(job && job.status, 'queued');
+  if (
+    normalizedStatus === 'completed' ||
+    normalizedStatus === 'canceled' ||
+    normalizedStatus === 'failed'
+  ) {
+    throw new AstJobsConflictError('Cannot acquire lease for terminal job state', {
+      jobId: job.id,
+      status: normalizedStatus
+    });
+  }
+
   const nowMs = new Date().getTime();
   if (astJobsIsLeaseActive(job, nowMs) && job.leaseOwner !== normalizedWorkerId) {
     throw new AstJobsConflictError('Job lease is already held by another worker', {

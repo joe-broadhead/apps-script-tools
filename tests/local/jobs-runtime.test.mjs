@@ -439,6 +439,45 @@ test('AST.Jobs.cancel rejects jobs currently marked as running', () => {
   );
 });
 
+test('AST.Jobs.resume on completed job does not mutate lease/version state', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_RESUME_COMPLETED_${Date.now()}_`;
+
+  context.jobsCompleteStep = () => true;
+
+  const completed = context.AST.Jobs.run({
+    name: 'resume-completed-no-mutate',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'done_step',
+        handler: 'jobsCompleteStep'
+      }
+    ]
+  });
+  assert.equal(completed.status, 'completed');
+
+  const before = context.AST.Jobs.status(completed.id, {
+    propertyPrefix
+  });
+
+  assert.throws(
+    () => context.AST.Jobs.resume(completed.id, {
+      propertyPrefix
+    }),
+    /terminal|resumable/
+  );
+
+  const after = context.AST.Jobs.status(completed.id, {
+    propertyPrefix
+  });
+  assert.equal(after.status, 'completed');
+  assert.equal(after.version, before.version);
+  assert.equal(after.updatedAt, before.updatedAt);
+});
+
 test('AST.Jobs status/list avoid broad script property scans on indexed paths', () => {
   const { context, counters } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_INDEXED_${Date.now()}_`;
