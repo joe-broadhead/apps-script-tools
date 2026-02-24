@@ -1647,6 +1647,77 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
   assert.equal(payload.results.length, 1);
 });
 
+test('previewSources cache key differentiates enforceAccessControl policy', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_preview_access',
+    fileName: 'preview-access-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_preview_access_1',
+          sourceId: 'src_preview_access_1',
+          fileId: 'file_preview_denied',
+          fileName: 'denied.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Restricted context',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 2, totalTokens: 2 }
+  });
+
+  const strictResponse = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_access',
+    query: 'restricted context',
+    retrieval: {
+      topK: 5,
+      minScore: 0,
+      access: {
+        allowedFileIds: ['file_other']
+      }
+    },
+    options: {
+      enforceAccessControl: true
+    }
+  });
+
+  const relaxedResponse = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_access',
+    query: 'restricted context',
+    retrieval: {
+      topK: 5,
+      minScore: 0,
+      access: {
+        allowedFileIds: ['file_other']
+      }
+    },
+    options: {
+      enforceAccessControl: false
+    }
+  });
+
+  assert.equal(strictResponse.resultCount, 0);
+  assert.equal(relaxedResponse.resultCount, 1);
+  assert.notEqual(strictResponse.cacheKey, relaxedResponse.cacheKey);
+});
+
 test('answer reuses retrieval payload and skips query embedding when payload is provided', () => {
   const context = createGasContext();
   loadRagWithCacheScripts(context, { includeAst: true });
@@ -1728,6 +1799,110 @@ test('answer reuses retrieval payload and skips query embedding when payload is 
   assert.equal(response.citations.length, 1);
   assert.equal(response.citations[0].chunkId, 'chunk_payload_1');
   assert.equal(embedCalls, 0, 'embedding should be skipped when payload is reused');
+});
+
+test('answer bypasses answer cache when retrieval payload is provided', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  let generationCalls = 0;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_payload_cache_bypass',
+    fileName: 'answer-payload-cache-bypass-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+  context.astRagEmbedTexts = () => {
+    throw new Error('Embedding path should not run when retrieval payload is supplied');
+  };
+  context.runAiRequest = () => {
+    generationCalls += 1;
+    return {
+      output: {
+        json: {
+          answer: `Answer call ${generationCalls} [S1]`,
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14
+      }
+    };
+  };
+
+  const baseRequest = {
+    indexFileId: 'index_answer_payload_cache_bypass',
+    question: 'What changed?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_answer_payload_cache_bypass'
+    }
+  };
+
+  const payloadA = {
+    indexFileId: 'index_answer_payload_cache_bypass',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    query: 'What changed?',
+    retrieval: { topK: 4, minScore: 0, mode: 'vector' },
+    results: [{
+      chunkId: 'chunk_payload_a',
+      sourceId: 'src_a',
+      fileId: 'file_a',
+      fileName: 'a.txt',
+      mimeType: MIME_TEXT,
+      page: null,
+      slide: null,
+      section: 'body',
+      text: 'Payload A text',
+      score: 0.9,
+      finalScore: 0.9
+    }]
+  };
+
+  const payloadB = {
+    indexFileId: 'index_answer_payload_cache_bypass',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    query: 'What changed?',
+    retrieval: { topK: 4, minScore: 0, mode: 'vector' },
+    results: [{
+      chunkId: 'chunk_payload_b',
+      sourceId: 'src_b',
+      fileId: 'file_b',
+      fileName: 'b.txt',
+      mimeType: MIME_TEXT,
+      page: null,
+      slide: null,
+      section: 'body',
+      text: 'Payload B text',
+      score: 0.95,
+      finalScore: 0.95
+    }]
+  };
+
+  const first = context.AST.RAG.answer(Object.assign({}, baseRequest, {
+    retrievalPayload: payloadA
+  }));
+  const second = context.AST.RAG.answer(Object.assign({}, baseRequest, {
+    retrievalPayload: payloadB
+  }));
+
+  assert.equal(generationCalls, 2);
+  assert.equal(first.citations[0].chunkId, 'chunk_payload_a');
+  assert.equal(second.citations[0].chunkId, 'chunk_payload_b');
 });
 
 test('IndexManager.ensure supports MIME fallback diagnostics and reuses existing index', () => {

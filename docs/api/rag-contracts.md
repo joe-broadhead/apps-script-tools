@@ -239,6 +239,7 @@ const key = ASTX.RAG.buildRetrievalCacheKey({
   retrieval,
   filters,    // optional
   access,     // optional
+  options: { enforceAccessControl: true }, // optional
   versionToken // optional
 });
 

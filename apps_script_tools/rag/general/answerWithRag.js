@@ -39,7 +39,12 @@ function astRagAnswerCore(request = {}) {
       },
       normalizedRequest.options
     );
-    const useAnswerCache = Array.isArray(normalizedRequest.history) && normalizedRequest.history.length === 0;
+    const useAnswerCache = (
+      Array.isArray(normalizedRequest.history) &&
+      normalizedRequest.history.length === 0 &&
+      !normalizedRequest.retrievalPayload &&
+      !normalizedRequest.retrievalPayloadKey
+    );
     if (useAnswerCache) {
       const cachedAnswer = astRagCacheGet(cacheConfig, answerCacheKey);
       if (cachedAnswer && astRagIsPlainObject(cachedAnswer) && typeof cachedAnswer.answer === 'string') {

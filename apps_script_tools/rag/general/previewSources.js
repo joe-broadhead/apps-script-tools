@@ -64,7 +64,8 @@ function astRagPreviewSourcesCore(request = {}) {
     indexFileId: normalized.searchRequest.indexFileId,
     versionToken,
     query: normalized.searchRequest.query,
-    retrieval: normalized.searchRequest.retrieval
+    retrieval: normalized.searchRequest.retrieval,
+    options: normalized.searchRequest.options
   });
 
   if (normalized.preview.cachePayload) {
@@ -91,4 +92,3 @@ function astRagPreviewSourcesCore(request = {}) {
     resultCount: cards.length
   };
 }
-
