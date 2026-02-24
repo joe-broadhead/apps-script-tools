@@ -33,12 +33,12 @@
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
-- `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single + bulk operations
+- `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single-key ops, tag invalidation, and stats
 - `AST.Config`: script-properties snapshot helpers for runtime bootstrap
 - `AST.Runtime`: one-shot runtime config hydration across namespaces
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
-- `AST.Jobs`: storage-backed multi-step job orchestration with retry/resume/poll semantics
+- `AST.Jobs`: script-properties checkpointed multi-step job orchestration with retry/resume semantics
 - `AST.Chat`: durable user-scoped thread state store for chat apps
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
@@ -63,13 +63,13 @@ Current release state:
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - Storage advanced ops: `exists`, `copy`, `move`, `signedUrl`, and `multipartWrite` for production object workflows.
 - SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
-- New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and bulk helpers (`getMany`, `setMany`, `deleteMany`).
+- New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and namespace stats/clear helpers.
 - Cache backend posture for production: prefer `storage_json`; use `drive_json` and `script_properties` only for low-scale paths.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive/storage NDJSON sinks (including batched `storage_json` + `flush`).
 - New bootstrap helpers: `AST.Config.fromScriptProperties(...)` and `AST.Runtime.configureFromProps(...)`.
 - New `AST.TelemetryHelpers` wrappers for safe instrumented execution (`withSpan`, `wrap`, `startSpanSafe`, `endSpanSafe`).
 - RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.
-- New `AST.Jobs` module with storage-backed checkpointing and run/enqueue/resume/status/list/cancel/pollAndRun contracts.
+- New `AST.Jobs` module with script-properties checkpointing and run/enqueue/resume/status/list/cancel contracts.
 - New `AST.Chat` module with `ThreadStore.create(...)` for user-scoped thread persistence, lock-aware writes, and bounded history assembly.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
