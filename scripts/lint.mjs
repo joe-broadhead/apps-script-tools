@@ -22,6 +22,71 @@ function walk(dir) {
   return output;
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractIndentedKeys(block, indentSpaces = 2) {
+  const keys = new Set();
+  const prefix = ' '.repeat(indentSpaces);
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}([A-Za-z0-9_]+)\\s*:`, 'gm');
+  let match = pattern.exec(block);
+  while (match) {
+    keys.add(match[1]);
+    match = pattern.exec(block);
+  }
+  return keys;
+}
+
+function extractObjectFreezeKeys(fileText, constName) {
+  const pattern = new RegExp(
+    `const\\s+${escapeRegExp(constName)}\\s*=\\s*Object\\.freeze\\(\\{([\\s\\S]*?)\\}\\);`,
+    'm'
+  );
+  const match = fileText.match(pattern);
+  if (!match) {
+    throw new Error(`Unable to locate Object.freeze block for ${constName}`);
+  }
+  return extractIndentedKeys(match[1], 2);
+}
+
+function extractAstNamespaceKeys(astText) {
+  const pattern = /Object\.defineProperties\(AST,\s*\{([\s\S]*?)\}\);/m;
+  const match = astText.match(pattern);
+  if (!match) {
+    throw new Error('Unable to locate Object.defineProperties(AST, ...) block');
+  }
+  return extractIndentedKeys(match[1], 2);
+}
+
+function extractSectionBody(markdown, heading) {
+  const pattern = new RegExp(
+    `##\\s+${escapeRegExp(heading)}[\\s\\S]*?` + '```[a-zA-Z]*\\n([\\s\\S]*?)\\n```',
+    'm'
+  );
+  const match = markdown.match(pattern);
+  if (!match) {
+    throw new Error(`Unable to locate markdown section: ${heading}`);
+  }
+  return match[1];
+}
+
+function extractDocMethods(markdown, heading, prefix) {
+  const body = extractSectionBody(markdown, heading);
+  const keys = new Set();
+  const pattern = new RegExp(`^\\s*${escapeRegExp(prefix)}([A-Za-z0-9_]+)`, 'gm');
+  let match = pattern.exec(body);
+  while (match) {
+    keys.add(match[1]);
+    match = pattern.exec(body);
+  }
+  return keys;
+}
+
+function diffSets(left, right) {
+  return [...left].filter(value => !right.has(value));
+}
+
 const jsFiles = walk(APPS_DIR).filter(file => file.endsWith('.js'));
 const findings = [];
 
@@ -105,6 +170,97 @@ try {
   });
 } catch (error) {
   findings.push(`Unable to verify tracked files with git ls-files: ${error.message}`);
+}
+
+const astPath = path.join(APPS_DIR, 'AST.js');
+const cacheApiPath = path.join(APPS_DIR, 'cache', 'Cache.js');
+const jobsApiPath = path.join(APPS_DIR, 'jobs', 'Jobs.js');
+const quickReferencePath = path.join(ROOT, 'docs', 'api', 'quick-reference.md');
+const docsIndexPath = path.join(ROOT, 'docs', 'index.md');
+const readmePath = path.join(ROOT, 'README.md');
+
+try {
+  const astText = readText(astPath);
+  const cacheApiText = readText(cacheApiPath);
+  const jobsApiText = readText(jobsApiPath);
+  const quickReferenceText = readText(quickReferencePath);
+
+  const runtimeNamespace = extractAstNamespaceKeys(astText);
+  const runtimeCacheMethods = extractObjectFreezeKeys(cacheApiText, 'AST_CACHE');
+  const runtimeJobsMethods = extractObjectFreezeKeys(jobsApiText, 'AST_JOBS');
+
+  const docNamespace = extractDocMethods(quickReferenceText, 'Namespace', 'ASTX.');
+  const docCacheMethods = extractDocMethods(quickReferenceText, '`Cache` essentials', 'ASTX.Cache.');
+  const docJobsMethods = extractDocMethods(quickReferenceText, '`Jobs` essentials', 'ASTX.Jobs.');
+
+  const namespaceMissingInDocs = diffSets(runtimeNamespace, docNamespace);
+  const namespaceMissingInRuntime = diffSets(docNamespace, runtimeNamespace);
+  if (namespaceMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Namespace is missing runtime exports: ${namespaceMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (namespaceMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Namespace documents unknown exports: ${namespaceMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
+  const cacheMissingInDocs = diffSets(runtimeCacheMethods, docCacheMethods);
+  const cacheMissingInRuntime = diffSets(docCacheMethods, runtimeCacheMethods);
+  if (cacheMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Cache essentials is missing runtime methods: ${cacheMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (cacheMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Cache essentials documents unknown methods: ${cacheMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
+  const jobsMissingInDocs = diffSets(runtimeJobsMethods, docJobsMethods);
+  const jobsMissingInRuntime = diffSets(docJobsMethods, runtimeJobsMethods);
+  if (jobsMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Jobs essentials is missing runtime methods: ${jobsMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (jobsMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Jobs essentials documents unknown methods: ${jobsMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
+  const claimSources = [
+    { path: 'README.md', text: readText(readmePath) },
+    { path: 'docs/index.md', text: readText(docsIndexPath) },
+    { path: 'docs/api/quick-reference.md', text: quickReferenceText }
+  ];
+
+  const maybeUnsupportedClaims = [
+    { token: 'getMany', runtime: runtimeCacheMethods },
+    { token: 'setMany', runtime: runtimeCacheMethods },
+    { token: 'deleteMany', runtime: runtimeCacheMethods },
+    { token: 'pollAndRun', runtime: runtimeJobsMethods }
+  ];
+
+  maybeUnsupportedClaims.forEach(claim => {
+    if (claim.runtime.has(claim.token)) {
+      return;
+    }
+
+    const pattern = new RegExp(`\\b${escapeRegExp(claim.token)}\\b`);
+    claimSources.forEach(source => {
+      if (pattern.test(source.text)) {
+        findings.push(
+          `${source.path} references ${claim.token}, but runtime export is not available`
+        );
+      }
+    });
+  });
+} catch (error) {
+  findings.push(`Unable to validate docs/API contract consistency: ${error.message}`);
 }
 
 if (findings.length > 0) {

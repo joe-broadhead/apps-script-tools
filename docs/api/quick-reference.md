@@ -310,8 +310,7 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `RAG.IndexManager.create(...).ensure/sync/fastState` wraps index lifecycle operations for app-level orchestration.
 - Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
-- Cache bulk helpers are available through `getMany`, `setMany`, and `deleteMany`.
-- Cache `updateStatsOnGet` defaults to `false` for scalable storage-backed read paths.
+- Cache `updateStatsOnGet` defaults to `true`; set `updateStatsOnGet: false` to avoid write-on-read for high-throughput reads.
 - Cache production default should be `storage_json`; keep `memory`/`drive_json`/`script_properties` for low-scale or execution-local workloads.
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
