@@ -21,7 +21,10 @@
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single + bulk ops).
+- `AST.Config`: script-properties snapshot helpers for configuration bootstrap.
+- `AST.Runtime`: runtime configuration hydration across AST namespaces.
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
+- `AST.TelemetryHelpers`: safe wrappers for span lifecycle orchestration.
 - `AST.Jobs`: storage-backed multi-step job runner with retry/resume, polling, and status controls.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
@@ -38,7 +41,9 @@ flowchart LR
     B --> K[AST.RAG]
     B --> M[AST.Storage]
     B --> Q[AST.Cache]
+    B --> S[AST.Config / AST.Runtime]
     B --> O[AST.Telemetry]
+    B --> V[AST.TelemetryHelpers]
     B --> T[AST.Jobs]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
@@ -67,6 +72,8 @@ flowchart LR
 - `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
 - `AST.Cache` cache contracts (`get`, `set`, `delete`, `getMany`, `setMany`, `deleteMany`, `invalidateByTag`, `stats`) for `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/`).
 - `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`, `flush`) with redaction and sink control.
+- `AST.Config.fromScriptProperties(...)` + `AST.Runtime.configureFromProps(...)` to bootstrap module runtime config from Script Properties.
+- `AST.TelemetryHelpers` wrappers (`withSpan`, `wrap`, safe start/end/event helpers) for non-blocking app instrumentation.
 - RAG hot-path cache controls for embedding/search/answer reuse across repeated queries.
 - `AST.Jobs` orchestration contracts (`run`, `enqueue`, `resume`, `status`, `list`, `cancel`, `pollAndRun`) with storage-backed checkpoint state and worker leases.
 

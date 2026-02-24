@@ -11,6 +11,10 @@
 - New `AST.Jobs` namespace with:
   - `run`, `enqueue`, `resume`, `status`, `list`, `cancel`
   - `configure`, `getConfig`, `clearConfig`
+- New `AST.Config` namespace with:
+  - `fromScriptProperties(options)` for normalized script property snapshots.
+- New `AST.Runtime` namespace with:
+  - `configureFromProps(options)` and `modules()` for one-shot runtime bootstrap.
 - Cache backend support:
   - `memory`
   - `drive_json`
@@ -39,6 +43,9 @@
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
+- New `AST.TelemetryHelpers` namespace with:
+  - `startSpanSafe`, `endSpanSafe`, `recordEventSafe`
+  - `withSpan`, `wrap`
 - Telemetry foundation module with:
   - typed errors (`AstTelemetryError`, `AstTelemetryValidationError`, `AstTelemetryCapabilityError`)
   - secret redaction (`apiKey`, `token`, `authorization`, `cookie`, etc.)
@@ -116,7 +123,10 @@
 - `AST` namespace now exposes `AST.RAG`.
 - `AST` namespace now exposes `AST.Cache`.
 - `AST` namespace now exposes `AST.Storage`.
+- `AST` namespace now exposes `AST.Config`.
+- `AST` namespace now exposes `AST.Runtime`.
 - `AST` namespace now exposes `AST.Telemetry`.
+- `AST` namespace now exposes `AST.TelemetryHelpers`.
 - Local test harness defaults now include `Utilities.base64Encode` and `MimeType.PLAIN_TEXT` for deterministic RAG runtime tests.
 - GAS functional suite now includes RAG namespace and grounded-answer smoke coverage.
 - GAS functional suite now includes telemetry namespace smoke coverage.

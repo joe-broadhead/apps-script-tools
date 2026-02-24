@@ -145,8 +145,20 @@ Object.defineProperties(AST, {
     get: () => resolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
     enumerable: true
   },
+  Config: {
+    get: () => resolveAstBinding('AST_CONFIG', () => (typeof AST_CONFIG === 'undefined' ? undefined : AST_CONFIG)),
+    enumerable: true
+  },
+  Runtime: {
+    get: () => resolveAstBinding('AST_RUNTIME', () => (typeof AST_RUNTIME === 'undefined' ? undefined : AST_RUNTIME)),
+    enumerable: true
+  },
   Telemetry: {
     get: () => resolveAstBinding('AST_TELEMETRY', () => (typeof AST_TELEMETRY === 'undefined' ? undefined : AST_TELEMETRY)),
+    enumerable: true
+  },
+  TelemetryHelpers: {
+    get: () => resolveAstBinding('AST_TELEMETRY_HELPERS', () => (typeof AST_TELEMETRY_HELPERS === 'undefined' ? undefined : AST_TELEMETRY_HELPERS)),
     enumerable: true
   },
   Jobs: {

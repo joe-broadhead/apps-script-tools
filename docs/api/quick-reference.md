@@ -21,7 +21,10 @@ ASTX.AI
 ASTX.RAG
 ASTX.Cache
 ASTX.Storage
+ASTX.Config
+ASTX.Runtime
 ASTX.Telemetry
+ASTX.TelemetryHelpers
 ASTX.Jobs
 ASTX.Sql
 ASTX.Utils
@@ -182,6 +185,19 @@ ASTX.Cache.clearConfig()
 ASTX.Cache.clear(options)
 ```
 
+## `Config` essentials
+
+```javascript
+ASTX.Config.fromScriptProperties(options)
+```
+
+## `Runtime` essentials
+
+```javascript
+ASTX.Runtime.configureFromProps(options)
+ASTX.Runtime.modules()
+```
+
 ## `Telemetry` essentials
 
 ```javascript
@@ -193,6 +209,16 @@ ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
 ASTX.Telemetry.flush(options)
+```
+
+## `TelemetryHelpers` essentials
+
+```javascript
+ASTX.TelemetryHelpers.startSpanSafe(name, context, options)
+ASTX.TelemetryHelpers.endSpanSafe(spanId, result, options)
+ASTX.TelemetryHelpers.recordEventSafe(event, options)
+ASTX.TelemetryHelpers.withSpan(name, context, task, options)
+ASTX.TelemetryHelpers.wrap(name, task, options)
 ```
 
 ## `Jobs` essentials
@@ -243,5 +269,8 @@ ASTX.Jobs.clearConfig()
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
 - Telemetry records redact secrets by default and can emit to `logger`, Drive NDJSON (`drive_json`), or storage NDJSON batches (`storage_json`).
+- `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
+- `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `Cache`, `Storage`, `Telemetry`, `Jobs`).
+- `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.
