@@ -12,6 +12,8 @@ export function loadRagScripts(
 
   if (includeUtilities) {
     paths.push(...listScriptFiles('apps_script_tools/utilities'));
+  } else {
+    paths.push('apps_script_tools/utilities/auth/vertexServiceAccountAuthCore.js');
   }
 
   if (includeAi) {

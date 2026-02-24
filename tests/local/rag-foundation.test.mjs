@@ -12,13 +12,16 @@ function createResponse({ status = 200, body = '{}' } = {}) {
   };
 }
 
-function createServiceAccountJson({ clientEmail = 'svc-rag@example.iam.gserviceaccount.com' } = {}) {
+function createServiceAccountJson({
+  clientEmail = 'svc-rag@example.iam.gserviceaccount.com',
+  tokenUri = 'https://oauth2.googleapis.com/token'
+} = {}) {
   const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
   return JSON.stringify({
     client_email: clientEmail,
     private_key: privateKeyPem,
-    token_uri: 'https://oauth2.googleapis.com/token'
+    token_uri: tokenUri
   });
 }
 
@@ -406,6 +409,43 @@ test('RAG vertex_gemini service_account mode requires serviceAccountJson', () =>
     error => {
       assert.equal(error.name, 'AstRagAuthError');
       assert.match(error.message, /serviceAccountJson/);
+      return true;
+    }
+  );
+});
+
+test('RAG vertex_gemini rejects service-account token_uri outside allowlist', () => {
+  const serviceAccountJson = createServiceAccountJson({
+    tokenUri: 'https://example.com/token'
+  });
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagResolveProviderConfig({
+      provider: 'vertex_gemini',
+      mode: 'embedding',
+      auth: {
+        authMode: 'service_account'
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagAuthError');
+      assert.match(error.message, /token_uri is not allowed/i);
       return true;
     }
   );

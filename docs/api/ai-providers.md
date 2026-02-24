@@ -46,6 +46,10 @@ Vertex auth modes:
 - `service_account`: require service account JSON (`auth.serviceAccountJson` or `VERTEX_SERVICE_ACCOUNT_JSON`) and exchange JWT for access token.
 - `auto` (default): prefer service-account JSON when present, otherwise fallback to OAuth.
 
+Service-account `token_uri` is validated against an allowlist:
+- `https://oauth2.googleapis.com/token`
+- `https://www.googleapis.com/oauth2/v4/token`
+
 ### OpenRouter
 
 - `OPENROUTER_API_KEY`

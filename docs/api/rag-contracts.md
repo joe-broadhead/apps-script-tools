@@ -181,6 +181,10 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 - `service_account`: require `serviceAccountJson`.
 - `auto` (default): prefer service-account JSON when present, otherwise fallback to OAuth.
 
+Service-account `token_uri` is validated against:
+- `https://oauth2.googleapis.com/token`
+- `https://www.googleapis.com/oauth2/v4/token`
+
 Resolution precedence for Vertex service-account JSON:
 
 1. per-call `auth.serviceAccountJson` (or `generation.auth.serviceAccountJson`)

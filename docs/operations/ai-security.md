@@ -30,6 +30,11 @@ Optional script properties:
 - `VERTEX_SERVICE_ACCOUNT_JSON`
 - `VERTEX_AUTH_MODE` (`oauth` | `service_account` | `auto`)
 
+When using service-account auth, `token_uri` from the JSON is allowlisted to Google token endpoints:
+
+- `https://oauth2.googleapis.com/token`
+- `https://www.googleapis.com/oauth2/v4/token`
+
 Required scope in `appsscript.json`:
 
 - `https://www.googleapis.com/auth/cloud-platform`

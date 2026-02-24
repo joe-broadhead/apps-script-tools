@@ -1,6 +1,9 @@
 import { listScriptFiles, loadScripts } from './helpers.mjs';
 
 export function loadAiScripts(context, { includeAst = false } = {}) {
+  const shared = [
+    'apps_script_tools/utilities/auth/vertexServiceAccountAuthCore.js'
+  ];
   const general = listScriptFiles('apps_script_tools/ai/general');
   const providers = [
     'apps_script_tools/ai/openai/runOpenAi.js',
@@ -11,7 +14,7 @@ export function loadAiScripts(context, { includeAst = false } = {}) {
     'apps_script_tools/ai/AI.js'
   ];
 
-  const paths = [...general, ...providers];
+  const paths = [...shared, ...general, ...providers];
 
   if (includeAst) {
     paths.push('apps_script_tools/AST.js');
