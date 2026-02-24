@@ -22,6 +22,11 @@ ASTX.RAG.buildRetrievalCacheKey(args)
 ASTX.RAG.putRetrievalPayload(key, payload, options)
 ASTX.RAG.getRetrievalPayload(key, options)
 ASTX.RAG.deleteRetrievalPayload(key, options)
+ASTX.RAG.Citations.normalizeInline(text)
+ASTX.RAG.Citations.extractInlineIds(text)
+ASTX.RAG.Citations.filterForAnswer(citations, options)
+ASTX.RAG.Citations.toUrl(citation)
+ASTX.RAG.Fallback.fromCitations(args)
 ASTX.RAG.IndexManager.create(config)
 ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
@@ -84,6 +89,12 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     mode: 'vector' | 'hybrid',
     vectorWeight: 0.65, // hybrid only
     lexicalWeight: 0.35, // hybrid only
+    recovery: {
+      enabled: false,
+      topKBoost: 2,
+      minScoreFloor: 0.05,
+      maxAttempts: 2
+    },
     rerank: {
       enabled: false,
       topN: 20
@@ -146,6 +157,12 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       deniedMimeTypes: []
     },
     filters: { fileIds: [], mimeTypes: [] }
+  },
+  fallback: {
+    onRetrievalError: false,
+    onRetrievalEmpty: false,
+    intent: 'summary' | 'facts',
+    factCount: 5
   },
   generation: {
     provider: 'openai|gemini|vertex_gemini|openrouter|perplexity',
@@ -337,8 +354,44 @@ Resolution precedence for Vertex service-account JSON:
     }
   ],
   retrieval: { topK, minScore, mode, returned },
-  usage
+  usage,
+  diagnostics: {
+    totalMs,
+    pipelinePath: 'standard' | 'recovery_applied' | 'fallback',
+    retrieval: {
+      source: 'index' | 'payload',
+      ms,
+      rawSources,
+      usableSources,
+      emptyReason, // null | no_index_chunks | payload_empty | filters_excluded_all | access_filtered_all | below_min_score | no_matches | retrieval_error
+      recoveryAttempted,
+      recoveryApplied,
+      attempts: [{ attempt, topK, minScore, returned, ms }]
+    },
+    generation: {
+      status: 'not_started' | 'started' | 'ok' | 'error' | 'skipped',
+      ms,
+      grounded,
+      finishReason,
+      errorClass
+    }
+  }
 }
+```
+
+## Citation + fallback utilities
+
+```javascript
+const cleaned = ASTX.RAG.Citations.normalizeInline(answerText);
+const inlineIds = ASTX.RAG.Citations.extractInlineIds(cleaned);
+const filtered = ASTX.RAG.Citations.filterForAnswer(citations, { maxItems: 6 });
+const sourceUrl = ASTX.RAG.Citations.toUrl(filtered[0]);
+
+const fallback = ASTX.RAG.Fallback.fromCitations({
+  citations: filtered,
+  intent: 'facts',
+  factCount: 5
+});
 ```
 
 ## `search` response

@@ -282,6 +282,94 @@ function astRagNormalizeRetrievalWeight(value, fallback, fieldPath) {
   return value;
 }
 
+function astRagNormalizeFiniteNumber(value, fallback, fieldPath, bounds = {}) {
+  if (typeof value === 'undefined' || value === null) {
+    return fallback;
+  }
+
+  if (typeof value !== 'number' || !isFinite(value)) {
+    throw new AstRagValidationError(`${fieldPath} must be a finite number when provided`);
+  }
+
+  const min = typeof bounds.min === 'number' && isFinite(bounds.min) ? bounds.min : null;
+  const max = typeof bounds.max === 'number' && isFinite(bounds.max) ? bounds.max : null;
+  let normalized = value;
+
+  if (min != null) {
+    normalized = Math.max(min, normalized);
+  }
+  if (max != null) {
+    normalized = Math.min(max, normalized);
+  }
+
+  return normalized;
+}
+
+function astRagNormalizeRecoveryConfig(recovery = {}, defaults, retrievalDefaults, fieldPath) {
+  if (typeof recovery === 'undefined' || recovery === null) {
+    recovery = {};
+  }
+
+  if (!astRagIsPlainObject(recovery)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  const minScoreFloor = astRagNormalizeFiniteNumber(
+    recovery.minScoreFloor,
+    defaults.minScoreFloor,
+    `${fieldPath}.minScoreFloor`,
+    { min: -1, max: retrievalDefaults.minScore }
+  );
+
+  return {
+    enabled: astRagNormalizeBoolean(recovery.enabled, defaults.enabled),
+    topKBoost: astRagNormalizeFiniteNumber(
+      recovery.topKBoost,
+      defaults.topKBoost,
+      `${fieldPath}.topKBoost`,
+      { min: 1, max: 10 }
+    ),
+    minScoreFloor,
+    maxAttempts: astRagNormalizePositiveInt(
+      recovery.maxAttempts,
+      defaults.maxAttempts,
+      1
+    )
+  };
+}
+
+function astRagNormalizeFallbackPolicy(fallback = {}, fieldPath = 'answer.fallback') {
+  if (typeof fallback === 'undefined' || fallback === null) {
+    fallback = {};
+  }
+
+  if (!astRagIsPlainObject(fallback)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  const intent = astRagNormalizeString(fallback.intent, AST_RAG_DEFAULT_FALLBACK.intent);
+  if (!['summary', 'facts'].includes(intent)) {
+    throw new AstRagValidationError(`${fieldPath}.intent must be one of: summary, facts`);
+  }
+
+  return {
+    onRetrievalError: astRagNormalizeBoolean(
+      fallback.onRetrievalError,
+      AST_RAG_DEFAULT_FALLBACK.onRetrievalError
+    ),
+    onRetrievalEmpty: astRagNormalizeBoolean(
+      fallback.onRetrievalEmpty,
+      AST_RAG_DEFAULT_FALLBACK.onRetrievalEmpty
+    ),
+    intent,
+    factCount: astRagNormalizePositiveInt(
+      fallback.factCount,
+      AST_RAG_DEFAULT_FALLBACK.factCount,
+      1
+    )
+  };
+}
+
 function astRagNormalizeRetrievalRerank(rerank, defaults, fieldPath) {
   if (typeof rerank === 'undefined' || rerank === null) {
     return {
@@ -331,6 +419,12 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     defaults.rerank,
     `${fieldPath}.rerank`
   );
+  const recovery = astRagNormalizeRecoveryConfig(
+    retrieval.recovery,
+    defaults.recovery || AST_RAG_DEFAULT_RETRIEVAL.recovery,
+    { minScore },
+    `${fieldPath}.recovery`
+  );
 
   if (mode === 'hybrid' && (vectorWeight + lexicalWeight) <= 0) {
     throw new AstRagValidationError(`${fieldPath} requires vectorWeight + lexicalWeight > 0 in hybrid mode`);
@@ -342,7 +436,8 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     mode,
     vectorWeight,
     lexicalWeight,
-    rerank
+    rerank,
+    recovery
   };
 }
 
@@ -511,6 +606,9 @@ function astRagValidateAnswerRequest(request = {}) {
 
   const history = Array.isArray(request.history) ? request.history.slice() : [];
   const retrieval = astRagIsPlainObject(request.retrieval) ? astRagCloneObject(request.retrieval) : {};
+  if (typeof retrieval.recovery === 'undefined' && astRagIsPlainObject(request.recovery)) {
+    retrieval.recovery = astRagCloneObject(request.recovery);
+  }
   if (typeof retrieval.access === 'undefined') {
     retrieval.access = request.access;
   }
@@ -532,6 +630,9 @@ function astRagValidateAnswerRequest(request = {}) {
 
   const generation = astRagIsPlainObject(request.generation) ? request.generation : {};
   const generationProvider = astRagNormalizeString(generation.provider, 'vertex_gemini');
+  const fallback = astRagNormalizeFallbackPolicy(
+    astRagIsPlainObject(request.fallback) ? request.fallback : {}
+  );
 
   if (!AST_RAG_EMBEDDING_PROVIDERS.includes(generationProvider)) {
     throw new AstRagValidationError('answer.generation.provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
@@ -559,6 +660,7 @@ function astRagValidateAnswerRequest(request = {}) {
     options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
     cache: astRagNormalizeCacheRequest(request.cache),
+    fallback,
     retrievalPayload,
     retrievalPayloadKey,
     retrievalPayloadCache

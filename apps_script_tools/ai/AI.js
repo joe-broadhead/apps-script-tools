@@ -55,5 +55,6 @@ const AST_AI = Object.freeze({
   capabilities: astAiCapabilities,
   configure: astAiConfigure,
   getConfig: astAiGetConfig,
-  clearConfig: astAiClearConfig
+  clearConfig: astAiClearConfig,
+  OutputRepair: AST_AI_OUTPUT_REPAIR
 });

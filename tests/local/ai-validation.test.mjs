@@ -138,6 +138,8 @@ test('AST exposes AI surface and helper methods', () => {
   assert.equal(typeof context.AST.AI.configure, 'function');
   assert.equal(typeof context.AST.AI.getConfig, 'function');
   assert.equal(typeof context.AST.AI.clearConfig, 'function');
+  assert.equal(typeof context.AST.AI.OutputRepair, 'object');
+  assert.equal(typeof context.AST.AI.OutputRepair.continueIfTruncated, 'function');
 
   const providers = context.AST.AI.providers();
   assert.equal(

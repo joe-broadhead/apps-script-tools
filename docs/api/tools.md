@@ -490,6 +490,7 @@ Primary methods:
 - `ASTX.AI.tools(request)` for bounded auto tool execution.
 - `ASTX.AI.image(request)` for image generation paths.
 - `ASTX.AI.stream(request)` for callback-based token/tool event streaming.
+- `ASTX.AI.OutputRepair.continueIfTruncated(request)` for bounded continuation repair.
 - `ASTX.AI.providers()` and `ASTX.AI.capabilities(provider)` for runtime checks.
 - `ASTX.AI.configure(config)` to set runtime defaults (for example from consumer script properties).
 - `ASTX.AI.getConfig()` and `ASTX.AI.clearConfig()` for runtime config inspection/reset.
@@ -509,6 +510,7 @@ High-signal behavior:
   - `repairMode` (`none`, `json_repair`, `llm_repair`)
   - `strictValidation`
 - set `options.includeRaw=true` to include provider raw payloads.
+- output continuation repair can be applied to partial text with `passes` + `maxOutputTokens`.
 
 ```javascript
 const out = ASTX.AI.structured({
@@ -568,6 +570,8 @@ Primary methods:
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
 - `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.
 - `ASTX.RAG.buildRetrievalCacheKey(...)`, `putRetrievalPayload(...)`, `getRetrievalPayload(...)`, `deleteRetrievalPayload(...)` for retrieval payload interop.
+- `ASTX.RAG.Citations.*` for inline citation normalization/filtering/url mapping.
+- `ASTX.RAG.Fallback.fromCitations(...)` for deterministic citation-only fallback synthesis.
 - `ASTX.RAG.IndexManager.create(...)` for build/sync/fast-state orchestration.
 - `ASTX.RAG.embeddingProviders()` and `ASTX.RAG.embeddingCapabilities(...)`.
 - `ASTX.RAG.registerEmbeddingProvider(...)` and `ASTX.RAG.unregisterEmbeddingProvider(...)`.
@@ -586,7 +590,10 @@ High-signal behavior:
 - source parse failures can be downgraded to warnings with `options.skipParseFailures=true`.
 - repeated hot queries can be accelerated by enabling cache controls on `search(...)`/`answer(...)`.
 - answer flows can reuse `previewSources` payloads via `retrievalPayload` or `retrievalPayloadKey`.
+- `answer(...)` supports retrieval recovery controls (`retrieval.recovery`) before generation.
+- `answer(...)` supports deterministic fallback policy controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 - `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
+- `answer(...)` returns stable `diagnostics` for retrieval/generation phase timing + pipeline path.
 
 See:
 

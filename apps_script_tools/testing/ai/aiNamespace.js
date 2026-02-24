@@ -24,6 +24,10 @@ AI_NAMESPACE_TESTS = [
           throw new Error(`AST.AI.${method} is not available`);
         }
       });
+
+      if (!AST.AI.OutputRepair || typeof AST.AI.OutputRepair.continueIfTruncated !== 'function') {
+        throw new Error('AST.AI.OutputRepair.continueIfTruncated is not available');
+      }
     }
   },
   {

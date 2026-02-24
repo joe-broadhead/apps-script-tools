@@ -72,6 +72,11 @@ Current release state:
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
 - `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.
+- `AST.AI.OutputRepair.continueIfTruncated(...)` helper for bounded continuation of truncated outputs.
+- `AST.RAG.Citations.*` utility helpers for inline normalization, filtering, and source-link mapping.
+- `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback synthesis.
+- `AST.RAG.answer(...)` recovery controls (`retrieval.recovery`) and stable per-phase diagnostics.
+- `AST.RAG.answer(...)` fallback controls for retrieval error/empty paths (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 
 ## Install As Apps Script Library
 

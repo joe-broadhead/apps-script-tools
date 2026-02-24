@@ -32,10 +32,23 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
   mode: 'vector',
   lexicalWeight: 0.35,
   vectorWeight: 0.65,
+  recovery: Object.freeze({
+    enabled: false,
+    topKBoost: 2,
+    minScoreFloor: 0.05,
+    maxAttempts: 2
+  }),
   rerank: Object.freeze({
     enabled: false,
     topN: 20
   })
+});
+
+const AST_RAG_DEFAULT_FALLBACK = Object.freeze({
+  onRetrievalError: false,
+  onRetrievalEmpty: false,
+  intent: 'summary',
+  factCount: 5
 });
 
 const AST_RAG_DEFAULT_OPTIONS = Object.freeze({

@@ -8,11 +8,13 @@ ASTX.AI.text(request)
 ASTX.AI.structured(request)
 ASTX.AI.tools(request)
 ASTX.AI.image(request)
+ASTX.AI.stream(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
 ASTX.AI.configure(config, options)
 ASTX.AI.getConfig()
 ASTX.AI.clearConfig()
+ASTX.AI.OutputRepair.continueIfTruncated(request)
 ```
 
 `configure` is useful in consumer projects when you want to load script properties once and avoid passing `auth` on every call.
@@ -200,3 +202,29 @@ try {
   Logger.log(`${error.name}: ${error.message}`);
 }
 ```
+
+## Output continuation repair
+
+`ASTX.AI.OutputRepair.continueIfTruncated(...)` is a bounded helper for incomplete model output:
+
+```javascript
+const repaired = ASTX.AI.OutputRepair.continueIfTruncated({
+  provider: 'vertex_gemini',
+  model: 'gemini-2.5-flash',
+  partial: partialAnswerText,
+  finishReason: aiResponse.finishReason,
+  question: 'Summarize risks and actions',
+  citations: response.citations,
+  auth: {},
+  passes: 2,
+  maxOutputTokens: 512
+});
+
+Logger.log(repaired.text);
+```
+
+Behavior notes:
+
+- no-op when output does not appear truncated (unless `force=true`)
+- bounded continuation passes (`1..5`)
+- overlap-aware merge to avoid duplicate text prefixes
