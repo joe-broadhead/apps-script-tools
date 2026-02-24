@@ -91,6 +91,60 @@ test('resolveAiConfig falls back to getProperty when getProperties does not incl
   assert.equal(resolved.model, 'openai/gpt-4o-mini');
 });
 
+test('resolveAiConfig memoizes script properties snapshots and invalidates on configure/clear', () => {
+  let getPropertiesCalls = 0;
+  const scriptState = {
+    OPENAI_API_KEY: 'script-key-v1',
+    OPENAI_MODEL: 'script-model-v1'
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => {
+          getPropertiesCalls += 1;
+          return { ...scriptState };
+        },
+        getProperty: key => (Object.prototype.hasOwnProperty.call(scriptState, key) ? scriptState[key] : null)
+      })
+    }
+  });
+
+  loadAiScripts(context, { includeAst: true });
+  context.AST.AI.clearConfig();
+
+  const normalized = context.validateAiRequest({
+    provider: 'openai',
+    input: 'hello'
+  });
+
+  const first = context.resolveAiConfig(normalized);
+  const second = context.resolveAiConfig(normalized);
+  assert.equal(first.apiKey, 'script-key-v1');
+  assert.equal(second.apiKey, 'script-key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  scriptState.OPENAI_API_KEY = 'script-key-v2';
+  const stillCached = context.resolveAiConfig(normalized);
+  assert.equal(stillCached.apiKey, 'script-key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  context.AST.AI.configure({
+    OPENAI_MODEL: 'runtime-model'
+  });
+  const afterConfigure = context.resolveAiConfig(normalized);
+  assert.equal(afterConfigure.apiKey, 'script-key-v2');
+  assert.equal(afterConfigure.model, 'runtime-model');
+  assert.equal(getPropertiesCalls, 2);
+
+  scriptState.OPENAI_API_KEY = 'script-key-v3';
+  context.AST.AI.clearConfig();
+  const afterClear = context.resolveAiConfig(normalized);
+  assert.equal(afterClear.apiKey, 'script-key-v3');
+  assert.equal(afterClear.model, 'script-model-v1');
+  assert.equal(getPropertiesCalls, 3);
+});
+
 test('AST.AI.configure enables runtime config fallback for provider auth/model', () => {
   const context = createGasContext({
     PropertiesService: {

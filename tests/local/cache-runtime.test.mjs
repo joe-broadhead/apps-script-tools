@@ -289,6 +289,46 @@ test('cache config precedence is request override > runtime config > script prop
   assert.equal(requestStats.entries, 1);
 });
 
+test('cache config resolution memoizes script properties snapshots and invalidates on clearConfig', () => {
+  let getPropertiesCalls = 0;
+  const scriptState = {
+    CACHE_BACKEND: 'memory',
+    CACHE_NAMESPACE: 'script_ns_v1',
+    CACHE_DEFAULT_TTL_SEC: '120'
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => {
+          getPropertiesCalls += 1;
+          return { ...scriptState };
+        },
+        getProperty: key => (Object.prototype.hasOwnProperty.call(scriptState, key) ? scriptState[key] : null)
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const first = context.astCacheResolveConfig({});
+  const second = context.astCacheResolveConfig({});
+  assert.equal(first.namespace, 'script_ns_v1');
+  assert.equal(second.namespace, 'script_ns_v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  scriptState.CACHE_NAMESPACE = 'script_ns_v2';
+  const stillCached = context.astCacheResolveConfig({});
+  assert.equal(stillCached.namespace, 'script_ns_v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  context.AST.Cache.clearConfig();
+  const refreshed = context.astCacheResolveConfig({});
+  assert.equal(refreshed.namespace, 'script_ns_v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
 test('drive_json backend supports persistence and invalidation', () => {
   const drive = createDriveMock();
   const context = createGasContext({

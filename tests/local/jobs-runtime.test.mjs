@@ -284,3 +284,46 @@ test('AST.Jobs.configure controls runtime defaults', () => {
   assert.equal(result.options.maxRetries, 0);
   assert.equal(result.options.propertyPrefix, propertyPrefix);
 });
+
+test('jobs execution options memoize script properties snapshots and invalidate on clearConfig', () => {
+  let getPropertiesCalls = 0;
+  const store = {
+    AST_JOBS_DEFAULT_MAX_RETRIES: '1',
+    AST_JOBS_DEFAULT_MAX_RUNTIME_MS: '30000',
+    AST_JOBS_PROPERTY_PREFIX: 'AST_JOBS_MEMO_A_'
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => {
+          getPropertiesCalls += 1;
+          return { ...store };
+        },
+        getProperty: key => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+        setProperty: (key, value) => {
+          store[String(key)] = String(value);
+        }
+      })
+    }
+  });
+
+  loadJobsScripts(context, { includeAst: true });
+  context.AST.Jobs.clearConfig();
+
+  const first = context.astJobsResolveExecutionOptions({});
+  const second = context.astJobsResolveExecutionOptions({});
+  assert.equal(first.maxRetries, 1);
+  assert.equal(second.maxRetries, 1);
+  assert.equal(getPropertiesCalls, 1);
+
+  store.AST_JOBS_DEFAULT_MAX_RETRIES = '3';
+  const stillCached = context.astJobsResolveExecutionOptions({});
+  assert.equal(stillCached.maxRetries, 1);
+  assert.equal(getPropertiesCalls, 1);
+
+  context.AST.Jobs.clearConfig();
+  const refreshed = context.astJobsResolveExecutionOptions({});
+  assert.equal(refreshed.maxRetries, 3);
+  assert.equal(getPropertiesCalls, 2);
+});

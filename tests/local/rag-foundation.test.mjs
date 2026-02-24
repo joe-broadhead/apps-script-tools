@@ -292,6 +292,67 @@ test('RAG embedding config precedence is request > runtime configure > script pr
   assert.equal(runtimeFallback.model, 'runtime-embed-model');
 });
 
+test('RAG config snapshot memoizes script properties and invalidates on clearConfig', () => {
+  let getPropertiesCalls = 0;
+  const scriptState = {
+    OPENAI_API_KEY: 'script-key-v1',
+    OPENAI_EMBED_MODEL: 'script-embed-v1'
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => {
+          getPropertiesCalls += 1;
+          return { ...scriptState };
+        },
+        getProperty: key => (Object.prototype.hasOwnProperty.call(scriptState, key) ? scriptState[key] : null)
+      })
+    }
+  });
+
+  loadRagScripts(context, { includeAst: true });
+  context.AST.RAG.clearConfig();
+
+  const first = context.astRagResolveProviderConfig({
+    provider: 'openai',
+    mode: 'embedding',
+    model: null,
+    auth: {}
+  });
+
+  const second = context.astRagResolveProviderConfig({
+    provider: 'openai',
+    mode: 'embedding',
+    model: null,
+    auth: {}
+  });
+
+  assert.equal(first.apiKey, 'script-key-v1');
+  assert.equal(second.apiKey, 'script-key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  scriptState.OPENAI_API_KEY = 'script-key-v2';
+  const stillCached = context.astRagResolveProviderConfig({
+    provider: 'openai',
+    mode: 'embedding',
+    model: null,
+    auth: {}
+  });
+  assert.equal(stillCached.apiKey, 'script-key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  context.AST.RAG.clearConfig();
+  const refreshed = context.astRagResolveProviderConfig({
+    provider: 'openai',
+    mode: 'embedding',
+    model: null,
+    auth: {}
+  });
+  assert.equal(refreshed.apiKey, 'script-key-v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
 test('RAG custom embedding providers can be registered and used', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });

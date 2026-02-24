@@ -26,6 +26,12 @@ const AST_CACHE_CONFIG_KEYS = Object.freeze([
 
 let AST_CACHE_RUNTIME_CONFIG = {};
 
+function astCacheInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 function astCacheNormalizeConfigValue(value) {
   if (value == null) {
     return null;
@@ -76,15 +82,23 @@ function astCacheSetRuntimeConfig(config = {}, options = {}) {
   }
 
   AST_CACHE_RUNTIME_CONFIG = next;
+  astCacheInvalidateScriptPropertiesSnapshotCache();
   return astCacheGetRuntimeConfig();
 }
 
 function astCacheClearRuntimeConfig() {
   AST_CACHE_RUNTIME_CONFIG = {};
+  astCacheInvalidateScriptPropertiesSnapshotCache();
   return {};
 }
 
 function astCacheGetScriptPropertiesSnapshot() {
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized({
+      keys: AST_CACHE_CONFIG_KEYS
+    });
+  }
+
   const output = {};
 
   try {

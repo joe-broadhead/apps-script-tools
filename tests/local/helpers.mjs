@@ -147,10 +147,19 @@ export function createGasContext(overrides = {}) {
 }
 
 export function loadScripts(context, relativePaths) {
+  if (!context.__loadedScriptFiles || typeof context.__loadedScriptFiles !== 'object') {
+    context.__loadedScriptFiles = {};
+  }
+
   for (const relativePath of relativePaths) {
+    if (context.__loadedScriptFiles[relativePath]) {
+      continue;
+    }
+
     const fullPath = path.join(ROOT, relativePath);
     const source = fs.readFileSync(fullPath, 'utf8');
     vm.runInContext(source, context, { filename: relativePath });
+    context.__loadedScriptFiles[relativePath] = true;
   }
   return context;
 }
