@@ -1572,6 +1572,240 @@ test('answer citation validation rejects inaccessible cited chunks when access i
   }
 });
 
+test('previewSources returns citation-ready cards and caches retrieval payloads', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_preview_1',
+    fileName: 'preview-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_preview_1',
+          sourceId: 'src_preview_1',
+          fileId: 'doc_1',
+          fileName: 'project-brief',
+          mimeType: MIME_DOC,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Modernization project launch details and sequencing.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 3, totalTokens: 3 }
+  });
+
+  const response = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_1',
+    query: 'project launch',
+    retrieval: {
+      topK: 5,
+      minScore: 0
+    },
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag_preview_search_cache'
+    },
+    preview: {
+      cachePayload: true,
+      payloadCache: {
+        backend: 'memory',
+        namespace: 'rag_preview_payload_cache'
+      }
+    }
+  });
+
+  assert.equal(response.cards.length, 1);
+  assert.equal(response.cards[0].citationId, 'S1');
+  assert.equal(
+    response.cards[0].url,
+    'https://docs.google.com/document/d/doc_1/edit'
+  );
+  assert.equal(typeof response.cacheKey, 'string');
+  assert.equal(response.payload.query, 'project launch');
+
+  const payload = context.AST.RAG.getRetrievalPayload(response.cacheKey, {
+    backend: 'memory',
+    namespace: 'rag_preview_payload_cache'
+  });
+
+  assert.equal(payload.indexFileId, 'index_preview_1');
+  assert.equal(payload.results.length, 1);
+});
+
+test('answer reuses retrieval payload and skips query embedding when payload is provided', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  let embedCalls = 0;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_payload',
+    fileName: 'answer-payload-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+  context.astRagEmbedTexts = () => {
+    embedCalls += 1;
+    return {
+      vectors: [[1, 0, 0]],
+      usage: { inputTokens: 1, totalTokens: 1 }
+    };
+  };
+  context.runAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'Project launch is underway [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 11,
+      outputTokens: 4,
+      totalTokens: 15
+    }
+  });
+
+  const payload = {
+    indexFileId: 'index_answer_payload',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    query: 'What is happening?',
+    retrieval: {
+      topK: 4,
+      minScore: 0.1,
+      mode: 'vector'
+    },
+    results: [
+      {
+        chunkId: 'chunk_payload_1',
+        sourceId: 'src_payload_1',
+        fileId: 'file_payload_1',
+        fileName: 'notes.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Project launch is underway and teams are aligned.',
+        score: 0.9,
+        finalScore: 0.9,
+        vectorScore: 0.9,
+        lexicalScore: null
+      }
+    ]
+  };
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_payload',
+    question: 'What is happening?',
+    retrievalPayload: payload,
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.citations.length, 1);
+  assert.equal(response.citations[0].chunkId, 'chunk_payload_1');
+  assert.equal(embedCalls, 0, 'embedding should be skipped when payload is reused');
+});
+
+test('IndexManager.ensure supports MIME fallback diagnostics and reuses existing index', () => {
+  const sourceFile = makeDriveFile({
+    id: 'file_mgr_1',
+    name: 'mgr.txt',
+    mimeType: MIME_TEXT,
+    text: 'Manager build content'
+  });
+  const drive = createDriveRuntime({
+    files: [sourceFile]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  let embedCalls = 0;
+  context.astRagEmbedTexts = request => {
+    embedCalls += 1;
+    return {
+      model: request.model || 'text-embedding-3-small',
+      vectors: request.texts.map(() => [1, 0, 0]),
+      usage: {
+        inputTokens: request.texts.length,
+        totalTokens: request.texts.length
+      }
+    };
+  };
+
+  const manager = context.AST.RAG.IndexManager.create({
+    defaults: {
+      indexName: 'manager-index',
+      source: {
+        folderId: 'root',
+        includeSubfolders: false
+      },
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      auth: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const first = manager.ensure({
+    source: {
+      includeMimeTypes: [MIME_TEXT, 'application/zip']
+    },
+    options: {
+      fallbackToSupportedMimeTypes: true,
+      allowAutoBuild: true
+    }
+  });
+
+  assert.equal(first.action, 'build');
+  assert.equal(first.diagnostics.fallbackToSupportedMimeTypes, true);
+  assert.equal(first.diagnostics.unsupportedMimeTypes[0], 'application/zip');
+  assert.equal(typeof first.indexFileId, 'string');
+
+  const second = manager.ensure({
+    source: {
+      folderId: 'root'
+    }
+  });
+
+  assert.equal(second.action, 'reuse');
+  assert.equal(second.indexFileId, first.indexFileId);
+  assert.equal(embedCalls, 1, 'reuse path should avoid rebuilding embeddings');
+
+  const fast = manager.fastState({ inspect: true });
+  assert.equal(fast.ready, true);
+  assert.equal(fast.chunkCount > 0, true);
+});
+
 test('Doc extraction works through DocumentApp for Google Docs sources', () => {
   const context = createGasContext({
     DocumentApp: {

@@ -564,8 +564,11 @@ Primary methods:
 - `ASTX.RAG.buildIndex(...)` to create a Drive JSON index from Drive sources.
 - `ASTX.RAG.syncIndex(...)` to refresh existing indexes after file changes.
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
+- `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
 - `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.
+- `ASTX.RAG.buildRetrievalCacheKey(...)`, `putRetrievalPayload(...)`, `getRetrievalPayload(...)`, `deleteRetrievalPayload(...)` for retrieval payload interop.
+- `ASTX.RAG.IndexManager.create(...)` for build/sync/fast-state orchestration.
 - `ASTX.RAG.embeddingProviders()` and `ASTX.RAG.embeddingCapabilities(...)`.
 - `ASTX.RAG.registerEmbeddingProvider(...)` and `ASTX.RAG.unregisterEmbeddingProvider(...)`.
 
@@ -582,6 +585,8 @@ High-signal behavior:
 - `answer(...)` returns `status='insufficient_context'` when citation grounding fails.
 - source parse failures can be downgraded to warnings with `options.skipParseFailures=true`.
 - repeated hot queries can be accelerated by enabling cache controls on `search(...)`/`answer(...)`.
+- answer flows can reuse `previewSources` payloads via `retrievalPayload` or `retrievalPayloadKey`.
+- `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
 
 See:
 

@@ -29,6 +29,11 @@ function astRagApiSearch(request = {}) {
   return astRagSearchCore(request);
 }
 
+function astRagApiPreviewSources(request = {}) {
+  astRagEnsureInitialized();
+  return astRagPreviewSourcesCore(request);
+}
+
 function astRagApiAnswer(request = {}) {
   astRagEnsureInitialized();
   return astRagAnswerCore(request);
@@ -60,6 +65,31 @@ function astRagApiUnregisterEmbeddingProvider(name) {
   return astRagUnregisterEmbeddingProvider(name);
 }
 
+function astRagApiBuildRetrievalCacheKey(args = {}) {
+  astRagEnsureInitialized();
+  return astRagBuildRetrievalCacheKey(args);
+}
+
+function astRagApiPutRetrievalPayload(key, payload, options = {}) {
+  astRagEnsureInitialized();
+  return astRagPutRetrievalPayload(key, payload, options);
+}
+
+function astRagApiGetRetrievalPayload(key, options = {}) {
+  astRagEnsureInitialized();
+  return astRagGetRetrievalPayload(key, options);
+}
+
+function astRagApiDeleteRetrievalPayload(key, options = {}) {
+  astRagEnsureInitialized();
+  return astRagDeleteRetrievalPayload(key, options);
+}
+
+function astRagApiCreateIndexManager(config = {}) {
+  astRagEnsureInitialized();
+  return astRagCreateIndexManager(config);
+}
+
 function astRagApiGetConfig() {
   astRagEnsureInitialized();
   return astRagGetRuntimeConfig();
@@ -77,8 +107,16 @@ const AST_RAG = Object.freeze({
   buildIndex: astRagApiBuildIndex,
   syncIndex: astRagApiSyncIndex,
   search: astRagApiSearch,
+  previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
   inspectIndex: astRagApiInspectIndex,
+  buildRetrievalCacheKey: astRagApiBuildRetrievalCacheKey,
+  putRetrievalPayload: astRagApiPutRetrievalPayload,
+  getRetrievalPayload: astRagApiGetRetrievalPayload,
+  deleteRetrievalPayload: astRagApiDeleteRetrievalPayload,
+  IndexManager: Object.freeze({
+    create: astRagApiCreateIndexManager
+  }),
   embeddingProviders: astRagApiEmbeddingProviders,
   embeddingCapabilities: astRagApiEmbeddingCapabilities,
   registerEmbeddingProvider: astRagApiRegisterEmbeddingProvider,

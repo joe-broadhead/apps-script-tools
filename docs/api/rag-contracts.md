@@ -15,8 +15,14 @@ ASTX.RAG.clearConfig()
 ASTX.RAG.buildIndex(request)
 ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
+ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
 ASTX.RAG.inspectIndex(request)
+ASTX.RAG.buildRetrievalCacheKey(args)
+ASTX.RAG.putRetrievalPayload(key, payload, options)
+ASTX.RAG.getRetrievalPayload(key, options)
+ASTX.RAG.deleteRetrievalPayload(key, options)
+ASTX.RAG.IndexManager.create(config)
 ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
 ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
@@ -169,9 +175,124 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     embeddingTtlSec: 900,
     storageUri: 's3://bucket/cache'
   },
+  retrievalPayload: {
+    indexFileId: 'required when provided',
+    versionToken: 'optional',
+    query: 'must match question',
+    retrieval: { ... },
+    results: [ ...search-like results... ]
+  },
+  retrievalPayloadKey: 'optional key from buildRetrievalCacheKey(...)',
+  retrievalPayloadCache: {
+    backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json',
+    namespace: 'ast_rag_retrieval',
+    storageUri: 'optional'
+  },
   auth: {}
 }
 ```
+
+## `previewSources(request)`
+
+`previewSources` is a `search(...)` wrapper that returns UI-ready cards plus an optional reusable retrieval payload.
+
+```javascript
+{
+  indexFileId: 'required',
+  query: 'required',
+  retrieval: {
+    topK: 8,
+    minScore: 0.2,
+    mode: 'vector' | 'hybrid'
+  },
+  cache: {
+    enabled: false,
+    backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json'
+  },
+  preview: {
+    snippetMaxChars: 280,
+    includeText: false,
+    includePayload: true,
+    cachePayload: false,
+    payloadTtlSec: 600,
+    payloadCache: {
+      backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json',
+      namespace: 'ast_rag_retrieval',
+      storageUri: 'optional'
+    }
+  }
+}
+```
+
+Response fields:
+
+- `cards[]`: citation-ready source cards (`citationId`, `snippet`, `url`, score metadata, source metadata)
+- `payload`: deterministic retrieval payload for `answer(...)` reuse
+- `cacheKey`: deterministic key from `buildRetrievalCacheKey(...)`
+
+## Retrieval payload cache interop
+
+```javascript
+const key = ASTX.RAG.buildRetrievalCacheKey({
+  indexFileId,
+  query,
+  retrieval,
+  filters,    // optional
+  access,     // optional
+  versionToken // optional
+});
+
+ASTX.RAG.putRetrievalPayload(key, payload, {
+  backend: 'storage_json',
+  namespace: 'ast_rag_retrieval',
+  ttlSec: 600
+});
+
+const payload = ASTX.RAG.getRetrievalPayload(key, {
+  backend: 'storage_json',
+  namespace: 'ast_rag_retrieval'
+});
+
+ASTX.RAG.deleteRetrievalPayload(key, {
+  backend: 'storage_json',
+  namespace: 'ast_rag_retrieval'
+});
+```
+
+## `IndexManager`
+
+`IndexManager` is a convenience wrapper over `buildIndex`, `syncIndex`, and `inspectIndex`.
+
+```javascript
+const manager = ASTX.RAG.IndexManager.create({
+  defaults: {
+    indexName: 'project-index',
+    indexFileId: '', // optional
+    source: { folderId: '...' },
+    embedding: { provider: 'vertex_gemini', model: 'text-embedding-005' },
+    auth: { ... },
+    fallbackToSupportedMimeTypes: true
+  }
+});
+
+const ensured = manager.ensure({
+  source: { includeMimeTypes: ['text/plain', 'application/zip'] },
+  options: {
+    allowAutoBuild: true,
+    syncOnEnsure: false,
+    fallbackToSupportedMimeTypes: true
+  }
+});
+
+const synced = manager.sync({ source: { folderId: '...' } });
+const fast = manager.fastState(); // lightweight metadata
+```
+
+`ensure(...)` diagnostics include:
+
+- `fallbackToSupportedMimeTypes`
+- `unsupportedMimeTypes`
+- final `includeMimeTypes`
 
 ## Vertex service-account auth
 

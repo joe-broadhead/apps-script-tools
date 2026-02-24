@@ -59,6 +59,10 @@
   - `buildIndex`, `syncIndex`, `search`, `answer`, `inspectIndex`
   - `embeddingProviders`, `embeddingCapabilities`
   - `registerEmbeddingProvider`, `unregisterEmbeddingProvider`
+- RAG retrieval UX/interop APIs:
+  - `previewSources(...)` for citation-ready source cards + reusable retrieval payloads
+  - `buildRetrievalCacheKey(...)`, `putRetrievalPayload(...)`, `getRetrievalPayload(...)`, `deleteRetrievalPayload(...)`
+  - `IndexManager.create(...).ensure/sync/fastState` convenience wrapper over build/sync/inspect
 - Drive-only source ingestion for:
   - plain text (`text/plain`)
   - PDF (`application/pdf`)
@@ -71,6 +75,7 @@
 - Optional RAG reranking (`retrieval.rerank`) for top-N post-rank refinement.
 - RAG access-control contract for retrieval and answer flows (`retrieval.access`) with enforceable source/citation boundaries.
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
+- `RAG.answer(...)` now accepts retrieval payload reuse (`retrievalPayload` or `retrievalPayloadKey`) to skip re-search/embedding on hot paths.
 - DataFrame schema contract APIs:
   - `DataFrame.validateSchema(...)` / `df.validateSchema(...)` for deterministic validation reports.
   - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.
