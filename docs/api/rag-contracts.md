@@ -111,7 +111,8 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     }
   },
   options: {
-    enforceAccessControl: true
+    enforceAccessControl: true,
+    diagnostics: false // set true to include diagnostics in response
   },
   cache: {
     enabled: false,
@@ -181,6 +182,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   options: {
     requireCitations: true,
     enforceAccessControl: true,
+    diagnostics: false, // set true to include diagnostics in response
     insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
   },
   cache: {
@@ -226,6 +228,9 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     enabled: false,
     backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json'
   },
+  options: {
+    diagnostics: false // set true to include diagnostics in response
+  },
   preview: {
     snippetMaxChars: 280,
     includeText: false,
@@ -246,6 +251,7 @@ Response fields:
 - `cards[]`: citation-ready source cards (`citationId`, `snippet`, `url`, score metadata, source metadata)
 - `payload`: deterministic retrieval payload for `answer(...)` reuse
 - `cacheKey`: deterministic key from `buildRetrievalCacheKey(...)`
+- `diagnostics`: optional (included only when `options.diagnostics=true`)
 
 ## Retrieval payload cache interop
 
@@ -256,7 +262,7 @@ const key = ASTX.RAG.buildRetrievalCacheKey({
   retrieval,
   filters,    // optional
   access,     // optional
-  options: { enforceAccessControl: true }, // optional
+  options: { enforceAccessControl: true, diagnostics: false }, // optional
   versionToken // optional
 });
 
@@ -355,9 +361,26 @@ Resolution precedence for Vertex service-account JSON:
   ],
   retrieval: { topK, minScore, mode, returned },
   usage,
-  diagnostics: {
+  diagnostics?: {
     totalMs,
     pipelinePath: 'standard' | 'recovery_applied' | 'fallback',
+    cache: {
+      indexDocHit,
+      searchHit,
+      embeddingHit,
+      retrievalPayloadHit,
+      answerHit
+    },
+    timings: {
+      validationMs,
+      indexLoadMs,
+      embeddingMs,
+      retrievalMs,
+      rerankMs,
+      generationMs,
+      searchMs,
+      payloadCacheWriteMs
+    },
     retrieval: {
       source: 'index' | 'payload',
       ms,
@@ -378,6 +401,11 @@ Resolution precedence for Vertex service-account JSON:
   }
 }
 ```
+
+`diagnostics` is omitted unless one of the following is set:
+
+- request-level `options.diagnostics=true`
+- config default `RAG_DIAGNOSTICS_ENABLED=true` (runtime `ASTX.RAG.configure(...)` or script property)
 
 ## Citation + fallback utilities
 
@@ -419,7 +447,8 @@ const fallback = ASTX.RAG.Fallback.fromCitations({
       rerankScore // present when rerank.enabled=true
     }
   ],
-  usage
+  usage,
+  // diagnostics?: same shape as answer diagnostics cache/timings/retrieval blocks
 }
 ```
 

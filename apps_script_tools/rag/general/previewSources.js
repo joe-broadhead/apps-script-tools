@@ -32,16 +32,49 @@ function astRagBuildPreviewCard(result, index, snippetMaxChars, includeText) {
 }
 
 function astRagPreviewSourcesCore(request = {}) {
+  const totalStartMs = new Date().getTime();
+  const validateStartMs = totalStartMs;
   const normalized = astRagValidatePreviewRequest(request);
-  const search = astRagSearchCore(normalized.searchRequest);
+  const diagnosticsEnabled = normalized.searchRequest.options && normalized.searchRequest.options.diagnostics === true;
+  const diagnostics = {
+    totalMs: 0,
+    cache: {
+      indexDocHit: false,
+      searchHit: false,
+      embeddingHit: false,
+      retrievalPayloadHit: false,
+      answerHit: false
+    },
+    timings: {
+      validationMs: Math.max(0, new Date().getTime() - validateStartMs),
+      indexLoadMs: 0,
+      embeddingMs: 0,
+      retrievalMs: 0,
+      rerankMs: 0,
+      generationMs: 0,
+      searchMs: 0,
+      payloadCacheWriteMs: 0
+    },
+    retrieval: {
+      mode: normalized.searchRequest.retrieval.mode,
+      topK: normalized.searchRequest.retrieval.topK,
+      minScore: normalized.searchRequest.retrieval.minScore,
+      returned: 0
+    }
+  };
 
-  const loaded = astRagLoadIndexDocument(normalized.searchRequest.indexFileId, {
-    cache: astRagResolveCacheConfig(normalized.searchRequest.cache || {})
-  });
-  const versionToken = astRagNormalizeString(
-    loaded.versionToken,
-    astRagNormalizeString((loaded.document || {}).updatedAt, null)
-  );
+  const searchStartMs = new Date().getTime();
+  const search = astRagSearchCore(normalized.searchRequest);
+  diagnostics.timings.searchMs = Math.max(0, new Date().getTime() - searchStartMs);
+  diagnostics.retrieval.returned = Array.isArray(search.results) ? search.results.length : 0;
+  if (search && astRagIsPlainObject(search.diagnostics)) {
+    diagnostics.cache = Object.assign({}, diagnostics.cache, search.diagnostics.cache || {});
+    diagnostics.timings = Object.assign({}, diagnostics.timings, search.diagnostics.timings || {});
+    diagnostics.retrieval = Object.assign({}, diagnostics.retrieval, search.diagnostics.retrieval || {});
+    diagnostics.timings.searchMs = Math.max(0, diagnostics.timings.searchMs);
+  }
+
+  const versionToken = astRagNormalizeString(search.versionToken, null);
 
   const cards = (search.results || []).map((item, index) => (
     astRagBuildPreviewCard(
@@ -69,6 +102,7 @@ function astRagPreviewSourcesCore(request = {}) {
   });
 
   if (normalized.preview.cachePayload) {
+    const payloadWriteStartMs = new Date().getTime();
     astRagPutRetrievalPayload(
       cacheKey,
       payload,
@@ -78,9 +112,12 @@ function astRagPreviewSourcesCore(request = {}) {
       },
       normalized.searchRequest.cache || {}
     );
+    diagnostics.timings.payloadCacheWriteMs = Math.max(0, new Date().getTime() - payloadWriteStartMs);
   }
 
-  return {
+  diagnostics.totalMs = Math.max(0, new Date().getTime() - totalStartMs);
+
+  const response = {
     indexFileId: normalized.searchRequest.indexFileId,
     versionToken,
     query: normalized.searchRequest.query,
@@ -91,4 +128,8 @@ function astRagPreviewSourcesCore(request = {}) {
     usage: search.usage || {},
     resultCount: cards.length
   };
+  if (diagnosticsEnabled) {
+    response.diagnostics = diagnostics;
+  }
+  return response;
 }

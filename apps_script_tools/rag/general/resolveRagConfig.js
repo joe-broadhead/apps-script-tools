@@ -22,6 +22,7 @@ const AST_RAG_CONFIG_KEYS = Object.freeze([
   'RAG_DEFAULT_INDEX_FOLDER_ID',
   'RAG_DEFAULT_TOP_K',
   'RAG_DEFAULT_MIN_SCORE',
+  'RAG_DIAGNOSTICS_ENABLED',
   'RAG_CACHE_ENABLED',
   'RAG_CACHE_BACKEND',
   'RAG_CACHE_NAMESPACE',
@@ -423,4 +424,25 @@ function astRagResolveCacheConfig(overrides = {}) {
     lockTimeoutMs,
     updateStatsOnGet
   };
+}
+
+function astRagResolveDiagnosticsEnabledDefault() {
+  const snapshot = astRagResolveConfigSnapshot();
+  const value = snapshot.RAG_DIAGNOSTICS_ENABLED;
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const token = value.trim().toLowerCase();
+    if (token === 'true' || token === '1' || token === 'yes') {
+      return true;
+    }
+    if (token === 'false' || token === '0' || token === 'no') {
+      return false;
+    }
+  }
+
+  return false;
 }

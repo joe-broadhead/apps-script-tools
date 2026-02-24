@@ -291,7 +291,7 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `ASTX.AI.OutputRepair.continueIfTruncated(...)` can continue truncated answers with bounded follow-up passes.
 - `RAG.answer(...)` supports retrieval recovery policy (`retrieval.recovery.*`) before generation.
 - `RAG.answer(...)` supports deterministic fallback controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
-- `RAG.answer(...)` always returns `diagnostics` with retrieval/generation timings and pipeline path metadata.
+- `RAG.answer(...)` includes `diagnostics` only when enabled via `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
 - `ASTX.Chat.ThreadStore` persists per-user thread state with lock-aware writes and deterministic thread/turn caps.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).

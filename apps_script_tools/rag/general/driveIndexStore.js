@@ -89,6 +89,7 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
       indexFileId,
       fileName,
       versionToken,
+      cacheHit: true,
       document: cached.document
     };
   }
@@ -125,6 +126,7 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
     indexFileId,
     fileName,
     versionToken,
+    cacheHit: false,
     document: json
   };
 }
