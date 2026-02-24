@@ -61,8 +61,13 @@ function astConfigNormalizeValue(value, includeEmpty = false) {
   return null;
 }
 
+const AST_CONFIG_DEFAULT_HANDLE_CACHE_ID = 'default';
+const AST_CONFIG_EMPTY_KEYS_CACHE_ID = '__empty__';
+
 let AST_CONFIG_SCRIPT_PROPERTIES_CACHE = {
-  byKey: {}
+  nextHandleId: 1,
+  handles: {},
+  handleRegistry: []
 };
 
 function astConfigCloneEntries(entries) {
@@ -74,8 +79,11 @@ function astConfigCloneEntries(entries) {
 
 function astConfigBuildSnapshotCacheKey(keys) {
   const normalizedKeys = astConfigNormalizeKeys(keys);
-  if (!Array.isArray(normalizedKeys) || normalizedKeys.length === 0) {
+  if (!Array.isArray(normalizedKeys)) {
     return '*';
+  }
+  if (normalizedKeys.length === 0) {
+    return AST_CONFIG_EMPTY_KEYS_CACHE_ID;
   }
   return normalizedKeys.slice().sort().join('\u0001');
 }
@@ -99,9 +107,41 @@ function astConfigProjectEntriesForKeys(entries, requestedKeys) {
 
 function astConfigInvalidateScriptPropertiesSnapshotMemoized() {
   AST_CONFIG_SCRIPT_PROPERTIES_CACHE = {
-    byKey: {}
+    nextHandleId: 1,
+    handles: {},
+    handleRegistry: []
   };
   return true;
+}
+
+function astConfigResolveHandleCacheId(handle) {
+  if (!handle || typeof handle !== 'object') {
+    return AST_CONFIG_DEFAULT_HANDLE_CACHE_ID;
+  }
+
+  const registry = AST_CONFIG_SCRIPT_PROPERTIES_CACHE.handleRegistry;
+  for (let idx = 0; idx < registry.length; idx += 1) {
+    if (registry[idx].handle === handle) {
+      return registry[idx].id;
+    }
+  }
+
+  const id = `h${AST_CONFIG_SCRIPT_PROPERTIES_CACHE.nextHandleId}`;
+  AST_CONFIG_SCRIPT_PROPERTIES_CACHE.nextHandleId += 1;
+  registry.push({ id, handle });
+  return id;
+}
+
+function astConfigGetHandleCache(handle, options = {}) {
+  const explicitCacheScopeId = astConfigNormalizeString(options.cacheScopeId, '');
+  const cacheId = explicitCacheScopeId || astConfigResolveHandleCacheId(handle);
+  const handles = AST_CONFIG_SCRIPT_PROPERTIES_CACHE.handles;
+
+  if (!Object.prototype.hasOwnProperty.call(handles, cacheId)) {
+    handles[cacheId] = {};
+  }
+
+  return handles[cacheId];
 }
 
 function astConfigResolveScriptPropertiesHandle(options = {}) {
@@ -187,23 +227,14 @@ function astConfigReadEntriesFromHandleMemoized(handle, requestedKeys = null, op
   }
 
   const cacheKey = astConfigBuildSnapshotCacheKey(requestedKeys);
-  const cache = AST_CONFIG_SCRIPT_PROPERTIES_CACHE;
+  const handleCache = astConfigGetHandleCache(handle, options);
 
-  if (Object.prototype.hasOwnProperty.call(cache.byKey, cacheKey)) {
-    return astConfigCloneEntries(cache.byKey[cacheKey]);
-  }
-
-  if (
-    cacheKey !== '*'
-    && Object.prototype.hasOwnProperty.call(cache.byKey, '*')
-  ) {
-    const projected = astConfigProjectEntriesForKeys(cache.byKey['*'], requestedKeys);
-    cache.byKey[cacheKey] = astConfigCloneEntries(projected);
-    return projected;
+  if (Object.prototype.hasOwnProperty.call(handleCache, cacheKey)) {
+    return astConfigCloneEntries(handleCache[cacheKey]);
   }
 
   const entries = astConfigReadEntriesFromHandle(handle, requestedKeys);
-  cache.byKey[cacheKey] = astConfigCloneEntries(entries);
+  handleCache[cacheKey] = astConfigCloneEntries(entries);
   return astConfigCloneEntries(entries);
 }
 
@@ -255,6 +286,13 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
   }
 
   const requestedKeys = astConfigNormalizeKeys(options.keys);
+  const hasExplicitScriptPropertiesHandle = Boolean(
+    options.scriptProperties
+    && (
+      typeof options.scriptProperties.getProperties === 'function'
+      || typeof options.scriptProperties.getProperty === 'function'
+    )
+  );
 
   if (astConfigIsPlainObject(options.properties)) {
     return astConfigBuildOutput(options.properties, Object.assign({}, options, {
@@ -273,7 +311,15 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
   }
 
   const scriptProperties = astConfigResolveScriptPropertiesHandle(options);
-  const entries = astConfigReadEntriesFromHandleMemoized(scriptProperties, requestedKeys, options);
+  const entries = astConfigReadEntriesFromHandleMemoized(
+    scriptProperties,
+    requestedKeys,
+    Object.assign({}, options, {
+      cacheScopeId: hasExplicitScriptPropertiesHandle
+        ? ''
+        : AST_CONFIG_DEFAULT_HANDLE_CACHE_ID
+    })
+  );
   return astConfigBuildOutput(entries, Object.assign({}, options, {
     keys: requestedKeys
   }));

@@ -292,19 +292,20 @@ test('jobs execution options memoize script properties snapshots and invalidate 
     AST_JOBS_DEFAULT_MAX_RUNTIME_MS: '30000',
     AST_JOBS_PROPERTY_PREFIX: 'AST_JOBS_MEMO_A_'
   };
+  const scriptHandle = {
+    getProperties: () => {
+      getPropertiesCalls += 1;
+      return { ...store };
+    },
+    getProperty: key => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+    setProperty: (key, value) => {
+      store[String(key)] = String(value);
+    }
+  };
 
   const context = createGasContext({
     PropertiesService: {
-      getScriptProperties: () => ({
-        getProperties: () => {
-          getPropertiesCalls += 1;
-          return { ...store };
-        },
-        getProperty: key => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
-        setProperty: (key, value) => {
-          store[String(key)] = String(value);
-        }
-      })
+      getScriptProperties: () => scriptHandle
     }
   });
 
