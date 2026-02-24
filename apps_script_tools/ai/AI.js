@@ -44,6 +44,28 @@ function astAiClearConfig() {
   return astClearAiRuntimeConfig();
 }
 
+function astAiGetOutputRepairSurface() {
+  if (
+    typeof AST_AI_OUTPUT_REPAIR !== 'undefined' &&
+    AST_AI_OUTPUT_REPAIR &&
+    typeof AST_AI_OUTPUT_REPAIR.continueIfTruncated === 'function'
+  ) {
+    return AST_AI_OUTPUT_REPAIR;
+  }
+
+  if (typeof astAiContinueIfTruncated === 'function') {
+    return Object.freeze({
+      continueIfTruncated: astAiContinueIfTruncated
+    });
+  }
+
+  return Object.freeze({
+    continueIfTruncated: () => {
+      throw new AstAiValidationError('AST.AI.OutputRepair runtime is not available');
+    }
+  });
+}
+
 const AST_AI = Object.freeze({
   run: astAiRun,
   text: astAiText,
@@ -55,5 +77,6 @@ const AST_AI = Object.freeze({
   capabilities: astAiCapabilities,
   configure: astAiConfigure,
   getConfig: astAiGetConfig,
-  clearConfig: astAiClearConfig
+  clearConfig: astAiClearConfig,
+  OutputRepair: astAiGetOutputRepairSurface()
 });

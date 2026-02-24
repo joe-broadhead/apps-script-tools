@@ -122,6 +122,11 @@ ASTX.RAG.buildRetrievalCacheKey(args)
 ASTX.RAG.putRetrievalPayload(key, payload, options)
 ASTX.RAG.getRetrievalPayload(key, options)
 ASTX.RAG.deleteRetrievalPayload(key, options)
+ASTX.RAG.Citations.normalizeInline(text)
+ASTX.RAG.Citations.extractInlineIds(text)
+ASTX.RAG.Citations.filterForAnswer(citations, options)
+ASTX.RAG.Citations.toUrl(citation)
+ASTX.RAG.Fallback.fromCitations(args)
 ASTX.RAG.IndexManager.create(config)
 ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
@@ -143,6 +148,7 @@ ASTX.AI.capabilities(provider)
 ASTX.AI.configure(config, options)
 ASTX.AI.getConfig()
 ASTX.AI.clearConfig()
+ASTX.AI.OutputRepair.continueIfTruncated(request)
 ```
 
 ## Workspace helpers
@@ -258,6 +264,10 @@ ASTX.Jobs.clearConfig()
 - AI tools support per-tool guardrails: `timeoutMs`, `maxArgsBytes`, `maxResultBytes`, `retries`, and idempotent replay.
 - unsupported AI provider/operation combinations throw typed capability errors.
 - `ASTX.AI.stream(...)` emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
+- `ASTX.AI.OutputRepair.continueIfTruncated(...)` can continue truncated answers with bounded follow-up passes.
+- `RAG.answer(...)` supports retrieval recovery policy (`retrieval.recovery.*`) before generation.
+- `RAG.answer(...)` supports deterministic fallback controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
+- `RAG.answer(...)` always returns `diagnostics` with retrieval/generation timings and pipeline path metadata.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).

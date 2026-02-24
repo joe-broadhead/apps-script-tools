@@ -40,6 +40,7 @@
   - bounded retry policy (`options.reliability.maxSchemaRetries`)
   - optional repair modes (`json_repair`, `llm_repair`)
   - deterministic diagnostics on failure (`AstAiResponseParseError.details.attempts`)
+- New `AST.AI.OutputRepair.continueIfTruncated(...)` helper for bounded continuation repair of partial/truncated text outputs.
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
@@ -63,6 +64,11 @@
   - `previewSources(...)` for citation-ready source cards + reusable retrieval payloads
   - `buildRetrievalCacheKey(...)`, `putRetrievalPayload(...)`, `getRetrievalPayload(...)`, `deleteRetrievalPayload(...)`
   - `IndexManager.create(...).ensure/sync/fastState` convenience wrapper over build/sync/inspect
+- New public RAG utility helpers:
+  - `AST.RAG.Citations.normalizeInline/extractInlineIds/filterForAnswer/toUrl`
+  - `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback builder
+- `AST.RAG.answer(...)` now supports retrieval recovery controls (`retrieval.recovery`) and deterministic fallback policy controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
+- `AST.RAG.answer(...)` responses now include stable retrieval/generation diagnostics (`diagnostics.totalMs`, `pipelinePath`, per-phase timing/status fields).
 - Drive-only source ingestion for:
   - plain text (`text/plain`)
   - PDF (`application/pdf`)

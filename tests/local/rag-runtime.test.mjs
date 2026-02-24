@@ -1572,6 +1572,303 @@ test('answer citation validation rejects inaccessible cited chunks when access i
   }
 });
 
+test('answer diagnostics include stable retrieval and generation metadata', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_diag',
+    fileName: 'answer-diag-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_diag_1',
+          sourceId: 'src_diag_1',
+          fileId: 'file_diag_1',
+          fileName: 'diag.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Project diagnostics baseline content.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = () => ({
+    finishReason: 'STOP',
+    output: {
+      json: {
+        answer: 'Diagnostics baseline answer [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 3,
+      outputTokens: 4,
+      totalTokens: 7
+    }
+  });
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_diag',
+    question: 'Provide diagnostics baseline.',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(typeof response.diagnostics, 'object');
+  assert.equal(response.diagnostics.pipelinePath, 'standard');
+  assert.equal(typeof response.diagnostics.totalMs, 'number');
+  assert.equal(response.diagnostics.retrieval.source, 'index');
+  assert.equal(typeof response.diagnostics.retrieval.ms, 'number');
+  assert.equal(response.diagnostics.retrieval.rawSources, 1);
+  assert.equal(response.diagnostics.retrieval.usableSources, 1);
+  assert.equal(response.diagnostics.generation.status, 'ok');
+  assert.equal(response.diagnostics.generation.grounded, true);
+});
+
+test('answer recovery policy relaxes retrieval and applies recovered candidates', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_recovery',
+    fileName: 'answer-recovery-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_recovery_1',
+          sourceId: 'src_recovery_1',
+          fileId: 'file_recovery_1',
+          fileName: 'recovery.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Recovery candidate content.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  let retrievalCalls = 0;
+  const originalRetrieve = context.astRagRetrieveRankedChunks;
+  context.astRagRetrieveRankedChunks = (_index, _query, _vector, retrieval) => {
+    retrievalCalls += 1;
+    if (retrieval.minScore >= 0.8) {
+      return [];
+    }
+    return [{
+      chunkId: 'chunk_recovery_1',
+      sourceId: 'src_recovery_1',
+      fileId: 'file_recovery_1',
+      fileName: 'recovery.txt',
+      mimeType: MIME_TEXT,
+      page: null,
+      slide: null,
+      section: 'body',
+      text: 'Recovery candidate content.',
+      score: 0.31,
+      finalScore: 0.31,
+      vectorScore: 0.31,
+      lexicalScore: null
+    }];
+  };
+
+  context.runAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'Recovery answer [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 3,
+      outputTokens: 3,
+      totalTokens: 6
+    }
+  });
+
+  try {
+    const response = context.AST.RAG.answer({
+      indexFileId: 'index_answer_recovery',
+      question: 'Can recovery find context?',
+      retrieval: {
+        topK: 2,
+        minScore: 0.8,
+        recovery: {
+          enabled: true,
+          topKBoost: 2,
+          minScoreFloor: 0.1,
+          maxAttempts: 2
+        }
+      },
+      generation: {
+        provider: 'openai',
+        auth: { apiKey: 'test-key' }
+      }
+    });
+
+    assert.equal(response.status, 'ok');
+    assert.equal(response.diagnostics.pipelinePath, 'recovery_applied');
+    assert.equal(response.diagnostics.retrieval.recoveryAttempted, true);
+    assert.equal(response.diagnostics.retrieval.recoveryApplied, true);
+    assert.equal(response.diagnostics.retrieval.attempts.length >= 1, true);
+    assert.equal(retrievalCalls >= 2, true);
+  } finally {
+    context.astRagRetrieveRankedChunks = originalRetrieve;
+  }
+});
+
+test('answer fallback.onRetrievalError returns deterministic fallback instead of throwing', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_fallback_error',
+    fileName: 'answer-fallback-error-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_error_1',
+          sourceId: 'src_error_1',
+          fileId: 'file_error_1',
+          fileName: 'error.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Error fallback source.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => {
+    throw new Error('Embedding backend unavailable');
+  };
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_fallback_error',
+    question: 'What happened?',
+    fallback: {
+      onRetrievalError: true
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      insufficientEvidenceMessage: 'Fallback insufficient.'
+    }
+  });
+
+  assert.equal(response.status, 'insufficient_context');
+  assert.equal(response.answer, 'Fallback insufficient.');
+  assert.equal(response.diagnostics.pipelinePath, 'fallback');
+  assert.equal(response.diagnostics.retrieval.emptyReason, 'retrieval_error');
+  assert.equal(response.diagnostics.generation.status, 'skipped');
+});
+
+test('answer fallback.onRetrievalEmpty can synthesize citation-grounded facts', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_fallback_empty',
+    fileName: 'answer-fallback-empty-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+
+  const payload = context.astRagBuildRetrievalPayload({
+    indexFileId: 'index_answer_fallback_empty',
+    versionToken: null,
+    query: 'Give me facts',
+    retrieval: {
+      topK: 3,
+      minScore: 0.2
+    },
+    results: [
+      {
+        chunkId: 'chunk_payload_1',
+        sourceId: 'src_payload_1',
+        fileId: 'file_payload_1',
+        fileName: 'payload.txt',
+        mimeType: MIME_TEXT,
+        section: 'body',
+        text: 'The project starts with planning and partner alignment.',
+        score: 0.55,
+        finalScore: 0.55
+      }
+    ]
+  });
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_fallback_empty',
+    question: 'Give me facts',
+    retrievalPayload: payload,
+    retrieval: {
+      topK: 3,
+      minScore: 0.9
+    },
+    fallback: {
+      onRetrievalEmpty: true,
+      intent: 'facts',
+      factCount: 1
+    },
+    options: {
+      insufficientEvidenceMessage: 'No grounded facts.'
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.answer.includes('[S1]'), true);
+  assert.equal(response.diagnostics.pipelinePath, 'fallback');
+  assert.equal(response.diagnostics.retrieval.source, 'payload');
+  assert.equal(response.diagnostics.retrieval.emptyReason, 'below_min_score');
+  assert.equal(response.diagnostics.generation.status, 'not_started');
+});
+
 test('previewSources returns citation-ready cards and caches retrieval payloads', () => {
   const context = createGasContext();
   loadRagWithCacheScripts(context, { includeAst: true });

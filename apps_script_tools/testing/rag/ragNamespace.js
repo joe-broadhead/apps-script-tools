@@ -35,6 +35,14 @@ RAG_NAMESPACE_TESTS = [
       if (!AST.RAG.IndexManager || typeof AST.RAG.IndexManager.create !== 'function') {
         throw new Error('AST.RAG.IndexManager.create is not available');
       }
+
+      if (!AST.RAG.Citations || typeof AST.RAG.Citations.normalizeInline !== 'function') {
+        throw new Error('AST.RAG.Citations.normalizeInline is not available');
+      }
+
+      if (!AST.RAG.Fallback || typeof AST.RAG.Fallback.fromCitations !== 'function') {
+        throw new Error('AST.RAG.Fallback.fromCitations is not available');
+      }
     }
   },
   {

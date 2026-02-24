@@ -90,6 +90,31 @@ function astRagApiCreateIndexManager(config = {}) {
   return astRagCreateIndexManager(config);
 }
 
+function astRagApiCitationsNormalizeInline(text) {
+  astRagEnsureInitialized();
+  return astRagCitationNormalizeInline(text);
+}
+
+function astRagApiCitationsExtractInlineIds(text) {
+  astRagEnsureInitialized();
+  return astRagCitationExtractIds(text);
+}
+
+function astRagApiCitationsFilterForAnswer(citations, options = {}) {
+  astRagEnsureInitialized();
+  return astRagCitationFilterForAnswer(citations, options);
+}
+
+function astRagApiCitationsToUrl(citation = {}) {
+  astRagEnsureInitialized();
+  return astRagCitationToUrl(citation);
+}
+
+function astRagApiFallbackFromCitations(args = {}) {
+  astRagEnsureInitialized();
+  return astRagFallbackFromCitations(args);
+}
+
 function astRagApiGetConfig() {
   astRagEnsureInitialized();
   return astRagGetRuntimeConfig();
@@ -114,6 +139,15 @@ const AST_RAG = Object.freeze({
   putRetrievalPayload: astRagApiPutRetrievalPayload,
   getRetrievalPayload: astRagApiGetRetrievalPayload,
   deleteRetrievalPayload: astRagApiDeleteRetrievalPayload,
+  Citations: Object.freeze({
+    normalizeInline: astRagApiCitationsNormalizeInline,
+    extractInlineIds: astRagApiCitationsExtractInlineIds,
+    filterForAnswer: astRagApiCitationsFilterForAnswer,
+    toUrl: astRagApiCitationsToUrl
+  }),
+  Fallback: Object.freeze({
+    fromCitations: astRagApiFallbackFromCitations
+  }),
   IndexManager: Object.freeze({
     create: astRagApiCreateIndexManager
   }),

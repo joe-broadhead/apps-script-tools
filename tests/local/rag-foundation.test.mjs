@@ -46,11 +46,168 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.unregisterEmbeddingProvider, 'function');
   assert.equal(typeof context.AST.RAG.IndexManager, 'object');
   assert.equal(typeof context.AST.RAG.IndexManager.create, 'function');
+  assert.equal(typeof context.AST.RAG.Citations, 'object');
+  assert.equal(typeof context.AST.RAG.Citations.normalizeInline, 'function');
+  assert.equal(typeof context.AST.RAG.Citations.extractInlineIds, 'function');
+  assert.equal(typeof context.AST.RAG.Citations.filterForAnswer, 'function');
+  assert.equal(typeof context.AST.RAG.Citations.toUrl, 'function');
+  assert.equal(typeof context.AST.RAG.Fallback, 'object');
+  assert.equal(typeof context.AST.RAG.Fallback.fromCitations, 'function');
 
   assert.equal(
     JSON.stringify(context.AST.RAG.embeddingProviders()),
     JSON.stringify(['gemini', 'openai', 'openrouter', 'perplexity', 'vertex_gemini'])
   );
+});
+
+test('RAG citation helpers normalize/filter/link citations deterministically', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const normalizedText = context.AST.RAG.Citations.normalizeInline(
+    'Project summary [ s01 ] and [S2]. Also references S02.'
+  );
+  assert.equal(normalizedText, 'Project summary [S1] and [S2]. Also references S2.');
+
+  const inlineIds = context.AST.RAG.Citations.extractInlineIds(
+    'Signals S1 S3 and S1 should dedupe'
+  );
+  assert.equal(JSON.stringify(inlineIds), JSON.stringify(['S1', 'S3']));
+
+  const filtered = context.AST.RAG.Citations.filterForAnswer([
+    {
+      citationId: 'S2',
+      chunkId: 'chunk_2',
+      fileId: 'file_doc',
+      fileName: 'Project Doc',
+      mimeType: 'application/vnd.google-apps.document',
+      score: 0.81,
+      snippet: 'Second score'
+    },
+    {
+      citationId: 'S1',
+      chunkId: 'chunk_1',
+      fileId: 'file_doc',
+      fileName: 'Project Doc',
+      mimeType: 'application/vnd.google-apps.document',
+      score: 0.91,
+      snippet: 'Top score'
+    }
+  ], { maxItems: 1 });
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].citationId, 'S1');
+
+  const url = context.AST.RAG.Citations.toUrl(filtered[0]);
+  assert.equal(url, 'https://docs.google.com/document/d/file_doc/edit');
+});
+
+test('RAG fallback helper returns citation-grounded summary/facts only', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const citations = [
+    {
+      citationId: 'S1',
+      chunkId: 'chunk_1',
+      fileId: 'f_1',
+      fileName: 'overview.txt',
+      mimeType: 'text/plain',
+      score: 0.9,
+      snippet: 'The project modernizes the store experience for customers and team members.'
+    },
+    {
+      citationId: 'S2',
+      chunkId: 'chunk_2',
+      fileId: 'f_2',
+      fileName: 'timeline.txt',
+      mimeType: 'text/plain',
+      score: 0.8,
+      snippet: 'Execution occurs in preparation, build, and reopening phases.'
+    }
+  ];
+
+  const summary = context.AST.RAG.Fallback.fromCitations({
+    citations,
+    intent: 'summary'
+  });
+  assert.equal(summary.status, 'ok');
+  assert.equal(summary.citations.length >= 1, true);
+
+  const facts = context.AST.RAG.Fallback.fromCitations({
+    citations,
+    intent: 'facts',
+    factCount: 2
+  });
+  assert.equal(facts.status, 'ok');
+  assert.equal(facts.answer.includes('[S1]') || facts.answer.includes('[S2]'), true);
+
+  const factsWithSkippedSnippet = context.AST.RAG.Fallback.fromCitations({
+    citations: [
+      {
+        citationId: 'S1',
+        chunkId: 'chunk_1',
+        fileId: 'f_1',
+        fileName: 'overview.txt',
+        mimeType: 'text/plain',
+        score: 0.95,
+        snippet: '   '
+      },
+      {
+        citationId: 'S2',
+        chunkId: 'chunk_2',
+        fileId: 'f_2',
+        fileName: 'timeline.txt',
+        mimeType: 'text/plain',
+        score: 0.9,
+        snippet: 'Execution occurs in preparation, build, and reopening phases.'
+      }
+    ],
+    intent: 'facts',
+    factCount: 1
+  });
+  assert.equal(factsWithSkippedSnippet.status, 'ok');
+  assert.equal(factsWithSkippedSnippet.answer.includes('[S2]'), true);
+  assert.equal(
+    factsWithSkippedSnippet.citations.map(item => item.citationId).join(','),
+    'S2'
+  );
+
+  const insufficient = context.AST.RAG.Fallback.fromCitations({
+    citations: [],
+    insufficientEvidenceMessage: 'No context'
+  });
+  assert.equal(insufficient.status, 'insufficient_context');
+  assert.equal(insufficient.answer, 'No context');
+});
+
+test('validateAnswerRequest normalizes recovery and fallback contracts', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateAnswerRequest({
+    indexFileId: 'idx_1',
+    question: 'What changed?',
+    recovery: {
+      enabled: true,
+      topKBoost: 3,
+      minScoreFloor: -0.2,
+      maxAttempts: 2
+    },
+    fallback: {
+      onRetrievalError: true,
+      onRetrievalEmpty: true,
+      intent: 'facts',
+      factCount: 4
+    }
+  });
+
+  assert.equal(normalized.retrieval.recovery.enabled, true);
+  assert.equal(normalized.retrieval.recovery.topKBoost, 3);
+  assert.equal(normalized.retrieval.recovery.maxAttempts, 2);
+  assert.equal(normalized.fallback.onRetrievalError, true);
+  assert.equal(normalized.fallback.onRetrievalEmpty, true);
+  assert.equal(normalized.fallback.intent, 'facts');
+  assert.equal(normalized.fallback.factCount, 4);
 });
 
 test('RAG embedding config precedence is request > runtime configure > script properties', () => {
