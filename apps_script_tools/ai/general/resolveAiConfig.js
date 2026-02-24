@@ -18,6 +18,12 @@ const AST_AI_CONFIG_KEYS = Object.freeze([
 
 let AST_AI_RUNTIME_CONFIG = {};
 
+function astAiInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 function astAiConfigIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -77,11 +83,13 @@ function astSetAiRuntimeConfig(config = {}, options = {}) {
   });
 
   AST_AI_RUNTIME_CONFIG = nextConfig;
+  astAiInvalidateScriptPropertiesSnapshotCache();
   return astGetAiRuntimeConfig();
 }
 
 function astClearAiRuntimeConfig() {
   AST_AI_RUNTIME_CONFIG = {};
+  astAiInvalidateScriptPropertiesSnapshotCache();
   return {};
 }
 
@@ -120,7 +128,16 @@ function astGetScriptPropertiesByKey(scriptProperties) {
   return output;
 }
 
-function astGetScriptPropertiesSnapshot() {
+function astGetScriptPropertiesSnapshot(options = {}) {
+  const forceRefresh = Boolean(options && options.forceRefresh);
+
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized({
+      keys: AST_AI_CONFIG_KEYS,
+      forceRefresh
+    });
+  }
+
   try {
     if (
       typeof PropertiesService !== 'undefined' &&
@@ -176,10 +193,12 @@ function resolveAiConfig(request) {
     throw new AstAiValidationError('resolveAiConfig expected a normalized AI request object');
   }
 
-  const scriptProperties = astGetScriptPropertiesSnapshot();
-  const runtimeConfig = astGetAiRuntimeConfig();
   const auth = request.auth || {};
   const provider = request.provider;
+  const scriptProperties = astGetScriptPropertiesSnapshot({
+    forceRefresh: provider === 'vertex_gemini'
+  });
+  const runtimeConfig = astGetAiRuntimeConfig();
 
   switch (provider) {
     case 'openai': {

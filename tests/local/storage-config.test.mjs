@@ -75,6 +75,51 @@ test('resolveStorageConfig supports GCS auto auth fallback using oauth token', (
   assert.equal(resolved.oauthToken, 'oauth-token-from-scriptapp');
 });
 
+test('resolveStorageConfig memoizes script properties snapshots and invalidates on clearConfig', () => {
+  let getPropertiesCalls = 0;
+  const scriptState = {
+    S3_ACCESS_KEY_ID: 'script-ak-v1',
+    S3_SECRET_ACCESS_KEY: 'script-sk-v1',
+    S3_REGION: 'eu-west-1'
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => {
+          getPropertiesCalls += 1;
+          return { ...scriptState };
+        },
+        getProperty: key => (Object.prototype.hasOwnProperty.call(scriptState, key) ? scriptState[key] : null)
+      })
+    }
+  });
+
+  loadStorageScripts(context, { includeAst: true });
+  context.AST.Storage.clearConfig();
+
+  const normalized = context.validateStorageRequest({
+    uri: 's3://bucket/key',
+    operation: 'head'
+  });
+
+  const first = context.resolveStorageConfig(normalized);
+  const second = context.resolveStorageConfig(normalized);
+  assert.equal(first.accessKeyId, 'script-ak-v1');
+  assert.equal(second.accessKeyId, 'script-ak-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  scriptState.S3_ACCESS_KEY_ID = 'script-ak-v2';
+  const stillCached = context.resolveStorageConfig(normalized);
+  assert.equal(stillCached.accessKeyId, 'script-ak-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  context.AST.Storage.clearConfig();
+  const refreshed = context.resolveStorageConfig(normalized);
+  assert.equal(refreshed.accessKeyId, 'script-ak-v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
 test('AST exposes Storage surface and runtime config methods', () => {
   const context = createGasContext();
   loadStorageScripts(context, { includeAst: true });

@@ -11,6 +11,12 @@ const AST_STORAGE_CONFIG_KEYS = Object.freeze([
 
 let AST_STORAGE_RUNTIME_CONFIG = {};
 
+function astStorageInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 function astStorageNormalizeConfigValue(value) {
   if (value == null) {
     return null;
@@ -60,15 +66,23 @@ function astStorageSetRuntimeConfig(config = {}, options = {}) {
   });
 
   AST_STORAGE_RUNTIME_CONFIG = next;
+  astStorageInvalidateScriptPropertiesSnapshotCache();
   return astStorageGetRuntimeConfig();
 }
 
 function astStorageClearRuntimeConfig() {
   AST_STORAGE_RUNTIME_CONFIG = {};
+  astStorageInvalidateScriptPropertiesSnapshotCache();
   return {};
 }
 
 function astStorageGetScriptPropertiesSnapshot() {
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized({
+      keys: AST_STORAGE_CONFIG_KEYS
+    });
+  }
+
   const output = {};
 
   try {

@@ -9,6 +9,7 @@ export function loadRagScripts(
   } = {}
 ) {
   const paths = [];
+  paths.push('apps_script_tools/config/Config.js');
 
   if (includeUtilities) {
     paths.push(...listScriptFiles('apps_script_tools/utilities'));

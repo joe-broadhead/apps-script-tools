@@ -1,7 +1,9 @@
 import { listScriptFiles, loadScripts } from './helpers.mjs';
 
 export function loadStorageScripts(context, { includeAst = false } = {}) {
-  const paths = [];
+  const paths = [
+    'apps_script_tools/config/Config.js'
+  ];
 
   paths.push(...listScriptFiles('apps_script_tools/storage/general'));
   paths.push(

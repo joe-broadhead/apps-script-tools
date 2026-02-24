@@ -1,5 +1,11 @@
 let AST_JOBS_RUNTIME_CONFIG = {};
 
+function astJobsInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 const AST_JOBS_CANONICAL_CONFIG_KEYS = Object.freeze([
   'AST_JOBS_DEFAULT_MAX_RETRIES',
   'AST_JOBS_DEFAULT_MAX_RUNTIME_MS',
@@ -90,11 +96,13 @@ function astJobsSetRuntimeConfig(config = {}, options = {}) {
   });
 
   AST_JOBS_RUNTIME_CONFIG = next;
+  astJobsInvalidateScriptPropertiesSnapshotCache();
   return astJobsGetRuntimeConfig();
 }
 
 function astJobsClearRuntimeConfig() {
   AST_JOBS_RUNTIME_CONFIG = {};
+  astJobsInvalidateScriptPropertiesSnapshotCache();
   return {};
 }
 
@@ -128,9 +136,13 @@ function astJobsReadAllScriptProperties() {
 function astJobsGetScriptConfigSnapshot() {
   const output = {};
   const scriptProperties = astJobsGetScriptPropertiesHandle();
-  const entries = typeof scriptProperties.getProperties === 'function'
-    ? scriptProperties.getProperties()
-    : {};
+  const entries = typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function'
+    ? astConfigGetScriptPropertiesSnapshotMemoized({
+      scriptProperties
+    })
+    : (typeof scriptProperties.getProperties === 'function'
+      ? scriptProperties.getProperties()
+      : {});
 
   if (astJobsIsPlainObject(entries)) {
     Object.keys(entries).forEach(key => {

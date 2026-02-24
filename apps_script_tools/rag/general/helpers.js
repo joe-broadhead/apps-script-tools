@@ -112,7 +112,16 @@ function astRagTruncate(text, maxChars) {
   return text.slice(0, maxChars);
 }
 
-function astRagToScriptPropertiesSnapshot(allowedKeys) {
+function astRagToScriptPropertiesSnapshot(allowedKeys, options = {}) {
+  const forceRefresh = Boolean(options && options.forceRefresh);
+
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized({
+      keys: Array.isArray(allowedKeys) ? allowedKeys : [],
+      forceRefresh
+    });
+  }
+
   const output = {};
   const keys = Array.isArray(allowedKeys) ? allowedKeys : [];
 

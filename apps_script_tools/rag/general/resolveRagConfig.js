@@ -39,6 +39,12 @@ const AST_RAG_CONFIG_KEYS = Object.freeze([
 
 let AST_RAG_RUNTIME_CONFIG = {};
 
+function astRagInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 function astRagGetRuntimeConfig() {
   return astRagCloneObject(AST_RAG_RUNTIME_CONFIG);
 }
@@ -81,11 +87,13 @@ function astRagSetRuntimeConfig(config = {}, options = {}) {
   });
 
   AST_RAG_RUNTIME_CONFIG = next;
+  astRagInvalidateScriptPropertiesSnapshotCache();
   return astRagGetRuntimeConfig();
 }
 
 function astRagClearRuntimeConfig() {
   AST_RAG_RUNTIME_CONFIG = {};
+  astRagInvalidateScriptPropertiesSnapshotCache();
   return {};
 }
 
@@ -130,16 +138,18 @@ function astRagResolveConfigString({
   return null;
 }
 
-function astRagResolveConfigSnapshot() {
+function astRagResolveConfigSnapshot(options = {}) {
   return Object.assign(
     {},
-    astRagToScriptPropertiesSnapshot(AST_RAG_CONFIG_KEYS),
+    astRagToScriptPropertiesSnapshot(AST_RAG_CONFIG_KEYS, options),
     astRagGetRuntimeConfig()
   );
 }
 
 function astRagResolveProviderConfig({ provider, mode, model, auth = {} }) {
-  const config = astRagResolveConfigSnapshot();
+  const config = astRagResolveConfigSnapshot({
+    forceRefresh: provider === 'vertex_gemini'
+  });
   const providerAuth = astRagResolveProviderAuth(auth, provider);
   const modeKey = mode === 'embedding' ? 'embed' : 'generation';
   const isBuiltInProvider = AST_RAG_EMBEDDING_PROVIDERS.includes(provider);
