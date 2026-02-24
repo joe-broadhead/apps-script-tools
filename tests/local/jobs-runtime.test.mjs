@@ -6,16 +6,28 @@ import { loadJobsScripts } from './jobs-helpers.mjs';
 
 function createPropertiesService(seed = {}) {
   const store = { ...seed };
+  const counters = {
+    getProperty: 0,
+    getProperties: 0,
+    setProperty: 0,
+    setProperties: 0
+  };
   const handle = {
     getProperty: key => {
+      counters.getProperty += 1;
       const normalized = String(key || '');
       return Object.prototype.hasOwnProperty.call(store, normalized) ? store[normalized] : null;
     },
-    getProperties: () => ({ ...store }),
+    getProperties: () => {
+      counters.getProperties += 1;
+      return { ...store };
+    },
     setProperty: (key, value) => {
+      counters.setProperty += 1;
       store[String(key)] = String(value);
     },
     setProperties: (entries, deleteAllOthers) => {
+      counters.setProperties += 1;
       if (deleteAllOthers) {
         Object.keys(store).forEach(key => delete store[key]);
       }
@@ -31,7 +43,8 @@ function createPropertiesService(seed = {}) {
     service: {
       getScriptProperties: () => handle
     },
-    store
+    store,
+    counters
   };
 }
 
@@ -44,7 +57,8 @@ function createJobsContext() {
   loadJobsScripts(context, { includeAst: true });
   return {
     context,
-    store: properties.store
+    store: properties.store,
+    counters: properties.counters
   };
 }
 
@@ -137,6 +151,87 @@ test('AST.Jobs supports pause and resume with retry semantics', () => {
   assert.equal(secondPass.status, 'completed');
   assert.equal(secondPass.steps[0].attempts, 1);
   assert.equal(secondPass.results.flaky.attempts, 2);
+});
+
+test('AST.Jobs uses CAS to reject stale writes', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_CAS_${Date.now()}_`;
+
+  context.jobsCasNoop = () => true;
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'cas-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'cas_step',
+        handler: 'jobsCasNoop'
+      }
+    ]
+  });
+
+  const first = context.astJobsReadJobRecord(queued.id);
+  const second = context.astJobsReadJobRecord(queued.id);
+
+  first.status = 'paused';
+  context.astJobsWriteJobRecordCas(first, first.version, {
+    propertyPrefix: first.options.propertyPrefix
+  });
+
+  second.status = 'canceled';
+  assert.throws(
+    () => context.astJobsWriteJobRecordCas(second, second.version, {
+      propertyPrefix: second.options.propertyPrefix
+    }),
+    /version conflict/
+  );
+});
+
+test('AST.Jobs lease acquisition blocks concurrent worker and allows takeover after expiry', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_LEASE_${Date.now()}_`;
+
+  context.jobsLeaseNoop = () => true;
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'lease-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'lease_step',
+        handler: 'jobsLeaseNoop'
+      }
+    ]
+  });
+
+  const firstLease = context.astJobsAcquireLease(queued.id, 'worker_a', 5000, {
+    propertyPrefix
+  });
+  assert.equal(firstLease.leaseOwner, 'worker_a');
+
+  assert.throws(
+    () => context.astJobsAcquireLease(queued.id, 'worker_b', 5000, {
+      propertyPrefix
+    }),
+    /already held by another worker/
+  );
+
+  const staleLease = context.astJobsReadJobRecord(queued.id, {
+    propertyPrefix
+  });
+  staleLease.leaseExpiresAt = new Date(Date.now() - 1000).toISOString();
+  context.astJobsWriteJobRecordCas(staleLease, staleLease.version, {
+    propertyPrefix
+  });
+
+  const takeoverLease = context.astJobsAcquireLease(queued.id, 'worker_b', 5000, {
+    propertyPrefix
+  });
+  assert.equal(takeoverLease.leaseOwner, 'worker_b');
 });
 
 test('AST.Jobs.status resolves jobs without requiring propertyPrefix override', () => {
@@ -254,6 +349,46 @@ test('AST.Jobs.cancel rejects jobs currently marked as running', () => {
     () => context.AST.Jobs.cancel(queued.id),
     /not cancelable/
   );
+});
+
+test('AST.Jobs status/list avoid broad script property scans on indexed paths', () => {
+  const { context, counters } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_INDEXED_${Date.now()}_`;
+
+  context.jobsIndexedNoop = () => true;
+  context.AST.Jobs.clearConfig();
+  context.AST.Jobs.configure({
+    maxRetries: 2,
+    maxRuntimeMs: 240000,
+    leaseTtlMs: 120000,
+    checkpointStore: 'properties',
+    propertyPrefix: 'AST_JOBS_JOB_'
+  }, {
+    merge: false
+  });
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'indexed-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'indexed_step',
+        handler: 'jobsIndexedNoop'
+      }
+    ]
+  });
+
+  counters.getProperties = 0;
+  const status = context.AST.Jobs.status(queued.id);
+  const listed = context.AST.Jobs.list({
+    name: 'indexed-test'
+  });
+
+  assert.equal(status.id, queued.id);
+  assert.equal(listed.some(item => item.id === queued.id), true);
+  assert.equal(counters.getProperties, 0);
 });
 
 test('AST.Jobs.configure controls runtime defaults', () => {

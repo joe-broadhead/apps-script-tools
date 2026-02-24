@@ -48,8 +48,9 @@ function astJobsCancel(jobId, options = {}) {
     });
   }
 
-  astJobsWriteJobRecord(job, {
-    propertyPrefix: job.options && job.options.propertyPrefix
+  astJobsWriteJobRecordCas(job, job.version, {
+    propertyPrefix: job.options && job.options.propertyPrefix,
+    lockTimeoutMs: options.lockTimeoutMs
   });
 
   return astJobsDeepClone(job);

@@ -10,11 +10,26 @@ function astJobsGenerateJobId() {
         return uuid;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback below.
   }
 
   return `job_${new Date().getTime()}_${Math.floor(Math.random() * 1000000)}`;
+}
+
+function astJobsGenerateWorkerId() {
+  try {
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
+      const uuid = astJobsNormalizeString(Utilities.getUuid(), null);
+      if (uuid) {
+        return `worker_${uuid}`;
+      }
+    }
+  } catch (_error) {
+    // Fallback below.
+  }
+
+  return `worker_${new Date().getTime()}_${Math.floor(Math.random() * 1000000)}`;
 }
 
 function astJobsCloneSerializableValue(value) {
@@ -64,6 +79,7 @@ function astJobsCreateJobRecord(normalizedRequest, executionOptions) {
   const now = astJobsNowIso();
   return {
     id: astJobsGenerateJobId(),
+    version: 0,
     name: normalizedRequest.name,
     status: 'queued',
     createdAt: now,
@@ -72,6 +88,9 @@ function astJobsCreateJobRecord(normalizedRequest, executionOptions) {
     pausedAt: null,
     completedAt: null,
     canceledAt: null,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    lastHeartbeatAt: null,
     lastError: null,
     options: executionOptions,
     steps: normalizedRequest.steps.map(astJobsCreateStepState),
@@ -148,11 +167,14 @@ function astJobsNormalizeStepOutput(output, step) {
   }
 }
 
-function astJobsPersistJob(job) {
+function astJobsPersistJob(job, persistOptions = {}) {
   job.updatedAt = astJobsNowIso();
-  return astJobsWriteJobRecord(job, {
-    propertyPrefix: job.options.propertyPrefix
+  const persisted = astJobsWriteJobRecordCas(job, job.version, {
+    propertyPrefix: job.options && job.options.propertyPrefix,
+    lockTimeoutMs: persistOptions.lockTimeoutMs
   });
+  job.version = persisted.version;
+  return persisted;
 }
 
 function astJobsSetPaused(job) {
@@ -170,13 +192,13 @@ function astJobsSetCompleted(job) {
   job.pausedAt = null;
 }
 
-function astJobsExecuteStep(job, step) {
+function astJobsExecuteStep(job, step, persistOptions = {}) {
   step.state = 'running';
   if (!step.startedAt) {
     step.startedAt = astJobsNowIso();
   }
 
-  astJobsPersistJob(job);
+  astJobsPersistJob(job, persistOptions);
 
   try {
     const handler = astJobsResolveHandler(step.handlerName);
@@ -213,7 +235,7 @@ function astJobsExecuteStep(job, step) {
 
     return false;
   } finally {
-    astJobsPersistJob(job);
+    astJobsPersistJob(job, persistOptions);
   }
 }
 
@@ -246,11 +268,21 @@ function astJobsFinalizeWhenNoRunnableStep(job) {
   astJobsSetPaused(job);
 }
 
-function astJobsExecutePersistedJob(jobId, options = {}) {
-  const normalizedJobId = astJobsNormalizeJobId(jobId);
-  const job = astJobsReadJobRecord(normalizedJobId, options);
-  astJobsEnsureCheckpointStoreSupported(job.options || {});
+function astJobsResolveLeaseTtlMs(job, requestOptions = {}) {
+  return astJobsNormalizePositiveInt(
+    requestOptions.leaseTtlMs,
+    astJobsNormalizePositiveInt(
+      job && job.options && job.options.leaseTtlMs,
+      AST_JOBS_DEFAULT_OPTIONS.leaseTtlMs,
+      1000,
+      600000
+    ),
+    1000,
+    600000
+  );
+}
 
+function astJobsEnsureResumableStatus(job, normalizedJobId, workerId) {
   if (job.status === 'completed' || job.status === 'canceled') {
     throw new AstJobsConflictError('Job is not resumable in its current state', {
       jobId: normalizedJobId,
@@ -265,41 +297,92 @@ function astJobsExecutePersistedJob(jobId, options = {}) {
     });
   }
 
-  if (job.status === 'running') {
+  if (job.status === 'running' && job.leaseOwner !== workerId) {
     throw new AstJobsConflictError('Job is already running', {
       jobId: normalizedJobId
     });
   }
+}
 
-  if (!job.startedAt) {
-    job.startedAt = astJobsNowIso();
-  }
-  job.pausedAt = null;
-  job.status = 'running';
-  astJobsPersistJob(job);
-
-  const startedAtMs = new Date().getTime();
-  while (true) {
-    const elapsedMs = new Date().getTime() - startedAtMs;
-    if (elapsedMs >= job.options.maxRuntimeMs) {
-      astJobsSetPaused(job);
-      break;
-    }
-
-    const runnableStep = astJobsFindRunnableStep(job);
-    if (!runnableStep) {
-      astJobsFinalizeWhenNoRunnableStep(job);
-      break;
-    }
-
-    const succeeded = astJobsExecuteStep(job, runnableStep);
-    if (!succeeded) {
-      break;
-    }
+function astJobsMaybeRenewLease(job, workerId, leaseTtlMs, leaseOptions = {}) {
+  const leaseExpiryMs = new Date(job.leaseExpiresAt || '').getTime();
+  if (!Number.isFinite(leaseExpiryMs)) {
+    return;
   }
 
-  astJobsPersistJob(job);
-  return astJobsCloneSerializableValue(job);
+  const renewLeadMs = Math.max(1000, Math.floor(leaseTtlMs / 3));
+  const nowMs = new Date().getTime();
+  if (nowMs < (leaseExpiryMs - renewLeadMs)) {
+    return;
+  }
+
+  const renewed = astJobsRenewLease(job.id, workerId, leaseTtlMs, leaseOptions);
+  job.version = renewed.version;
+  job.leaseOwner = renewed.leaseOwner;
+  job.leaseExpiresAt = renewed.leaseExpiresAt;
+  job.lastHeartbeatAt = renewed.lastHeartbeatAt;
+  job.updatedAt = renewed.updatedAt;
+}
+
+function astJobsExecutePersistedJob(jobId, options = {}) {
+  const normalizedJobId = astJobsNormalizeJobId(jobId);
+  const persistOptions = {
+    lockTimeoutMs: options.lockTimeoutMs
+  };
+  const workerId = astJobsNormalizeString(options.workerId, astJobsGenerateWorkerId());
+
+  let job = astJobsReadJobRecord(normalizedJobId, options);
+  astJobsEnsureCheckpointStoreSupported(job.options || {});
+
+  const leaseTtlMs = astJobsResolveLeaseTtlMs(job, options);
+  const leaseOptions = {
+    propertyPrefix: job.options && job.options.propertyPrefix,
+    lockTimeoutMs: options.lockTimeoutMs
+  };
+
+  job = astJobsAcquireLease(normalizedJobId, workerId, leaseTtlMs, leaseOptions);
+
+  try {
+    astJobsEnsureResumableStatus(job, normalizedJobId, workerId);
+
+    if (!job.startedAt) {
+      job.startedAt = astJobsNowIso();
+    }
+    job.pausedAt = null;
+    job.status = 'running';
+    astJobsPersistJob(job, persistOptions);
+
+    const startedAtMs = new Date().getTime();
+    while (true) {
+      astJobsMaybeRenewLease(job, workerId, leaseTtlMs, leaseOptions);
+
+      const elapsedMs = new Date().getTime() - startedAtMs;
+      if (elapsedMs >= job.options.maxRuntimeMs) {
+        astJobsSetPaused(job);
+        break;
+      }
+
+      const runnableStep = astJobsFindRunnableStep(job);
+      if (!runnableStep) {
+        astJobsFinalizeWhenNoRunnableStep(job);
+        break;
+      }
+
+      const succeeded = astJobsExecuteStep(job, runnableStep, persistOptions);
+      if (!succeeded) {
+        break;
+      }
+    }
+
+    astJobsPersistJob(job, persistOptions);
+    return astJobsCloneSerializableValue(job);
+  } finally {
+    try {
+      astJobsReleaseLease(normalizedJobId, workerId, leaseOptions);
+    } catch (_error) {
+      // Best effort release to avoid masking primary execution errors.
+    }
+  }
 }
 
 function astJobsRun(request = {}) {
@@ -308,12 +391,13 @@ function astJobsRun(request = {}) {
   astJobsEnsureCheckpointStoreSupported(executionOptions);
 
   const job = astJobsCreateJobRecord(normalizedRequest, executionOptions);
-  astJobsWriteJobRecord(job, {
+  astJobsWriteJobRecordCas(job, 0, {
     propertyPrefix: executionOptions.propertyPrefix
   });
 
   return astJobsExecutePersistedJob(job.id, {
-    propertyPrefix: executionOptions.propertyPrefix
+    propertyPrefix: executionOptions.propertyPrefix,
+    leaseTtlMs: executionOptions.leaseTtlMs
   });
 }
 
@@ -323,7 +407,7 @@ function astJobsEnqueue(request = {}) {
   astJobsEnsureCheckpointStoreSupported(executionOptions);
 
   const job = astJobsCreateJobRecord(normalizedRequest, executionOptions);
-  astJobsWriteJobRecord(job, {
+  astJobsWriteJobRecordCas(job, 0, {
     propertyPrefix: executionOptions.propertyPrefix
   });
 
