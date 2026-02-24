@@ -72,7 +72,7 @@
   - `AST.RAG.Citations.normalizeInline/extractInlineIds/filterForAnswer/toUrl`
   - `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback builder
 - `AST.RAG.answer(...)` now supports retrieval recovery controls (`retrieval.recovery`) and deterministic fallback policy controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
-- `AST.RAG.answer(...)` responses now include stable retrieval/generation diagnostics (`diagnostics.totalMs`, `pipelinePath`, per-phase timing/status fields).
+- `AST.RAG.answer(...)` supports stable retrieval/generation diagnostics (`diagnostics.totalMs`, `pipelinePath`, per-phase timing/status fields) when enabled via `options.diagnostics` or `RAG_DIAGNOSTICS_ENABLED`.
 - Drive-only source ingestion for:
   - plain text (`text/plain`)
   - PDF (`application/pdf`)
@@ -82,6 +82,7 @@
 - Embedding provider registry with built-ins (`openai`, `gemini`, `vertex_gemini`, `openrouter`, `perplexity`) plus runtime custom provider registration.
 - Grounded answer orchestration with citation IDs (`S1..Sn`) and abstention behavior (`status=insufficient_context`).
 - Hybrid RAG retrieval mode (`mode=hybrid`) with weighted vector + lexical score fusion.
+- Lexical-only RAG retrieval mode (`mode=lexical`) for no-embedding low-latency retrieval paths.
 - Optional RAG reranking (`retrieval.rerank`) for top-N post-rank refinement.
 - RAG access-control contract for retrieval and answer flows (`retrieval.access`) with enforceable source/citation boundaries.
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).

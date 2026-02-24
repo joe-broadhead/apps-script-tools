@@ -58,7 +58,7 @@ Current release state:
 - Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `previewSources`, `answer`, `inspectIndex`.
 - RAG retrieval payload interop APIs for preview-to-answer reuse: `buildRetrievalCacheKey`, `putRetrievalPayload`, `getRetrievalPayload`, `deleteRetrievalPayload`.
 - RAG index orchestration wrapper: `AST.RAG.IndexManager.create(...).ensure/sync/fastState`.
-- Hybrid retrieval + reranking support in `RAG.search(...)` / `RAG.answer(...)` with explainable score fields (`vectorScore`, `lexicalScore`, `finalScore`).
+- Retrieval mode support in `RAG.search(...)` / `RAG.answer(...)` for `vector`, `hybrid`, and `lexical` (no-embedding) paths, plus optional reranking with explainable score fields (`vectorScore`, `lexicalScore`, `finalScore`).
 - RAG retrieval access-control (`retrieval.access`) and citation/source policy enforcement (`options.enforceAccessControl`).
 - New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
 - Storage advanced ops: `exists`, `copy`, `move`, `signedUrl`, and `multipartWrite` for production object workflows.

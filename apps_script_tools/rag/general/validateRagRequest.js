@@ -274,8 +274,8 @@ function astRagNormalizeEmbeddingRequest(embedding = {}) {
 
 function astRagNormalizeRetrievalMode(mode, fieldPath) {
   const normalized = astRagNormalizeString(mode, AST_RAG_DEFAULT_RETRIEVAL.mode);
-  if (!['vector', 'hybrid'].includes(normalized)) {
-    throw new AstRagValidationError(`${fieldPath} must be one of: vector, hybrid`);
+  if (!['vector', 'hybrid', 'lexical'].includes(normalized)) {
+    throw new AstRagValidationError(`${fieldPath} must be one of: vector, hybrid, lexical`);
   }
   return normalized;
 }

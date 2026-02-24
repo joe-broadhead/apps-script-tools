@@ -1158,6 +1158,70 @@ test('search supports hybrid retrieval with lexical+vector score fusion', () => 
   assert.equal(output.results[0].score, output.results[0].finalScore);
 });
 
+test('search supports lexical retrieval mode without embedding calls', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_lexical',
+    indexName: 'lexical-index',
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'lexical_hit',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'lexical-hit.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Project risks include supplier delays and mitigation controls.'
+      },
+      {
+        chunkId: 'lexical_miss',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'lexical-miss.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Completely unrelated content.'
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_lexical',
+    fileName: 'lexical-index.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => {
+    throw new Error('astRagEmbedTexts should not run in lexical mode');
+  };
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_lexical',
+    query: 'project risks',
+    retrieval: {
+      mode: 'lexical',
+      topK: 2,
+      minScore: 0
+    }
+  });
+
+  assert.equal(output.mode, 'lexical');
+  assert.equal(output.results.length, 2);
+  assert.equal(output.results[0].chunkId, 'lexical_hit');
+  assert.equal(output.results[0].vectorScore, null);
+  assert.equal(typeof output.results[0].lexicalScore, 'number');
+  assert.equal(typeof output.results[0].finalScore, 'number');
+  assert.equal(output.results[0].score, output.results[0].finalScore);
+  assert.equal(output.usage.totalTokens, 0);
+});
+
 test('search rerank can promote phrase-exact chunk within topN', () => {
   const indexDoc = {
     schemaVersion: '1.0',
@@ -1418,6 +1482,69 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
 
   assert.equal(abstain.status, 'insufficient_context');
   assert.equal(abstain.answer, 'Insufficient context.');
+});
+
+test('answer supports lexical retrieval mode without embedding calls', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_lexical',
+    fileName: 'answer-lexical-index.json',
+    document: {
+      chunks: [
+        {
+          chunkId: 'chunk_lexical_1',
+          sourceId: 'src_lexical_1',
+          fileId: 'f_lexical_1',
+          fileName: 'lexical.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Project timeline includes preparation and reopening phases.'
+        }
+      ]
+    }
+  });
+  context.astRagEmbedTexts = () => {
+    throw new Error('astRagEmbedTexts should not run in lexical mode');
+  };
+
+  context.runAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'The timeline includes preparation and reopening [S1]',
+        citations: ['S1']
+      }
+    },
+    usage: {
+      inputTokens: 3,
+      outputTokens: 5,
+      totalTokens: 8
+    }
+  });
+
+  const grounded = context.AST.RAG.answer({
+    indexFileId: 'index_answer_lexical',
+    question: 'What are the timeline phases?',
+    retrieval: {
+      mode: 'lexical',
+      topK: 1,
+      minScore: 0
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    }
+  });
+
+  assert.equal(grounded.status, 'ok');
+  assert.equal(grounded.retrieval.mode, 'lexical');
+  assert.equal(grounded.citations.length, 1);
+  assert.equal(grounded.citations[0].vectorScore, null);
+  assert.equal(typeof grounded.citations[0].lexicalScore, 'number');
+  assert.equal(typeof grounded.citations[0].finalScore, 'number');
 });
 
 test('answer cache reuses grounded response when history is empty', () => {
@@ -2102,6 +2229,57 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
 
   assert.equal(payload.indexFileId, 'index_preview_1');
   assert.equal(payload.results.length, 1);
+});
+
+test('previewSources supports lexical retrieval mode without embedding calls', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_preview_lexical',
+    fileName: 'preview-lexical-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      chunks: [
+        {
+          chunkId: 'chunk_preview_lexical_1',
+          sourceId: 'src_preview_lexical_1',
+          fileId: 'doc_lexical_1',
+          fileName: 'lexical-brief',
+          mimeType: MIME_DOC,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Launch checklist covers project risks and mitigation.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => {
+    throw new Error('astRagEmbedTexts should not run in lexical mode');
+  };
+
+  const response = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_lexical',
+    query: 'project risks',
+    retrieval: {
+      mode: 'lexical',
+      topK: 5,
+      minScore: 0
+    },
+    preview: {
+      cachePayload: false
+    }
+  });
+
+  assert.equal(response.retrieval.mode, 'lexical');
+  assert.equal(response.cards.length, 1);
+  assert.equal(response.cards[0].vectorScore, null);
+  assert.equal(typeof response.cards[0].lexicalScore, 'number');
+  assert.equal(typeof response.cards[0].finalScore, 'number');
 });
 
 test('previewSources cache key differentiates enforceAccessControl policy', () => {

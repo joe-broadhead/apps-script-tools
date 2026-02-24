@@ -174,7 +174,7 @@ function astRagDetectIndexEmptyReason(indexDocument, query, queryVector, retriev
     return 'access_filtered_all';
   }
 
-  if (queryVector && Array.isArray(queryVector)) {
+  if ((queryVector && Array.isArray(queryVector)) || retrieval.mode === 'lexical') {
     const relaxedRetrieval = Object.assign({}, retrieval, {
       topK: Math.max(retrieval.topK, 20),
       minScore: -1
@@ -250,7 +250,10 @@ function astRagAnswerCore(request = {}) {
     const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
     const embeddingModel = astRagNormalizeString(indexEmbedding.model, null);
 
-    if (!embeddingProvider || !embeddingModel) {
+    if (
+      normalizedRequest.retrieval.mode !== 'lexical' &&
+      (!embeddingProvider || !embeddingModel)
+    ) {
       throw new AstRagRetrievalError('Index is missing embedding metadata', {
         indexFileId: normalizedRequest.indexFileId
       });
@@ -343,34 +346,37 @@ function astRagAnswerCore(request = {}) {
       } else {
         retrievalSource = 'index';
         rawSourceCount = Array.isArray(indexDocument.chunks) ? indexDocument.chunks.length : 0;
-        const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
-          normalizedRequest.indexFileId,
-          versionToken,
-          embeddingProvider,
-          embeddingModel,
-          normalizedRequest.question
-        );
-
-        const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
-
-        if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
-          diagnostics.cache.embeddingHit = true;
-          queryVector = cachedEmbedding.vector.slice();
+        if (normalizedRequest.retrieval.mode === 'lexical') {
+          queryVector = null;
         } else {
-          const embeddingStartMs = astRagNowMs();
-          const queryEmbedding = astRagEmbedTexts({
-            provider: embeddingProvider,
-            model: embeddingModel,
-            texts: [normalizedRequest.question],
-            auth: normalizedRequest.auth,
-            options: { retries: 2 }
-          });
-          queryVector = queryEmbedding.vectors[0];
-          queryUsage = queryEmbedding.usage || queryUsage;
-          diagnostics.timings.embeddingMs = Math.max(0, astRagNowMs() - embeddingStartMs);
-          astRagCacheSet(cacheConfig, embeddingCacheKey, {
-            vector: queryVector
-          }, cacheConfig.embeddingTtlSec);
+          const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+            normalizedRequest.indexFileId,
+            versionToken,
+            embeddingProvider,
+            embeddingModel,
+            normalizedRequest.question
+          );
+          const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
+
+          if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+            diagnostics.cache.embeddingHit = true;
+            queryVector = cachedEmbedding.vector.slice();
+          } else {
+            const embeddingStartMs = astRagNowMs();
+            const queryEmbedding = astRagEmbedTexts({
+              provider: embeddingProvider,
+              model: embeddingModel,
+              texts: [normalizedRequest.question],
+              auth: normalizedRequest.auth,
+              options: { retries: 2 }
+            });
+            queryVector = queryEmbedding.vectors[0];
+            queryUsage = queryEmbedding.usage || queryUsage;
+            diagnostics.timings.embeddingMs = Math.max(0, astRagNowMs() - embeddingStartMs);
+            astRagCacheSet(cacheConfig, embeddingCacheKey, {
+              vector: queryVector
+            }, cacheConfig.embeddingTtlSec);
+          }
         }
 
         rankedResults = astRagRetrieveRankedChunks(
@@ -498,7 +504,7 @@ function astRagAnswerCore(request = {}) {
             relaxedForFallback
           )
           : (
-            queryVector && Array.isArray(queryVector)
+            ((queryVector && Array.isArray(queryVector)) || normalizedRequest.retrieval.mode === 'lexical')
               ? astRagRetrieveRankedChunks(
                 indexDocument,
                 normalizedRequest.question,

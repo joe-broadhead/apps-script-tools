@@ -86,7 +86,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   retrieval: {
     topK: 8,
     minScore: 0.2,
-    mode: 'vector' | 'hybrid',
+    mode: 'vector' | 'hybrid' | 'lexical',
     vectorWeight: 0.65, // hybrid only
     lexicalWeight: 0.35, // hybrid only
     recovery: {
@@ -144,7 +144,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   retrieval: {
     topK: 8,
     minScore: 0.2,
-    mode: 'vector' | 'hybrid',
+    mode: 'vector' | 'hybrid' | 'lexical',
     vectorWeight: 0.65, // hybrid only
     lexicalWeight: 0.35, // hybrid only
     rerank: {
@@ -222,7 +222,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   retrieval: {
     topK: 8,
     minScore: 0.2,
-    mode: 'vector' | 'hybrid'
+    mode: 'vector' | 'hybrid' | 'lexical'
   },
   cache: {
     enabled: false,
@@ -352,7 +352,7 @@ Resolution precedence for Vertex service-account JSON:
       page: null | number,
       slide: null | number,
       score,
-      vectorScore,
+      vectorScore, // null in lexical mode
       lexicalScore, // null in vector mode
       finalScore,
       rerankScore, // null unless rerank produced a score
@@ -429,7 +429,7 @@ const fallback = ASTX.RAG.Fallback.fromCitations({
   query: 'string',
   topK: 8,
   minScore: 0.2,
-  mode: 'vector' | 'hybrid',
+  mode: 'vector' | 'hybrid' | 'lexical',
   results: [
     {
       chunkId,
@@ -441,7 +441,7 @@ const fallback = ASTX.RAG.Fallback.fromCitations({
       section,
       text,
       score, // alias of finalScore
-      vectorScore,
+      vectorScore, // null in lexical mode
       lexicalScore, // null in vector mode
       finalScore,
       rerankScore // present when rerank.enabled=true
