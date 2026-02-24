@@ -159,6 +159,54 @@ test('AST.Config memoization is scoped per scriptProperties handle', () => {
   assert.equal(fromB.OPENAI_API_KEY, 'key-from-b');
 });
 
+test('AST.Config memoization is preserved across equivalent script property wrappers', () => {
+  let getPropertiesCalls = 0;
+  const store = {
+    OPENAI_API_KEY: 'key-v1'
+  };
+
+  function ScriptPropertiesWrapper(backingStore) {
+    this.store = backingStore;
+  }
+
+  ScriptPropertiesWrapper.prototype.getProperties = function getProperties() {
+    getPropertiesCalls += 1;
+    return Object.assign({}, this.store);
+  };
+
+  ScriptPropertiesWrapper.prototype.getProperty = function getProperty(key) {
+    return Object.prototype.hasOwnProperty.call(this.store, key)
+      ? this.store[key]
+      : null;
+  };
+
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const first = context.astConfigFromScriptProperties({
+    scriptProperties: new ScriptPropertiesWrapper(store),
+    keys: ['OPENAI_API_KEY']
+  });
+  assert.equal(first.OPENAI_API_KEY, 'key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  store.OPENAI_API_KEY = 'key-v2';
+  const second = context.astConfigFromScriptProperties({
+    scriptProperties: new ScriptPropertiesWrapper(store),
+    keys: ['OPENAI_API_KEY']
+  });
+  assert.equal(second.OPENAI_API_KEY, 'key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  const refreshed = context.astConfigFromScriptProperties({
+    scriptProperties: new ScriptPropertiesWrapper(store),
+    keys: ['OPENAI_API_KEY'],
+    forceRefresh: true
+  });
+  assert.equal(refreshed.OPENAI_API_KEY, 'key-v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
 test('AST.Runtime.configureFromProps configures selected modules from script properties', () => {
   const context = createGasContext({
     PropertiesService: {

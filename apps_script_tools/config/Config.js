@@ -2,6 +2,27 @@ function astConfigIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function astConfigIsLiteralObject(value) {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  if (Object.prototype.toString.call(value) !== '[object Object]') {
+    return false;
+  }
+
+  const constructor = value.constructor;
+  if (typeof constructor === 'undefined') {
+    return true;
+  }
+
+  if (typeof constructor !== 'function') {
+    return false;
+  }
+
+  return constructor === Object || constructor.name === 'Object';
+}
+
 function astConfigNormalizeString(value, fallback = '') {
   if (typeof value !== 'string') {
     return fallback;
@@ -293,6 +314,14 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
       || typeof options.scriptProperties.getProperty === 'function'
     )
   );
+  const explicitCacheScopeId = astConfigNormalizeString(options.cacheScopeId, '');
+  const sharedCacheScopeId = (
+    explicitCacheScopeId
+    || !hasExplicitScriptPropertiesHandle
+    || !astConfigIsLiteralObject(options.scriptProperties)
+  )
+    ? (explicitCacheScopeId || AST_CONFIG_DEFAULT_HANDLE_CACHE_ID)
+    : '';
 
   if (astConfigIsPlainObject(options.properties)) {
     return astConfigBuildOutput(options.properties, Object.assign({}, options, {
@@ -315,9 +344,7 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
     scriptProperties,
     requestedKeys,
     Object.assign({}, options, {
-      cacheScopeId: hasExplicitScriptPropertiesHandle
-        ? ''
-        : AST_CONFIG_DEFAULT_HANDLE_CACHE_ID
+      cacheScopeId: sharedCacheScopeId
     })
   );
   return astConfigBuildOutput(entries, Object.assign({}, options, {
