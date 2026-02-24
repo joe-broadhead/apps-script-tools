@@ -500,6 +500,24 @@ test('AST.Jobs.list discovers legacy prefixes when registry is missing', () => {
   assert.equal(typeof store.AST_JOBS_PREFIX_REGISTRY, 'string');
 });
 
+test('AST.Jobs.list with explicit propertyPrefix includes legacy records when indexes are missing', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_EXPLICIT_${Date.now()}_`;
+  const jobId = `legacy_explicit_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-explicit', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const listed = context.AST.Jobs.list({
+    name: 'legacy-explicit',
+    limit: 20
+  }, {
+    propertyPrefix: prefix
+  });
+
+  assert.equal(listed.some(item => item.id === jobId), true);
+});
+
 test('AST.Jobs.configure controls runtime defaults', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_CONFIG_${Date.now()}_`;

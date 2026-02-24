@@ -789,7 +789,7 @@ function astJobsResolveListPrefixes(scriptProperties, executionOptions, options 
   if (explicitPrefix) {
     return {
       prefixes: [executionOptions.propertyPrefix],
-      bootstrapLegacy: false
+      bootstrapLegacy: true
     };
   }
 
