@@ -146,4 +146,3 @@ Write methods (`newThread`, `switchThread`, `appendTurn`) use lock controls from
 - `AstChatCapabilityError`
 - `AstChatNotFoundError`
 - `AstChatLockError`
-
