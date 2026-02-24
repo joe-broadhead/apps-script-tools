@@ -435,11 +435,11 @@ test('cache backend defaults tune lock scope and read stats behavior for concurr
   assert.equal(memoryDefaults.updateStatsOnGet, true);
 
   const driveDefaults = context.astCacheResolveConfig({ backend: 'drive_json' });
-  assert.equal(driveDefaults.lockScope, 'user');
+  assert.equal(driveDefaults.lockScope, 'script');
   assert.equal(driveDefaults.updateStatsOnGet, false);
 
   const scriptDefaults = context.astCacheResolveConfig({ backend: 'script_properties' });
-  assert.equal(scriptDefaults.lockScope, 'user');
+  assert.equal(scriptDefaults.lockScope, 'script');
   assert.equal(scriptDefaults.updateStatsOnGet, false);
 
   const storageDefaults = context.astCacheResolveConfig({
@@ -729,7 +729,7 @@ test('drive_json backend supports user lock scope', () => {
   assert.equal(lockCalls.script, 0);
 });
 
-test('drive_json backend defaults to user lock scope and emits lock diagnostics context', () => {
+test('drive_json backend defaults to script lock scope and emits lock diagnostics context', () => {
   const drive = createDriveMock();
   const traces = [];
   const lockCalls = {
@@ -761,23 +761,23 @@ test('drive_json backend defaults to user lock scope and emits lock diagnostics 
   context.AST.Cache.clearConfig();
   context.AST.Cache.configure({
     backend: 'drive_json',
-    namespace: 'drive_default_user_lock',
-    driveFileName: 'cache-drive-default-user-lock.json'
+    namespace: 'drive_default_script_lock',
+    driveFileName: 'cache-drive-default-script-lock.json'
   });
 
   context.AST.Cache.set('k', { ok: true }, {
     traceCollector: payload => traces.push(payload)
   });
 
-  assert.equal(lockCalls.user > 0, true);
-  assert.equal(lockCalls.script, 0);
+  assert.equal(lockCalls.script > 0, true);
+  assert.equal(lockCalls.user, 0);
 
   const lockAcquire = traces.find(payload => payload && payload.event === 'lock_acquire');
   assert.equal(Boolean(lockAcquire), true);
   assert.equal(lockAcquire.backend, 'drive_json');
-  assert.equal(lockAcquire.namespace, 'drive_default_user_lock');
+  assert.equal(lockAcquire.namespace, 'drive_default_script_lock');
   assert.equal(lockAcquire.operation, 'set');
-  assert.equal(lockAcquire.lockScope, 'user');
+  assert.equal(lockAcquire.lockScope, 'script');
 });
 
 test('drive_json get avoids write-on-read when updateStatsOnGet=false', () => {

@@ -26,7 +26,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
     recommendedUse: 'small_team_prototype',
     notes: [
       'Monolithic Drive document with lock-serialized writes',
-      'Defaults: lockScope=user, updateStatsOnGet=false',
+      'Defaults: lockScope=script, updateStatsOnGet=false',
       'Use storage_json for shared production traffic'
     ]
   }),
@@ -41,7 +41,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
     recommendedUse: 'tiny_config_cache',
     notes: [
       'Bound by Apps Script property size/throughput limits',
-      'Defaults: lockScope=user, updateStatsOnGet=false',
+      'Defaults: lockScope=script, updateStatsOnGet=false',
       'Not recommended for high-volume runtime cache traffic'
     ]
   }),

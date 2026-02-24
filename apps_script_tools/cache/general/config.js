@@ -17,11 +17,11 @@ const AST_CACHE_BACKEND_DEFAULTS = Object.freeze({
     updateStatsOnGet: true
   }),
   drive_json: Object.freeze({
-    lockScope: 'user',
+    lockScope: 'script',
     updateStatsOnGet: false
   }),
   script_properties: Object.freeze({
-    lockScope: 'user',
+    lockScope: 'script',
     updateStatsOnGet: false
   }),
   storage_json: Object.freeze({
