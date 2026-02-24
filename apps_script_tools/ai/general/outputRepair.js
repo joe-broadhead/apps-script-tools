@@ -25,7 +25,7 @@ function astAiOutputRepairCloneObject(value) {
   return Object.assign({}, value || {});
 }
 
-function astAiOutputRepairTruncate(text, maxChars) {
+function astAiOutputRepairTail(text, maxChars) {
   if (typeof text !== 'string') {
     return '';
   }
@@ -34,7 +34,7 @@ function astAiOutputRepairTruncate(text, maxChars) {
     return text;
   }
 
-  return text.slice(0, maxChars);
+  return text.slice(text.length - maxChars);
 }
 
 function astAiNormalizeContinuationPasses(value, fallback = 2) {
@@ -152,7 +152,7 @@ function astAiBuildContinuationPrompt(partial, question, citations) {
     `Question: ${typeof question === 'string' ? question : ''}`,
     '',
     'Current partial response (tail):',
-    astAiOutputRepairTruncate(String(partial || ''), 2200),
+    astAiOutputRepairTail(String(partial || ''), 2200),
     '',
     citationLines.length > 0 ? 'Available citations:' : '',
     citationLines.length > 0 ? citationLines.join('\n') : ''

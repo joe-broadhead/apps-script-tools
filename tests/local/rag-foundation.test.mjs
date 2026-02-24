@@ -141,6 +141,37 @@ test('RAG fallback helper returns citation-grounded summary/facts only', () => {
   assert.equal(facts.status, 'ok');
   assert.equal(facts.answer.includes('[S1]') || facts.answer.includes('[S2]'), true);
 
+  const factsWithSkippedSnippet = context.AST.RAG.Fallback.fromCitations({
+    citations: [
+      {
+        citationId: 'S1',
+        chunkId: 'chunk_1',
+        fileId: 'f_1',
+        fileName: 'overview.txt',
+        mimeType: 'text/plain',
+        score: 0.95,
+        snippet: '   '
+      },
+      {
+        citationId: 'S2',
+        chunkId: 'chunk_2',
+        fileId: 'f_2',
+        fileName: 'timeline.txt',
+        mimeType: 'text/plain',
+        score: 0.9,
+        snippet: 'Execution occurs in preparation, build, and reopening phases.'
+      }
+    ],
+    intent: 'facts',
+    factCount: 1
+  });
+  assert.equal(factsWithSkippedSnippet.status, 'ok');
+  assert.equal(factsWithSkippedSnippet.answer.includes('[S2]'), true);
+  assert.equal(
+    factsWithSkippedSnippet.citations.map(item => item.citationId).join(','),
+    'S2'
+  );
+
   const insufficient = context.AST.RAG.Fallback.fromCitations({
     citations: [],
     insufficientEvidenceMessage: 'No context'

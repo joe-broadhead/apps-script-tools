@@ -42,8 +42,9 @@ function astRagFallbackCleanSnippet(text) {
   return astRagTruncate(normalized, 220);
 }
 
-function astRagFallbackBuildFactLines(citations, factCount) {
+function astRagFallbackBuildFactResult(citations, factCount) {
   const lines = [];
+  const matchedCitations = [];
 
   for (let idx = 0; idx < citations.length && lines.length < factCount; idx += 1) {
     const citation = citations[idx];
@@ -54,9 +55,13 @@ function astRagFallbackBuildFactLines(citations, factCount) {
     }
 
     lines.push(`${lines.length + 1}. ${fact} [${citation.citationId}]`);
+    matchedCitations.push(citation);
   }
 
-  return lines;
+  return {
+    lines,
+    citations: matchedCitations
+  };
 }
 
 function astRagFallbackBuildSummaryLine(citations) {
@@ -93,8 +98,8 @@ function astRagFallbackFromCitations({
   const normalizedFactCount = astRagNormalizePositiveInt(factCount, AST_RAG_DEFAULT_FALLBACK.factCount, 1);
 
   if (normalizedIntent === 'facts') {
-    const lines = astRagFallbackBuildFactLines(filtered, normalizedFactCount);
-    if (lines.length === 0) {
+    const factResult = astRagFallbackBuildFactResult(filtered, normalizedFactCount);
+    if (factResult.lines.length === 0) {
       return {
         status: 'insufficient_context',
         answer: insufficientEvidenceMessage,
@@ -104,8 +109,8 @@ function astRagFallbackFromCitations({
 
     return {
       status: 'ok',
-      answer: `Here are grounded facts from the indexed sources:\n\n${lines.join('\n')}`,
-      citations: filtered.slice(0, lines.length)
+      answer: `Here are grounded facts from the indexed sources:\n\n${factResult.lines.join('\n')}`,
+      citations: factResult.citations
     };
   }
 

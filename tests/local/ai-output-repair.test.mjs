@@ -83,3 +83,32 @@ test('OutputRepair.continueIfTruncated merges overlap to avoid duplicate continu
 
   assert.equal(result.text, 'The project phases are plan, build, and launch.');
 });
+
+test('OutputRepair.continueIfTruncated uses the partial tail in continuation prompts', () => {
+  const context = createGasContext();
+  loadAiScripts(context, { includeAst: true });
+
+  let capturedPrompt = '';
+  const originalRunOpenAi = context.runOpenAi;
+  context.runOpenAi = request => {
+    capturedPrompt = request.input;
+    return normalizedTextResponse(context, ' and completion.');
+  };
+
+  const partial = 'HEAD_MARKER_SHOULD_NOT_BE_IN_TAIL\n'
+    + 'a'.repeat(5000)
+    + '\nTAIL_MARKER_SHOULD_BE_PRESENT';
+
+  context.AST.AI.OutputRepair.continueIfTruncated({
+    provider: 'openai',
+    model: 'gpt-4.1-mini',
+    partial,
+    finishReason: 'length',
+    auth: { apiKey: 'test-key' }
+  });
+
+  context.runOpenAi = originalRunOpenAi;
+
+  assert.equal(capturedPrompt.includes('HEAD_MARKER_SHOULD_NOT_BE_IN_TAIL'), false);
+  assert.equal(capturedPrompt.includes('TAIL_MARKER_SHOULD_BE_PRESENT'), true);
+});
