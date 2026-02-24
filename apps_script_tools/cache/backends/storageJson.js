@@ -1,3 +1,9 @@
+let AST_CACHE_STORAGE_PENDING_STATS = {};
+
+const AST_CACHE_STORAGE_STATS_FLUSH_THRESHOLD = 25;
+const AST_CACHE_STORAGE_MAX_LIST_ITEMS = 50000;
+const AST_CACHE_STORAGE_MAX_LIST_PAGES = 200;
+
 function astCacheStorageRequireRunner() {
   if (typeof runStorageRequest === 'function') {
     return runStorageRequest;
@@ -43,7 +49,7 @@ function astCacheStorageAppendNamespaceSuffix(path, namespaceHash) {
   return `${normalizedPath}--${namespaceHash}`;
 }
 
-function astCacheStorageResolveNamespaceUri(config) {
+function astCacheStorageResolveNamespaceRootUri(config) {
   const baseUri = astCacheNormalizeString(config && config.storageUri, '');
   if (!baseUri) {
     throw new AstCacheValidationError(
@@ -80,7 +86,66 @@ function astCacheStorageResolveNamespaceUri(config) {
   );
 }
 
-function astCacheStorageBuildRequestOptions(runtimeOptions = {}) {
+function astCacheStorageJoinUri(rootUri, relativePath) {
+  const safeRoot = astCacheNormalizeString(rootUri, '').replace(/\/+$/, '');
+  const safePath = astCacheNormalizeString(relativePath, '').replace(/^\/+/, '');
+
+  if (!safeRoot || !safePath) {
+    throw new AstCacheValidationError('Cache storage_json uri path join requires root and path');
+  }
+
+  return `${safeRoot}/${safePath}`;
+}
+
+function astCacheStorageNormalizeTagPathSegment(tag) {
+  const normalizedTag = astCacheNormalizeString(tag, '');
+  if (!normalizedTag) {
+    throw new AstCacheValidationError('Cache tag must be a non-empty string');
+  }
+
+  let hashPart = 'tag';
+  try {
+    hashPart = astCacheHashKey(normalizedTag).slice(0, 24);
+  } catch (_error) {
+    hashPart = normalizedTag.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().slice(0, 24) || 'tag';
+  }
+
+  const slug = normalizedTag
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 24) || 'tag';
+
+  return `${slug}--${hashPart}`;
+}
+
+function astCacheStorageEntryUri(config, keyHash) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  return astCacheStorageJoinUri(rootUri, `entries/${keyHash}.json`);
+}
+
+function astCacheStorageEntriesPrefixUri(config) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  return astCacheStorageJoinUri(rootUri, 'entries/');
+}
+
+function astCacheStorageTagUri(config, tag) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  const tagSegment = astCacheStorageNormalizeTagPathSegment(tag);
+  return astCacheStorageJoinUri(rootUri, `tags/${tagSegment}.json`);
+}
+
+function astCacheStorageTagsPrefixUri(config) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  return astCacheStorageJoinUri(rootUri, 'tags/');
+}
+
+function astCacheStorageStatsUri(config) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  return astCacheStorageJoinUri(rootUri, 'meta/stats.json');
+}
+
+function astCacheStorageBuildRequestOptions(runtimeOptions = {}, extraOptions = {}) {
   const mergedOptions = {};
 
   if (typeof runtimeOptions.storageTimeoutMs !== 'undefined') {
@@ -103,8 +168,32 @@ function astCacheStorageBuildRequestOptions(runtimeOptions = {}) {
     mergedOptions.includeRaw = runtimeOptions.storageIncludeRaw;
   }
 
+  if (typeof runtimeOptions.storagePageSize !== 'undefined') {
+    const pageSize = astCacheNormalizePositiveInt(runtimeOptions.storagePageSize, null, 1, 10000);
+    if (pageSize == null) {
+      throw new AstCacheValidationError('Cache option storagePageSize must be a positive integer');
+    }
+    mergedOptions.pageSize = pageSize;
+  }
+
+  if (typeof runtimeOptions.storageMaxItems !== 'undefined') {
+    const maxItems = astCacheNormalizePositiveInt(runtimeOptions.storageMaxItems, null, 1, AST_CACHE_STORAGE_MAX_LIST_ITEMS);
+    if (maxItems == null) {
+      throw new AstCacheValidationError('Cache option storageMaxItems must be a positive integer');
+    }
+    mergedOptions.maxItems = maxItems;
+  }
+
+  if (typeof runtimeOptions.storageRecursive === 'boolean') {
+    mergedOptions.recursive = runtimeOptions.storageRecursive;
+  }
+
+  if (typeof runtimeOptions.storageOptions !== 'undefined' && !astCacheIsPlainObject(runtimeOptions.storageOptions)) {
+    throw new AstCacheValidationError('Cache option storageOptions must be an object when provided');
+  }
+
   if (astCacheIsPlainObject(runtimeOptions.storageOptions)) {
-    const allowedOptions = ['timeoutMs', 'retries', 'includeRaw'];
+    const allowedOptions = ['timeoutMs', 'retries', 'includeRaw', 'pageSize', 'maxItems', 'recursive', 'pageToken'];
     for (let idx = 0; idx < allowedOptions.length; idx += 1) {
       const key = allowedOptions[idx];
       if (typeof runtimeOptions.storageOptions[key] !== 'undefined') {
@@ -113,15 +202,27 @@ function astCacheStorageBuildRequestOptions(runtimeOptions = {}) {
     }
   }
 
-  mergedOptions.overwrite = true;
+  const optionKeys = Object.keys(extraOptions || {});
+  for (let idx = 0; idx < optionKeys.length; idx += 1) {
+    const key = optionKeys[idx];
+    if (typeof extraOptions[key] === 'undefined') {
+      continue;
+    }
+    mergedOptions[key] = extraOptions[key];
+  }
+
+  if (typeof mergedOptions.overwrite === 'undefined') {
+    mergedOptions.overwrite = true;
+  }
+
   return mergedOptions;
 }
 
-function astCacheStorageBuildRequest(operation, uri, runtimeOptions, payload = null) {
+function astCacheStorageBuildRequest(operation, uri, runtimeOptions, payload = null, extraOptions = {}) {
   const request = {
     operation,
     uri,
-    options: astCacheStorageBuildRequestOptions(runtimeOptions)
+    options: astCacheStorageBuildRequestOptions(runtimeOptions, extraOptions)
   };
 
   if (payload) {
@@ -196,27 +297,14 @@ function astCacheStorageExtractDocumentText(response) {
   return '';
 }
 
-function astCacheStorageDefaultDocument(namespace) {
-  return {
-    schemaVersion: '1.0',
-    namespace,
-    updatedAtMs: astCacheNowMs(),
-    entries: {},
-    stats: {
-      hits: 0,
-      misses: 0,
-      sets: 0,
-      deletes: 0,
-      invalidations: 0,
-      evictions: 0,
-      expired: 0
-    }
-  };
-}
-
-function astCacheStorageReadDocument(config, runtimeOptions = {}) {
-  const uri = astCacheStorageResolveNamespaceUri(config);
+function astCacheStorageReadJsonObject(uri, runtimeOptions = {}, options = {}) {
   const executeStorageRequest = astCacheStorageRequireRunner();
+  const defaultValue = Object.prototype.hasOwnProperty.call(options, 'defaultValue')
+    ? options.defaultValue
+    : null;
+  const notFoundValue = Object.prototype.hasOwnProperty.call(options, 'notFoundValue')
+    ? options.notFoundValue
+    : defaultValue;
 
   let response;
   try {
@@ -225,10 +313,9 @@ function astCacheStorageReadDocument(config, runtimeOptions = {}) {
     );
   } catch (error) {
     if (error && error.name === 'AstStorageNotFoundError') {
-      return {
-        uri,
-        document: astCacheStorageDefaultDocument(config.namespace)
-      };
+      return astCacheIsPlainObject(notFoundValue)
+        ? astCacheJsonClone(notFoundValue)
+        : notFoundValue;
     }
 
     throw new AstCacheCapabilityError(
@@ -240,47 +327,26 @@ function astCacheStorageReadDocument(config, runtimeOptions = {}) {
 
   const rawText = astCacheStorageExtractDocumentText(response);
   if (!rawText) {
-    return {
-      uri,
-      document: astCacheStorageDefaultDocument(config.namespace)
-    };
+    return astCacheIsPlainObject(defaultValue)
+      ? astCacheJsonClone(defaultValue)
+      : defaultValue;
   }
 
-  let parsed = null;
   try {
-    parsed = JSON.parse(rawText);
+    const parsed = JSON.parse(rawText);
+    if (astCacheIsPlainObject(parsed)) {
+      return parsed;
+    }
   } catch (_error) {
-    parsed = astCacheStorageDefaultDocument(config.namespace);
+    // Fall through to default value for invalid JSON payloads.
   }
 
-  const document = astCacheIsPlainObject(parsed)
-    ? parsed
-    : astCacheStorageDefaultDocument(config.namespace);
-
-  if (!astCacheIsPlainObject(document.entries)) {
-    document.entries = {};
-  }
-
-  if (!astCacheIsPlainObject(document.stats)) {
-    document.stats = astCacheStorageDefaultDocument(config.namespace).stats;
-  }
-
-  document.namespace = astCacheNormalizeString(document.namespace, config.namespace);
-  document.schemaVersion = astCacheNormalizeString(document.schemaVersion, '1.0');
-  document.updatedAtMs = astCacheNormalizePositiveInt(
-    document.updatedAtMs,
-    astCacheNowMs(),
-    0,
-    9007199254740991
-  );
-
-  return {
-    uri,
-    document
-  };
+  return astCacheIsPlainObject(defaultValue)
+    ? astCacheJsonClone(defaultValue)
+    : defaultValue;
 }
 
-function astCacheStorageWriteDocument(uri, document, runtimeOptions = {}) {
+function astCacheStorageWriteJsonObject(uri, document, runtimeOptions = {}) {
   const executeStorageRequest = astCacheStorageRequireRunner();
 
   try {
@@ -300,115 +366,644 @@ function astCacheStorageWriteDocument(uri, document, runtimeOptions = {}) {
   }
 }
 
-function astCacheStorageRunWithLock(task, config) {
-  return astCacheRunWithLock(task, config);
-}
+function astCacheStorageDeleteObject(uri, runtimeOptions = {}, options = {}) {
+  const executeStorageRequest = astCacheStorageRequireRunner();
+  const suppressNotFound = options.suppressNotFound !== false;
 
-function astCacheStoragePruneExpired(document, nowMs) {
-  const keys = Object.keys(document.entries || {});
-  let removed = 0;
-
-  for (let idx = 0; idx < keys.length; idx += 1) {
-    const keyHash = keys[idx];
-    const entry = document.entries[keyHash];
-    if (!astCacheIsExpired(entry, nowMs)) {
-      continue;
-    }
-
-    delete document.entries[keyHash];
-    removed += 1;
-  }
-
-  if (removed > 0) {
-    document.stats.expired = (document.stats.expired || 0) + removed;
-  }
-}
-
-function astCacheStorageTrimToMaxEntries(document, maxEntries) {
-  const keys = Object.keys(document.entries || {});
-  if (keys.length <= maxEntries) {
-    return;
-  }
-
-  keys.sort((left, right) => {
-    const leftStamp = Number(document.entries[left] && document.entries[left].updatedAtMs || 0);
-    const rightStamp = Number(document.entries[right] && document.entries[right].updatedAtMs || 0);
-    return leftStamp - rightStamp;
-  });
-
-  const overflow = keys.length - maxEntries;
-  for (let idx = 0; idx < overflow; idx += 1) {
-    delete document.entries[keys[idx]];
-  }
-
-  document.stats.evictions = (document.stats.evictions || 0) + overflow;
-}
-
-function astCacheStorageWithDocument(config, runtimeOptions, mutator) {
-  return astCacheStorageRunWithLock(() => {
-    const loaded = astCacheStorageReadDocument(config, runtimeOptions);
-    const uri = loaded.uri;
-    const document = loaded.document;
-    const nowMs = astCacheNowMs();
-
-    astCacheStoragePruneExpired(document, nowMs);
-    const result = mutator(document, nowMs);
-    document.updatedAtMs = nowMs;
-    astCacheStorageWriteDocument(uri, document, runtimeOptions);
-    return result;
-  }, config);
-}
-
-function astCacheStorageGet(keyHash, config, runtimeOptions = {}) {
-  if (config.updateStatsOnGet === false) {
-    const loaded = astCacheStorageReadDocument(config, runtimeOptions);
-    const nowMs = astCacheNowMs();
-    const entry = loaded.document.entries[keyHash];
-    if (!entry || astCacheIsExpired(entry, nowMs)) {
-      return null;
-    }
-    return astCacheJsonClone(entry);
-  }
-
-  return astCacheStorageWithDocument(config, runtimeOptions, (document, nowMs) => {
-    const entry = document.entries[keyHash];
-    if (!entry) {
-      document.stats.misses = (document.stats.misses || 0) + 1;
-      return null;
-    }
-
-    if (astCacheIsExpired(entry, nowMs)) {
-      delete document.entries[keyHash];
-      document.stats.expired = (document.stats.expired || 0) + 1;
-      document.stats.misses = (document.stats.misses || 0) + 1;
-      return null;
-    }
-
-    document.stats.hits = (document.stats.hits || 0) + 1;
-    return astCacheJsonClone(entry);
-  });
-}
-
-function astCacheStorageSet(entry, config, runtimeOptions = {}) {
-  return astCacheStorageWithDocument(config, runtimeOptions, (document, nowMs) => {
-    const nextEntry = astCacheTouchEntry(entry, nowMs);
-    document.entries[nextEntry.keyHash] = nextEntry;
-    document.stats.sets = (document.stats.sets || 0) + 1;
-    astCacheStorageTrimToMaxEntries(document, config.maxMemoryEntries);
-    return astCacheJsonClone(nextEntry);
-  });
-}
-
-function astCacheStorageDelete(keyHash, config, runtimeOptions = {}) {
-  return astCacheStorageWithDocument(config, runtimeOptions, document => {
-    if (!document.entries[keyHash]) {
+  try {
+    executeStorageRequest(
+      astCacheStorageBuildRequest('delete', uri, runtimeOptions)
+    );
+    return true;
+  } catch (error) {
+    if (suppressNotFound && error && error.name === 'AstStorageNotFoundError') {
       return false;
     }
 
-    delete document.entries[keyHash];
-    document.stats.deletes = (document.stats.deletes || 0) + 1;
-    return true;
+    throw new AstCacheCapabilityError(
+      'Cache storage_json delete failed',
+      { uri },
+      error
+    );
+  }
+}
+
+function astCacheStorageListObjects(prefixUri, runtimeOptions = {}) {
+  const executeStorageRequest = astCacheStorageRequireRunner();
+  const pageSize = astCacheNormalizePositiveInt(runtimeOptions.storagePageSize, 1000, 1, 10000);
+  const maxItems = astCacheNormalizePositiveInt(
+    runtimeOptions.storageMaxItems,
+    AST_CACHE_STORAGE_MAX_LIST_ITEMS,
+    1,
+    AST_CACHE_STORAGE_MAX_LIST_ITEMS
+  );
+
+  const uris = [];
+  const seen = {};
+  let pageToken = null;
+  let pageCount = 0;
+
+  while (uris.length < maxItems) {
+    if (pageCount >= AST_CACHE_STORAGE_MAX_LIST_PAGES) {
+      break;
+    }
+    pageCount += 1;
+
+    let response;
+    try {
+      response = executeStorageRequest(
+        astCacheStorageBuildRequest('list', prefixUri, runtimeOptions, null, {
+          recursive: true,
+          pageSize,
+          pageToken,
+          maxItems: Math.max(pageSize, maxItems)
+        })
+      );
+    } catch (error) {
+      if (error && error.name === 'AstStorageNotFoundError') {
+        return [];
+      }
+
+      throw new AstCacheCapabilityError(
+        'Cache storage_json list failed',
+        { uri: prefixUri },
+        error
+      );
+    }
+
+    const output = astCacheIsPlainObject(response) && astCacheIsPlainObject(response.output)
+      ? response.output
+      : {};
+    const items = Array.isArray(output.items) ? output.items : [];
+
+    for (let idx = 0; idx < items.length; idx += 1) {
+      const item = items[idx];
+      if (!astCacheIsPlainObject(item)) {
+        continue;
+      }
+
+      if (item.isPrefix === true || item.isDir === true) {
+        continue;
+      }
+
+      const uri = astCacheNormalizeString(item.uri, '');
+      if (!uri || !uri.startsWith(prefixUri)) {
+        continue;
+      }
+
+      if (seen[uri]) {
+        continue;
+      }
+
+      seen[uri] = true;
+      uris.push(uri);
+
+      if (uris.length >= maxItems) {
+        break;
+      }
+    }
+
+    const page = astCacheIsPlainObject(response) && astCacheIsPlainObject(response.page)
+      ? response.page
+      : {};
+    pageToken = astCacheNormalizeString(page.nextPageToken, '');
+    if (!pageToken) {
+      break;
+    }
+  }
+
+  return uris;
+}
+
+function astCacheStorageDefaultTagDocument(tag) {
+  return {
+    schemaVersion: '1.0',
+    tag,
+    updatedAtMs: astCacheNowMs(),
+    keyHashes: []
+  };
+}
+
+function astCacheStorageDefaultStatsDocument() {
+  return {
+    schemaVersion: '1.0',
+    updatedAtMs: astCacheNowMs(),
+    hits: 0,
+    misses: 0,
+    sets: 0,
+    deletes: 0,
+    invalidations: 0,
+    evictions: 0,
+    expired: 0
+  };
+}
+
+function astCacheStorageNormalizeTagDocument(document, tag) {
+  const safe = astCacheIsPlainObject(document)
+    ? document
+    : astCacheStorageDefaultTagDocument(tag);
+
+  const keyHashes = Array.isArray(safe.keyHashes)
+    ? safe.keyHashes
+      .map(value => astCacheNormalizeString(value, ''))
+      .filter(Boolean)
+    : [];
+  const deduped = [];
+  const seen = {};
+  for (let idx = 0; idx < keyHashes.length; idx += 1) {
+    const keyHash = keyHashes[idx];
+    if (seen[keyHash]) {
+      continue;
+    }
+    seen[keyHash] = true;
+    deduped.push(keyHash);
+  }
+
+  return {
+    schemaVersion: astCacheNormalizeString(safe.schemaVersion, '1.0'),
+    tag,
+    updatedAtMs: astCacheNormalizePositiveInt(
+      safe.updatedAtMs,
+      astCacheNowMs(),
+      0,
+      9007199254740991
+    ),
+    keyHashes: deduped
+  };
+}
+
+function astCacheStorageNormalizeStatsDocument(document) {
+  const source = astCacheIsPlainObject(document)
+    ? document
+    : astCacheStorageDefaultStatsDocument();
+
+  function normalizeCounter(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+    return Math.floor(numeric);
+  }
+
+  return {
+    schemaVersion: astCacheNormalizeString(source.schemaVersion, '1.0'),
+    updatedAtMs: astCacheNormalizePositiveInt(source.updatedAtMs, astCacheNowMs(), 0, 9007199254740991),
+    hits: normalizeCounter(source.hits),
+    misses: normalizeCounter(source.misses),
+    sets: normalizeCounter(source.sets),
+    deletes: normalizeCounter(source.deletes),
+    invalidations: normalizeCounter(source.invalidations),
+    evictions: normalizeCounter(source.evictions),
+    expired: normalizeCounter(source.expired)
+  };
+}
+
+function astCacheStorageNormalizeEntryDocument(document, expectedKeyHash) {
+  if (!astCacheIsPlainObject(document)) {
+    return null;
+  }
+
+  const normalizedKeyHash = astCacheNormalizeString(document.keyHash, '');
+  if (!normalizedKeyHash || normalizedKeyHash !== expectedKeyHash) {
+    return null;
+  }
+
+  const normalizedKey = astCacheNormalizeString(document.normalizedKey, '');
+  if (!normalizedKey) {
+    return null;
+  }
+
+  const tags = astCacheNormalizeTags(document.tags);
+  const createdAtMs = astCacheNormalizePositiveInt(document.createdAtMs, astCacheNowMs(), 0, 9007199254740991);
+  const updatedAtMs = astCacheNormalizePositiveInt(document.updatedAtMs, createdAtMs, 0, 9007199254740991);
+  const expiresAtMs = astCacheNormalizePositiveInt(document.expiresAtMs, null, 1, 9007199254740991);
+
+  return {
+    keyHash: normalizedKeyHash,
+    normalizedKey,
+    value: astCacheEnsureSerializable(document.value, 'entry.value'),
+    tags,
+    createdAtMs,
+    updatedAtMs,
+    expiresAtMs
+  };
+}
+
+function astCacheStoragePendingStatsState(config) {
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  if (!AST_CACHE_STORAGE_PENDING_STATS[rootUri]) {
+    AST_CACHE_STORAGE_PENDING_STATS[rootUri] = {
+      hits: 0,
+      misses: 0,
+      sets: 0,
+      deletes: 0,
+      invalidations: 0,
+      evictions: 0,
+      expired: 0
+    };
+  }
+
+  return {
+    rootUri,
+    counters: AST_CACHE_STORAGE_PENDING_STATS[rootUri]
+  };
+}
+
+function astCacheStorageBumpPendingStats(config, patch = {}) {
+  const state = astCacheStoragePendingStatsState(config);
+  const keys = Object.keys(patch || {});
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    const numeric = Number(patch[key]);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      continue;
+    }
+
+    state.counters[key] = Number(state.counters[key] || 0) + numeric;
+  }
+
+  return state;
+}
+
+function astCacheStoragePendingStatsTotal(counters = {}) {
+  const keys = Object.keys(counters);
+  let total = 0;
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    total += Math.abs(Number(counters[keys[idx]] || 0));
+  }
+  return total;
+}
+
+function astCacheStorageReadStatsDocument(config, runtimeOptions = {}) {
+  const uri = astCacheStorageStatsUri(config);
+  const parsed = astCacheStorageReadJsonObject(uri, runtimeOptions, {
+    defaultValue: astCacheStorageDefaultStatsDocument(),
+    notFoundValue: astCacheStorageDefaultStatsDocument()
   });
+
+  return {
+    uri,
+    stats: astCacheStorageNormalizeStatsDocument(parsed)
+  };
+}
+
+function astCacheStorageWriteStatsDocument(uri, stats, runtimeOptions = {}) {
+  const nextStats = astCacheStorageNormalizeStatsDocument(stats);
+  nextStats.updatedAtMs = astCacheNowMs();
+  astCacheStorageWriteJsonObject(uri, nextStats, runtimeOptions);
+  return nextStats;
+}
+
+function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options = {}) {
+  const state = astCacheStoragePendingStatsState(config);
+  if (astCacheStoragePendingStatsTotal(state.counters) === 0) {
+    return astCacheStorageNormalizeStatsDocument(astCacheStorageDefaultStatsDocument());
+  }
+
+  try {
+    const loaded = astCacheStorageReadStatsDocument(config, runtimeOptions);
+    const nextStats = astCacheStorageNormalizeStatsDocument(loaded.stats);
+
+    const keys = Object.keys(state.counters);
+    for (let idx = 0; idx < keys.length; idx += 1) {
+      const key = keys[idx];
+      const increment = Number(state.counters[key] || 0);
+      if (!Number.isFinite(increment) || increment === 0) {
+        continue;
+      }
+      nextStats[key] = Number(nextStats[key] || 0) + increment;
+      state.counters[key] = 0;
+    }
+
+    return astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+  } catch (error) {
+    if (options.strict === true) {
+      throw error;
+    }
+
+    return astCacheStorageNormalizeStatsDocument(astCacheStorageDefaultStatsDocument());
+  }
+}
+
+function astCacheStorageUpdateStats(config, runtimeOptions = {}, patch = {}) {
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+
+  const loaded = astCacheStorageReadStatsDocument(config, runtimeOptions);
+  const nextStats = astCacheStorageNormalizeStatsDocument(loaded.stats);
+
+  const keys = Object.keys(patch || {});
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    const increment = Number(patch[key]);
+    if (!Number.isFinite(increment) || increment === 0) {
+      continue;
+    }
+    nextStats[key] = Number(nextStats[key] || 0) + increment;
+  }
+
+  return astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+}
+
+function astCacheStorageReadEntry(config, keyHash, runtimeOptions = {}) {
+  const uri = astCacheStorageEntryUri(config, keyHash);
+  const parsed = astCacheStorageReadJsonObject(uri, runtimeOptions, {
+    defaultValue: null,
+    notFoundValue: null
+  });
+
+  return astCacheStorageNormalizeEntryDocument(parsed, keyHash);
+}
+
+function astCacheStorageWriteEntry(config, entry, runtimeOptions = {}) {
+  const uri = astCacheStorageEntryUri(config, entry.keyHash);
+  astCacheStorageWriteJsonObject(uri, entry, runtimeOptions);
+  return uri;
+}
+
+function astCacheStorageReadTagDocument(config, tag, runtimeOptions = {}) {
+  const uri = astCacheStorageTagUri(config, tag);
+  const parsed = astCacheStorageReadJsonObject(uri, runtimeOptions, {
+    defaultValue: astCacheStorageDefaultTagDocument(tag),
+    notFoundValue: astCacheStorageDefaultTagDocument(tag)
+  });
+
+  return {
+    uri,
+    tag,
+    document: astCacheStorageNormalizeTagDocument(parsed, tag)
+  };
+}
+
+function astCacheStorageWriteTagDocument(uri, document, runtimeOptions = {}) {
+  const normalized = astCacheStorageNormalizeTagDocument(document, document.tag);
+  normalized.updatedAtMs = astCacheNowMs();
+
+  if (!Array.isArray(normalized.keyHashes) || normalized.keyHashes.length === 0) {
+    astCacheStorageDeleteObject(uri, runtimeOptions, { suppressNotFound: true });
+    return null;
+  }
+
+  astCacheStorageWriteJsonObject(uri, normalized, runtimeOptions);
+  return normalized;
+}
+
+function astCacheStorageSyncEntryTags(config, keyHash, previousTags = [], nextTags = [], runtimeOptions = {}) {
+  const prev = astCacheNormalizeTags(previousTags);
+  const next = astCacheNormalizeTags(nextTags);
+
+  const prevSet = {};
+  for (let idx = 0; idx < prev.length; idx += 1) {
+    prevSet[prev[idx]] = true;
+  }
+
+  const nextSet = {};
+  for (let idx = 0; idx < next.length; idx += 1) {
+    nextSet[next[idx]] = true;
+  }
+
+  const removedTags = [];
+  for (let idx = 0; idx < prev.length; idx += 1) {
+    const tag = prev[idx];
+    if (!nextSet[tag]) {
+      removedTags.push(tag);
+    }
+  }
+
+  const addedTags = [];
+  for (let idx = 0; idx < next.length; idx += 1) {
+    const tag = next[idx];
+    if (!prevSet[tag]) {
+      addedTags.push(tag);
+    }
+  }
+
+  for (let idx = 0; idx < removedTags.length; idx += 1) {
+    const tag = removedTags[idx];
+    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+    loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
+    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+  }
+
+  for (let idx = 0; idx < addedTags.length; idx += 1) {
+    const tag = addedTags[idx];
+    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+    if (loaded.document.keyHashes.indexOf(keyHash) === -1) {
+      loaded.document.keyHashes.push(keyHash);
+    }
+    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+  }
+}
+
+function astCacheStorageDeleteEntryArtifacts(config, keyHash, tags = [], runtimeOptions = {}) {
+  const entryUri = astCacheStorageEntryUri(config, keyHash);
+  const deleted = astCacheStorageDeleteObject(entryUri, runtimeOptions, { suppressNotFound: true });
+
+  const normalizedTags = astCacheNormalizeTags(tags);
+  for (let idx = 0; idx < normalizedTags.length; idx += 1) {
+    const tag = normalizedTags[idx];
+    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+    loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
+    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+  }
+
+  return deleted;
+}
+
+function astCacheStorageExtractKeyHashFromUri(uri) {
+  const match = String(uri || '').match(/\/entries\/([^\/]+)\.json$/);
+  return match ? astCacheNormalizeString(match[1], '') : '';
+}
+
+function astCacheStorageListEntryUris(config, runtimeOptions = {}) {
+  const prefixUri = astCacheStorageEntriesPrefixUri(config);
+  return astCacheStorageListObjects(prefixUri, runtimeOptions)
+    .filter(uri => /\/entries\/[^\/]+\.json$/.test(uri));
+}
+
+function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
+  const maxEntries = astCacheNormalizePositiveInt(
+    config.maxMemoryEntries,
+    null,
+    1,
+    9007199254740991
+  );
+
+  if (maxEntries == null) {
+    return 0;
+  }
+
+  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions);
+  if (entryUris.length <= maxEntries) {
+    return 0;
+  }
+
+  const entries = [];
+  for (let idx = 0; idx < entryUris.length; idx += 1) {
+    const keyHash = astCacheStorageExtractKeyHashFromUri(entryUris[idx]);
+    if (!keyHash) {
+      continue;
+    }
+
+    const entry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+    if (!entry) {
+      continue;
+    }
+
+    entries.push(entry);
+  }
+
+  if (entries.length <= maxEntries) {
+    return 0;
+  }
+
+  entries.sort((left, right) => {
+    const leftStamp = Number(left && left.updatedAtMs || 0);
+    const rightStamp = Number(right && right.updatedAtMs || 0);
+    if (leftStamp !== rightStamp) {
+      return leftStamp - rightStamp;
+    }
+    return String(left.keyHash || '').localeCompare(String(right.keyHash || ''));
+  });
+
+  const overflow = entries.length - maxEntries;
+  let removed = 0;
+
+  for (let idx = 0; idx < overflow; idx += 1) {
+    const entry = entries[idx];
+    if (!entry) {
+      continue;
+    }
+
+    if (astCacheStorageDeleteEntryArtifacts(config, entry.keyHash, entry.tags, runtimeOptions)) {
+      removed += 1;
+    }
+  }
+
+  if (removed > 0) {
+    astCacheStorageUpdateStats(config, runtimeOptions, {
+      evictions: removed
+    });
+  }
+
+  return removed;
+}
+
+function astCacheStorageMaybeFlushPendingGetStats(config, runtimeOptions = {}) {
+  const state = astCacheStoragePendingStatsState(config);
+  if (astCacheStoragePendingStatsTotal(state.counters) < AST_CACHE_STORAGE_STATS_FLUSH_THRESHOLD) {
+    return;
+  }
+
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+}
+
+function astCacheStorageGet(keyHash, config, runtimeOptions = {}) {
+  const nowMs = astCacheNowMs();
+  const entry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+
+  if (!entry) {
+    if (config.updateStatsOnGet !== false) {
+      astCacheStorageBumpPendingStats(config, { misses: 1 });
+      astCacheStorageMaybeFlushPendingGetStats(config, runtimeOptions);
+    }
+    return null;
+  }
+
+  if (astCacheIsExpired(entry, nowMs)) {
+    astCacheStorageDeleteEntryArtifacts(config, keyHash, entry.tags, runtimeOptions);
+
+    if (config.updateStatsOnGet !== false) {
+      astCacheStorageBumpPendingStats(config, {
+        expired: 1,
+        misses: 1
+      });
+      astCacheStorageMaybeFlushPendingGetStats(config, runtimeOptions);
+    }
+
+    return null;
+  }
+
+  if (config.updateStatsOnGet !== false) {
+    astCacheStorageBumpPendingStats(config, { hits: 1 });
+    astCacheStorageMaybeFlushPendingGetStats(config, runtimeOptions);
+  }
+
+  return astCacheJsonClone(entry);
+}
+
+function astCacheStorageSet(entry, config, runtimeOptions = {}) {
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+
+  const nowMs = astCacheNowMs();
+  const nextEntry = astCacheTouchEntry(entry, nowMs);
+  const previousEntry = astCacheStorageReadEntry(config, nextEntry.keyHash, runtimeOptions);
+
+  astCacheStorageWriteEntry(config, nextEntry, runtimeOptions);
+  astCacheStorageSyncEntryTags(
+    config,
+    nextEntry.keyHash,
+    previousEntry ? previousEntry.tags : [],
+    nextEntry.tags,
+    runtimeOptions
+  );
+
+  astCacheStorageUpdateStats(config, runtimeOptions, {
+    sets: 1
+  });
+  astCacheStorageTrimToMaxEntries(config, runtimeOptions);
+
+  return astCacheJsonClone(nextEntry);
+}
+
+function astCacheStorageDelete(keyHash, config, runtimeOptions = {}) {
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+
+  const previousEntry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+  if (!previousEntry) {
+    return false;
+  }
+
+  const deleted = astCacheStorageDeleteEntryArtifacts(
+    config,
+    keyHash,
+    previousEntry.tags,
+    runtimeOptions
+  );
+
+  if (deleted) {
+    astCacheStorageUpdateStats(config, runtimeOptions, {
+      deletes: 1
+    });
+  }
+
+  return deleted;
+}
+
+function astCacheStorageFindEntriesByTag(config, tag, runtimeOptions = {}) {
+  const normalizedTag = astCacheNormalizeString(tag, '');
+  if (!normalizedTag) {
+    return [];
+  }
+
+  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions);
+  const output = [];
+
+  for (let idx = 0; idx < entryUris.length; idx += 1) {
+    const keyHash = astCacheStorageExtractKeyHashFromUri(entryUris[idx]);
+    if (!keyHash) {
+      continue;
+    }
+
+    const entry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+    if (!entry || !Array.isArray(entry.tags) || entry.tags.indexOf(normalizedTag) === -1) {
+      continue;
+    }
+
+    output.push(entry);
+  }
+
+  return output;
 }
 
 function astCacheStorageInvalidateByTag(tag, config, runtimeOptions = {}) {
@@ -417,42 +1012,105 @@ function astCacheStorageInvalidateByTag(tag, config, runtimeOptions = {}) {
     throw new AstCacheValidationError('Cache invalidateByTag tag must be a non-empty string');
   }
 
-  return astCacheStorageWithDocument(config, runtimeOptions, document => {
-    const keys = Object.keys(document.entries || {});
-    let removed = 0;
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
 
-    for (let idx = 0; idx < keys.length; idx += 1) {
-      const keyHash = keys[idx];
-      const entry = document.entries[keyHash];
-      if (!entry || !Array.isArray(entry.tags) || entry.tags.indexOf(normalizedTag) === -1) {
+  const loaded = astCacheStorageReadTagDocument(config, normalizedTag, runtimeOptions);
+  const keyHashes = Array.isArray(loaded.document.keyHashes)
+    ? loaded.document.keyHashes.slice()
+    : [];
+
+  const candidates = [];
+  if (keyHashes.length > 0) {
+    const seen = {};
+    for (let idx = 0; idx < keyHashes.length; idx += 1) {
+      const keyHash = astCacheNormalizeString(keyHashes[idx], '');
+      if (!keyHash || seen[keyHash]) {
         continue;
       }
+      seen[keyHash] = true;
+      const entry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+      if (!entry) {
+        continue;
+      }
+      candidates.push(entry);
+    }
+  } else {
+    const scanned = astCacheStorageFindEntriesByTag(config, normalizedTag, runtimeOptions);
+    for (let idx = 0; idx < scanned.length; idx += 1) {
+      candidates.push(scanned[idx]);
+    }
+  }
 
-      delete document.entries[keyHash];
-      removed += 1;
+  let removed = 0;
+  for (let idx = 0; idx < candidates.length; idx += 1) {
+    const entry = candidates[idx];
+    if (!entry || !entry.keyHash) {
+      continue;
     }
 
-    document.stats.invalidations = (document.stats.invalidations || 0) + removed;
-    return removed;
-  });
+    const deleted = astCacheStorageDeleteEntryArtifacts(
+      config,
+      entry.keyHash,
+      entry.tags,
+      runtimeOptions
+    );
+
+    if (deleted) {
+      removed += 1;
+    }
+  }
+
+  astCacheStorageDeleteObject(loaded.uri, runtimeOptions, { suppressNotFound: true });
+
+  if (removed > 0) {
+    astCacheStorageUpdateStats(config, runtimeOptions, {
+      invalidations: removed
+    });
+  }
+
+  return removed;
 }
 
 function astCacheStorageStats(config, runtimeOptions = {}) {
-  return astCacheStorageWithDocument(config, runtimeOptions, document => {
-    return {
-      backend: 'storage_json',
-      namespace: document.namespace,
-      entries: Object.keys(document.entries || {}).length,
-      stats: astCacheJsonClone(document.stats || {})
-    };
-  });
+  const mode = astCacheNormalizeString(runtimeOptions.statsMode, 'exact').toLowerCase();
+  const useApproxMode = mode === 'approx';
+
+  const persistedStats = astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: true });
+
+  let entryCount = 0;
+  if (!useApproxMode) {
+    entryCount = astCacheStorageListEntryUris(config, runtimeOptions).length;
+  }
+
+  return {
+    backend: 'storage_json',
+    namespace: astCacheNormalizeString(config.namespace, 'ast_cache'),
+    entries: entryCount,
+    stats: astCacheJsonClone(persistedStats)
+  };
 }
 
 function astCacheStorageClearNamespace(config, runtimeOptions = {}) {
-  return astCacheStorageWithDocument(config, runtimeOptions, document => {
-    const removed = Object.keys(document.entries || {}).length;
-    document.entries = {};
-    document.stats = astCacheStorageDefaultDocument(config.namespace).stats;
-    return removed;
-  });
+  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+
+  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions);
+  let removed = 0;
+  for (let idx = 0; idx < entryUris.length; idx += 1) {
+    if (astCacheStorageDeleteObject(entryUris[idx], runtimeOptions, { suppressNotFound: true })) {
+      removed += 1;
+    }
+  }
+
+  const tagUris = astCacheStorageListObjects(astCacheStorageTagsPrefixUri(config), runtimeOptions);
+  for (let idx = 0; idx < tagUris.length; idx += 1) {
+    astCacheStorageDeleteObject(tagUris[idx], runtimeOptions, { suppressNotFound: true });
+  }
+
+  const rootUri = astCacheStorageResolveNamespaceRootUri(config);
+  delete AST_CACHE_STORAGE_PENDING_STATS[rootUri];
+
+  const statsUri = astCacheStorageStatsUri(config);
+  astCacheStorageWriteStatsDocument(statsUri, astCacheStorageDefaultStatsDocument(), runtimeOptions);
+
+  return removed;
 }

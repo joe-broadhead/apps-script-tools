@@ -93,25 +93,74 @@ function createStorageRunnerMock() {
     return String(uri || '');
   }
 
+  function buildNotFoundError() {
+    const error = new Error('not found');
+    error.name = 'AstStorageNotFoundError';
+    return error;
+  }
+
+  function detectProvider(uri) {
+    if (uri.startsWith('s3://')) return 's3';
+    if (uri.startsWith('gcs://')) return 'gcs';
+    return 'dbfs';
+  }
+
   return {
     objects,
     runStorageRequest: request => {
       const operation = String(request && request.operation || '').toLowerCase();
       const uri = normalizeUri(request && request.uri);
+      const options = request && request.options ? request.options : {};
 
       if (!uri) {
         throw new Error('uri is required');
       }
 
+      if (operation === 'list') {
+        const keys = Object.keys(objects)
+          .filter(key => key.startsWith(uri))
+          .sort();
+        const pageSize = Number.isInteger(options.pageSize) && options.pageSize > 0
+          ? options.pageSize
+          : keys.length || 1;
+        const pageToken = Number.isInteger(Number(options.pageToken))
+          ? Number(options.pageToken)
+          : 0;
+        const start = pageToken >= 0 ? pageToken : 0;
+        const pageKeys = keys.slice(start, start + pageSize);
+        const nextPageToken = start + pageSize < keys.length
+          ? String(start + pageSize)
+          : null;
+
+        return {
+          provider: detectProvider(uri),
+          operation: 'list',
+          uri,
+          output: {
+            items: pageKeys.map(key => ({
+              uri: key,
+              key
+            }))
+          },
+          page: {
+            nextPageToken,
+            truncated: Boolean(nextPageToken)
+          },
+          usage: {
+            requestCount: 1,
+            bytesIn: 0,
+            bytesOut: 0
+          }
+        };
+      }
+
       if (operation === 'read') {
         if (!Object.prototype.hasOwnProperty.call(objects, uri)) {
-          const error = new Error('not found');
-          error.name = 'AstStorageNotFoundError';
-          throw error;
+          throw buildNotFoundError();
         }
 
         return {
-          provider: uri.startsWith('s3://') ? 's3' : (uri.startsWith('gcs://') ? 'gcs' : 'dbfs'),
+          provider: detectProvider(uri),
           operation: 'read',
           uri,
           output: {
@@ -142,7 +191,7 @@ function createStorageRunnerMock() {
         }
 
         return {
-          provider: uri.startsWith('s3://') ? 's3' : (uri.startsWith('gcs://') ? 'gcs' : 'dbfs'),
+          provider: detectProvider(uri),
           operation: 'write',
           uri,
           output: {
@@ -153,6 +202,53 @@ function createStorageRunnerMock() {
           usage: {
             requestCount: 1,
             bytesIn: String(objects[uri]).length,
+            bytesOut: 0
+          }
+        };
+      }
+
+      if (operation === 'delete') {
+        if (!Object.prototype.hasOwnProperty.call(objects, uri)) {
+          throw buildNotFoundError();
+        }
+
+        delete objects[uri];
+        return {
+          provider: detectProvider(uri),
+          operation: 'delete',
+          uri,
+          output: {
+            deleted: {
+              uri,
+              deleted: true
+            }
+          },
+          usage: {
+            requestCount: 1,
+            bytesIn: 0,
+            bytesOut: 0
+          }
+        };
+      }
+
+      if (operation === 'head') {
+        if (!Object.prototype.hasOwnProperty.call(objects, uri)) {
+          throw buildNotFoundError();
+        }
+
+        return {
+          provider: detectProvider(uri),
+          operation: 'head',
+          uri,
+          output: {
+            object: {
+              uri,
+              size: String(objects[uri]).length
+            }
+          },
+          usage: {
+            requestCount: 1,
+            bytesIn: 0,
             bytesOut: 0
           }
         };
@@ -521,9 +617,11 @@ test('storage_json backend supports persistence through AST.Storage providers', 
   assert.equal(stats.backend, 'storage_json');
 
   const persistedUris = Object.keys(storage.objects);
-  assert.equal(persistedUris.length, 1);
-  assert.equal(persistedUris[0].startsWith('s3://cache-bucket/app/cache--'), true);
-  assert.equal(persistedUris[0].endsWith('.json'), true);
+  assert.equal(persistedUris.some(uri => uri.startsWith('s3://cache-bucket/app/cache--')), true);
+  assert.equal(persistedUris.some(uri => /\/entries\/[^/]+\.json$/.test(uri)), true);
+  assert.equal(persistedUris.some(uri => /\/tags\/[^/]+\.json$/.test(uri)), true);
+  assert.equal(persistedUris.some(uri => /\/meta\/stats\.json$/.test(uri)), true);
+  assert.equal(persistedUris.some(uri => /cache--[^/]+\.json$/.test(uri)), false);
 });
 
 test('storage_json backend isolates collision-prone namespace names', () => {
@@ -558,8 +656,12 @@ test('storage_json backend isolates collision-prone namespace names', () => {
     JSON.stringify({ namespace: 'team_a' })
   );
 
-  const persistedUris = Object.keys(storage.objects).filter(uri => uri.startsWith('gcs://cache-bucket/shared/cache--'));
-  assert.equal(persistedUris.length, 2);
+  const entryUris = Object.keys(storage.objects).filter(uri =>
+    uri.startsWith('gcs://cache-bucket/shared/cache--')
+    && /\/entries\/[^/]+\.json$/.test(uri)
+  );
+  const namespaceRoots = new Set(entryUris.map(uri => uri.split('/entries/')[0]));
+  assert.equal(namespaceRoots.size, 2);
 });
 
 test('drive_json backend supports user lock scope', () => {
