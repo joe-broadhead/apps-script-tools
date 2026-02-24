@@ -1,5 +1,5 @@
 const AST_TELEMETRY_REDACTED_TOKEN = '[REDACTED]';
-const AST_TELEMETRY_SENSITIVE_KEY_PATTERN = /(api[_-]?key|token|secret|password|authorization|cookie)/i;
+const AST_TELEMETRY_SENSITIVE_KEY_PATTERN = /(api[_-]?key|token|secret|password|authorization|cookie|service[_-]?account|private[_-]?key)/i;
 const AST_TELEMETRY_MAX_REDACTION_DEPTH = 8;
 
 function astTelemetryShouldRedactKey(key) {

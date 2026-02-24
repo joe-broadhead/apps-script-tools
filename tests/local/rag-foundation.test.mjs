@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createGasContext } from './helpers.mjs';
 import { loadRagScripts } from './rag-helpers.mjs';
@@ -9,6 +10,19 @@ function createResponse({ status = 200, body = '{}' } = {}) {
     getResponseCode: () => status,
     getContentText: () => body
   };
+}
+
+function createServiceAccountJson({
+  clientEmail = 'svc-rag@example.iam.gserviceaccount.com',
+  tokenUri = 'https://oauth2.googleapis.com/token'
+} = {}) {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  return JSON.stringify({
+    client_email: clientEmail,
+    private_key: privateKeyPem,
+    token_uri: tokenUri
+  });
 }
 
 test('AST exposes RAG namespace and public methods', () => {
@@ -196,6 +210,245 @@ test('Gemini embedding uses models/<id> route without encoding path slash', () =
   assert.equal(capturedUrl.includes('models%2Ftext-embedding-004'), false);
   assert.equal(capturedModel, 'models/text-embedding-004');
   assert.equal(out.vectors.length, 1);
+});
+
+test('RAG vertex_gemini config supports service-account auth mode with token cache', () => {
+  const serviceAccountJson = createServiceAccountJson();
+  let exchangeCalls = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: 'rag-sa-token',
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        throw new Error('OAuth path should not run when service-account JSON is configured');
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  const configA = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+  const configB = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+
+  assert.equal(configA.oauthToken, 'rag-sa-token');
+  assert.equal(configA.authMode, 'auto');
+  assert.equal(configB.oauthToken, 'rag-sa-token');
+  assert.equal(exchangeCalls, 1);
+});
+
+test('RAG vertex_gemini invalidates service-account token cache when private key rotates', () => {
+  const clientEmail = 'svc-rag-rotate@example.iam.gserviceaccount.com';
+  const serviceAccountJsonA = createServiceAccountJson({ clientEmail });
+  const serviceAccountJsonB = createServiceAccountJson({ clientEmail });
+  let exchangeCalls = 0;
+  let activeServiceAccount = serviceAccountJsonA;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: `rag-sa-token-${exchangeCalls}`,
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        throw new Error('OAuth path should not run when service-account JSON is configured');
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: activeServiceAccount
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  const configA = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+  const configB = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+  activeServiceAccount = serviceAccountJsonB;
+  const configC = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {}
+  });
+
+  assert.equal(configA.oauthToken, 'rag-sa-token-1');
+  assert.equal(configB.oauthToken, 'rag-sa-token-1');
+  assert.equal(configC.oauthToken, 'rag-sa-token-2');
+  assert.equal(exchangeCalls, 2);
+});
+
+test('RAG vertex_gemini oauth mode ignores service-account json', () => {
+  const serviceAccountJson = createServiceAccountJson();
+  let exchangeCalls = 0;
+  let oauthCalls = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: 'rag-sa-token',
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        oauthCalls += 1;
+        return 'rag-oauth-token';
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  const config = context.astRagResolveProviderConfig({
+    provider: 'vertex_gemini',
+    mode: 'embedding',
+    auth: {
+      authMode: 'oauth'
+    }
+  });
+
+  assert.equal(config.oauthToken, 'rag-oauth-token');
+  assert.equal(config.authMode, 'oauth');
+  assert.equal(exchangeCalls, 0);
+  assert.equal(oauthCalls, 1);
+});
+
+test('RAG vertex_gemini service_account mode requires serviceAccountJson', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005'
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagResolveProviderConfig({
+      provider: 'vertex_gemini',
+      mode: 'embedding',
+      auth: {
+        authMode: 'service_account'
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagAuthError');
+      assert.match(error.message, /serviceAccountJson/);
+      return true;
+    }
+  );
+});
+
+test('RAG vertex_gemini rejects service-account token_uri outside allowlist', () => {
+  const serviceAccountJson = createServiceAccountJson({
+    tokenUri: 'https://example.com/token'
+  });
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-rag',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_EMBED_MODEL: 'text-embedding-005',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagResolveProviderConfig({
+      provider: 'vertex_gemini',
+      mode: 'embedding',
+      auth: {
+        authMode: 'service_account'
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagAuthError');
+      assert.match(error.message, /token_uri is not allowed/i);
+      return true;
+    }
+  );
 });
 
 test('astRagHttpRequest does not retry deterministic 4xx and preserves status details', () => {

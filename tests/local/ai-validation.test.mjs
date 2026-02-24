@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createGasContext } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
@@ -9,6 +10,19 @@ function createResponse({ status = 200, body = '{}' } = {}) {
     getResponseCode: () => status,
     getContentText: () => body
   };
+}
+
+function createServiceAccountJson({
+  clientEmail = 'svc-test@example.iam.gserviceaccount.com',
+  tokenUri = 'https://oauth2.googleapis.com/token'
+} = {}) {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  return JSON.stringify({
+    client_email: clientEmail,
+    private_key: privateKeyPem,
+    token_uri: tokenUri
+  });
 }
 
 test('validateAiRequest rejects unsupported providers', () => {
@@ -129,6 +143,240 @@ test('AST exposes AI surface and helper methods', () => {
   assert.equal(
     JSON.stringify(providers),
     JSON.stringify(['openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'])
+  );
+});
+
+test('resolveAiConfig supports vertex_gemini service-account auth mode with token cache', () => {
+  const serviceAccountJson = createServiceAccountJson();
+  let exchangeCalls = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: 'sa-token',
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        throw new Error('OAuth path should not run when service account is configured in auto mode');
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-1',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_GEMINI_MODEL: 'gemini-2.5-flash',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.validateAiRequest({
+    provider: 'vertex_gemini',
+    input: 'hello'
+  });
+
+  const resolvedA = context.resolveAiConfig(normalized);
+  const resolvedB = context.resolveAiConfig(normalized);
+
+  assert.equal(resolvedA.oauthToken, 'sa-token');
+  assert.equal(resolvedA.authMode, 'auto');
+  assert.equal(resolvedB.oauthToken, 'sa-token');
+  assert.equal(exchangeCalls, 1);
+});
+
+test('resolveAiConfig invalidates vertex service-account token cache when private key rotates', () => {
+  const clientEmail = 'svc-rotate@example.iam.gserviceaccount.com';
+  const serviceAccountJsonA = createServiceAccountJson({ clientEmail });
+  const serviceAccountJsonB = createServiceAccountJson({ clientEmail });
+  let exchangeCalls = 0;
+  let activeServiceAccount = serviceAccountJsonA;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: `sa-token-${exchangeCalls}`,
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        throw new Error('OAuth path should not run when service account is configured in auto mode');
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-1',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_GEMINI_MODEL: 'gemini-2.5-flash',
+          VERTEX_SERVICE_ACCOUNT_JSON: activeServiceAccount
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.validateAiRequest({
+    provider: 'vertex_gemini',
+    input: 'hello'
+  });
+
+  const resolvedA = context.resolveAiConfig(normalized);
+  const resolvedB = context.resolveAiConfig(normalized);
+  activeServiceAccount = serviceAccountJsonB;
+  const resolvedC = context.resolveAiConfig(normalized);
+
+  assert.equal(resolvedA.oauthToken, 'sa-token-1');
+  assert.equal(resolvedB.oauthToken, 'sa-token-1');
+  assert.equal(resolvedC.oauthToken, 'sa-token-2');
+  assert.equal(exchangeCalls, 2);
+});
+
+test('resolveAiConfig vertex oauth mode ignores service-account json', () => {
+  const serviceAccountJson = createServiceAccountJson();
+  let exchangeCalls = 0;
+  let oauthCalls = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        exchangeCalls += 1;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({
+            access_token: 'sa-token',
+            expires_in: 3600
+          })
+        });
+      }
+    },
+    ScriptApp: {
+      getOAuthToken: () => {
+        oauthCalls += 1;
+        return 'oauth-token';
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-1',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_GEMINI_MODEL: 'gemini-2.5-flash',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.validateAiRequest({
+    provider: 'vertex_gemini',
+    input: 'hello',
+    auth: {
+      authMode: 'oauth'
+    }
+  });
+
+  const resolved = context.resolveAiConfig(normalized);
+  assert.equal(resolved.oauthToken, 'oauth-token');
+  assert.equal(resolved.authMode, 'oauth');
+  assert.equal(exchangeCalls, 0);
+  assert.equal(oauthCalls, 1);
+});
+
+test('resolveAiConfig vertex service_account mode requires serviceAccountJson', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-1',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_GEMINI_MODEL: 'gemini-2.5-flash'
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.validateAiRequest({
+    provider: 'vertex_gemini',
+    input: 'hello',
+    auth: {
+      authMode: 'service_account'
+    }
+  });
+
+  assert.throws(
+    () => context.resolveAiConfig(normalized),
+    error => {
+      assert.equal(error.name, 'AstAiAuthError');
+      assert.match(error.message, /serviceAccountJson/);
+      return true;
+    }
+  );
+});
+
+test('resolveAiConfig rejects vertex service-account token_uri outside allowlist', () => {
+  const serviceAccountJson = createServiceAccountJson({
+    tokenUri: 'https://example.com/token'
+  });
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          VERTEX_PROJECT_ID: 'project-1',
+          VERTEX_LOCATION: 'us-central1',
+          VERTEX_GEMINI_MODEL: 'gemini-2.5-flash',
+          VERTEX_SERVICE_ACCOUNT_JSON: serviceAccountJson
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.validateAiRequest({
+    provider: 'vertex_gemini',
+    input: 'hello',
+    auth: {
+      authMode: 'service_account'
+    }
+  });
+
+  assert.throws(
+    () => context.resolveAiConfig(normalized),
+    error => {
+      assert.equal(error.name, 'AstAiAuthError');
+      assert.match(error.message, /token_uri is not allowed/i);
+      return true;
+    }
   );
 });
 

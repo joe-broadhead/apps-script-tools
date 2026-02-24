@@ -17,6 +17,8 @@ const AST_RAG_CONFIG_KEYS = Object.freeze([
   'VERTEX_LOCATION',
   'VERTEX_GEMINI_MODEL',
   'VERTEX_EMBED_MODEL',
+  'VERTEX_SERVICE_ACCOUNT_JSON',
+  'VERTEX_AUTH_MODE',
   'RAG_DEFAULT_INDEX_FOLDER_ID',
   'RAG_DEFAULT_TOP_K',
   'RAG_DEFAULT_MIN_SCORE',
@@ -125,27 +127,6 @@ function astRagResolveConfigString({
   return null;
 }
 
-function astRagResolveVertexOAuthToken(auth = {}) {
-  const token = astRagNormalizeString(auth.oauthToken || auth.accessToken, null);
-  if (token) {
-    return token;
-  }
-
-  try {
-    if (typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getOAuthToken === 'function') {
-      const oauthToken = ScriptApp.getOAuthToken();
-      const normalized = astRagNormalizeString(oauthToken, null);
-      if (normalized) {
-        return normalized;
-      }
-    }
-  } catch (error) {
-    throw new AstRagAuthError('Unable to resolve OAuth token for vertex_gemini', {}, error);
-  }
-
-  throw new AstRagAuthError('Missing OAuth token for vertex_gemini provider');
-}
-
 function astRagResolveConfigSnapshot() {
   return Object.assign(
     {},
@@ -238,13 +219,16 @@ function astRagResolveProviderConfig({ provider, mode, model, auth = {} }) {
       scriptConfig: config
     });
 
+    const token = astRagResolveVertexAccessToken(providerAuth, config, config);
+
     return {
       provider,
       mode,
       projectId,
       location,
       model: resolvedModel,
-      oauthToken: astRagResolveVertexOAuthToken(providerAuth)
+      oauthToken: token.oauthToken,
+      authMode: token.authMode
     };
   }
 
