@@ -33,43 +33,178 @@ function astCacheExtractConfigOverrides(options = {}) {
   return inline;
 }
 
+function astCacheBuildTraceContext(baseContext = {}, operation, details = {}) {
+  const output = astCacheIsPlainObject(baseContext)
+    ? astCacheJsonClone(baseContext)
+    : {};
+  output.operation = operation;
+
+  if (astCacheIsPlainObject(details)) {
+    const detailKeys = Object.keys(details);
+    for (let idx = 0; idx < detailKeys.length; idx += 1) {
+      const key = detailKeys[idx];
+      if (typeof details[key] === 'undefined') {
+        continue;
+      }
+      output[key] = details[key];
+    }
+  }
+
+  return output;
+}
+
+function astCacheBuildOperationConfig(config, requestOptions = {}, operation, details = {}) {
+  const mergedConfig = Object.assign({}, config);
+  const requestTraceCollector = typeof requestOptions.traceCollector === 'function'
+    ? requestOptions.traceCollector
+    : null;
+
+  if (requestTraceCollector) {
+    mergedConfig.traceCollector = requestTraceCollector;
+  }
+
+  const baseTraceContext = astCacheBuildTraceContext(
+    Object.assign(
+      {},
+      astCacheIsPlainObject(config.traceContext) ? config.traceContext : {},
+      astCacheIsPlainObject(requestOptions.traceContext) ? requestOptions.traceContext : {},
+      {
+        backend: config.backend,
+        namespace: config.namespace
+      }
+    ),
+    operation,
+    details
+  );
+
+  mergedConfig.traceContext = baseTraceContext;
+  return mergedConfig;
+}
+
 function astCacheSelectBackendAdapter(config, requestOptions = {}) {
   switch (config.backend) {
     case 'memory':
       return {
-        get: keyHash => astCacheMemoryGet(keyHash, astCacheNowMs(), config, requestOptions),
-        set: entry => astCacheMemorySet(entry, astCacheNowMs(), config, requestOptions),
-        delete: keyHash => astCacheMemoryDelete(keyHash, astCacheNowMs(), config, requestOptions),
-        invalidateByTag: tag => astCacheMemoryInvalidateByTag(tag, astCacheNowMs(), config, requestOptions),
-        stats: () => astCacheMemoryStats(astCacheNowMs(), config),
-        clear: () => astCacheMemoryClearNamespace(config)
+        get: keyHash => astCacheMemoryGet(
+          keyHash,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'get', { keyHash }),
+          requestOptions
+        ),
+        set: entry => astCacheMemorySet(
+          entry,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'set', { keyHash: entry && entry.keyHash || null }),
+          requestOptions
+        ),
+        delete: keyHash => astCacheMemoryDelete(
+          keyHash,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
+          requestOptions
+        ),
+        invalidateByTag: tag => astCacheMemoryInvalidateByTag(
+          tag,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
+          requestOptions
+        ),
+        stats: () => astCacheMemoryStats(
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'stats')
+        ),
+        clear: () => astCacheMemoryClearNamespace(
+          astCacheBuildOperationConfig(config, requestOptions, 'clear')
+        )
       };
     case 'drive_json':
       return {
-        get: keyHash => astCacheDriveGet(keyHash, config, requestOptions),
-        set: entry => astCacheDriveSet(entry, config, requestOptions),
-        delete: keyHash => astCacheDriveDelete(keyHash, config, requestOptions),
-        invalidateByTag: tag => astCacheDriveInvalidateByTag(tag, config, requestOptions),
-        stats: () => astCacheDriveStats(config),
-        clear: () => astCacheDriveClearNamespace(config)
+        get: keyHash => astCacheDriveGet(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'get', { keyHash }),
+          requestOptions
+        ),
+        set: entry => astCacheDriveSet(
+          entry,
+          astCacheBuildOperationConfig(config, requestOptions, 'set', { keyHash: entry && entry.keyHash || null }),
+          requestOptions
+        ),
+        delete: keyHash => astCacheDriveDelete(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
+          requestOptions
+        ),
+        invalidateByTag: tag => astCacheDriveInvalidateByTag(
+          tag,
+          astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
+          requestOptions
+        ),
+        stats: () => astCacheDriveStats(
+          astCacheBuildOperationConfig(config, requestOptions, 'stats')
+        ),
+        clear: () => astCacheDriveClearNamespace(
+          astCacheBuildOperationConfig(config, requestOptions, 'clear')
+        )
       };
     case 'script_properties':
       return {
-        get: keyHash => astCacheScriptPropertiesGet(keyHash, config, requestOptions),
-        set: entry => astCacheScriptPropertiesSet(entry, config, requestOptions),
-        delete: keyHash => astCacheScriptPropertiesDelete(keyHash, config, requestOptions),
-        invalidateByTag: tag => astCacheScriptPropertiesInvalidateByTag(tag, config, requestOptions),
-        stats: () => astCacheScriptPropertiesStatsSnapshot(config),
-        clear: () => astCacheScriptPropertiesClearNamespace(config)
+        get: keyHash => astCacheScriptPropertiesGet(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'get', { keyHash }),
+          requestOptions
+        ),
+        set: entry => astCacheScriptPropertiesSet(
+          entry,
+          astCacheBuildOperationConfig(config, requestOptions, 'set', { keyHash: entry && entry.keyHash || null }),
+          requestOptions
+        ),
+        delete: keyHash => astCacheScriptPropertiesDelete(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
+          requestOptions
+        ),
+        invalidateByTag: tag => astCacheScriptPropertiesInvalidateByTag(
+          tag,
+          astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
+          requestOptions
+        ),
+        stats: () => astCacheScriptPropertiesStatsSnapshot(
+          astCacheBuildOperationConfig(config, requestOptions, 'stats')
+        ),
+        clear: () => astCacheScriptPropertiesClearNamespace(
+          astCacheBuildOperationConfig(config, requestOptions, 'clear')
+        )
       };
     case 'storage_json':
       return {
-        get: keyHash => astCacheStorageGet(keyHash, config, requestOptions),
-        set: entry => astCacheStorageSet(entry, config, requestOptions),
-        delete: keyHash => astCacheStorageDelete(keyHash, config, requestOptions),
-        invalidateByTag: tag => astCacheStorageInvalidateByTag(tag, config, requestOptions),
-        stats: () => astCacheStorageStats(config, requestOptions),
-        clear: () => astCacheStorageClearNamespace(config, requestOptions)
+        get: keyHash => astCacheStorageGet(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'get', { keyHash }),
+          requestOptions
+        ),
+        set: entry => astCacheStorageSet(
+          entry,
+          astCacheBuildOperationConfig(config, requestOptions, 'set', { keyHash: entry && entry.keyHash || null }),
+          requestOptions
+        ),
+        delete: keyHash => astCacheStorageDelete(
+          keyHash,
+          astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
+          requestOptions
+        ),
+        invalidateByTag: tag => astCacheStorageInvalidateByTag(
+          tag,
+          astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
+          requestOptions
+        ),
+        stats: () => astCacheStorageStats(
+          astCacheBuildOperationConfig(config, requestOptions, 'stats'),
+          requestOptions
+        ),
+        clear: () => astCacheStorageClearNamespace(
+          astCacheBuildOperationConfig(config, requestOptions, 'clear'),
+          requestOptions
+        )
       };
     default:
       throw new AstCacheValidationError(

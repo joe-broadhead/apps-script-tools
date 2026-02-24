@@ -425,6 +425,31 @@ test('cache config resolution memoizes script properties snapshots and invalidat
   assert.equal(getPropertiesCalls, 2);
 });
 
+test('cache backend defaults tune lock scope and read stats behavior for concurrency', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const memoryDefaults = context.astCacheResolveConfig({ backend: 'memory' });
+  assert.equal(memoryDefaults.lockScope, 'none');
+  assert.equal(memoryDefaults.updateStatsOnGet, true);
+
+  const driveDefaults = context.astCacheResolveConfig({ backend: 'drive_json' });
+  assert.equal(driveDefaults.lockScope, 'user');
+  assert.equal(driveDefaults.updateStatsOnGet, false);
+
+  const scriptDefaults = context.astCacheResolveConfig({ backend: 'script_properties' });
+  assert.equal(scriptDefaults.lockScope, 'user');
+  assert.equal(scriptDefaults.updateStatsOnGet, false);
+
+  const storageDefaults = context.astCacheResolveConfig({
+    backend: 'storage_json',
+    storageUri: 's3://cache-bucket/defaults/cache.json'
+  });
+  assert.equal(storageDefaults.lockScope, 'none');
+  assert.equal(storageDefaults.updateStatsOnGet, false);
+});
+
 test('drive_json backend supports persistence and invalidation', () => {
   const drive = createDriveMock();
   const context = createGasContext({
@@ -702,6 +727,57 @@ test('drive_json backend supports user lock scope', () => {
   context.AST.Cache.set('k', { ok: true });
   assert.equal(lockCalls.user > 0, true);
   assert.equal(lockCalls.script, 0);
+});
+
+test('drive_json backend defaults to user lock scope and emits lock diagnostics context', () => {
+  const drive = createDriveMock();
+  const traces = [];
+  const lockCalls = {
+    script: 0,
+    user: 0
+  };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => {
+        lockCalls.script += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      },
+      getUserLock: () => {
+        lockCalls.user += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      }
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_default_user_lock',
+    driveFileName: 'cache-drive-default-user-lock.json'
+  });
+
+  context.AST.Cache.set('k', { ok: true }, {
+    traceCollector: payload => traces.push(payload)
+  });
+
+  assert.equal(lockCalls.user > 0, true);
+  assert.equal(lockCalls.script, 0);
+
+  const lockAcquire = traces.find(payload => payload && payload.event === 'lock_acquire');
+  assert.equal(Boolean(lockAcquire), true);
+  assert.equal(lockAcquire.backend, 'drive_json');
+  assert.equal(lockAcquire.namespace, 'drive_default_user_lock');
+  assert.equal(lockAcquire.operation, 'set');
+  assert.equal(lockAcquire.lockScope, 'user');
 });
 
 test('drive_json get avoids write-on-read when updateStatsOnGet=false', () => {
