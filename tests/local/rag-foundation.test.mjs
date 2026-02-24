@@ -198,6 +198,15 @@ test('validateAnswerRequest normalizes recovery and fallback contracts', () => {
       onRetrievalEmpty: true,
       intent: 'facts',
       factCount: 4
+    },
+    generation: {
+      style: 'bullets',
+      instructions: 'Keep answers action-oriented.',
+      forbiddenPhrases: ['As an AI language model']
+    },
+    options: {
+      maxRetrievalMs: 2500,
+      onRetrievalTimeout: 'fallback'
     }
   });
 
@@ -208,6 +217,38 @@ test('validateAnswerRequest normalizes recovery and fallback contracts', () => {
   assert.equal(normalized.fallback.onRetrievalEmpty, true);
   assert.equal(normalized.fallback.intent, 'facts');
   assert.equal(normalized.fallback.factCount, 4);
+  assert.equal(normalized.generation.style, 'bullets');
+  assert.equal(normalized.generation.instructions, 'Keep answers action-oriented.');
+  assert.equal(normalized.generation.forbiddenPhrases[0], 'As an AI language model');
+  assert.equal(normalized.options.maxRetrievalMs, 2500);
+  assert.equal(normalized.options.onRetrievalTimeout, 'fallback');
+});
+
+test('validateAnswerRequest rejects invalid timeout policy and generation style', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  assert.throws(
+    () => context.astRagValidateAnswerRequest({
+      indexFileId: 'idx_1',
+      question: 'What changed?',
+      options: {
+        onRetrievalTimeout: 'skip'
+      }
+    }),
+    /onRetrievalTimeout must be one of/
+  );
+
+  assert.throws(
+    () => context.astRagValidateAnswerRequest({
+      indexFileId: 'idx_1',
+      question: 'What changed?',
+      generation: {
+        style: 'poem'
+      }
+    }),
+    /generation.style must be one of/
+  );
 });
 
 test('RAG embedding config precedence is request > runtime configure > script properties', () => {

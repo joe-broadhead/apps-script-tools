@@ -93,7 +93,8 @@ function astRagNormalizeSearchOptions(options = {}) {
 
   return {
     enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
-    diagnostics: astRagNormalizeBoolean(options.diagnostics, diagnosticsDefault)
+    diagnostics: astRagNormalizeBoolean(options.diagnostics, diagnosticsDefault),
+    maxRetrievalMs: astRagNormalizePositiveInt(options.maxRetrievalMs, null, 1)
   };
 }
 
@@ -144,6 +145,14 @@ function astRagNormalizeCacheRequest(cache = {}) {
     normalized.lockTimeoutMs = astRagNormalizePositiveInt(cache.lockTimeoutMs, 5000, 1);
   }
 
+  if (typeof cache.lockScope !== 'undefined') {
+    const lockScope = astRagNormalizeString(cache.lockScope, null);
+    if (['script', 'user', 'none'].indexOf(lockScope) === -1) {
+      throw new AstRagValidationError('cache.lockScope must be one of: script, user, none');
+    }
+    normalized.lockScope = lockScope;
+  }
+
   if (typeof cache.updateStatsOnGet !== 'undefined') {
     normalized.updateStatsOnGet = astRagNormalizeBoolean(cache.updateStatsOnGet, false);
   }
@@ -160,12 +169,19 @@ function astRagNormalizeAnswerOptions(options = {}) {
     ? astRagResolveDiagnosticsEnabledDefault()
     : false;
 
+  const onRetrievalTimeout = astRagNormalizeString(options.onRetrievalTimeout, 'error');
+  if (!['error', 'insufficient_context', 'fallback'].includes(onRetrievalTimeout)) {
+    throw new AstRagValidationError('answer.options.onRetrievalTimeout must be one of: error, insufficient_context, fallback');
+  }
+
   return {
     requireCitations: typeof options.requireCitations === 'boolean'
       ? options.requireCitations
       : true,
     enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
     diagnostics: astRagNormalizeBoolean(options.diagnostics, diagnosticsDefault),
+    maxRetrievalMs: astRagNormalizePositiveInt(options.maxRetrievalMs, null, 1),
+    onRetrievalTimeout,
     insufficientEvidenceMessage: astRagNormalizeString(
       options.insufficientEvidenceMessage,
       'I do not have enough grounded context to answer that.'
@@ -640,6 +656,7 @@ function astRagValidateAnswerRequest(request = {}) {
 
   const generation = astRagIsPlainObject(request.generation) ? request.generation : {};
   const generationProvider = astRagNormalizeString(generation.provider, 'vertex_gemini');
+  const generationStyle = astRagNormalizeString(generation.style, 'chat');
   const fallback = astRagNormalizeFallbackPolicy(
     astRagIsPlainObject(request.fallback) ? request.fallback : {}
   );
@@ -647,6 +664,16 @@ function astRagValidateAnswerRequest(request = {}) {
   if (!AST_RAG_EMBEDDING_PROVIDERS.includes(generationProvider)) {
     throw new AstRagValidationError('answer.generation.provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
   }
+
+  if (!['chat', 'concise', 'detailed', 'bullets'].includes(generationStyle)) {
+    throw new AstRagValidationError('answer.generation.style must be one of: chat, concise, detailed, bullets');
+  }
+
+  const generationForbiddenPhrases = astRagNormalizeStringArray(
+    generation.forbiddenPhrases,
+    'answer.generation.forbiddenPhrases',
+    true
+  );
 
   return {
     indexFileId,
@@ -665,7 +692,10 @@ function astRagValidateAnswerRequest(request = {}) {
       model: astRagNormalizeString(generation.model, null),
       auth: astRagIsPlainObject(generation.auth) ? astRagCloneObject(generation.auth) : {},
       providerOptions: astRagIsPlainObject(generation.providerOptions) ? astRagCloneObject(generation.providerOptions) : {},
-      options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {}
+      options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {},
+      instructions: astRagNormalizeString(generation.instructions, null),
+      style: generationStyle,
+      forbiddenPhrases: generationForbiddenPhrases
     },
     options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},

@@ -43,7 +43,12 @@ function astRagPreviewSourcesCore(request = {}) {
       searchHit: false,
       embeddingHit: false,
       retrievalPayloadHit: false,
-      answerHit: false
+      answerHit: false,
+      backend: null,
+      namespace: null,
+      lockScope: null,
+      lockContention: 0,
+      hitPath: null
     },
     timings: {
       validationMs: Math.max(0, new Date().getTime() - validateStartMs),
@@ -53,13 +58,20 @@ function astRagPreviewSourcesCore(request = {}) {
       rerankMs: 0,
       generationMs: 0,
       searchMs: 0,
-      payloadCacheWriteMs: 0
+      payloadCacheWriteMs: 0,
+      cacheGetMs: 0,
+      cacheSetMs: 0,
+      cacheDeleteMs: 0,
+      lockWaitMs: 0
     },
     retrieval: {
       mode: normalized.searchRequest.retrieval.mode,
       topK: normalized.searchRequest.retrieval.topK,
       minScore: normalized.searchRequest.retrieval.minScore,
-      returned: 0
+      returned: 0,
+      timedOut: false,
+      timeoutMs: normalized.searchRequest.options.maxRetrievalMs || null,
+      timeoutStage: null
     }
   };
   const previewValidationMs = diagnostics.timings.validationMs;
@@ -112,7 +124,12 @@ function astRagPreviewSourcesCore(request = {}) {
         cache: normalized.preview.payloadCache,
         ttlSec: normalized.preview.payloadTtlSec
       },
-      normalized.searchRequest.cache || {}
+      normalized.searchRequest.cache || {},
+      operationMeta => {
+        if (typeof astRagApplyCacheOperationDiagnostics === 'function') {
+          astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta);
+        }
+      }
     );
     diagnostics.timings.payloadCacheWriteMs = Math.max(0, new Date().getTime() - payloadWriteStartMs);
   }

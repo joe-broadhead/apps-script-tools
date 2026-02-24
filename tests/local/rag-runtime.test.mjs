@@ -1135,12 +1135,85 @@ test('search diagnostics include phase timings and cache-hit metadata when enabl
   assert.equal(typeof first.diagnostics.timings.indexLoadMs, 'number');
   assert.equal(typeof first.diagnostics.timings.embeddingMs, 'number');
   assert.equal(typeof first.diagnostics.timings.retrievalMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.cacheGetMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.cacheSetMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.lockWaitMs, 'number');
+  assert.equal(first.diagnostics.cache.backend, 'memory');
+  assert.equal(first.diagnostics.cache.namespace, 'rag_diag_search_cache');
+  assert.equal(first.diagnostics.cache.lockScope, 'script');
   assert.equal(first.diagnostics.retrieval.mode, 'vector');
   assert.equal(first.diagnostics.retrieval.returned, 1);
+  assert.equal(first.diagnostics.retrieval.timedOut, false);
 
   assert.equal(typeof second.diagnostics, 'object');
   assert.equal(second.diagnostics.cache.searchHit, true);
   assert.equal(second.diagnostics.cache.embeddingHit, true);
+  assert.equal(second.diagnostics.cache.hitPath, 'search');
+});
+
+test('search maxRetrievalMs throws typed timeout errors', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(FakeDate.now());
+        return;
+      }
+      super(...args);
+    }
+
+    static now() {
+      nowMs += 25;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({ Date: FakeDate });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_timeout_search',
+    fileName: 'timeout-search-index.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [{
+        chunkId: 'chunk_timeout_search',
+        sourceId: 'src_timeout_search',
+        fileId: 'file_timeout_search',
+        fileName: 'timeout.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Timeout search content.',
+        embedding: [1, 0, 0]
+      }]
+    }
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  assert.throws(
+    () => context.AST.RAG.search({
+      indexFileId: 'index_timeout_search',
+      query: 'timeout query',
+      retrieval: { topK: 3, minScore: 0 },
+      options: { maxRetrievalMs: 1 }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagRetrievalError');
+      assert.equal(error.details.timedOut, true);
+      assert.equal(error.details.timeoutMs, 1);
+      assert.equal(typeof error.details.timeoutStage, 'string');
+      return true;
+    }
+  );
 });
 
 test('search supports hybrid retrieval with lexical+vector score fusion', () => {
@@ -1908,8 +1981,255 @@ test('answer diagnostics include stable retrieval and generation metadata', () =
   assert.equal(typeof response.diagnostics.retrieval.ms, 'number');
   assert.equal(response.diagnostics.retrieval.rawSources, 1);
   assert.equal(response.diagnostics.retrieval.usableSources, 1);
+  assert.equal(response.diagnostics.retrieval.timedOut, false);
+  assert.equal(typeof response.diagnostics.timings.cacheGetMs, 'number');
+  assert.equal(typeof response.diagnostics.timings.cacheSetMs, 'number');
+  assert.equal(typeof response.diagnostics.timings.lockWaitMs, 'number');
+  assert.equal(response.diagnostics.cache.backend, 'memory');
+  assert.equal(response.diagnostics.cache.lockScope, 'script');
   assert.equal(response.diagnostics.generation.status, 'ok');
   assert.equal(response.diagnostics.generation.grounded, true);
+});
+
+test('answer maxRetrievalMs with insufficient_context policy returns deterministic abstain', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(FakeDate.now());
+        return;
+      }
+      super(...args);
+    }
+
+    static now() {
+      nowMs += 30;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({ Date: FakeDate });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_timeout_insufficient',
+    fileName: 'answer-timeout-insufficient.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_timeout_insufficient',
+    question: 'What changed?',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      diagnostics: true,
+      maxRetrievalMs: 1,
+      onRetrievalTimeout: 'insufficient_context',
+      insufficientEvidenceMessage: 'Timed out.'
+    }
+  });
+
+  assert.equal(response.status, 'insufficient_context');
+  assert.equal(response.answer, 'Timed out.');
+  assert.equal(response.diagnostics.pipelinePath, 'timeout_insufficient');
+  assert.equal(response.diagnostics.retrieval.timedOut, true);
+  assert.equal(response.diagnostics.retrieval.timeoutMs, 1);
+});
+
+test('answer maxRetrievalMs with fallback policy returns fallback response', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(FakeDate.now());
+        return;
+      }
+      super(...args);
+    }
+
+    static now() {
+      nowMs += 35;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({ Date: FakeDate });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_timeout_fallback',
+    fileName: 'answer-timeout-fallback.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_timeout_fallback',
+    question: 'Summarize status',
+    fallback: {
+      onRetrievalError: true,
+      onRetrievalEmpty: true,
+      intent: 'summary'
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      diagnostics: true,
+      maxRetrievalMs: 1,
+      onRetrievalTimeout: 'fallback',
+      insufficientEvidenceMessage: 'No timeout context.'
+    }
+  });
+
+  assert.equal(response.status, 'insufficient_context');
+  assert.equal(response.answer, 'No timeout context.');
+  assert.equal(response.diagnostics.pipelinePath, 'timeout_fallback');
+  assert.equal(response.diagnostics.retrieval.timedOut, true);
+});
+
+test('answer maxRetrievalMs with default error policy throws timeout error', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(FakeDate.now());
+        return;
+      }
+      super(...args);
+    }
+
+    static now() {
+      nowMs += 40;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({ Date: FakeDate });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_timeout_error',
+    fileName: 'answer-timeout-error.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: []
+    }
+  });
+
+  assert.throws(
+    () => context.AST.RAG.answer({
+      indexFileId: 'index_answer_timeout_error',
+      question: 'Will this timeout?',
+      generation: {
+        provider: 'openai',
+        auth: { apiKey: 'test-key' }
+      },
+      options: {
+        maxRetrievalMs: 1
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstRagRetrievalError');
+      assert.equal(error.details.timedOut, true);
+      assert.equal(error.details.timeoutMs, 1);
+      return true;
+    }
+  );
+});
+
+test('answer generation controls customize grounding prompt while keeping citations', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  let capturedMessages = null;
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_prompt_controls',
+    fileName: 'answer-prompt-controls.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_prompt_1',
+          sourceId: 'src_prompt_1',
+          fileId: 'file_prompt_1',
+          fileName: 'prompt-controls.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Prompt controls baseline content.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = request => {
+    capturedMessages = request.input;
+    return {
+      output: {
+        json: {
+          answer: 'Prompt controls answer [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 3,
+        outputTokens: 3,
+        totalTokens: 6
+      }
+    };
+  };
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_prompt_controls',
+    question: 'Give me an update.',
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' },
+      style: 'bullets',
+      instructions: 'Keep tone action-focused.',
+      forbiddenPhrases: ['As an AI language model']
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(Array.isArray(capturedMessages), true);
+  assert.equal(capturedMessages[0].role, 'system');
+  assert.equal(capturedMessages[0].content.includes('bullet points'), true);
+  assert.equal(capturedMessages[0].content.includes('action-focused'), true);
+  assert.equal(capturedMessages[0].content.includes('As an AI language model'), true);
 });
 
 test('answer omits diagnostics by default when diagnostics option is not enabled', () => {

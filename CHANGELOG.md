@@ -88,6 +88,11 @@
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
 - `RAG.answer(...)` now accepts retrieval payload reuse (`retrievalPayload` or `retrievalPayloadKey`) to skip re-search/embedding on hot paths.
 - `RAG.previewSources(...)` retrieval-payload cache key generation now reuses the already-normalized search request (no second search-contract validation pass), with regression coverage for single-load hot paths.
+- `RAG.search(...)` and `RAG.answer(...)` now support retrieval latency budgets via `options.maxRetrievalMs`, with typed timeout errors (`AstRagRetrievalError` with `details.timedOut=true`).
+- `RAG.answer(...)` timeout policy controls via `options.onRetrievalTimeout` (`error`, `insufficient_context`, `fallback`).
+- `RAG.answer(...)` prompt customization controls via `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
+- RAG diagnostics now include cache backend/lock metadata and lock timings (`cache.backend`, `cache.namespace`, `cache.lockScope`, `cache.lockContention`, `timings.lockWaitMs`).
+- RAG cache config now supports `lockScope` (`script`, `user`, `none`) including runtime/script-property resolution (`RAG_CACHE_LOCK_SCOPE`).
 - DataFrame schema contract APIs:
   - `DataFrame.validateSchema(...)` / `df.validateSchema(...)` for deterministic validation reports.
   - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.

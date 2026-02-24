@@ -153,17 +153,62 @@ function astCacheRunWithLock(task, config = {}) {
   }
 
   const lockScope = astCacheNormalizeString(config.lockScope, 'script').toLowerCase();
+  const traceCollector = typeof config.traceCollector === 'function'
+    ? config.traceCollector
+    : null;
+  const traceContext = astCacheIsPlainObject(config.traceContext)
+    ? astCacheJsonClone(config.traceContext)
+    : {};
+
+  function emitLockTrace(payload = {}) {
+    if (!traceCollector) {
+      return;
+    }
+
+    astCacheTryOrFallback(() => traceCollector(Object.assign({}, traceContext, payload)), null);
+  }
+
   if (lockScope === 'none') {
+    emitLockTrace({
+      event: 'lock_acquire',
+      lockScope: 'none',
+      timeoutMs: 0,
+      waitMs: 0,
+      acquired: true,
+      contention: false
+    });
     return task();
   }
 
   const lock = astCacheResolveLockService(lockScope);
   if (!lock || typeof lock.tryLock !== 'function') {
+    emitLockTrace({
+      event: 'lock_acquire',
+      lockScope,
+      timeoutMs: 0,
+      waitMs: 0,
+      acquired: true,
+      contention: false,
+      skipped: true
+    });
     return task();
   }
 
   const timeoutMs = astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000);
+  const lockStartMs = astCacheNowMs();
   const acquired = astCacheTryOrFallback(() => lock.tryLock(timeoutMs), false);
+  const waitMs = Math.max(0, astCacheNowMs() - lockStartMs);
+  const contention = waitMs > 0;
+
+  emitLockTrace({
+    event: 'lock_acquire',
+    lockScope,
+    timeoutMs,
+    waitMs,
+    acquired,
+    contention
+  });
+
   if (!acquired) {
     throw new AstCacheCapabilityError('Unable to acquire cache lock', {
       timeoutMs,
@@ -177,5 +222,10 @@ function astCacheRunWithLock(task, config = {}) {
     if (typeof lock.releaseLock === 'function') {
       astCacheTryOrFallback(() => lock.releaseLock(), null);
     }
+    emitLockTrace({
+      event: 'lock_release',
+      lockScope,
+      acquired: true
+    });
   }
 }
