@@ -133,6 +133,15 @@ function astJobsGetScriptPropertiesHandle() {
   return scriptProperties;
 }
 
+function astJobsReadAllScriptProperties(scriptProperties = astJobsGetScriptPropertiesHandle()) {
+  if (!scriptProperties || typeof scriptProperties.getProperties !== 'function') {
+    return {};
+  }
+
+  const entries = scriptProperties.getProperties();
+  return astJobsIsPlainObject(entries) ? entries : {};
+}
+
 function astJobsGetScriptConfigSnapshot() {
   const output = {};
   const scriptProperties = astJobsGetScriptPropertiesHandle();
@@ -277,6 +286,32 @@ function astJobsBuildPropertyKey(jobId, propertyPrefix) {
 
 function astJobsBuildLocatorKey(jobId) {
   return `${AST_JOBS_LOCATOR_PREFIX}${jobId}`;
+}
+
+function astJobsResolveRecordPropertyPrefix(record, propertyKey, fallbackPrefix) {
+  const fromOptions = astJobsNormalizeString(
+    record
+    && record.options
+    && record.options.propertyPrefix,
+    null
+  );
+  if (fromOptions) {
+    return fromOptions;
+  }
+
+  const normalizedPropertyKey = astJobsNormalizeString(propertyKey, null);
+  const recordId = astJobsNormalizeString(record && record.id, null);
+  if (normalizedPropertyKey && recordId && normalizedPropertyKey.endsWith(recordId)) {
+    const inferredPrefix = astJobsNormalizeString(
+      normalizedPropertyKey.slice(0, normalizedPropertyKey.length - recordId.length),
+      null
+    );
+    if (inferredPrefix) {
+      return inferredPrefix;
+    }
+  }
+
+  return astJobsNormalizeString(fallbackPrefix, AST_JOBS_DEFAULT_OPTIONS.propertyPrefix);
 }
 
 function astJobsHashString(value) {
@@ -529,6 +564,46 @@ function astJobsReadJobFromPropertyKey(scriptProperties, propertyKey) {
   return parsed;
 }
 
+function astJobsFindJobRecordByScan(scriptProperties, jobId, fallbackPrefix) {
+  const entries = astJobsReadAllScriptProperties(scriptProperties);
+  const keys = Object.keys(entries);
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const propertyKey = keys[idx];
+    const parsed = astJobsParseStoredJob(entries[propertyKey]);
+    if (!parsed || !astJobsLooksLikeJobRecord(parsed)) {
+      continue;
+    }
+
+    if (parsed.id !== jobId) {
+      continue;
+    }
+
+    return {
+      propertyKey,
+      propertyPrefix: astJobsResolveRecordPropertyPrefix(parsed, propertyKey, fallbackPrefix),
+      job: parsed
+    };
+  }
+
+  return null;
+}
+
+function astJobsTryBackfillJobIndexes(scriptProperties, job, propertyPrefix, propertyKey, options = {}) {
+  if (!astJobsLooksLikeJobRecord(job)) {
+    return;
+  }
+
+  try {
+    const lockTimeoutMs = astJobsResolveLockTimeoutMs(options);
+    astJobsWithScriptLock(lockTimeoutMs, () => {
+      astJobsUpsertJobIndexes(job, propertyPrefix, propertyKey, scriptProperties);
+    });
+  } catch (_error) {
+    // Best-effort backfill only.
+  }
+}
+
 function astJobsResolveJobLocation(jobId, executionOptions, options = {}, scriptProperties) {
   const explicitPrefix = astJobsNormalizeString(options.propertyPrefix, null);
   if (explicitPrefix) {
@@ -552,9 +627,28 @@ function astJobsResolveJobLocation(jobId, executionOptions, options = {}, script
     };
   }
 
+  const defaultPropertyKey = astJobsBuildPropertyKey(jobId, executionOptions.propertyPrefix);
+  const direct = astJobsReadJobFromPropertyKey(scriptProperties, defaultPropertyKey);
+  if (direct) {
+    return {
+      propertyPrefix: executionOptions.propertyPrefix,
+      propertyKey: defaultPropertyKey,
+      fromLocator: false
+    };
+  }
+
+  const scanned = astJobsFindJobRecordByScan(scriptProperties, jobId, executionOptions.propertyPrefix);
+  if (scanned && scanned.propertyKey) {
+    return {
+      propertyPrefix: scanned.propertyPrefix,
+      propertyKey: scanned.propertyKey,
+      fromLocator: false
+    };
+  }
+
   return {
     propertyPrefix: executionOptions.propertyPrefix,
-    propertyKey: astJobsBuildPropertyKey(jobId, executionOptions.propertyPrefix),
+    propertyKey: defaultPropertyKey,
     fromLocator: false
   };
 }
@@ -567,8 +661,32 @@ function astJobsReadJobRecord(jobId, options = {}) {
   const parsed = astJobsReadJobFromPropertyKey(scriptProperties, location.propertyKey);
 
   if (parsed) {
+    if (!location.fromLocator && astJobsNormalizeString(options.propertyPrefix, null) == null) {
+      astJobsTryBackfillJobIndexes(
+        scriptProperties,
+        parsed,
+        location.propertyPrefix,
+        location.propertyKey,
+        options
+      );
+    }
     parsed.version = astJobsNormalizeJobVersion(parsed.version, 0);
     return astJobsCloneSerializable(parsed);
+  }
+
+  if (astJobsNormalizeString(options.propertyPrefix, null) == null) {
+    const scanned = astJobsFindJobRecordByScan(scriptProperties, normalizedJobId, executionOptions.propertyPrefix);
+    if (scanned && scanned.job) {
+      astJobsTryBackfillJobIndexes(
+        scriptProperties,
+        scanned.job,
+        scanned.propertyPrefix,
+        scanned.propertyKey,
+        options
+      );
+      scanned.job.version = astJobsNormalizeJobVersion(scanned.job.version, 0);
+      return astJobsCloneSerializable(scanned.job);
+    }
   }
 
   throw new AstJobsNotFoundError('Job not found', {
@@ -669,19 +787,70 @@ function astJobsFindJobRecordInAllProperties(jobId, options = {}) {
 function astJobsResolveListPrefixes(scriptProperties, executionOptions, options = {}) {
   const explicitPrefix = astJobsNormalizeString(options.propertyPrefix, null);
   if (explicitPrefix) {
-    return [executionOptions.propertyPrefix];
+    return {
+      prefixes: [executionOptions.propertyPrefix],
+      bootstrapLegacy: false
+    };
   }
 
   const registry = astJobsReadPrefixRegistry(scriptProperties);
   if (registry.length === 0) {
-    return [executionOptions.propertyPrefix];
+    const scannedPrefixes = [];
+    const seen = new Set();
+    const entries = astJobsReadAllScriptProperties(scriptProperties);
+    const keys = Object.keys(entries);
+
+    for (let idx = 0; idx < keys.length; idx += 1) {
+      const propertyKey = keys[idx];
+      const parsed = astJobsParseStoredJob(entries[propertyKey]);
+      if (!parsed || !astJobsLooksLikeJobRecord(parsed)) {
+        continue;
+      }
+
+      const resolvedPrefix = astJobsResolveRecordPropertyPrefix(
+        parsed,
+        propertyKey,
+        executionOptions.propertyPrefix
+      );
+      if (!resolvedPrefix || seen.has(resolvedPrefix)) {
+        continue;
+      }
+
+      seen.add(resolvedPrefix);
+      scannedPrefixes.push(resolvedPrefix);
+    }
+
+    if (!seen.has(executionOptions.propertyPrefix)) {
+      scannedPrefixes.push(executionOptions.propertyPrefix);
+    }
+
+    if (scannedPrefixes.length === 0) {
+      return {
+        prefixes: [executionOptions.propertyPrefix],
+        bootstrapLegacy: false
+      };
+    }
+
+    try {
+      astJobsWritePrefixRegistry(scriptProperties, scannedPrefixes);
+    } catch (_error) {
+      // Best-effort bootstrap.
+    }
+
+    return {
+      prefixes: scannedPrefixes,
+      bootstrapLegacy: true
+    };
   }
 
   if (!registry.includes(executionOptions.propertyPrefix)) {
     registry.push(executionOptions.propertyPrefix);
   }
 
-  return registry;
+  return {
+    prefixes: registry,
+    bootstrapLegacy: false
+  };
 }
 
 function astJobsCollectBucketSummaries(
@@ -724,11 +893,65 @@ function astJobsCollectBucketSummaries(
   }
 }
 
+function astJobsCollectLegacySummaries(
+  scriptProperties,
+  prefixes,
+  normalizedFilters,
+  dedupeMap
+) {
+  const entries = astJobsReadAllScriptProperties(scriptProperties);
+  const keys = Object.keys(entries);
+  const prefixSet = new Set(
+    (Array.isArray(prefixes) ? prefixes : [])
+      .map(prefix => astJobsNormalizeString(prefix, null))
+      .filter(Boolean)
+  );
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const propertyKey = keys[idx];
+    const parsed = astJobsParseStoredJob(entries[propertyKey]);
+    if (!parsed || !astJobsLooksLikeJobRecord(parsed)) {
+      continue;
+    }
+
+    const resolvedPrefix = astJobsResolveRecordPropertyPrefix(
+      parsed,
+      propertyKey,
+      AST_JOBS_DEFAULT_OPTIONS.propertyPrefix
+    );
+    if (prefixSet.size > 0 && !prefixSet.has(resolvedPrefix)) {
+      continue;
+    }
+
+    if (normalizedFilters.status && parsed.status !== normalizedFilters.status) {
+      continue;
+    }
+
+    if (normalizedFilters.name && parsed.name !== normalizedFilters.name) {
+      continue;
+    }
+
+    const summary = astJobsBuildJobSummary(parsed, resolvedPrefix, propertyKey);
+    const existing = dedupeMap[summary.id];
+    if (!existing) {
+      dedupeMap[summary.id] = summary;
+      continue;
+    }
+
+    const existingUpdated = astJobsNormalizeString(existing.updatedAt, '');
+    const incomingUpdated = astJobsNormalizeString(summary.updatedAt, '');
+    if (incomingUpdated > existingUpdated) {
+      dedupeMap[summary.id] = summary;
+    }
+  }
+}
+
 function astJobsListJobRecords(filters = {}, options = {}) {
   const normalizedFilters = astJobsValidateListFilters(filters);
   const executionOptions = astJobsResolveExecutionOptions(options);
   const scriptProperties = astJobsGetScriptPropertiesHandle();
-  const prefixes = astJobsResolveListPrefixes(scriptProperties, executionOptions, options);
+  const listResolution = astJobsResolveListPrefixes(scriptProperties, executionOptions, options);
+  const prefixes = listResolution.prefixes;
   const dedupeSummaries = {};
   const output = [];
 
@@ -736,6 +959,15 @@ function astJobsListJobRecords(filters = {}, options = {}) {
     astJobsCollectBucketSummaries(
       scriptProperties,
       prefixes[idx],
+      normalizedFilters,
+      dedupeSummaries
+    );
+  }
+
+  if (listResolution.bootstrapLegacy) {
+    astJobsCollectLegacySummaries(
+      scriptProperties,
+      prefixes,
       normalizedFilters,
       dedupeSummaries
     );

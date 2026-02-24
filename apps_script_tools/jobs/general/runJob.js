@@ -192,7 +192,47 @@ function astJobsSetCompleted(job) {
   job.pausedAt = null;
 }
 
-function astJobsExecuteStep(job, step, persistOptions = {}) {
+function astJobsApplyRenewedLeaseToJob(job, renewed) {
+  job.version = renewed.version;
+  job.leaseOwner = renewed.leaseOwner;
+  job.leaseExpiresAt = renewed.leaseExpiresAt;
+  job.lastHeartbeatAt = renewed.lastHeartbeatAt;
+  job.updatedAt = renewed.updatedAt;
+}
+
+function astJobsBuildStepLeaseTtlMs(job, leaseTtlMs) {
+  const normalizedLeaseTtlMs = astJobsNormalizePositiveInt(
+    leaseTtlMs,
+    AST_JOBS_DEFAULT_OPTIONS.leaseTtlMs,
+    1000,
+    600000
+  );
+  const maxRuntimeMs = astJobsNormalizePositiveInt(
+    job && job.options && job.options.maxRuntimeMs,
+    normalizedLeaseTtlMs,
+    1000,
+    600000
+  );
+
+  return Math.max(normalizedLeaseTtlMs, maxRuntimeMs);
+}
+
+function astJobsRenewLeaseForStepExecution(job, workerId, leaseTtlMs, leaseOptions = {}) {
+  const stepLeaseTtlMs = astJobsBuildStepLeaseTtlMs(job, leaseTtlMs);
+  const renewed = astJobsRenewLease(job.id, workerId, stepLeaseTtlMs, leaseOptions);
+  astJobsApplyRenewedLeaseToJob(job, renewed);
+}
+
+function astJobsExecuteStep(job, step, persistOptions = {}, leaseContext = {}) {
+  if (astJobsNormalizeString(leaseContext.workerId, null)) {
+    astJobsRenewLeaseForStepExecution(
+      job,
+      leaseContext.workerId,
+      leaseContext.leaseTtlMs,
+      leaseContext.leaseOptions
+    );
+  }
+
   step.state = 'running';
   if (!step.startedAt) {
     step.startedAt = astJobsNowIso();
@@ -317,11 +357,7 @@ function astJobsMaybeRenewLease(job, workerId, leaseTtlMs, leaseOptions = {}) {
   }
 
   const renewed = astJobsRenewLease(job.id, workerId, leaseTtlMs, leaseOptions);
-  job.version = renewed.version;
-  job.leaseOwner = renewed.leaseOwner;
-  job.leaseExpiresAt = renewed.leaseExpiresAt;
-  job.lastHeartbeatAt = renewed.lastHeartbeatAt;
-  job.updatedAt = renewed.updatedAt;
+  astJobsApplyRenewedLeaseToJob(job, renewed);
 }
 
 function astJobsExecutePersistedJob(jobId, options = {}) {
@@ -368,7 +404,11 @@ function astJobsExecutePersistedJob(jobId, options = {}) {
         break;
       }
 
-      const succeeded = astJobsExecuteStep(job, runnableStep, persistOptions);
+      const succeeded = astJobsExecuteStep(job, runnableStep, persistOptions, {
+        workerId,
+        leaseTtlMs,
+        leaseOptions
+      });
       if (!succeeded) {
         break;
       }

@@ -62,6 +62,48 @@ function createJobsContext() {
   };
 }
 
+function createLegacyJobRecord(jobId, name, propertyPrefix) {
+  const now = new Date().toISOString();
+  return {
+    id: jobId,
+    version: 0,
+    name,
+    status: 'queued',
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    pausedAt: null,
+    completedAt: null,
+    canceledAt: null,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    lastHeartbeatAt: null,
+    lastError: null,
+    options: {
+      maxRetries: 2,
+      maxRuntimeMs: 240000,
+      leaseTtlMs: 120000,
+      checkpointStore: 'properties',
+      autoResume: true,
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'legacy_step',
+        handlerName: 'legacyHandler',
+        dependsOn: [],
+        payload: null,
+        state: 'pending',
+        attempts: 0,
+        startedAt: null,
+        completedAt: null,
+        lastError: null
+      }
+    ],
+    results: {}
+  };
+}
+
 test('AST exposes Jobs namespace methods', () => {
   const { context } = createJobsContext();
 
@@ -151,6 +193,38 @@ test('AST.Jobs supports pause and resume with retry semantics', () => {
   assert.equal(secondPass.status, 'completed');
   assert.equal(secondPass.steps[0].attempts, 1);
   assert.equal(secondPass.results.flaky.attempts, 2);
+});
+
+test('AST.Jobs run renews lease for step execution using at least maxRuntimeMs budget', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_LEASE_RENEW_${Date.now()}_`;
+  const renewedTtls = [];
+  const originalRenew = context.astJobsRenewLease;
+
+  context.astJobsRenewLease = (jobId, workerId, leaseTtlMs, options) => {
+    renewedTtls.push(leaseTtlMs);
+    return originalRenew(jobId, workerId, leaseTtlMs, options);
+  };
+
+  context.jobsLeaseRenewNoop = () => true;
+
+  const result = context.AST.Jobs.run({
+    name: 'lease-renew-step-test',
+    options: {
+      propertyPrefix,
+      leaseTtlMs: 1000,
+      maxRuntimeMs: 5000
+    },
+    steps: [
+      {
+        id: 'lease_renew_step',
+        handler: 'jobsLeaseRenewNoop'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(renewedTtls.some(ttl => ttl >= 5000), true);
 });
 
 test('AST.Jobs uses CAS to reject stale writes', () => {
@@ -256,6 +330,20 @@ test('AST.Jobs.status resolves jobs without requiring propertyPrefix override', 
   const status = context.AST.Jobs.status(queued.id);
   assert.equal(status.id, queued.id);
   assert.equal(status.status, 'queued');
+});
+
+test('AST.Jobs.status falls back to legacy prefix scan when locator is missing', () => {
+  const { context, store } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LEGACY_STATUS_${Date.now()}_`;
+  const jobId = `legacy_status_${Date.now()}`;
+  const propertyKey = `${propertyPrefix}${jobId}`;
+
+  store[propertyKey] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-status', propertyPrefix));
+
+  const status = context.AST.Jobs.status(jobId);
+  assert.equal(status.id, jobId);
+  assert.equal(status.options.propertyPrefix, propertyPrefix);
+  assert.equal(typeof store[`AST_JOBS_LOCATOR_${jobId}`], 'string');
 });
 
 test('AST.Jobs.cancel marks queued jobs as canceled and list filters include them', () => {
@@ -389,6 +477,27 @@ test('AST.Jobs status/list avoid broad script property scans on indexed paths', 
   assert.equal(status.id, queued.id);
   assert.equal(listed.some(item => item.id === queued.id), true);
   assert.equal(counters.getProperties, 0);
+});
+
+test('AST.Jobs.list discovers legacy prefixes when registry is missing', () => {
+  const { context, store } = createJobsContext();
+  const prefixA = `AST_JOBS_LEGACY_A_${Date.now()}_`;
+  const prefixB = `AST_JOBS_LEGACY_B_${Date.now()}_`;
+  const idA = `legacy_a_${Date.now()}`;
+  const idB = `legacy_b_${Date.now()}`;
+
+  store[`${prefixA}${idA}`] = JSON.stringify(createLegacyJobRecord(idA, 'legacy-list', prefixA));
+  store[`${prefixB}${idB}`] = JSON.stringify(createLegacyJobRecord(idB, 'legacy-list', prefixB));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const listed = context.AST.Jobs.list({
+    name: 'legacy-list',
+    limit: 20
+  });
+
+  assert.equal(listed.some(item => item.id === idA), true);
+  assert.equal(listed.some(item => item.id === idB), true);
+  assert.equal(typeof store.AST_JOBS_PREFIX_REGISTRY, 'string');
 });
 
 test('AST.Jobs.configure controls runtime defaults', () => {
