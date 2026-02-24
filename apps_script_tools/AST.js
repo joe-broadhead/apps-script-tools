@@ -165,6 +165,10 @@ Object.defineProperties(AST, {
     get: () => resolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
     enumerable: true
   },
+  Chat: {
+    get: () => resolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
+    enumerable: true
+  },
   Sql: {
     get: () => ({
       run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery)),

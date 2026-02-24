@@ -39,6 +39,7 @@
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
 - `AST.Jobs`: storage-backed multi-step job orchestration with retry/resume/poll semantics
+- `AST.Chat`: durable user-scoped thread state store for chat apps
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
 - `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
@@ -69,6 +70,7 @@ Current release state:
 - New `AST.TelemetryHelpers` wrappers for safe instrumented execution (`withSpan`, `wrap`, `startSpanSafe`, `endSpanSafe`).
 - RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.
 - New `AST.Jobs` module with storage-backed checkpointing and run/enqueue/resume/status/list/cancel/pollAndRun contracts.
+- New `AST.Chat` module with `ThreadStore.create(...)` for user-scoped thread persistence, lock-aware writes, and bounded history assembly.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
 - `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.

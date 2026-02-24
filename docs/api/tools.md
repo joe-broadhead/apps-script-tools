@@ -472,6 +472,67 @@ See:
 
 - [Jobs Contracts](jobs-contracts.md)
 
+## `ASTX.Chat`
+
+Durable chat-state module for user-scoped thread persistence, turn appends, and history building.
+
+Primary methods:
+
+- `ASTX.Chat.configure(config, options)` / `ASTX.Chat.getConfig()` / `ASTX.Chat.clearConfig()`.
+- `ASTX.Chat.ThreadStore.create(config)` to create a store instance with resolved runtime config.
+
+Store instance methods:
+
+- `getOrCreateState(userContext)` initialize or fetch per-user state.
+- `listThreads(userContext)` list thread metadata for a user.
+- `getThread(userContext, { threadId })` fetch a single thread and persisted turns.
+- `newThread(userContext, args)` create thread metadata.
+- `switchThread(userContext, { threadId })` change active thread.
+- `appendTurn(userContext, { threadId?, turn })` append a turn and enforce caps.
+- `buildHistory(userContext, options)` build bounded chat history for model calls.
+- `clearUser(userContext)` remove cached + durable state for a user key.
+
+High-signal behavior:
+
+- state is isolated by normalized user key and persisted via cache backend configuration.
+- defaults use hot `memory` cache + durable `drive_json` store.
+- durable backend can be switched to `storage_json` (for `gcs://`, `s3://`, `dbfs:/`) or `script_properties`.
+- lock-aware writes support explicit degraded mode when `allowLockFallback=true`.
+- deterministic limits enforce `threadMax` and `turnsMax`.
+
+```javascript
+const store = ASTX.Chat.ThreadStore.create({
+  keyPrefix: 'my_app',
+  durable: {
+    backend: 'drive_json',
+    namespace: 'my_app_threads',
+    driveFolderId: 'FOLDER_ID',
+    driveFileName: 'threads.json'
+  },
+  limits: {
+    threadMax: 25,
+    turnsMax: 200
+  }
+});
+
+const user = { userKey: 'user-123' };
+const created = store.newThread(user, { title: 'New chat' });
+store.appendTurn(user, {
+  threadId: created.threadId,
+  turn: { role: 'user', content: 'Summarize open blockers.' }
+});
+
+const history = store.buildHistory(user, {
+  threadId: created.threadId,
+  maxPairs: 10,
+  systemMessage: 'You are a project assistant.'
+});
+```
+
+See:
+
+- [Chat Contracts](chat-contracts.md)
+
 ## `ASTX.AI`
 
 Unified AI surface across:
