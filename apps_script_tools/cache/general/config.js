@@ -11,6 +11,25 @@ const AST_CACHE_DEFAULT_CONFIG = Object.freeze({
   updateStatsOnGet: true
 });
 
+const AST_CACHE_BACKEND_DEFAULTS = Object.freeze({
+  memory: Object.freeze({
+    lockScope: 'none',
+    updateStatsOnGet: true
+  }),
+  drive_json: Object.freeze({
+    lockScope: 'script',
+    updateStatsOnGet: false
+  }),
+  script_properties: Object.freeze({
+    lockScope: 'script',
+    updateStatsOnGet: false
+  }),
+  storage_json: Object.freeze({
+    lockScope: 'none',
+    updateStatsOnGet: false
+  })
+});
+
 const AST_CACHE_CONFIG_KEYS = Object.freeze([
   'CACHE_BACKEND',
   'CACHE_NAMESPACE',
@@ -209,6 +228,7 @@ function astCacheResolveConfig(overrides = {}) {
   ], AST_CACHE_DEFAULT_CONFIG.backend).toLowerCase();
 
   astCacheAssertBackendSupported(backend);
+  const backendDefaults = AST_CACHE_BACKEND_DEFAULTS[backend] || AST_CACHE_DEFAULT_CONFIG;
 
   const namespace = astCacheResolveConfigString([
     overrides.namespace,
@@ -264,7 +284,7 @@ function astCacheResolveConfig(overrides = {}) {
     runtimeConfig.CACHE_LOCK_SCOPE,
     runtimeConfig.lockScope,
     scriptConfig.CACHE_LOCK_SCOPE
-  ], AST_CACHE_DEFAULT_CONFIG.lockScope).toLowerCase();
+  ], backendDefaults.lockScope || AST_CACHE_DEFAULT_CONFIG.lockScope).toLowerCase();
 
   if (['script', 'user', 'none'].indexOf(lockScope) === -1) {
     throw new AstCacheValidationError('Cache lockScope must be one of: script, user, none', {
@@ -277,7 +297,9 @@ function astCacheResolveConfig(overrides = {}) {
     runtimeConfig.CACHE_UPDATE_STATS_ON_GET,
     runtimeConfig.updateStatsOnGet,
     scriptConfig.CACHE_UPDATE_STATS_ON_GET
-  ], AST_CACHE_DEFAULT_CONFIG.updateStatsOnGet);
+  ], typeof backendDefaults.updateStatsOnGet === 'boolean'
+    ? backendDefaults.updateStatsOnGet
+    : AST_CACHE_DEFAULT_CONFIG.updateStatsOnGet);
 
   const traceCollector = typeof overrides.traceCollector === 'function'
     ? overrides.traceCollector
