@@ -64,7 +64,10 @@ function astRagPreviewSourcesCore(request = {}) {
   };
 
   const searchStartMs = new Date().getTime();
-  const search = astRagSearchCore(normalized.searchRequest);
+  const search = astRagSearchNormalizedCore(normalized.searchRequest, {
+    totalStartMs: searchStartMs,
+    validationMs: 0
+  });
   diagnostics.timings.searchMs = Math.max(0, new Date().getTime() - searchStartMs);
   diagnostics.retrieval.returned = Array.isArray(search.results) ? search.results.length : 0;
   if (search && astRagIsPlainObject(search.diagnostics)) {
@@ -93,13 +96,10 @@ function astRagPreviewSourcesCore(request = {}) {
     results: search.results || []
   });
 
-  const cacheKey = astRagBuildRetrievalCacheKey({
-    indexFileId: normalized.searchRequest.indexFileId,
-    versionToken,
-    query: normalized.searchRequest.query,
-    retrieval: normalized.searchRequest.retrieval,
-    options: normalized.searchRequest.options
-  });
+  const cacheKey = astRagBuildRetrievalCacheKeyFromNormalizedSearch(
+    normalized.searchRequest,
+    versionToken
+  );
 
   if (normalized.preview.cachePayload) {
     const payloadWriteStartMs = new Date().getTime();

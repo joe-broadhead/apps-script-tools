@@ -27,14 +27,21 @@ function astRagBuildSearchDiagnostics(normalizedRequest) {
   };
 }
 
-function astRagSearchCore(request = {}) {
-  const totalStartMs = new Date().getTime();
-  const validateStartMs = totalStartMs;
-  const normalizedRequest = astRagValidateSearchRequest(request);
+function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
+  if (!astRagIsPlainObject(normalizedRequest)) {
+    throw new AstRagValidationError('search request must be an object');
+  }
+
+  const totalStartMs = typeof runtimeOptions.totalStartMs === 'number'
+    ? runtimeOptions.totalStartMs
+    : new Date().getTime();
+  const validationMs = typeof runtimeOptions.validationMs === 'number'
+    ? Math.max(0, runtimeOptions.validationMs)
+    : 0;
   const diagnosticsEnabled = normalizedRequest.options && normalizedRequest.options.diagnostics === true;
   const diagnostics = astRagBuildSearchDiagnostics(normalizedRequest);
   const retrievalMode = normalizedRequest.retrieval.mode;
-  diagnostics.timings.validationMs = Math.max(0, new Date().getTime() - validateStartMs);
+  diagnostics.timings.validationMs = validationMs;
 
   const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
 
@@ -155,4 +162,15 @@ function astRagSearchCore(request = {}) {
   delete cacheableResponse.diagnostics;
   astRagCacheSet(cacheConfig, searchCacheKey, cacheableResponse, cacheConfig.searchTtlSec);
   return response;
+}
+
+function astRagSearchCore(request = {}) {
+  const totalStartMs = new Date().getTime();
+  const validateStartMs = totalStartMs;
+  const normalizedRequest = astRagValidateSearchRequest(request);
+  const validationMs = Math.max(0, new Date().getTime() - validateStartMs);
+  return astRagSearchNormalizedCore(normalizedRequest, {
+    totalStartMs,
+    validationMs
+  });
 }
