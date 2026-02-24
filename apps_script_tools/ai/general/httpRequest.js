@@ -142,6 +142,19 @@ function astAiHttpRequest(config = {}) {
       const json = astParseJsonSafe(body);
 
       if (statusCode >= 200 && statusCode < 300) {
+        if (astAiTimedOut(startedAtMs, timeoutMs)) {
+          const lateSuccessError = new AstAiProviderError(
+            'AI provider request exceeded timeout budget before successful response',
+            {
+              url,
+              statusCode,
+              timeoutMs,
+              elapsedMs: astAiElapsedMs(startedAtMs)
+            }
+          );
+          throw buildTimeoutError(lateSuccessError);
+        }
+
         return {
           statusCode,
           body,

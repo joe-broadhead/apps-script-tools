@@ -469,6 +469,51 @@ test('astAiHttpRequest enforces timeoutMs as a retry budget', () => {
   );
 });
 
+test('astAiHttpRequest rejects delayed success responses that exceed timeout budget', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    static now() {
+      nowMs += 25;
+      return nowMs;
+    }
+  }
+
+  let callCount = 0;
+  const context = createGasContext({
+    Date: FakeDate,
+    UrlFetchApp: {
+      fetch: () => {
+        callCount += 1;
+        nowMs += 150;
+        return createResponse({
+          status: 200,
+          body: JSON.stringify({ ok: true })
+        });
+      }
+    }
+  });
+
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.astAiHttpRequest({
+      url: 'https://api.example.com/v1/test',
+      method: 'post',
+      payload: { ok: true },
+      retries: 0,
+      timeoutMs: 120
+    }),
+    error => {
+      assert.equal(error.name, 'AstAiProviderError');
+      assert.match(error.message, /timeout budget/);
+      assert.equal(error.details.timeoutMs, 120);
+      return true;
+    }
+  );
+
+  assert.equal(callCount, 1);
+});
+
 test('validateAiRequest enforces onEvent callback when stream mode is enabled', () => {
   const context = createGasContext();
   loadAiScripts(context);
