@@ -2151,33 +2151,37 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
   const context = createGasContext();
   loadRagWithCacheScripts(context, { includeAst: true });
 
-  context.astRagLoadIndexDocument = () => ({
-    indexFileId: 'index_preview_1',
-    fileName: 'preview-index.json',
-    versionToken: '2026-02-24T00:00:00.000Z',
-    cacheHit: true,
-    document: {
-      updatedAt: '2026-02-24T00:00:00.000Z',
-      embedding: {
-        provider: 'openai',
-        model: 'text-embedding-3-small'
-      },
-      chunks: [
-        {
-          chunkId: 'chunk_preview_1',
-          sourceId: 'src_preview_1',
-          fileId: 'doc_1',
-          fileName: 'project-brief',
-          mimeType: MIME_DOC,
-          page: null,
-          slide: null,
-          section: 'body',
-          text: 'Modernization project launch details and sequencing.',
-          embedding: [1, 0, 0]
-        }
-      ]
-    }
-  });
+  let loadCalls = 0;
+  context.astRagLoadIndexDocument = () => {
+    loadCalls += 1;
+    return {
+      indexFileId: 'index_preview_1',
+      fileName: 'preview-index.json',
+      versionToken: '2026-02-24T00:00:00.000Z',
+      cacheHit: true,
+      document: {
+        updatedAt: '2026-02-24T00:00:00.000Z',
+        embedding: {
+          provider: 'openai',
+          model: 'text-embedding-3-small'
+        },
+        chunks: [
+          {
+            chunkId: 'chunk_preview_1',
+            sourceId: 'src_preview_1',
+            fileId: 'doc_1',
+            fileName: 'project-brief',
+            mimeType: MIME_DOC,
+            page: null,
+            slide: null,
+            section: 'body',
+            text: 'Modernization project launch details and sequencing.',
+            embedding: [1, 0, 0]
+          }
+        ]
+      }
+    };
+  };
 
   context.astRagEmbedTexts = () => ({
     vectors: [[1, 0, 0]],
@@ -2221,6 +2225,7 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
   assert.equal(typeof response.diagnostics.timings.payloadCacheWriteMs, 'number');
   assert.equal(response.diagnostics.retrieval.returned, 1);
   assert.equal(response.diagnostics.cache.indexDocHit, true);
+  assert.equal(loadCalls, 1);
 
   const payload = context.AST.RAG.getRetrievalPayload(response.cacheKey, {
     backend: 'memory',
@@ -2229,6 +2234,122 @@ test('previewSources returns citation-ready cards and caches retrieval payloads'
 
   assert.equal(payload.indexFileId, 'index_preview_1');
   assert.equal(payload.results.length, 1);
+});
+
+test('previewSources validates search contract once per request', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  const originalValidateSearchRequest = context.astRagValidateSearchRequest;
+  let validateCalls = 0;
+  context.astRagValidateSearchRequest = request => {
+    validateCalls += 1;
+    return originalValidateSearchRequest(request);
+  };
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_preview_validate_once',
+    fileName: 'preview-validate-once.json',
+    versionToken: '2026-02-24T00:00:00.000Z',
+    document: {
+      updatedAt: '2026-02-24T00:00:00.000Z',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_preview_validate_once_1',
+          sourceId: 'src_preview_validate_once_1',
+          fileId: 'doc_preview_validate_once_1',
+          fileName: 'preview-validate-once',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Validation call counting for preview payload cache.',
+          embedding: [1, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  const response = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_validate_once',
+    query: 'validation call counting',
+    retrieval: {
+      topK: 3,
+      minScore: 0
+    },
+    preview: {
+      cachePayload: true,
+      payloadCache: {
+        backend: 'memory',
+        namespace: 'rag_preview_validate_once'
+      }
+    }
+  });
+
+  assert.equal(response.resultCount, 1);
+  assert.equal(validateCalls, 1);
+});
+
+test('previewSources preserves preview validation timing when merging search diagnostics', () => {
+  const context = createGasContext();
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  context.astRagSearchNormalizedCore = normalizedSearch => ({
+    indexFileId: normalizedSearch.indexFileId,
+    versionToken: '2026-02-24T00:00:00.000Z',
+    query: normalizedSearch.query,
+    retrieval: normalizedSearch.retrieval,
+    results: [],
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    diagnostics: {
+      cache: {
+        indexDocHit: false,
+        searchHit: false,
+        embeddingHit: false,
+        retrievalPayloadHit: false,
+        answerHit: false
+      },
+      timings: {
+        validationMs: 999,
+        indexLoadMs: 0,
+        embeddingMs: 0,
+        retrievalMs: 0,
+        rerankMs: 0,
+        generationMs: 0,
+        searchMs: 1,
+        payloadCacheWriteMs: 0
+      },
+      retrieval: {
+        mode: normalizedSearch.retrieval.mode,
+        topK: normalizedSearch.retrieval.topK,
+        minScore: normalizedSearch.retrieval.minScore,
+        returned: 0
+      }
+    }
+  });
+
+  const response = context.AST.RAG.previewSources({
+    indexFileId: 'index_preview_validation_merge',
+    query: 'validation diagnostics',
+    options: {
+      diagnostics: true
+    },
+    preview: {
+      cachePayload: false
+    }
+  });
+
+  assert.equal(typeof response.diagnostics.timings.validationMs, 'number');
+  assert.notEqual(response.diagnostics.timings.validationMs, 999);
 });
 
 test('previewSources supports lexical retrieval mode without embedding calls', () => {

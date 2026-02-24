@@ -87,6 +87,7 @@
 - RAG access-control contract for retrieval and answer flows (`retrieval.access`) with enforceable source/citation boundaries.
 - Search/answer retrieval responses now expose explainability fields: `vectorScore`, `lexicalScore`, `finalScore`, and `rerankScore` (when enabled).
 - `RAG.answer(...)` now accepts retrieval payload reuse (`retrievalPayload` or `retrievalPayloadKey`) to skip re-search/embedding on hot paths.
+- `RAG.previewSources(...)` retrieval-payload cache key generation now reuses the already-normalized search request (no second search-contract validation pass), with regression coverage for single-load hot paths.
 - DataFrame schema contract APIs:
   - `DataFrame.validateSchema(...)` / `df.validateSchema(...)` for deterministic validation reports.
   - `DataFrame.enforceSchema(...)` / `df.enforceSchema(...)` for coercion + strict enforcement workflows.

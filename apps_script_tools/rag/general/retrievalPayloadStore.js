@@ -174,12 +174,60 @@ function astRagBuildRetrievalCacheKey(args = {}) {
     options: astRagIsPlainObject(args.options) ? astRagCloneObject(args.options) : {}
   });
 
+  return astRagBuildRetrievalCacheKeyFromNormalizedSearch(normalizedSearch, args.versionToken);
+}
+
+function astRagBuildRetrievalCacheKeyFromNormalizedSearch(normalizedSearch = {}, versionToken = null) {
+  if (!astRagIsPlainObject(normalizedSearch)) {
+    throw new AstRagValidationError('normalized search request must be an object');
+  }
+
+  const indexFileId = astRagNormalizeString(normalizedSearch.indexFileId, null);
+  const query = astRagNormalizeString(normalizedSearch.query, null);
+
+  if (!indexFileId) {
+    throw new AstRagValidationError('normalized search request is missing indexFileId');
+  }
+
+  if (!query) {
+    throw new AstRagValidationError('normalized search request is missing query');
+  }
+
+  const retrievalInput = astRagIsPlainObject(normalizedSearch.retrieval)
+    ? astRagCloneObject(normalizedSearch.retrieval)
+    : {};
+  const retrievalDefaults = astRagResolveRetrievalDefaults();
+  const retrievalCore = astRagNormalizeRetrievalConfig(
+    retrievalInput,
+    retrievalDefaults,
+    'retrieval cache key retrieval'
+  );
+  const normalizedRetrieval = Object.assign({}, retrievalCore, {
+    filters: {
+      fileIds: astRagNormalizeStringArray(
+        (retrievalInput.filters || {}).fileIds,
+        'retrieval cache key retrieval.filters.fileIds',
+        true
+      ),
+      mimeTypes: astRagNormalizeStringArray(
+        (retrievalInput.filters || {}).mimeTypes,
+        'retrieval cache key retrieval.filters.mimeTypes',
+        true
+      )
+    },
+    access: astRagNormalizeAccessControl(
+      retrievalInput.access,
+      'retrieval cache key retrieval.access'
+    ),
+    enforceAccessControl: astRagNormalizeBoolean(retrievalInput.enforceAccessControl, true)
+  });
+
   return astRagBuildCacheKey({
     kind: 'retrieval_payload',
     indexFileId,
-    versionToken: astRagNormalizeString(args.versionToken, null),
+    versionToken: astRagNormalizeString(versionToken, null),
     query,
-    retrieval: normalizedSearch.retrieval
+    retrieval: normalizedRetrieval
   });
 }
 
