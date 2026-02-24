@@ -2,7 +2,7 @@ function astRagNowMs() {
   return new Date().getTime();
 }
 
-function astRagBuildAnswerDiagnostics() {
+function astRagBuildAnswerDiagnostics(cacheConfig = {}, timeoutMs = null) {
   return {
     totalMs: 0,
     pipelinePath: 'standard',
@@ -11,7 +11,12 @@ function astRagBuildAnswerDiagnostics() {
       searchHit: false,
       embeddingHit: false,
       retrievalPayloadHit: false,
-      answerHit: false
+      answerHit: false,
+      backend: astRagNormalizeString(cacheConfig.backend, AST_RAG_CACHE_DEFAULTS.backend),
+      namespace: astRagNormalizeString(cacheConfig.namespace, AST_RAG_CACHE_DEFAULTS.namespace),
+      lockScope: astRagNormalizeString(cacheConfig.lockScope, AST_RAG_CACHE_DEFAULTS.lockScope),
+      lockContention: 0,
+      hitPath: null
     },
     timings: {
       validationMs: 0,
@@ -21,7 +26,11 @@ function astRagBuildAnswerDiagnostics() {
       rerankMs: 0,
       generationMs: 0,
       searchMs: 0,
-      payloadCacheWriteMs: 0
+      payloadCacheWriteMs: 0,
+      cacheGetMs: 0,
+      cacheSetMs: 0,
+      cacheDeleteMs: 0,
+      lockWaitMs: 0
     },
     retrieval: {
       source: null,
@@ -31,7 +40,10 @@ function astRagBuildAnswerDiagnostics() {
       emptyReason: null,
       recoveryAttempted: false,
       recoveryApplied: false,
-      attempts: []
+      attempts: [],
+      timedOut: false,
+      timeoutMs: typeof timeoutMs === 'number' && isFinite(timeoutMs) ? timeoutMs : null,
+      timeoutStage: null
     },
     generation: {
       status: 'not_started',
@@ -41,6 +53,79 @@ function astRagBuildAnswerDiagnostics() {
       errorClass: null
     }
   };
+}
+
+function astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta) {
+  if (!astRagIsPlainObject(diagnostics) || !astRagIsPlainObject(operationMeta)) {
+    return;
+  }
+
+  if (!astRagIsPlainObject(diagnostics.timings)) {
+    diagnostics.timings = {};
+  }
+  if (!astRagIsPlainObject(diagnostics.cache)) {
+    diagnostics.cache = {};
+  }
+
+  const durationMs = typeof operationMeta.durationMs === 'number' && isFinite(operationMeta.durationMs)
+    ? Math.max(0, operationMeta.durationMs)
+    : 0;
+  const lockWaitMs = typeof operationMeta.lockWaitMs === 'number' && isFinite(operationMeta.lockWaitMs)
+    ? Math.max(0, operationMeta.lockWaitMs)
+    : 0;
+  const lockContention = typeof operationMeta.lockContention === 'number' && isFinite(operationMeta.lockContention)
+    ? Math.max(0, operationMeta.lockContention)
+    : 0;
+
+  if (operationMeta.operation === 'set') {
+    diagnostics.timings.cacheSetMs = (diagnostics.timings.cacheSetMs || 0) + durationMs;
+  } else if (operationMeta.operation === 'delete') {
+    diagnostics.timings.cacheDeleteMs = (diagnostics.timings.cacheDeleteMs || 0) + durationMs;
+  } else {
+    diagnostics.timings.cacheGetMs = (diagnostics.timings.cacheGetMs || 0) + durationMs;
+  }
+
+  diagnostics.timings.lockWaitMs = (diagnostics.timings.lockWaitMs || 0) + lockWaitMs;
+  diagnostics.cache.lockContention = (diagnostics.cache.lockContention || 0) + lockContention;
+  diagnostics.cache.backend = astRagNormalizeString(operationMeta.backend, diagnostics.cache.backend);
+  diagnostics.cache.namespace = astRagNormalizeString(operationMeta.namespace, diagnostics.cache.namespace);
+  diagnostics.cache.lockScope = astRagNormalizeString(operationMeta.lockScope, diagnostics.cache.lockScope);
+  if (!diagnostics.cache.hitPath && operationMeta.hit && operationMeta.path) {
+    diagnostics.cache.hitPath = operationMeta.path;
+  }
+}
+
+function astRagBuildAnswerTimeoutError(timeoutMs, stage, startedAtMs) {
+  return new AstRagRetrievalError('RAG retrieval exceeded maxRetrievalMs budget', {
+    timedOut: true,
+    timeoutMs,
+    timeoutStage: astRagNormalizeString(stage, 'retrieval'),
+    elapsedMs: Math.max(0, astRagNowMs() - startedAtMs)
+  });
+}
+
+function astRagMarkAnswerTimeoutDiagnostics(diagnostics, timeoutMs, stage) {
+  if (!astRagIsPlainObject(diagnostics) || !astRagIsPlainObject(diagnostics.retrieval)) {
+    return;
+  }
+
+  diagnostics.retrieval.timedOut = true;
+  diagnostics.retrieval.timeoutMs = timeoutMs;
+  diagnostics.retrieval.timeoutStage = astRagNormalizeString(stage, 'retrieval');
+}
+
+function astRagAssertAnswerRetrievalBudget(timeoutMs, startedAtMs, stage, diagnostics = null) {
+  if (!(typeof timeoutMs === 'number' && isFinite(timeoutMs) && timeoutMs > 0)) {
+    return;
+  }
+
+  const elapsedMs = Math.max(0, astRagNowMs() - startedAtMs);
+  if (elapsedMs <= timeoutMs) {
+    return;
+  }
+
+  astRagMarkAnswerTimeoutDiagnostics(diagnostics, timeoutMs, stage);
+  throw astRagBuildAnswerTimeoutError(timeoutMs, stage, startedAtMs);
 }
 
 function astRagBuildRecoveryRetrievalConfig(retrieval, attempt, recoveryConfig) {
@@ -229,10 +314,18 @@ function astRagAnswerCore(request = {}) {
     const normalizedRequest = astRagValidateAnswerRequest(request);
     const diagnosticsEnabled = normalizedRequest.options && normalizedRequest.options.diagnostics === true;
     const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
+    const retrievalTimeoutMs = normalizedRequest.options && typeof normalizedRequest.options.maxRetrievalMs === 'number'
+      ? normalizedRequest.options.maxRetrievalMs
+      : null;
+
+    const diagnostics = astRagBuildAnswerDiagnostics(cacheConfig, retrievalTimeoutMs);
+    diagnostics.timings.validationMs = Math.max(0, astRagNowMs() - validationStartMs);
+    const retrievalBudgetStartedAtMs = astRagNowMs();
 
     const indexLoadStartMs = astRagNowMs();
     const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId, {
-      cache: cacheConfig
+      cache: cacheConfig,
+      cacheDiagnostics: operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta)
     });
     const indexLoadMs = Math.max(0, astRagNowMs() - indexLoadStartMs);
     const indexDocument = loaded.document;
@@ -240,11 +333,11 @@ function astRagAnswerCore(request = {}) {
       loaded.versionToken,
       astRagNormalizeString(indexDocument.updatedAt, 'unknown')
     );
-
-    const diagnostics = astRagBuildAnswerDiagnostics();
-    diagnostics.timings.validationMs = Math.max(0, astRagNowMs() - validationStartMs);
     diagnostics.timings.indexLoadMs = indexLoadMs;
     diagnostics.cache.indexDocHit = loaded && loaded.cacheHit === true;
+    if (diagnostics.cache.indexDocHit) {
+      diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'index_doc';
+    }
 
     const indexEmbedding = indexDocument.embedding || {};
     const embeddingProvider = astRagNormalizeString(indexEmbedding.provider, null);
@@ -269,7 +362,10 @@ function astRagAnswerCore(request = {}) {
         provider: normalizedRequest.generation.provider,
         model: normalizedRequest.generation.model,
         options: normalizedRequest.generation.options,
-        providerOptions: normalizedRequest.generation.providerOptions
+        providerOptions: normalizedRequest.generation.providerOptions,
+        instructions: normalizedRequest.generation.instructions,
+        style: normalizedRequest.generation.style,
+        forbiddenPhrases: normalizedRequest.generation.forbiddenPhrases
       },
       Object.assign({}, normalizedRequest.options, {
         fallback: normalizedRequest.fallback
@@ -281,13 +377,33 @@ function astRagAnswerCore(request = {}) {
       !normalizedRequest.retrievalPayload &&
       !normalizedRequest.retrievalPayloadKey
     );
+    let deferredRetrievalError = null;
     if (useAnswerCache) {
-      const cachedAnswer = astRagCacheGet(cacheConfig, answerCacheKey);
+      const cachedAnswer = astRagCacheGet(
+        cacheConfig,
+        answerCacheKey,
+        operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+        { path: 'answer' }
+      );
+      try {
+        astRagAssertAnswerRetrievalBudget(
+          retrievalTimeoutMs,
+          retrievalBudgetStartedAtMs,
+          'cache_answer_get',
+          diagnostics
+        );
+      } catch (error) {
+        deferredRetrievalError = error;
+      }
       if (cachedAnswer && astRagIsPlainObject(cachedAnswer) && typeof cachedAnswer.answer === 'string') {
+        if (deferredRetrievalError) {
+          throw deferredRetrievalError;
+        }
         const cachedResponse = astRagCloneObject(cachedAnswer);
         diagnostics.cache.answerHit = true;
         diagnostics.cache.searchHit = false;
         diagnostics.cache.retrievalPayloadHit = false;
+        diagnostics.cache.hitPath = 'answer';
         diagnostics.retrieval.returned = (
           cachedResponse.retrieval &&
           typeof cachedResponse.retrieval.returned === 'number'
@@ -325,18 +441,25 @@ function astRagAnswerCore(request = {}) {
     let retrievalPayload = null;
     let retrievalSource = null;
     let rawSourceCount = 0;
-    const retrievalStartMs = astRagNowMs();
+    const retrievalStartMs = retrievalBudgetStartedAtMs;
 
     try {
+      if (deferredRetrievalError) {
+        throw deferredRetrievalError;
+      }
+      astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval_payload', diagnostics);
       retrievalPayload = astRagResolveAnswerRetrievalPayload(
         normalizedRequest,
         normalizedRequest.indexFileId,
         versionToken,
-        cacheConfig
+        cacheConfig,
+        operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta)
       );
+      astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval_payload', diagnostics);
 
       if (retrievalPayload && Array.isArray(retrievalPayload.results)) {
         diagnostics.cache.retrievalPayloadHit = true;
+        diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'retrieval_payload';
         retrievalSource = 'payload';
         rawSourceCount = retrievalPayload.results.length;
         rankedResults = astRagApplyRetrievalPolicyToPayloadResults(
@@ -356,13 +479,21 @@ function astRagAnswerCore(request = {}) {
             embeddingModel,
             normalizedRequest.question
           );
-          const cachedEmbedding = astRagCacheGet(cacheConfig, embeddingCacheKey);
+          const cachedEmbedding = astRagCacheGet(
+            cacheConfig,
+            embeddingCacheKey,
+            operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+            { path: 'embedding' }
+          );
+          astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'cache_embedding_get', diagnostics);
 
           if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
             diagnostics.cache.embeddingHit = true;
+            diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'embedding';
             queryVector = cachedEmbedding.vector.slice();
           } else {
             const embeddingStartMs = astRagNowMs();
+            astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'embedding', diagnostics);
             const queryEmbedding = astRagEmbedTexts({
               provider: embeddingProvider,
               model: embeddingModel,
@@ -373,18 +504,29 @@ function astRagAnswerCore(request = {}) {
             queryVector = queryEmbedding.vectors[0];
             queryUsage = queryEmbedding.usage || queryUsage;
             diagnostics.timings.embeddingMs = Math.max(0, astRagNowMs() - embeddingStartMs);
-            astRagCacheSet(cacheConfig, embeddingCacheKey, {
-              vector: queryVector
-            }, cacheConfig.embeddingTtlSec);
+            astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'embedding', diagnostics);
+            astRagCacheSet(
+              cacheConfig,
+              embeddingCacheKey,
+              {
+                vector: queryVector
+              },
+              cacheConfig.embeddingTtlSec,
+              operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+              { path: 'embedding' }
+            );
+            astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'cache_embedding_set', diagnostics);
           }
         }
 
+        astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval', diagnostics);
         rankedResults = astRagRetrieveRankedChunks(
           indexDocument,
           normalizedRequest.question,
           queryVector,
           normalizedRequest.retrieval
         );
+        astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval', diagnostics);
       }
     } catch (retrievalError) {
       diagnostics.retrieval.source = retrievalSource;
@@ -392,11 +534,69 @@ function astRagAnswerCore(request = {}) {
       diagnostics.timings.searchMs = diagnostics.retrieval.ms + diagnostics.timings.indexLoadMs + diagnostics.timings.embeddingMs;
       diagnostics.retrieval.rawSources = rawSourceCount;
       diagnostics.retrieval.usableSources = 0;
-      diagnostics.retrieval.emptyReason = 'retrieval_error';
+      const timeoutDetected = Boolean(
+        retrievalError &&
+        astRagIsPlainObject(retrievalError.details) &&
+        retrievalError.details.timedOut === true
+      );
+      if (timeoutDetected) {
+        diagnostics.retrieval.emptyReason = 'retrieval_timeout';
+        astRagMarkAnswerTimeoutDiagnostics(
+          diagnostics,
+          retrievalError.details.timeoutMs || retrievalTimeoutMs,
+          retrievalError.details.timeoutStage
+        );
+      } else {
+        diagnostics.retrieval.emptyReason = 'retrieval_error';
+      }
       diagnostics.generation.status = 'skipped';
       diagnostics.generation.errorClass = retrievalError && retrievalError.name ? retrievalError.name : 'Error';
 
-      if (normalizedRequest.fallback.onRetrievalError) {
+      const timeoutPolicy = normalizedRequest.options.onRetrievalTimeout || 'error';
+      if (timeoutDetected && timeoutPolicy === 'insufficient_context') {
+        const timeoutInsufficient = {
+          status: 'insufficient_context',
+          answer: normalizedRequest.options.insufficientEvidenceMessage,
+          citations: [],
+          retrieval: astRagBuildAnswerRetrievalSummary(normalizedRequest, []),
+          usage: queryUsage,
+          diagnostics: astRagFinalizeAnswerDiagnostics(
+            diagnostics,
+            totalStartMs,
+            'timeout_insufficient'
+          )
+        };
+
+        const preparedTimeoutInsufficient = astRagPrepareAnswerResponse(timeoutInsufficient, diagnosticsEnabled);
+        astRagTelemetryEndSpan(spanId, {
+          indexFileId: normalizedRequest.indexFileId,
+          status: preparedTimeoutInsufficient.status,
+          pipelinePath: 'timeout_insufficient',
+          returnedChunks: 0
+        });
+        return preparedTimeoutInsufficient;
+      }
+
+      if (timeoutDetected && timeoutPolicy === 'fallback') {
+        const timeoutFallback = astRagBuildFallbackAnswerResult({
+          normalizedRequest,
+          rankedResults: [],
+          queryUsage,
+          diagnostics,
+          totalStartMs,
+          pipelinePath: 'timeout_fallback'
+        });
+        const preparedTimeoutFallback = astRagPrepareAnswerResponse(timeoutFallback, diagnosticsEnabled);
+        astRagTelemetryEndSpan(spanId, {
+          indexFileId: normalizedRequest.indexFileId,
+          status: preparedTimeoutFallback.status,
+          pipelinePath: 'timeout_fallback',
+          returnedChunks: 0
+        });
+        return preparedTimeoutFallback;
+      }
+
+      if (normalizedRequest.fallback.onRetrievalError && !(timeoutDetected && timeoutPolicy === 'error')) {
         const fallbackOnError = astRagBuildFallbackAnswerResult({
           normalizedRequest,
           rankedResults: [],
@@ -409,7 +609,14 @@ function astRagAnswerCore(request = {}) {
         if (useAnswerCache) {
           const cacheableFallback = astRagCloneObject(fallbackOnError);
           delete cacheableFallback.diagnostics;
-          astRagCacheSet(cacheConfig, answerCacheKey, cacheableFallback, cacheConfig.answerTtlSec);
+          astRagCacheSet(
+            cacheConfig,
+            answerCacheKey,
+            cacheableFallback,
+            cacheConfig.answerTtlSec,
+            operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+            { path: 'answer' }
+          );
         }
 
         const pipelinePath = fallbackOnError.diagnostics.pipelinePath;
@@ -436,6 +643,7 @@ function astRagAnswerCore(request = {}) {
       const recoveryConfig = normalizedRequest.retrieval.recovery;
 
       for (let attempt = 1; attempt <= recoveryConfig.maxAttempts; attempt += 1) {
+        astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'recovery', diagnostics);
         const candidateRetrieval = astRagBuildRecoveryRetrievalConfig(
           normalizedRequest.retrieval,
           attempt,
@@ -450,12 +658,14 @@ function astRagAnswerCore(request = {}) {
             candidateRetrieval
           );
         } else {
+          astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'recovery', diagnostics);
           candidateResults = astRagRetrieveRankedChunks(
             indexDocument,
             normalizedRequest.question,
             queryVector,
             candidateRetrieval
           );
+          astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'recovery', diagnostics);
         }
 
         diagnostics.retrieval.attempts.push({
@@ -504,7 +714,15 @@ function astRagAnswerCore(request = {}) {
             relaxedForFallback
           )
           : (
-            ((queryVector && Array.isArray(queryVector)) || normalizedRequest.retrieval.mode === 'lexical')
+            (
+              ((queryVector && Array.isArray(queryVector)) || normalizedRequest.retrieval.mode === 'lexical') &&
+              !(
+                typeof retrievalTimeoutMs === 'number' &&
+                isFinite(retrievalTimeoutMs) &&
+                retrievalTimeoutMs > 0 &&
+                Math.max(0, astRagNowMs() - retrievalStartMs) > retrievalTimeoutMs
+              )
+            )
               ? astRagRetrieveRankedChunks(
                 indexDocument,
                 normalizedRequest.question,
@@ -526,7 +744,14 @@ function astRagAnswerCore(request = {}) {
         if (useAnswerCache) {
           const cacheableFallback = astRagCloneObject(fallbackOnEmpty);
           delete cacheableFallback.diagnostics;
-          astRagCacheSet(cacheConfig, answerCacheKey, cacheableFallback, cacheConfig.answerTtlSec);
+          astRagCacheSet(
+            cacheConfig,
+            answerCacheKey,
+            cacheableFallback,
+            cacheConfig.answerTtlSec,
+            operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+            { path: 'answer' }
+          );
         }
 
         const pipelinePath = fallbackOnEmpty.diagnostics.pipelinePath;
@@ -557,7 +782,14 @@ function astRagAnswerCore(request = {}) {
       if (useAnswerCache) {
         const cacheableInsufficient = astRagCloneObject(insufficient);
         delete cacheableInsufficient.diagnostics;
-        astRagCacheSet(cacheConfig, answerCacheKey, cacheableInsufficient, cacheConfig.answerTtlSec);
+        astRagCacheSet(
+          cacheConfig,
+          answerCacheKey,
+          cacheableInsufficient,
+          cacheConfig.answerTtlSec,
+          operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+          { path: 'answer' }
+        );
       }
 
       const pipelinePath = insufficient.diagnostics.pipelinePath;
@@ -583,7 +815,12 @@ function astRagAnswerCore(request = {}) {
       const prompt = astRagBuildGroundingPrompt(
         normalizedRequest.question,
         normalizedRequest.history,
-        rankedResults
+        rankedResults,
+        {
+          instructions: normalizedRequest.generation.instructions,
+          style: normalizedRequest.generation.style,
+          forbiddenPhrases: normalizedRequest.generation.forbiddenPhrases
+        }
       );
 
       const aiResponse = runAiRequest({
@@ -651,7 +888,14 @@ function astRagAnswerCore(request = {}) {
       if (useAnswerCache) {
         const cacheableResult = astRagCloneObject(result);
         delete cacheableResult.diagnostics;
-        astRagCacheSet(cacheConfig, answerCacheKey, cacheableResult, cacheConfig.answerTtlSec);
+        astRagCacheSet(
+          cacheConfig,
+          answerCacheKey,
+          cacheableResult,
+          cacheConfig.answerTtlSec,
+          operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+          { path: 'answer' }
+        );
       }
 
       const pipelinePath = result.diagnostics.pipelinePath;

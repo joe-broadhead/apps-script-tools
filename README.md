@@ -79,6 +79,8 @@ Current release state:
 - `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback synthesis.
 - `AST.RAG.answer(...)` recovery controls (`retrieval.recovery`) and optional per-phase diagnostics (`options.diagnostics` or `RAG_DIAGNOSTICS_ENABLED`).
 - `AST.RAG.answer(...)` fallback controls for retrieval error/empty paths (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
+- `AST.RAG.search(...)` / `AST.RAG.answer(...)` retrieval latency budgets (`options.maxRetrievalMs`) and answer timeout policy (`options.onRetrievalTimeout`).
+- `AST.RAG.answer(...)` prompt controls (`generation.instructions`, `generation.style`, `generation.forbiddenPhrases`) with grounding preserved.
 
 ## Install As Apps Script Library
 

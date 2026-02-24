@@ -22,15 +22,55 @@ function astRagBuildContextBlocks(results) {
   });
 }
 
-function astRagBuildGroundingPrompt(question, history, searchResults) {
-  const contextBlocks = astRagBuildContextBlocks(searchResults || []);
+function astRagBuildGroundingStyleInstruction(style) {
+  if (style === 'concise') {
+    return 'Prefer concise responses with minimal filler and direct facts.';
+  }
+  if (style === 'detailed') {
+    return 'Provide detailed responses with clear sections when useful.';
+  }
+  if (style === 'bullets') {
+    return 'Format the answer as short bullet points when possible.';
+  }
+  return 'Respond in a natural chat style while staying factual and grounded.';
+}
 
-  const instructions = [
+function astRagBuildForbiddenPhrasesInstruction(forbiddenPhrases = []) {
+  const normalized = Array.isArray(forbiddenPhrases)
+    ? forbiddenPhrases
+      .map(value => astRagNormalizeString(value, null))
+      .filter(Boolean)
+    : [];
+
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  return `Do not use these phrases verbatim: ${normalized.join(', ')}.`;
+}
+
+function astRagBuildGroundingPrompt(question, history, searchResults, generation = {}) {
+  const contextBlocks = astRagBuildContextBlocks(searchResults || []);
+  const style = astRagNormalizeString(generation.style, 'chat');
+  const customInstructions = astRagNormalizeString(generation.instructions, null);
+  const forbiddenInstruction = astRagBuildForbiddenPhrasesInstruction(generation.forbiddenPhrases);
+
+  const instructionParts = [
     'You are a grounded project assistant.',
     'Only answer using the provided context blocks.',
     'Always include citations using IDs like S1, S2.',
-    'If context is insufficient, set answer to the insufficient evidence message and return no citations.'
-  ].join(' ');
+    'If context is insufficient, set answer to the insufficient evidence message and return no citations.',
+    astRagBuildGroundingStyleInstruction(style)
+  ];
+
+  if (customInstructions) {
+    instructionParts.push(`Additional response instructions: ${customInstructions}`);
+  }
+  if (forbiddenInstruction) {
+    instructionParts.push(forbiddenInstruction);
+  }
+
+  const instructions = instructionParts.join(' ');
 
   const messages = [{
     role: 'system',

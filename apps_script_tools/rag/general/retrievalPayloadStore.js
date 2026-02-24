@@ -293,30 +293,118 @@ function astRagAssertRetrievalPayloadCacheRuntime() {
   }
 }
 
-function astRagPutRetrievalPayload(key, payload, options = {}, fallbackCache = {}) {
+function astRagBuildRetrievalPayloadCacheOperationMeta(cacheOptions = {}, operation = 'get') {
+  return {
+    operation,
+    path: 'retrieval_payload',
+    backend: astRagNormalizeString(cacheOptions.backend, AST_RAG_CACHE_DEFAULTS.backend),
+    namespace: astRagNormalizeString(cacheOptions.namespace, AST_RAG_CACHE_DEFAULTS.namespace),
+    lockScope: astRagNormalizeString(cacheOptions.lockScope, AST_RAG_CACHE_DEFAULTS.lockScope),
+    durationMs: 0,
+    lockWaitMs: 0,
+    lockContention: 0,
+    hit: false,
+    errorClass: null
+  };
+}
+
+function astRagAttachRetrievalPayloadCacheTrace(cacheOptions = {}, operationMeta = null) {
+  if (!astRagIsPlainObject(cacheOptions) || !astRagIsPlainObject(operationMeta)) {
+    return cacheOptions;
+  }
+
+  cacheOptions.traceContext = {
+    source: 'rag',
+    operation: operationMeta.operation,
+    path: operationMeta.path
+  };
+  cacheOptions.traceCollector = event => {
+    if (!event || typeof event !== 'object' || event.event !== 'lock_acquire') {
+      return;
+    }
+
+    const waitMs = typeof event.waitMs === 'number' && isFinite(event.waitMs)
+      ? Math.max(0, event.waitMs)
+      : 0;
+    operationMeta.lockWaitMs += waitMs;
+    if (event.contention === true || waitMs > 0) {
+      operationMeta.lockContention += 1;
+    }
+  };
+  return cacheOptions;
+}
+
+function astRagFinalizeRetrievalPayloadCacheOperation(operationMeta, startedAtMs, diagnosticsCollector) {
+  if (!astRagIsPlainObject(operationMeta)) {
+    return;
+  }
+
+  operationMeta.durationMs = Math.max(0, new Date().getTime() - startedAtMs);
+  if (typeof diagnosticsCollector === 'function') {
+    diagnosticsCollector(operationMeta);
+  }
+}
+
+function astRagPutRetrievalPayload(key, payload, options = {}, fallbackCache = {}, diagnosticsCollector = null) {
   astRagAssertRetrievalPayloadCacheRuntime();
   const normalizedKey = astRagNormalizeRetrievalPayloadKey(key);
   const normalizedPayload = astRagNormalizeRetrievalPayload(payload, { allowEmptyResults: true });
   const cacheOptions = astRagResolveRetrievalPayloadCacheOptions(options, fallbackCache);
-  return astCacheSetValue(normalizedKey, normalizedPayload, cacheOptions);
+  const operationMeta = astRagBuildRetrievalPayloadCacheOperationMeta(cacheOptions, 'set');
+  const tracedOptions = astRagAttachRetrievalPayloadCacheTrace(cacheOptions, operationMeta);
+  const startedAtMs = new Date().getTime();
+
+  try {
+    return astCacheSetValue(normalizedKey, normalizedPayload, tracedOptions);
+  } catch (error) {
+    operationMeta.errorClass = error && error.name ? error.name : 'Error';
+    throw error;
+  } finally {
+    astRagFinalizeRetrievalPayloadCacheOperation(operationMeta, startedAtMs, diagnosticsCollector);
+  }
 }
 
-function astRagGetRetrievalPayload(key, options = {}, fallbackCache = {}) {
+function astRagGetRetrievalPayload(key, options = {}, fallbackCache = {}, diagnosticsCollector = null) {
   astRagAssertRetrievalPayloadCacheRuntime();
   const normalizedKey = astRagNormalizeRetrievalPayloadKey(key);
   const cacheOptions = astRagResolveRetrievalPayloadCacheOptions(options, fallbackCache);
-  const payload = astCacheGetValue(normalizedKey, cacheOptions);
+  const operationMeta = astRagBuildRetrievalPayloadCacheOperationMeta(cacheOptions, 'get');
+  const tracedOptions = astRagAttachRetrievalPayloadCacheTrace(cacheOptions, operationMeta);
+  const startedAtMs = new Date().getTime();
+  let payload = null;
+
+  try {
+    payload = astCacheGetValue(normalizedKey, tracedOptions);
+    operationMeta.hit = payload != null;
+  } catch (error) {
+    operationMeta.errorClass = error && error.name ? error.name : 'Error';
+    throw error;
+  } finally {
+    astRagFinalizeRetrievalPayloadCacheOperation(operationMeta, startedAtMs, diagnosticsCollector);
+  }
+
   if (!payload) {
     return null;
   }
   return astRagNormalizeRetrievalPayload(payload, { allowEmptyResults: true });
 }
 
-function astRagDeleteRetrievalPayload(key, options = {}, fallbackCache = {}) {
+function astRagDeleteRetrievalPayload(key, options = {}, fallbackCache = {}, diagnosticsCollector = null) {
   astRagAssertRetrievalPayloadCacheRuntime();
   const normalizedKey = astRagNormalizeRetrievalPayloadKey(key);
   const cacheOptions = astRagResolveRetrievalPayloadCacheOptions(options, fallbackCache);
-  return astCacheDeleteValue(normalizedKey, cacheOptions);
+  const operationMeta = astRagBuildRetrievalPayloadCacheOperationMeta(cacheOptions, 'delete');
+  const tracedOptions = astRagAttachRetrievalPayloadCacheTrace(cacheOptions, operationMeta);
+  const startedAtMs = new Date().getTime();
+
+  try {
+    return astCacheDeleteValue(normalizedKey, tracedOptions);
+  } catch (error) {
+    operationMeta.errorClass = error && error.name ? error.name : 'Error';
+    throw error;
+  } finally {
+    astRagFinalizeRetrievalPayloadCacheOperation(operationMeta, startedAtMs, diagnosticsCollector);
+  }
 }
 
 function astRagApplyRetrievalPolicyToPayloadResults(results, retrieval = {}) {
@@ -346,7 +434,13 @@ function astRagApplyRetrievalPolicyToPayloadResults(results, retrieval = {}) {
   return ranked.slice(0, topK);
 }
 
-function astRagResolveAnswerRetrievalPayload(normalizedRequest, indexFileId, versionToken, fallbackCache = {}) {
+function astRagResolveAnswerRetrievalPayload(
+  normalizedRequest,
+  indexFileId,
+  versionToken,
+  fallbackCache = {},
+  diagnosticsCollector = null
+) {
   let payload = null;
 
   if (astRagIsPlainObject(normalizedRequest.retrievalPayload)) {
@@ -355,7 +449,8 @@ function astRagResolveAnswerRetrievalPayload(normalizedRequest, indexFileId, ver
     payload = astRagGetRetrievalPayload(
       normalizedRequest.retrievalPayloadKey,
       normalizedRequest.retrievalPayloadCache || {},
-      fallbackCache
+      fallbackCache,
+      diagnosticsCollector
     );
   }
 

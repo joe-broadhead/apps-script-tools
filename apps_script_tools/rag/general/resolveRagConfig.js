@@ -33,6 +33,7 @@ const AST_RAG_CONFIG_KEYS = Object.freeze([
   'RAG_CACHE_EMBEDDING_TTL_SEC',
   'RAG_CACHE_STORAGE_URI',
   'RAG_CACHE_LOCK_TIMEOUT_MS',
+  'RAG_CACHE_LOCK_SCOPE',
   'RAG_CACHE_UPDATE_STATS_ON_GET'
 ]);
 
@@ -408,6 +409,16 @@ function astRagResolveCacheConfig(overrides = {}) {
     1
   );
 
+  const lockScope = astRagNormalizeString(
+    input.lockScope,
+    astRagNormalizeString(snapshot.RAG_CACHE_LOCK_SCOPE, AST_RAG_CACHE_DEFAULTS.lockScope)
+  );
+  if (['script', 'user', 'none'].indexOf(lockScope) === -1) {
+    throw new AstRagValidationError('cache.lockScope must be one of: script, user, none', {
+      lockScope
+    });
+  }
+
   const updateStatsOnGet = normalizeBoolean(
     input.updateStatsOnGet,
     normalizeBoolean(snapshot.RAG_CACHE_UPDATE_STATS_ON_GET, AST_RAG_CACHE_DEFAULTS.updateStatsOnGet)
@@ -423,6 +434,7 @@ function astRagResolveCacheConfig(overrides = {}) {
     embeddingTtlSec,
     storageUri,
     lockTimeoutMs,
+    lockScope,
     updateStatsOnGet
   };
 }

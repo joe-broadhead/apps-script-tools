@@ -265,6 +265,13 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_UPDATE_STATS_ON_GET
   ], AST_CACHE_DEFAULT_CONFIG.updateStatsOnGet);
 
+  const traceCollector = typeof overrides.traceCollector === 'function'
+    ? overrides.traceCollector
+    : null;
+  const traceContext = astCacheIsPlainObject(overrides.traceContext)
+    ? astCacheJsonClone(overrides.traceContext)
+    : null;
+
   return {
     backend,
     namespace,
@@ -275,6 +282,8 @@ function astCacheResolveConfig(overrides = {}) {
     storageUri,
     lockTimeoutMs,
     lockScope,
-    updateStatsOnGet
+    updateStatsOnGet,
+    traceCollector,
+    traceContext
   };
 }

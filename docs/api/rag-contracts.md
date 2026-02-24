@@ -112,7 +112,8 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   },
   options: {
     enforceAccessControl: true,
-    diagnostics: false // set true to include diagnostics in response
+    diagnostics: false, // set true to include diagnostics in response
+    maxRetrievalMs: null // optional retrieval budget in milliseconds
   },
   cache: {
     enabled: false,
@@ -123,6 +124,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     embeddingTtlSec: 900,
     storageUri: 's3://bucket/cache',
     lockTimeoutMs: 5000,
+    lockScope: 'script' | 'user' | 'none',
     updateStatsOnGet: false
   },
   // Back-compat aliases are still accepted:
@@ -177,12 +179,17 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     options: {
       temperature: 0.1,
       maxOutputTokens: 1024
-    }
+    },
+    instructions: 'optional grounding-safe instruction override',
+    style: 'chat' | 'concise' | 'detailed' | 'bullets',
+    forbiddenPhrases: ['optional phrases that must not appear in output']
   },
   options: {
     requireCitations: true,
     enforceAccessControl: true,
     diagnostics: false, // set true to include diagnostics in response
+    maxRetrievalMs: null, // optional retrieval budget in milliseconds
+    onRetrievalTimeout: 'error' | 'insufficient_context' | 'fallback',
     insufficientEvidenceMessage: 'I do not have enough grounded context to answer that.'
   },
   cache: {
@@ -192,7 +199,10 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     ttlSec: 300,
     answerTtlSec: 180,
     embeddingTtlSec: 900,
-    storageUri: 's3://bucket/cache'
+    storageUri: 's3://bucket/cache',
+    lockTimeoutMs: 5000,
+    lockScope: 'script' | 'user' | 'none',
+    updateStatsOnGet: false
   },
   retrievalPayload: {
     indexFileId: 'required when provided',
@@ -229,7 +239,8 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     backend: 'memory' | 'drive_json' | 'script_properties' | 'storage_json'
   },
   options: {
-    diagnostics: false // set true to include diagnostics in response
+    diagnostics: false, // set true to include diagnostics in response
+    maxRetrievalMs: null // optional retrieval budget in milliseconds
   },
   preview: {
     snippetMaxChars: 280,
@@ -363,13 +374,18 @@ Resolution precedence for Vertex service-account JSON:
   usage,
   diagnostics?: {
     totalMs,
-    pipelinePath: 'standard' | 'recovery_applied' | 'fallback',
+    pipelinePath: 'standard' | 'recovery_applied' | 'fallback' | 'timeout_insufficient' | 'timeout_fallback' | 'cache',
     cache: {
       indexDocHit,
       searchHit,
       embeddingHit,
       retrievalPayloadHit,
-      answerHit
+      answerHit,
+      backend,
+      namespace,
+      lockScope,
+      lockContention,
+      hitPath
     },
     timings: {
       validationMs,
@@ -379,7 +395,11 @@ Resolution precedence for Vertex service-account JSON:
       rerankMs,
       generationMs,
       searchMs,
-      payloadCacheWriteMs
+      payloadCacheWriteMs,
+      cacheGetMs,
+      cacheSetMs,
+      cacheDeleteMs,
+      lockWaitMs
     },
     retrieval: {
       source: 'index' | 'payload',
@@ -389,7 +409,10 @@ Resolution precedence for Vertex service-account JSON:
       emptyReason, // null | no_index_chunks | payload_empty | filters_excluded_all | access_filtered_all | below_min_score | no_matches | retrieval_error
       recoveryAttempted,
       recoveryApplied,
-      attempts: [{ attempt, topK, minScore, returned, ms }]
+      attempts: [{ attempt, topK, minScore, returned, ms }],
+      timedOut,
+      timeoutMs,
+      timeoutStage
     },
     generation: {
       status: 'not_started' | 'started' | 'ok' | 'error' | 'skipped',
@@ -448,9 +471,18 @@ const fallback = ASTX.RAG.Fallback.fromCitations({
     }
   ],
   usage,
-  // diagnostics?: same shape as answer diagnostics cache/timings/retrieval blocks
+  // diagnostics?: includes the same cache/timing/retrieval blocks used by answer(...)
 }
 ```
+
+## Retrieval timeout policy
+
+- `search.options.maxRetrievalMs`: on budget exceed, `search(...)` throws `AstRagRetrievalError` with `details.timedOut=true`.
+- `answer.options.maxRetrievalMs`: applies to retrieval phases only (index load/cache/embedding/ranking), not generation.
+- `answer.options.onRetrievalTimeout`:
+  - `error` (default): throw `AstRagRetrievalError`.
+  - `insufficient_context`: return deterministic abstain response.
+  - `fallback`: run fallback answer policy when configured.
 
 ## Grounding policy
 

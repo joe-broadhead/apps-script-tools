@@ -654,8 +654,12 @@ High-signal behavior:
 - answer flows can reuse `previewSources` payloads via `retrievalPayload` or `retrievalPayloadKey`.
 - `answer(...)` supports retrieval recovery controls (`retrieval.recovery`) before generation.
 - `answer(...)` supports deterministic fallback policy controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
+- `search(...)` and `answer(...)` support retrieval budgets via `options.maxRetrievalMs`.
+- `answer(...)` supports retrieval-timeout behavior via `options.onRetrievalTimeout` (`error`, `insufficient_context`, `fallback`).
+- `answer(...)` prompt controls include `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
 - `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
 - `answer(...)` can return stable `diagnostics` for retrieval/generation phase timing + pipeline path when `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
+- diagnostics include cache backend/lock metadata and lock timing/contention (`cache.lockScope`, `timings.lockWaitMs`, `cache.lockContention`).
 
 See:
 

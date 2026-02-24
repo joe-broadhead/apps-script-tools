@@ -61,6 +61,7 @@ Use `RAG_DEFAULT_INDEX_FOLDER_ID` to control default destination.
 - `cache.ttlSec`, `cache.searchTtlSec`, `cache.answerTtlSec`, `cache.embeddingTtlSec`
 - `cache.storageUri` (required for `storage_json`)
 - `cache.lockTimeoutMs`
+- `cache.lockScope` (`script` | `user` | `none`)
 - `cache.updateStatsOnGet`
 
 Script property defaults are also supported:
@@ -74,7 +75,21 @@ Script property defaults are also supported:
 - `RAG_CACHE_EMBEDDING_TTL_SEC`
 - `RAG_CACHE_STORAGE_URI`
 - `RAG_CACHE_LOCK_TIMEOUT_MS`
+- `RAG_CACHE_LOCK_SCOPE`
 - `RAG_CACHE_UPDATE_STATS_ON_GET`
+
+## Retrieval latency budgets
+
+Use retrieval budgets to bound search/answer latency under load:
+
+- `search.options.maxRetrievalMs`
+- `answer.options.maxRetrievalMs`
+
+Timeout behavior for `answer(...)` is controlled by:
+
+- `answer.options.onRetrievalTimeout='error'` (default): throw typed retrieval timeout error.
+- `answer.options.onRetrievalTimeout='insufficient_context'`: return deterministic abstain response.
+- `answer.options.onRetrievalTimeout='fallback'`: run fallback answer behavior when configured.
 
 ## Integrity checklist
 

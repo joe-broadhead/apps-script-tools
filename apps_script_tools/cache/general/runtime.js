@@ -14,7 +14,9 @@ function astCacheExtractConfigOverrides(options = {}) {
     'storageUri',
     'lockTimeoutMs',
     'lockScope',
-    'updateStatsOnGet'
+    'updateStatsOnGet',
+    'traceCollector',
+    'traceContext'
   ];
 
   for (let idx = 0; idx < keys.length; idx += 1) {

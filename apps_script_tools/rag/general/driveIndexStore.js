@@ -79,8 +79,16 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
   const cacheConfig = astRagResolveCacheConfig(
     astRagIsPlainObject(options) && astRagIsPlainObject(options.cache) ? options.cache : {}
   );
+  const cacheDiagnostics = astRagIsPlainObject(options) && typeof options.cacheDiagnostics === 'function'
+    ? options.cacheDiagnostics
+    : null;
   const cacheKey = astRagBuildIndexDocumentCacheKey(indexFileId, versionToken);
-  const cached = astRagCacheGet(cacheConfig, cacheKey);
+  const cached = astRagCacheGet(
+    cacheConfig,
+    cacheKey,
+    cacheDiagnostics,
+    { path: 'index_doc' }
+  );
 
   if (cached && astRagIsPlainObject(cached.document) && Array.isArray(cached.document.chunks)) {
     cached.document.sources = (cached.document.sources || []).map(astRagHydrateLoadedSource);
@@ -118,9 +126,16 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
   json.sources = json.sources.map(astRagHydrateLoadedSource);
   json.chunks = json.chunks.map(astRagHydrateLoadedChunk);
 
-  astRagCacheSet(cacheConfig, cacheKey, {
-    document: json
-  }, cacheConfig.searchTtlSec);
+  astRagCacheSet(
+    cacheConfig,
+    cacheKey,
+    {
+      document: json
+    },
+    cacheConfig.searchTtlSec,
+    cacheDiagnostics,
+    { path: 'index_doc' }
+  );
 
   return {
     indexFileId,
