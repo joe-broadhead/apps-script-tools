@@ -518,6 +518,27 @@ test('AST.Jobs.list with explicit propertyPrefix includes legacy records when in
   assert.equal(listed.some(item => item.id === jobId), true);
 });
 
+test('AST.Jobs.list keeps returning legacy records after registry bootstrap', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_REPEAT_${Date.now()}_`;
+  const jobId = `legacy_repeat_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-repeat', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const first = context.AST.Jobs.list({
+    name: 'legacy-repeat',
+    limit: 20
+  });
+  assert.equal(first.some(item => item.id === jobId), true);
+
+  const second = context.AST.Jobs.list({
+    name: 'legacy-repeat',
+    limit: 20
+  });
+  assert.equal(second.some(item => item.id === jobId), true);
+});
+
 test('AST.Jobs.configure controls runtime defaults', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_CONFIG_${Date.now()}_`;

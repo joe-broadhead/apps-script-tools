@@ -897,7 +897,8 @@ function astJobsCollectLegacySummaries(
   scriptProperties,
   prefixes,
   normalizedFilters,
-  dedupeMap
+  dedupeMap,
+  options = {}
 ) {
   const entries = astJobsReadAllScriptProperties(scriptProperties);
   const keys = Object.keys(entries);
@@ -932,6 +933,13 @@ function astJobsCollectLegacySummaries(
     }
 
     const summary = astJobsBuildJobSummary(parsed, resolvedPrefix, propertyKey);
+    astJobsTryBackfillJobIndexes(
+      scriptProperties,
+      parsed,
+      resolvedPrefix,
+      propertyKey,
+      options
+    );
     const existing = dedupeMap[summary.id];
     if (!existing) {
       dedupeMap[summary.id] = summary;
@@ -969,7 +977,8 @@ function astJobsListJobRecords(filters = {}, options = {}) {
       scriptProperties,
       prefixes,
       normalizedFilters,
-      dedupeSummaries
+      dedupeSummaries,
+      options
     );
   }
 
