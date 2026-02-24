@@ -302,6 +302,50 @@ See:
 - [Storage Providers](storage-providers.md)
 - [Storage Security](../operations/storage-security.md)
 
+## `ASTX.Config`
+
+Script property extraction helpers for deterministic runtime bootstrap.
+
+Primary methods:
+
+- `ASTX.Config.fromScriptProperties(options)` to read and normalize script properties.
+
+High-signal behavior:
+
+- values are normalized to trimmed strings.
+- supports `keys` filtering and prefix filtering (`prefix`, `stripPrefix`).
+- gracefully returns `{}` when script properties are unavailable.
+
+```javascript
+const props = ASTX.Config.fromScriptProperties({
+  prefix: 'OPENAI_',
+  stripPrefix: true
+});
+```
+
+## `ASTX.Runtime`
+
+One-shot runtime configuration hydration across module namespaces.
+
+Primary methods:
+
+- `ASTX.Runtime.configureFromProps(options)` to apply script properties to module `configure(...)` hooks.
+- `ASTX.Runtime.modules()` to list supported runtime-configurable module names.
+
+High-signal behavior:
+
+- default target modules: `AI`, `RAG`, `Cache`, `Storage`, `Telemetry`, `Jobs`.
+- configuration merge policy is controlled by `options.merge` (default `true`).
+- supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
+
+```javascript
+const summary = ASTX.Runtime.configureFromProps({
+  modules: ['AI', 'RAG', 'Storage']
+});
+
+Logger.log(summary.configuredModules);
+```
+
 ## `ASTX.Telemetry`
 
 Observability foundation for request traces and operational diagnostics.
@@ -354,6 +398,33 @@ See:
 
 - [Telemetry Contracts](telemetry-contracts.md)
 - [Telemetry Operations](../operations/telemetry.md)
+
+## `ASTX.TelemetryHelpers`
+
+Safe wrappers around span/event operations for app-level workflows.
+
+Primary methods:
+
+- `ASTX.TelemetryHelpers.startSpanSafe(name, context, options)`
+- `ASTX.TelemetryHelpers.endSpanSafe(spanId, result, options)`
+- `ASTX.TelemetryHelpers.recordEventSafe(event, options)`
+- `ASTX.TelemetryHelpers.withSpan(name, context, task, options)`
+- `ASTX.TelemetryHelpers.wrap(name, task, options)`
+
+High-signal behavior:
+
+- never throws from telemetry API failures.
+- `withSpan(...)` always attempts to close the span on both success and error.
+- task errors are re-thrown after telemetry finalization.
+
+```javascript
+const sum = ASTX.TelemetryHelpers.withSpan(
+  'app.compute.sum',
+  { requestId: 'req_1' },
+  () => ASTX.Utils.arraySum([1, 2, 3, 4]),
+  { includeResult: true }
+);
+```
 
 ## `ASTX.Jobs`
 

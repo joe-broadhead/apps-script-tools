@@ -57,6 +57,44 @@ AST_UTILS_TESTS = [
     }
   },
   {
+    description: 'AST namespace should expose Config and Runtime helper surfaces',
+    test: () => {
+      if (!AST || !AST.Config || !AST.Runtime) {
+        throw new Error('AST.Config or AST.Runtime is not available');
+      }
+
+      if (typeof AST.Config.fromScriptProperties !== 'function') {
+        throw new Error('AST.Config.fromScriptProperties is not available');
+      }
+
+      if (typeof AST.Runtime.configureFromProps !== 'function') {
+        throw new Error('AST.Runtime.configureFromProps is not available');
+      }
+    }
+  },
+  {
+    description: 'AST namespace should expose TelemetryHelpers helper surface',
+    test: () => {
+      if (!AST || !AST.TelemetryHelpers) {
+        throw new Error('AST.TelemetryHelpers is not available');
+      }
+
+      const requiredMethods = [
+        'startSpanSafe',
+        'endSpanSafe',
+        'recordEventSafe',
+        'withSpan',
+        'wrap'
+      ];
+
+      requiredMethods.forEach(method => {
+        if (typeof AST.TelemetryHelpers[method] !== 'function') {
+          throw new Error(`AST.TelemetryHelpers.${method} is not available`);
+        }
+      });
+    }
+  },
+  {
     description: 'AST namespace should expose SQL runtime helper surface',
     test: () => {
       if (!AST || !AST.Sql) {

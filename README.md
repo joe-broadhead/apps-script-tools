@@ -34,7 +34,10 @@
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
 - `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single + bulk operations
+- `AST.Config`: script-properties snapshot helpers for runtime bootstrap
+- `AST.Runtime`: one-shot runtime config hydration across namespaces
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
+- `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
 - `AST.Jobs`: storage-backed multi-step job orchestration with retry/resume/poll semantics
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
@@ -60,6 +63,8 @@ Current release state:
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and bulk helpers (`getMany`, `setMany`, `deleteMany`).
 - Cache backend posture for production: prefer `storage_json`; use `drive_json` and `script_properties` only for low-scale paths.
 - New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive/storage NDJSON sinks (including batched `storage_json` + `flush`).
+- New bootstrap helpers: `AST.Config.fromScriptProperties(...)` and `AST.Runtime.configureFromProps(...)`.
+- New `AST.TelemetryHelpers` wrappers for safe instrumented execution (`withSpan`, `wrap`, `startSpanSafe`, `endSpanSafe`).
 - RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.
 - New `AST.Jobs` module with storage-backed checkpointing and run/enqueue/resume/status/list/cancel/pollAndRun contracts.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
@@ -99,7 +104,9 @@ function demoAstLibrary() {
 ```javascript
 function demoAstAi() {
   const ASTX = ASTLib.AST || ASTLib;
-  ASTX.AI.configure(PropertiesService.getScriptProperties().getProperties());
+  ASTX.Runtime.configureFromProps({
+    modules: ['AI']
+  });
 
   const response = ASTX.AI.stream({
     provider: 'openai',
@@ -112,6 +119,21 @@ function demoAstAi() {
   });
 
   Logger.log(response.output.text);
+}
+```
+
+```javascript
+function demoAstTelemetryHelpers() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const result = ASTX.TelemetryHelpers.withSpan(
+    'demo.telemetry.helper',
+    { feature: 'quickstart' },
+    () => ASTX.Utils.arraySum([1, 2, 3, 4]),
+    { includeResult: true }
+  );
+
+  Logger.log(result); // 10
 }
 ```
 
