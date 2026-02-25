@@ -135,6 +135,7 @@ function astConfigResolveFirstInteger(candidates = [], options = {}) {
   const min = Number.isInteger(options.min) ? options.min : 1;
   const max = Number.isInteger(options.max) ? options.max : null;
   const onInvalid = typeof options.onInvalid === 'function' ? options.onInvalid : null;
+  const strict = options.strict !== false;
 
   if (!Array.isArray(candidates)) {
     return fallback;
@@ -154,7 +155,10 @@ function astConfigResolveFirstInteger(candidates = [], options = {}) {
           max
         });
       }
-      throw new Error('Expected integer configuration value');
+      if (strict) {
+        throw new Error('Expected integer configuration value');
+      }
+      continue;
     }
 
     return numeric;
@@ -177,12 +181,13 @@ function astConfigMergeNormalizedConfig(baseConfig = {}, incomingConfig = {}, op
   const keys = Object.keys(incomingConfig);
 
   for (let idx = 0; idx < keys.length; idx += 1) {
-    const normalizedKey = astConfigNormalizeString(keys[idx], '');
+    const sourceKey = keys[idx];
+    const normalizedKey = astConfigNormalizeString(sourceKey, '');
     if (!normalizedKey) {
       continue;
     }
 
-    const normalizedValue = astConfigNormalizeValue(incomingConfig[normalizedKey], false);
+    const normalizedValue = astConfigNormalizeValue(incomingConfig[sourceKey], false);
     if (normalizedValue == null) {
       delete next[normalizedKey];
       continue;

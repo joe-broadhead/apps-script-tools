@@ -207,6 +207,25 @@ test('AST.Config memoization is preserved across equivalent script property wrap
   assert.equal(getPropertiesCalls, 2);
 });
 
+test('astConfigMergeNormalizedConfig preserves values for keys requiring trim normalization', () => {
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const merged = context.astConfigMergeNormalizedConfig(
+    {},
+    {
+      ' OPENAI_API_KEY ': ' key-123 '
+    }
+  );
+
+  assert.equal(
+    JSON.stringify(merged),
+    JSON.stringify({
+      OPENAI_API_KEY: 'key-123'
+    })
+  );
+});
+
 test('AST.Runtime.configureFromProps configures selected modules from script properties', () => {
   const context = createGasContext({
     PropertiesService: {

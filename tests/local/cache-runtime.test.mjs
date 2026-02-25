@@ -432,6 +432,33 @@ test('cache config resolution memoizes script properties snapshots and invalidat
   assert.equal(getPropertiesCalls, 2);
 });
 
+test('cache numeric config resolution ignores malformed earlier candidates and falls back safely', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          CACHE_BACKEND: 'memory',
+          CACHE_DEFAULT_TTL_SEC: 'not-a-number',
+          CACHE_MAX_MEMORY_ENTRIES: 'also-bad'
+        }),
+        getProperty: key => {
+          if (key === 'CACHE_BACKEND') return 'memory';
+          if (key === 'CACHE_DEFAULT_TTL_SEC') return 'not-a-number';
+          if (key === 'CACHE_MAX_MEMORY_ENTRIES') return 'also-bad';
+          return null;
+        }
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const resolved = context.astCacheResolveConfig({});
+  assert.equal(resolved.defaultTtlSec, 300);
+  assert.equal(resolved.maxMemoryEntries, 2000);
+});
+
 test('cache backend defaults tune lock scope and read stats behavior for concurrency', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });

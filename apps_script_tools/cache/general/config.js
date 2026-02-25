@@ -193,7 +193,8 @@ function astCacheResolveConfigNumber(candidates, fallback, min, max) {
     return astConfigResolveFirstInteger(candidates, {
       fallback,
       min,
-      max
+      max,
+      strict: false
     });
   }
 
