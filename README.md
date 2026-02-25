@@ -71,6 +71,7 @@ Current release state:
 - RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.
 - New `AST.Jobs` module with script-properties checkpointing and run/enqueue/resume/status/list/cancel contracts.
 - New `AST.Chat` module with `ThreadStore.create(...)` for user-scoped thread persistence, lock-aware writes, and bounded history assembly.
+- Breaking contract: internal non-`AST` top-level globals are intentionally unstable; consume documented surfaces through `ASTX.*` only.
 - DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
 - `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
 - `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.

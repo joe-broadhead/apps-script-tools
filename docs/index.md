@@ -2,7 +2,7 @@
 
 <span class="subtitle">A production-focused Google Apps Script data toolkit</span>
 
-`apps-script-tools` is a library-first toolkit for tabular data workflows in Google Apps Script. It exposes a single public namespace (`AST`) for dataframe-style transforms, SQL execution, and Apps Script workspace IO.
+`apps-script-tools` is a library-first toolkit for production Apps Script workflows. It exposes a single public namespace (`AST`) for dataframe transforms, SQL execution, workspace helpers, AI/RAG, storage, caching, telemetry, jobs, and chat state.
 
 ## Who this is for
 
@@ -26,6 +26,7 @@
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
 - `AST.TelemetryHelpers`: safe wrappers for span lifecycle orchestration.
 - `AST.Jobs`: script-properties checkpointed multi-step job runner with retry/resume and status controls.
+- `AST.Chat`: durable user-scoped thread persistence and bounded history assembly.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -45,6 +46,7 @@ flowchart LR
     B --> O[AST.Telemetry]
     B --> V[AST.TelemetryHelpers]
     B --> T[AST.Jobs]
+    B --> W[AST.Chat]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
@@ -53,6 +55,7 @@ flowchart LR
     Q --> R["Memory / Drive JSON / Script Properties / Storage JSON"]
     O --> P[Logger / Drive NDJSON / Storage NDJSON]
     T --> U["Script Properties Checkpoints"]
+    W --> X["Durable Thread Store"]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -76,6 +79,8 @@ flowchart LR
 - `AST.TelemetryHelpers` wrappers (`withSpan`, `wrap`, safe start/end/event helpers) for non-blocking app instrumentation.
 - RAG hot-path cache controls for embedding/search/answer reuse across repeated queries.
 - `AST.Jobs` orchestration contracts (`run`, `enqueue`, `resume`, `status`, `list`, `cancel`) with script-properties checkpoint state.
+- `AST.Chat` `ThreadStore` contracts for per-user durable thread state and deterministic history bounds.
+- Breaking contract: internal non-`AST` top-level globals are intentionally not stable; consume APIs through `ASTX.*` only.
 
 ## Import pattern
 
