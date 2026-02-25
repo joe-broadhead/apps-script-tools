@@ -5,8 +5,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('GroupBy.agg assigns unique output names for anonymous custom functions', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

@@ -9,7 +9,7 @@ function createResponse(body = '{}', statusCode = 200) {
   };
 }
 
-test('getBigQuerySqlStatus maps DONE state to SUCCEEDED', () => {
+test('astGetBigQuerySqlStatus maps DONE state to SUCCEEDED', () => {
   const context = createGasContext({
     BigQuery: {
       Jobs: {
@@ -22,7 +22,7 @@ test('getBigQuerySqlStatus maps DONE state to SUCCEEDED', () => {
 
   loadScripts(context, ['apps_script_tools/database/bigQuery/runBigQuerySql.js']);
 
-  const status = context.getBigQuerySqlStatus(
+  const status = context.astGetBigQuerySqlStatus(
     { projectId: 'project-1' },
     'job-1'
   );
@@ -33,7 +33,7 @@ test('getBigQuerySqlStatus maps DONE state to SUCCEEDED', () => {
   assert.equal(status.complete, true);
 });
 
-test('cancelBigQuerySql delegates to BigQuery.Jobs.cancel', () => {
+test('astCancelBigQuerySql delegates to BigQuery.Jobs.cancel', () => {
   let called = null;
   const context = createGasContext({
     BigQuery: {
@@ -52,7 +52,7 @@ test('cancelBigQuerySql delegates to BigQuery.Jobs.cancel', () => {
 
   loadScripts(context, ['apps_script_tools/database/bigQuery/runBigQuerySql.js']);
 
-  const status = context.cancelBigQuerySql(
+  const status = context.astCancelBigQuerySql(
     { projectId: 'project-1' },
     'job-2'
   );
@@ -62,7 +62,7 @@ test('cancelBigQuerySql delegates to BigQuery.Jobs.cancel', () => {
   assert.equal(status.canceled, true);
 });
 
-test('getBigQuerySqlStatus maps DONE + stopped reason to CANCELED', () => {
+test('astGetBigQuerySqlStatus maps DONE + stopped reason to CANCELED', () => {
   const context = createGasContext({
     BigQuery: {
       Jobs: {
@@ -81,7 +81,7 @@ test('getBigQuerySqlStatus maps DONE + stopped reason to CANCELED', () => {
 
   loadScripts(context, ['apps_script_tools/database/bigQuery/runBigQuerySql.js']);
 
-  const status = context.getBigQuerySqlStatus(
+  const status = context.astGetBigQuerySqlStatus(
     { projectId: 'project-1' },
     'job-3'
   );
@@ -90,7 +90,7 @@ test('getBigQuerySqlStatus maps DONE + stopped reason to CANCELED', () => {
   assert.equal(status.complete, true);
 });
 
-test('getDatabricksSqlStatus returns normalized statement status', () => {
+test('astGetDatabricksSqlStatus returns normalized statement status', () => {
   let calledUrl = null;
   const context = createGasContext({
     UrlFetchApp: {
@@ -107,7 +107,7 @@ test('getDatabricksSqlStatus returns normalized statement status', () => {
 
   loadScripts(context, ['apps_script_tools/database/databricks/runDatabricksSql.js']);
 
-  const status = context.getDatabricksSqlStatus(
+  const status = context.astGetDatabricksSqlStatus(
     {
       host: 'https://dbc.example.com/',
       token: 'token'
@@ -122,7 +122,7 @@ test('getDatabricksSqlStatus returns normalized statement status', () => {
   assert.equal(status.complete, false);
 });
 
-test('cancelDatabricksSql posts cancel and returns latest status', () => {
+test('astCancelDatabricksSql posts cancel and returns latest status', () => {
   const calls = [];
   const context = createGasContext({
     UrlFetchApp: {
@@ -144,7 +144,7 @@ test('cancelDatabricksSql posts cancel and returns latest status', () => {
 
   loadScripts(context, ['apps_script_tools/database/databricks/runDatabricksSql.js']);
 
-  const status = context.cancelDatabricksSql(
+  const status = context.astCancelDatabricksSql(
     {
       host: 'dbc.example.com',
       token: 'token'
@@ -159,7 +159,7 @@ test('cancelDatabricksSql posts cancel and returns latest status', () => {
   assert.equal(status.state, 'CANCELED');
 });
 
-test('cancelDatabricksSql throws when cancel endpoint returns non-2xx', () => {
+test('astCancelDatabricksSql throws when cancel endpoint returns non-2xx', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: url => {
@@ -179,7 +179,7 @@ test('cancelDatabricksSql throws when cancel endpoint returns non-2xx', () => {
   loadScripts(context, ['apps_script_tools/database/databricks/runDatabricksSql.js']);
 
   assert.throws(
-    () => context.cancelDatabricksSql(
+    () => context.astCancelDatabricksSql(
       {
         host: 'dbc.example.com',
         token: 'token'

@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('DataFrame.generateSurrogateKey does not mutate provided column array', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -28,8 +28,8 @@ test('DataFrame.generateSurrogateKey does not mutate provided column array', () 
 
 test('DataFrame.generateSurrogateKey validates input columns', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

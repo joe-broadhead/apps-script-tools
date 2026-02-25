@@ -90,32 +90,32 @@ test('DBFS list/head/read/write/delete operations return normalized output', () 
 
   loadStorageScripts(context);
 
-  const listResult = context.runStorageRequest({
+  const listResult = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data',
     operation: 'list'
   });
   assert.equal(listResult.output.items.length, 1);
 
-  const headResult = context.runStorageRequest({
+  const headResult = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data/file-1.txt',
     operation: 'head'
   });
   assert.equal(headResult.output.object.size, 3);
 
-  const readResult = context.runStorageRequest({
+  const readResult = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data/file-1.txt',
     operation: 'read'
   });
   assert.equal(readResult.output.data.base64, 'aGk=');
 
-  const writeResult = context.runStorageRequest({
+  const writeResult = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data/new.txt',
     operation: 'write',
     payload: { text: 'hello' }
   });
   assert.equal(writeResult.output.written.size, 5);
 
-  const deleteResult = context.runStorageRequest({
+  const deleteResult = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data/new.txt',
     operation: 'delete'
   });
@@ -160,7 +160,7 @@ test('DBFS chunked write uses create/add-block/close for large payloads', () => 
   loadStorageScripts(context);
 
   const largeText = 'x'.repeat(2 * 1024 * 1024);
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data/large.txt',
     operation: 'write',
     payload: {
@@ -198,7 +198,7 @@ test('DBFS maps missing resources to AstStorageNotFoundError', () => {
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.runStorageRequest({
+    () => context.astRunStorageRequest({
       uri: 'dbfs:/mnt/missing.txt',
       operation: 'head'
     }),
@@ -239,7 +239,7 @@ test('DBFS list marks truncated when maxItems caps file list', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/data',
     operation: 'list',
     options: {
@@ -274,7 +274,7 @@ test('DBFS exists returns false instead of throwing for missing paths', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'dbfs:/mnt/missing.txt',
     operation: 'exists'
   });
@@ -332,7 +332,7 @@ test('DBFS copy/move/multipart_write operations return normalized output', () =>
 
   loadStorageScripts(context);
 
-  const copied = context.runStorageRequest({
+  const copied = context.astRunStorageRequest({
     operation: 'copy',
     fromUri: 'dbfs:/mnt/data/source.txt',
     toUri: 'dbfs:/mnt/data/copied.txt'
@@ -340,14 +340,14 @@ test('DBFS copy/move/multipart_write operations return normalized output', () =>
   assert.equal(copied.output.copied.fromUri, 'dbfs:/mnt/data/source.txt');
   assert.equal(copied.output.copied.toUri, 'dbfs:/mnt/data/copied.txt');
 
-  const moved = context.runStorageRequest({
+  const moved = context.astRunStorageRequest({
     operation: 'move',
     fromUri: 'dbfs:/mnt/data/source.txt',
     toUri: 'dbfs:/mnt/data/moved.txt'
   });
   assert.equal(moved.output.moved.deletedSource, true);
 
-  const multipart = context.runStorageRequest({
+  const multipart = context.astRunStorageRequest({
     operation: 'multipart_write',
     uri: 'dbfs:/mnt/data/multipart.txt',
     payload: {
@@ -375,7 +375,7 @@ test('DBFS signed_url is rejected as unsupported capability', () => {
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.runStorageRequest({
+    () => context.astRunStorageRequest({
       uri: 'dbfs:/mnt/data/file.txt',
       operation: 'signed_url'
     }),
@@ -401,7 +401,7 @@ test('DBFS write rejects conditional preconditions as unsupported capability', (
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.runStorageRequest({
+    () => context.astRunStorageRequest({
       uri: 'dbfs:/mnt/data/file.txt',
       operation: 'write',
       options: {

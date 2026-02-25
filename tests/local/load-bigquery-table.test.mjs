@@ -21,17 +21,17 @@ function baseConfig(mode = 'insert') {
   };
 }
 
-test('loadBigQueryTable rejects unsupported load modes', () => {
+test('astLoadBigQueryTable rejects unsupported load modes', () => {
   const context = createGasContext();
   loadScripts(context, [SCRIPT]);
 
   assert.throws(
-    () => context.loadBigQueryTable(baseConfig('upsert')),
+    () => context.astLoadBigQueryTable(baseConfig('upsert')),
     /Invalid BigQuery load mode/
   );
 });
 
-test('loadBigQueryTable throws when insert returns immediate errorResult', () => {
+test('astLoadBigQueryTable throws when insert returns immediate errorResult', () => {
   const context = createGasContext({
     BigQuery: {
       Jobs: {
@@ -47,12 +47,12 @@ test('loadBigQueryTable throws when insert returns immediate errorResult', () =>
   loadScripts(context, [SCRIPT]);
 
   assert.throws(
-    () => context.loadBigQueryTable(baseConfig('insert')),
+    () => context.astLoadBigQueryTable(baseConfig('insert')),
     /BigQuery load failed/
   );
 });
 
-test('loadBigQueryTable throws timeout error when polling exceeds maxWaitMs', () => {
+test('astLoadBigQueryTable throws timeout error when polling exceeds maxWaitMs', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -88,14 +88,14 @@ test('loadBigQueryTable throws timeout error when polling exceeds maxWaitMs', ()
   config.options = { maxWaitMs: 1000, pollIntervalMs: 250 };
 
   assert.throws(
-    () => context.loadBigQueryTable(config),
+    () => context.astLoadBigQueryTable(config),
     /BigQuery load timed out after 1000ms/
   );
 
   assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
 });
 
-test('loadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
+test('astLoadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
   const context = createGasContext();
   loadScripts(context, [SCRIPT]);
 
@@ -103,12 +103,12 @@ test('loadBigQueryTable rejects pollIntervalMs greater than maxWaitMs', () => {
   config.options = { maxWaitMs: 100, pollIntervalMs: 200 };
 
   assert.throws(
-    () => context.loadBigQueryTable(config),
+    () => context.astLoadBigQueryTable(config),
     /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/
   );
 });
 
-test('loadBigQueryTable caps final sleep to remaining timeout budget', () => {
+test('astLoadBigQueryTable caps final sleep to remaining timeout budget', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -144,7 +144,7 @@ test('loadBigQueryTable caps final sleep to remaining timeout budget', () => {
   config.options = { maxWaitMs: 1000, pollIntervalMs: 600 };
 
   assert.throws(
-    () => context.loadBigQueryTable(config),
+    () => context.astLoadBigQueryTable(config),
     /BigQuery load timed out after 1000ms/
   );
 

@@ -57,11 +57,3 @@ function astStorageBuildNotFoundError(provider, operation, uri, extra = {}) {
     Object.assign({ provider, operation, uri }, extra)
   );
 }
-
-function astStorageBuildProviderError(provider, operation, message, details = {}, cause = null) {
-  return new AstStorageProviderError(
-    message,
-    Object.assign({ provider, operation }, details),
-    cause
-  );
-}

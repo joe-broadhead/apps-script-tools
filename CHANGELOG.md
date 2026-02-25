@@ -143,6 +143,7 @@
 ### Changed
 
 - `AST.VERSION` and package version moved to `0.0.4` development line.
+- Breaking: internal non-`AST` top-level functions are now strictly internalized (`ast*` / `__ast*` / `*_` naming). Downstream consumers must use documented `AST` namespace APIs instead of direct global helper/function names.
 - `AST` namespace now exposes `AST.RAG`.
 - `AST` namespace now exposes `AST.Cache`.
 - `AST` namespace now exposes `AST.Storage`.

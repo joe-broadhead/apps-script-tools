@@ -20,12 +20,12 @@ test('astGetAiCapabilities reports capability matrix values', () => {
   assert.equal(capabilities.imageGeneration, false);
 });
 
-test('runAiRequest throws AstAiCapabilityError for unsupported image generation', () => {
+test('astRunAiRequest throws AstAiCapabilityError for unsupported image generation', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.runAiRequest({
+    () => context.astRunAiRequest({
       provider: 'vertex_gemini',
       operation: 'image',
       model: 'gemini-2.0-flash',
@@ -40,7 +40,7 @@ test('runAiRequest throws AstAiCapabilityError for unsupported image generation'
   );
 });
 
-test('runAiRequest includeRaw=true includes provider raw payload', () => {
+test('astRunAiRequest includeRaw=true includes provider raw payload', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -58,7 +58,7 @@ test('runAiRequest includeRaw=true includes provider raw payload', () => {
 
   loadAiScripts(context);
 
-  const output = context.runAiRequest({
+  const output = context.astRunAiRequest({
     provider: 'openai',
     operation: 'text',
     model: 'gpt-4.1-mini',

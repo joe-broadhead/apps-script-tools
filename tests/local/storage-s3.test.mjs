@@ -137,7 +137,7 @@ test('S3 list/read/write/delete operations return normalized output', () => {
 
   loadStorageScripts(context);
 
-  const listResult = context.runStorageRequest({
+  const listResult = context.astRunStorageRequest({
     uri: 's3://bucket-1/folder/',
     operation: 'list'
   });
@@ -145,20 +145,20 @@ test('S3 list/read/write/delete operations return normalized output', () => {
   assert.equal(listResult.output.items.length, 1);
   assert.equal(listResult.output.items[0].key, 'folder/a.txt');
 
-  const readResult = context.runStorageRequest({
+  const readResult = context.astRunStorageRequest({
     uri: 's3://bucket-1/folder/a.txt',
     operation: 'read'
   });
   assert.equal(readResult.output.data.text, 'hi');
 
-  const writeResult = context.runStorageRequest({
+  const writeResult = context.astRunStorageRequest({
     uri: 's3://bucket-1/folder/new.txt',
     operation: 'write',
     payload: { text: 'hello' }
   });
   assert.equal(writeResult.output.written.etag, 'etag-write');
 
-  const deleteResult = context.runStorageRequest({
+  const deleteResult = context.astRunStorageRequest({
     uri: 's3://bucket-1/folder/new.txt',
     operation: 'delete'
   });
@@ -186,7 +186,7 @@ test('S3 maps 404 to AstStorageNotFoundError', () => {
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.runStorageRequest({
+    () => context.astRunStorageRequest({
       uri: 's3://bucket/missing.txt',
       operation: 'head'
     }),
@@ -234,7 +234,7 @@ test('S3 list marks truncated when maxItems caps provider results', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 's3://bucket-1/folder/',
     operation: 'list',
     options: {
@@ -270,7 +270,7 @@ test('S3 exists returns false instead of throwing for missing objects', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 's3://bucket/missing.txt',
     operation: 'exists'
   });
@@ -344,7 +344,7 @@ test('S3 copy/move/signed_url/multipart_write operations return normalized outpu
 
   loadStorageScripts(context);
 
-  const copied = context.runStorageRequest({
+  const copied = context.astRunStorageRequest({
     operation: 'copy',
     fromUri: 's3://bucket-a/path/source.txt',
     toUri: 's3://bucket-a/path/copied.txt'
@@ -352,14 +352,14 @@ test('S3 copy/move/signed_url/multipart_write operations return normalized outpu
   assert.equal(copied.output.copied.fromUri, 's3://bucket-a/path/source.txt');
   assert.equal(copied.output.copied.toUri, 's3://bucket-a/path/copied.txt');
 
-  const moved = context.runStorageRequest({
+  const moved = context.astRunStorageRequest({
     operation: 'move',
     fromUri: 's3://bucket-a/path/source.txt',
     toUri: 's3://bucket-a/path/moved.txt'
   });
   assert.equal(moved.output.moved.deletedSource, true);
 
-  const signed = context.runStorageRequest({
+  const signed = context.astRunStorageRequest({
     operation: 'signed_url',
     uri: 's3://bucket-a/path/moved.txt',
     options: {
@@ -373,7 +373,7 @@ test('S3 copy/move/signed_url/multipart_write operations return normalized outpu
   assert.match(signed.output.signedUrl.url, /X-Amz-Signature=/);
   assert.equal(signed.output.signedUrl.expiresInSec, 300);
 
-  const multipart = context.runStorageRequest({
+  const multipart = context.astRunStorageRequest({
     operation: 'multipart_write',
     uri: 's3://bucket-a/path/large.txt',
     payload: {
@@ -422,7 +422,7 @@ test('S3 multipart_write handles zero-byte payloads without multipart completion
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     operation: 'multipart_write',
     uri: 's3://bucket-a/path/empty.txt',
     payload: {
@@ -472,7 +472,7 @@ test('S3 write forwards if-none-match precondition headers', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 's3://bucket-a/path/create-only.txt',
     operation: 'write',
     payload: { text: 'hello' },

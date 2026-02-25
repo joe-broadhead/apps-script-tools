@@ -1,45 +1,45 @@
 function astStorageRun(request = {}) {
-  return runStorageRequest(request);
+  return astRunStorageRequest(request);
 }
 
 function astStorageList(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'list' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'list' }));
 }
 
 function astStorageHead(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'head' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'head' }));
 }
 
 function astStorageRead(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'read' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'read' }));
 }
 
 function astStorageWrite(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'write' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'write' }));
 }
 
 function astStorageDelete(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'delete' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'delete' }));
 }
 
 function astStorageExists(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'exists' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'exists' }));
 }
 
 function astStorageCopy(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'copy' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'copy' }));
 }
 
 function astStorageMove(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'move' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'move' }));
 }
 
 function astStorageSignedUrl(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'signed_url' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'signed_url' }));
 }
 
 function astStorageMultipartWrite(request = {}) {
-  return runStorageRequest(Object.assign({}, request, { operation: 'multipart_write' }));
+  return astRunStorageRequest(Object.assign({}, request, { operation: 'multipart_write' }));
 }
 
 function astStorageConfigure(config = {}, options = {}) {

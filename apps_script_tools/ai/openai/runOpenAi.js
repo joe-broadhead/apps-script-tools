@@ -16,7 +16,7 @@ function astOpenAiCopyProviderOptions(providerOptions = {}, omitKeys = []) {
   return output;
 }
 
-function runOpenAi(request, config) {
+function astRunOpenAi(request, config) {
   const includeRaw = request.options.includeRaw === true;
 
   if (request.operation === 'image') {
@@ -54,7 +54,7 @@ function runOpenAi(request, config) {
       });
     }
 
-    return normalizeAiResponse({
+    return astNormalizeAiResponse({
       provider: 'openai',
       operation: 'image',
       model: config.model,
@@ -131,7 +131,7 @@ function runOpenAi(request, config) {
     structuredJson = astAiSafeJsonParse(text);
   }
 
-  return normalizeAiResponse({
+  return astNormalizeAiResponse({
     provider: 'openai',
     operation: request.operation,
     model: responseJson.model || config.model,

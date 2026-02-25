@@ -26,7 +26,7 @@ function astOpenRouterProviderOptions(providerOptions = {}, omitKeys = []) {
   return output;
 }
 
-function runOpenRouter(request, config) {
+function astRunOpenRouter(request, config) {
   const includeRaw = request.options.includeRaw === true;
 
   if (request.operation === 'image') {
@@ -55,7 +55,7 @@ function runOpenRouter(request, config) {
       });
     }
 
-    return normalizeAiResponse({
+    return astNormalizeAiResponse({
       provider: 'openrouter',
       operation: 'image',
       model: config.model,
@@ -133,7 +133,7 @@ function runOpenRouter(request, config) {
     structuredJson = astAiSafeJsonParse(text);
   }
 
-  return normalizeAiResponse({
+  return astNormalizeAiResponse({
     provider: 'openrouter',
     operation: request.operation,
     model: responseJson.model || config.model,

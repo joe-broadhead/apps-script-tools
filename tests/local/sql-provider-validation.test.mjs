@@ -4,8 +4,8 @@ import { createGasContext, loadScripts } from './helpers.mjs';
 
 test('runSqlQuery validates required BigQuery parameters', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [
@@ -25,8 +25,8 @@ test('runSqlQuery validates required BigQuery parameters', () => {
 
 test('runSqlQuery validates required Databricks parameters', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [
@@ -51,8 +51,8 @@ test('runSqlQuery validates required Databricks parameters', () => {
 test('runSqlQuery forwards normalized options to BigQuery provider', () => {
   let captured = null;
   const context = createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: (sql, parameters, placeholders, options) => {
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: (sql, parameters, placeholders, options) => {
       captured = { sql, parameters, placeholders, options };
       return { provider: 'bigquery' };
     }
@@ -93,11 +93,11 @@ test('runSqlQuery forwards normalized options to BigQuery provider', () => {
 test('runSqlQuery forwards default options to Databricks provider', () => {
   let capturedOptions = null;
   const context = createGasContext({
-    runDatabricksSql: (_sql, _parameters, _placeholders, options) => {
+    astRunDatabricksSql: (_sql, _parameters, _placeholders, options) => {
       capturedOptions = options;
       return { provider: 'databricks' };
     },
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [
@@ -130,11 +130,11 @@ test('runSqlQuery forwards default options to Databricks provider', () => {
 test('runSqlQuery forwards custom options to Databricks provider', () => {
   let captured = null;
   const context = createGasContext({
-    runDatabricksSql: (sql, parameters, placeholders, options) => {
+    astRunDatabricksSql: (sql, parameters, placeholders, options) => {
       captured = { sql, parameters, placeholders, options };
       return { provider: 'databricks' };
     },
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [
@@ -179,8 +179,8 @@ test('runSqlQuery forwards custom options to Databricks provider', () => {
 
 test('runSqlQuery rejects options.pollIntervalMs larger than options.maxWaitMs', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [

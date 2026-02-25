@@ -169,8 +169,8 @@ function formatSummary(payload) {
 
 function runAllBenchmarks(options) {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

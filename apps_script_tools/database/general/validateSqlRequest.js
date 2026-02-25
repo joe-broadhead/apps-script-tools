@@ -1,5 +1,5 @@
 /**
- * @function validateSqlRequest
+ * @function astValidateSqlRequest
  * @description Validates and normalizes a SQL request object used by `runSqlQuery`.
  *              Placeholder interpolation is disabled by default for security.
  * @param {Object} request - SQL execution request.
@@ -13,7 +13,7 @@
  * @param {Number} [request.options.pollIntervalMs=500] - Poll interval for providers that support it.
  * @returns {Object} Normalized SQL request.
  */
-function validateSqlRequest(request = {}) {
+function astValidateSqlRequest(request = {}) {
   if (request == null || typeof request !== 'object' || Array.isArray(request)) {
     throw new Error('SQL request must be an object');
   }

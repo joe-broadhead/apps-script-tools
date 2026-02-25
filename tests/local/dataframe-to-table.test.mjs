@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
-test('DataFrame.toTable routes to loadBigQueryTable', () => {
+test('DataFrame.toTable routes to astLoadBigQueryTable', () => {
   let called = 0;
   let captured = null;
 
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: config => {
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: config => {
       called += 1;
       captured = config;
     }
@@ -34,16 +34,16 @@ test('DataFrame.toTable routes to loadBigQueryTable', () => {
   assert.ok(Array.isArray(captured.arrays));
 });
 
-test('DataFrame.toTable routes to loadDatabricksTable', () => {
+test('DataFrame.toTable routes to astLoadDatabricksTable', () => {
   let called = 0;
   let captured = null;
 
   const context = createGasContext({
-    loadDatabricksTable: config => {
+    astLoadDatabricksTable: config => {
       called += 1;
       captured = config;
     },
-    loadBigQueryTable: () => {}
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

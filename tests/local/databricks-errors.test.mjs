@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGasContext, loadScripts } from './helpers.mjs';
 
-test('runDatabricksSql throws DatabricksSqlError on failed statements', () => {
+test('astRunDatabricksSql throws DatabricksSqlError on failed statements', () => {
   let callCount = 0;
   const context = createGasContext({
     UrlFetchApp: {
@@ -32,7 +32,7 @@ test('runDatabricksSql throws DatabricksSqlError on failed statements', () => {
   ]);
 
   assert.throws(
-    () => context.runDatabricksSql('select 1', {
+    () => context.astRunDatabricksSql('select 1', {
       host: 'dbc.example.com',
       sqlWarehouseId: 'warehouse-1',
       schema: 'default',
@@ -47,7 +47,7 @@ test('runDatabricksSql throws DatabricksSqlError on failed statements', () => {
   );
 });
 
-test('runDatabricksSql validates required Databricks parameters', () => {
+test('astRunDatabricksSql validates required Databricks parameters', () => {
   const context = createGasContext();
 
   loadScripts(context, [
@@ -56,7 +56,7 @@ test('runDatabricksSql validates required Databricks parameters', () => {
   ]);
 
   assert.throws(
-    () => context.runDatabricksSql('select 1', {
+    () => context.astRunDatabricksSql('select 1', {
       host: 'dbc.example.com',
       sqlWarehouseId: 'warehouse-1',
       schema: 'default'
@@ -65,7 +65,7 @@ test('runDatabricksSql validates required Databricks parameters', () => {
   );
 });
 
-test('runDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
+test('astRunDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
   const context = createGasContext();
 
   loadScripts(context, [
@@ -74,7 +74,7 @@ test('runDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
   ]);
 
   assert.throws(
-    () => context.runDatabricksSql(
+    () => context.astRunDatabricksSql(
       'select 1',
       {
         host: 'dbc.example.com',
@@ -89,7 +89,7 @@ test('runDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
   );
 });
 
-test('runDatabricksSql times out based on elapsed maxWaitMs budget', () => {
+test('astRunDatabricksSql times out based on elapsed maxWaitMs budget', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -133,7 +133,7 @@ test('runDatabricksSql times out based on elapsed maxWaitMs budget', () => {
   ]);
 
   assert.throws(
-    () => context.runDatabricksSql(
+    () => context.astRunDatabricksSql(
       'select 1',
       {
         host: 'dbc.example.com',
@@ -150,7 +150,7 @@ test('runDatabricksSql times out based on elapsed maxWaitMs budget', () => {
   assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
 });
 
-test('runDatabricksSql caps final sleep to remaining timeout budget', () => {
+test('astRunDatabricksSql caps final sleep to remaining timeout budget', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -194,7 +194,7 @@ test('runDatabricksSql caps final sleep to remaining timeout budget', () => {
   ]);
 
   assert.throws(
-    () => context.runDatabricksSql(
+    () => context.astRunDatabricksSql(
       'select 1',
       {
         host: 'dbc.example.com',

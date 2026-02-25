@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 function createContext() {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

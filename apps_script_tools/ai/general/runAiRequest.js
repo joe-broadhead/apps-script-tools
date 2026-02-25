@@ -1,15 +1,15 @@
 function astGetAiProviderExecutor(provider) {
   switch (provider) {
     case 'openai':
-      return runOpenAi;
+      return astRunOpenAi;
     case 'gemini':
-      return runGemini;
+      return astRunGemini;
     case 'vertex_gemini':
-      return runVertexGemini;
+      return astRunVertexGemini;
     case 'openrouter':
-      return runOpenRouter;
+      return astRunOpenRouter;
     case 'perplexity':
-      return runPerplexity;
+      return astRunPerplexity;
     default:
       throw new AstAiValidationError('Unsupported AI provider', { provider });
   }
@@ -90,7 +90,7 @@ function astExecuteAiRequestDirect(normalizedRequest) {
   astAssertAiCapability(normalizedRequest.provider, normalizedRequest.operation);
   astAssertAiInputCapabilities(normalizedRequest);
 
-  const config = resolveAiConfig(normalizedRequest);
+  const config = astResolveAiConfig(normalizedRequest);
   const providerExecutor = astGetAiProviderExecutor(normalizedRequest.provider);
 
   if (normalizedRequest.options.stream) {
@@ -118,12 +118,12 @@ function astDispatchAiRequest(normalizedRequest) {
     : astExecuteAiRequestWithReliability(normalizedRequest);
 }
 
-function runAiRequest(request = {}) {
+function astRunAiRequest(request = {}) {
   let normalizedRequest = null;
   const spanId = astAiTelemetryStartSpan(request, null);
 
   try {
-    normalizedRequest = validateAiRequest(request);
+    normalizedRequest = astValidateAiRequest(request);
 
     const response = astDispatchAiRequest(normalizedRequest);
 

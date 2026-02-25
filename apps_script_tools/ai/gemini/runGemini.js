@@ -26,7 +26,7 @@ function astGeminiProviderOptions(providerOptions, omitKeys = []) {
   return output;
 }
 
-function runGemini(request, config) {
+function astRunGemini(request, config) {
   const includeRaw = request.options.includeRaw === true;
   const endpoint = astBuildGeminiEndpoint(config, request.providerOptions);
 
@@ -113,7 +113,7 @@ function runGemini(request, config) {
     });
   }
 
-  return normalizeAiResponse({
+  return astNormalizeAiResponse({
     provider: 'gemini',
     operation: request.operation,
     model: config.model,

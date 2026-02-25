@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGasContext, loadCoreDataContext, loadScripts } from './helpers.mjs';
 
-test('runBigQuerySql returns empty DataFrame with schema columns', () => {
+test('astRunBigQuerySql returns empty DataFrame with schema columns', () => {
   const context = createGasContext({
     BigQuery: {
       Jobs: {
@@ -31,14 +31,14 @@ test('runBigQuerySql returns empty DataFrame with schema columns', () => {
     'apps_script_tools/database/bigQuery/runBigQuerySql.js'
   ]);
 
-  const result = context.runBigQuerySql('select id, name from users', { projectId: 'proj' });
+  const result = context.astRunBigQuerySql('select id, name from users', { projectId: 'proj' });
 
   assert.equal(result instanceof context.DataFrame, true);
   assert.equal(JSON.stringify(result.columns), JSON.stringify(['id', 'name']));
   assert.equal(result.len(), 0);
 });
 
-test('runBigQuerySql collects paginated rows when first page has no rows', () => {
+test('astRunBigQuerySql collects paginated rows when first page has no rows', () => {
   const context = createGasContext({
     BigQuery: {
       Jobs: {
@@ -80,7 +80,7 @@ test('runBigQuerySql collects paginated rows when first page has no rows', () =>
     'apps_script_tools/database/bigQuery/runBigQuerySql.js'
   ]);
 
-  const result = context.runBigQuerySql('select id, name from users', { projectId: 'proj' });
+  const result = context.astRunBigQuerySql('select id, name from users', { projectId: 'proj' });
 
   assert.equal(result.len(), 1);
   assert.equal(
@@ -89,7 +89,7 @@ test('runBigQuerySql collects paginated rows when first page has no rows', () =>
   );
 });
 
-test('runBigQuerySql throws timeout errors when query polling exceeds maxWaitMs', () => {
+test('astRunBigQuerySql throws timeout errors when query polling exceeds maxWaitMs', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -130,7 +130,7 @@ test('runBigQuerySql throws timeout errors when query polling exceeds maxWaitMs'
   ]);
 
   assert.throws(() => {
-    context.runBigQuerySql(
+    context.astRunBigQuerySql(
       'select * from users',
       { projectId: 'proj' },
       {},
@@ -141,7 +141,7 @@ test('runBigQuerySql throws timeout errors when query polling exceeds maxWaitMs'
   assert.equal(JSON.stringify(sleepDurations), JSON.stringify([250, 250, 250, 250]));
 });
 
-test('runBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
+test('astRunBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
   const context = createGasContext();
 
   loadCoreDataContext(context);
@@ -151,7 +151,7 @@ test('runBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
   ]);
 
   assert.throws(() => {
-    context.runBigQuerySql(
+    context.astRunBigQuerySql(
       'select 1',
       { projectId: 'proj' },
       {},
@@ -160,7 +160,7 @@ test('runBigQuerySql rejects pollIntervalMs greater than maxWaitMs', () => {
   }, /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/);
 });
 
-test('runBigQuerySql caps final sleep to remaining timeout budget', () => {
+test('astRunBigQuerySql caps final sleep to remaining timeout budget', () => {
   let fakeNow = 0;
   const sleepDurations = [];
   class FakeDate extends Date {
@@ -201,7 +201,7 @@ test('runBigQuerySql caps final sleep to remaining timeout budget', () => {
   ]);
 
   assert.throws(() => {
-    context.runBigQuerySql(
+    context.astRunBigQuerySql(
       'select * from users',
       { projectId: 'proj' },
       {},

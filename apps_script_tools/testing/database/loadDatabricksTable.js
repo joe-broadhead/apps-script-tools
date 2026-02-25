@@ -1,9 +1,9 @@
 const DATABASE_LOAD_DATABRICKS_TABLE_TESTS = [
   {
-    description: 'loadDatabricksTable() should require mergeKey in merge mode',
+    description: 'astLoadDatabricksTable() should require mergeKey in merge mode',
     test: () => {
       try {
-        loadDatabricksTable({
+        astLoadDatabricksTable({
           arrays: [
             ['id', 'name'],
             [1, 'Alice']
@@ -27,18 +27,18 @@ const DATABASE_LOAD_DATABRICKS_TABLE_TESTS = [
     },
   },
   {
-    description: 'loadDatabricksTable() should wrap provider failures with DatabricksLoadError',
+    description: 'astLoadDatabricksTable() should wrap provider failures with DatabricksLoadError',
     test: () => {
-      const originalRunDatabricksSql = runDatabricksSql;
+      const originalRunDatabricksSql = astRunDatabricksSql;
 
-      runDatabricksSql = () => {
+      astRunDatabricksSql = () => {
         const providerError = new Error('statement failed');
         providerError.name = 'DatabricksSqlError';
         throw providerError;
       };
 
       try {
-        loadDatabricksTable({
+        astLoadDatabricksTable({
           arrays: [
             ['id', 'name'],
             [1, 'Alice']
@@ -59,23 +59,23 @@ const DATABASE_LOAD_DATABRICKS_TABLE_TESTS = [
           throw new Error(`Expected DatabricksLoadError, got ${error.name}`);
         }
       } finally {
-        runDatabricksSql = originalRunDatabricksSql;
+        astRunDatabricksSql = originalRunDatabricksSql;
       }
     },
   },
   {
-    description: 'loadDatabricksTable() should forward polling options to Databricks SQL statements',
+    description: 'astLoadDatabricksTable() should forward polling options to Databricks SQL statements',
     test: () => {
-      const originalRunDatabricksSql = runDatabricksSql;
+      const originalRunDatabricksSql = astRunDatabricksSql;
       const capturedOptions = [];
 
-      runDatabricksSql = (sql, parameters, placeholders, options) => {
+      astRunDatabricksSql = (sql, parameters, placeholders, options) => {
         capturedOptions.push(options);
         return {};
       };
 
       try {
-        loadDatabricksTable({
+        astLoadDatabricksTable({
           arrays: [
             ['id', 'name'],
             [1, 'Alice']
@@ -95,11 +95,11 @@ const DATABASE_LOAD_DATABRICKS_TABLE_TESTS = [
           }
         });
       } finally {
-        runDatabricksSql = originalRunDatabricksSql;
+        astRunDatabricksSql = originalRunDatabricksSql;
       }
 
       if (capturedOptions.length === 0) {
-        throw new Error('Expected runDatabricksSql to be called');
+        throw new Error('Expected astRunDatabricksSql to be called');
       }
 
       const expected = JSON.stringify({ maxWaitMs: 2000, pollIntervalMs: 250 });

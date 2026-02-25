@@ -1,8 +1,8 @@
 /**
- * @function runBigQuerySql
+ * @function astRunBigQuerySql
  * @description Executes SQL against BigQuery and returns a DataFrame.
  */
-function buildBigQuerySqlError(message, details = {}, cause = null) {
+function astBuildBigQuerySqlError(message, details = {}, cause = null) {
   const error = new Error(message);
   error.name = 'BigQuerySqlError';
   error.provider = 'bigquery';
@@ -13,7 +13,7 @@ function buildBigQuerySqlError(message, details = {}, cause = null) {
   return error;
 }
 
-function normalizeBigQueryQueryOptions(options = {}) {
+function astNormalizeBigQueryQueryOptions(options = {}) {
   const raw = options && typeof options === 'object' ? options : {};
 
   const maxWaitMs = Number.isInteger(raw.maxWaitMs) && raw.maxWaitMs > 0
@@ -25,7 +25,7 @@ function normalizeBigQueryQueryOptions(options = {}) {
     : 500;
 
   if (pollIntervalMs > maxWaitMs) {
-    throw buildBigQuerySqlError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
+    throw astBuildBigQuerySqlError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
       options: raw
     });
   }
@@ -38,7 +38,7 @@ function normalizeBigQueryQueryOptions(options = {}) {
 
 function astAssertBigQueryProjectId(parameters) {
   if (parameters == null || typeof parameters !== 'object' || Array.isArray(parameters)) {
-    throw buildBigQuerySqlError('BigQuery parameters must be an object');
+    throw astBuildBigQuerySqlError('BigQuery parameters must be an object');
   }
 
   const projectId = typeof parameters.projectId === 'string'
@@ -46,7 +46,7 @@ function astAssertBigQueryProjectId(parameters) {
     : '';
 
   if (!projectId) {
-    throw buildBigQuerySqlError('BigQuery parameters.projectId must be a non-empty string');
+    throw astBuildBigQuerySqlError('BigQuery parameters.projectId must be a non-empty string');
   }
 
   return projectId;
@@ -75,16 +75,16 @@ function astBigQueryRowsToDataFrame(schemaFields, rows) {
   return DataFrame.fromRecords(records);
 }
 
-function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, options = {}) {
+function astExecuteBigQuerySqlDetailed(query, parameters, placeholders = {}, options = {}) {
   if (typeof query !== 'string' || query.trim().length === 0) {
-    throw buildBigQuerySqlError('BigQuery SQL query must be a non-empty string');
+    throw astBuildBigQuerySqlError('BigQuery SQL query must be a non-empty string');
   }
 
   const projectId = astAssertBigQueryProjectId(parameters);
-  const normalizedOptions = normalizeBigQueryQueryOptions(options);
+  const normalizedOptions = astNormalizeBigQueryQueryOptions(options);
 
   const request = {
-    query: replacePlaceHoldersInQuery(query, placeholders),
+    query: astReplacePlaceHoldersInQuery(query, placeholders),
     useLegacySql: false
   };
 
@@ -94,7 +94,7 @@ function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, option
     const jobId = typeof jobReference.jobId === 'string' ? jobReference.jobId.trim() : '';
 
     if (!jobId) {
-      throw buildBigQuerySqlError('BigQuery query response did not include a valid jobId', {
+      throw astBuildBigQuerySqlError('BigQuery query response did not include a valid jobId', {
         response: queryResults
       });
     }
@@ -107,7 +107,7 @@ function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, option
       const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
 
       if (remainingMs <= 0) {
-        throw buildBigQuerySqlError(
+        throw astBuildBigQuerySqlError(
           `BigQuery query timed out after ${normalizedOptions.maxWaitMs}ms`,
           {
             jobId,
@@ -159,7 +159,7 @@ function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, option
       throw error;
     }
 
-    throw buildBigQuerySqlError(
+    throw astBuildBigQuerySqlError(
       'BigQuery SQL execution failed',
       { projectId },
       error
@@ -167,8 +167,8 @@ function executeBigQuerySqlDetailed(query, parameters, placeholders = {}, option
   }
 }
 
-function runBigQuerySql(query, parameters, placeholders = {}, options = {}) {
-  return executeBigQuerySqlDetailed(query, parameters, placeholders, options).dataFrame;
+function astRunBigQuerySql(query, parameters, placeholders = {}, options = {}) {
+  return astExecuteBigQuerySqlDetailed(query, parameters, placeholders, options).dataFrame;
 }
 
 function astIsBigQueryCanceledError(errorResult) {
@@ -190,12 +190,12 @@ function astIsBigQueryCanceledError(errorResult) {
     || message.includes('cancel');
 }
 
-function getBigQuerySqlStatus(parameters, jobId) {
+function astGetBigQuerySqlStatus(parameters, jobId) {
   const projectId = astAssertBigQueryProjectId(parameters);
   const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
 
   if (!normalizedJobId) {
-    throw buildBigQuerySqlError('BigQuery status requires a non-empty jobId');
+    throw astBuildBigQuerySqlError('BigQuery status requires a non-empty jobId');
   }
 
   try {
@@ -223,7 +223,7 @@ function getBigQuerySqlStatus(parameters, jobId) {
       throw error;
     }
 
-    throw buildBigQuerySqlError(
+    throw astBuildBigQuerySqlError(
       'BigQuery status lookup failed',
       { projectId, jobId: normalizedJobId },
       error
@@ -231,17 +231,17 @@ function getBigQuerySqlStatus(parameters, jobId) {
   }
 }
 
-function cancelBigQuerySql(parameters, jobId) {
+function astCancelBigQuerySql(parameters, jobId) {
   const projectId = astAssertBigQueryProjectId(parameters);
   const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
 
   if (!normalizedJobId) {
-    throw buildBigQuerySqlError('BigQuery cancel requires a non-empty jobId');
+    throw astBuildBigQuerySqlError('BigQuery cancel requires a non-empty jobId');
   }
 
   try {
     if (!BigQuery.Jobs || typeof BigQuery.Jobs.cancel !== 'function') {
-      throw buildBigQuerySqlError('BigQuery.Jobs.cancel is not available in this runtime');
+      throw astBuildBigQuerySqlError('BigQuery.Jobs.cancel is not available in this runtime');
     }
 
     const response = BigQuery.Jobs.cancel(projectId, normalizedJobId);
@@ -263,7 +263,7 @@ function cancelBigQuerySql(parameters, jobId) {
       throw error;
     }
 
-    throw buildBigQuerySqlError(
+    throw astBuildBigQuerySqlError(
       'BigQuery cancel failed',
       { projectId, jobId: normalizedJobId },
       error

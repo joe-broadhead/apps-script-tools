@@ -5,7 +5,7 @@ import { createGasContext } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 
 function createSuccessResponse(context, provider, model, text) {
-  return context.normalizeAiResponse({
+  return context.astNormalizeAiResponse({
     provider,
     operation: 'text',
     model,
@@ -24,11 +24,11 @@ function createProviderError(statusCode, message = 'provider failure') {
   return error;
 }
 
-test('validateAiRequest accepts provider routing candidates without top-level provider', () => {
+test('astValidateAiRequest accepts provider routing candidates without top-level provider', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     input: 'hello',
     routing: {
       strategy: 'priority',
@@ -52,19 +52,19 @@ test('validateAiRequest accepts provider routing candidates without top-level pr
   assert.equal(normalized.routing.candidates.length, 2);
 });
 
-test('runAiRequest falls back to next routing candidate on transient provider errors', () => {
+test('astRunAiRequest falls back to next routing candidate on transient provider errors', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     throw createProviderError(503, 'temporary upstream failure');
   };
-  context.runGemini = request => createSuccessResponse(context, 'gemini', request.model, 'fallback-success');
+  context.astRunGemini = request => createSuccessResponse(context, 'gemini', request.model, 'fallback-success');
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     input: 'hello',
     routing: {
       strategy: 'priority',
@@ -83,8 +83,8 @@ test('runAiRequest falls back to next routing candidate on transient provider er
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(response.provider, 'gemini');
   assert.equal(response.output.text, 'fallback-success');
@@ -96,24 +96,24 @@ test('runAiRequest falls back to next routing candidate on transient provider er
   assert.equal(response.route.attempts[1].status, 'ok');
 });
 
-test('runAiRequest does not fail over deterministic provider 4xx errors by default', () => {
+test('astRunAiRequest does not fail over deterministic provider 4xx errors by default', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
   let geminiCalls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     throw createProviderError(400, 'bad request');
   };
-  context.runGemini = request => {
+  context.astRunGemini = request => {
     geminiCalls += 1;
     return createSuccessResponse(context, 'gemini', request.model, 'should-not-run');
   };
 
   assert.throws(
-    () => context.runAiRequest({
+    () => context.astRunAiRequest({
       input: 'hello',
       routing: {
         strategy: 'priority',
@@ -140,25 +140,25 @@ test('runAiRequest does not fail over deterministic provider 4xx errors by defau
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(geminiCalls, 0);
 });
 
-test('runAiRequest can fail over deterministic provider errors when retryOn.providerErrors=true', () => {
+test('astRunAiRequest can fail over deterministic provider errors when retryOn.providerErrors=true', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     throw createProviderError(400, 'bad request');
   };
-  context.runGemini = request => createSuccessResponse(context, 'gemini', request.model, 'fallback-on-4xx');
+  context.astRunGemini = request => createSuccessResponse(context, 'gemini', request.model, 'fallback-on-4xx');
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     input: 'hello',
     routing: {
       strategy: 'priority',
@@ -180,8 +180,8 @@ test('runAiRequest can fail over deterministic provider errors when retryOn.prov
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(response.provider, 'gemini');
   assert.equal(response.output.text, 'fallback-on-4xx');
@@ -189,23 +189,23 @@ test('runAiRequest can fail over deterministic provider errors when retryOn.prov
   assert.equal(response.route.attempts[0].error.retryable, true);
 });
 
-test('runAiRequest routes structured schema failures to next candidate', () => {
+test('astRunAiRequest routes structured schema failures to next candidate', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
   let openAiCalls = 0;
   let geminiCalls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     openAiCalls += 1;
     return createSuccessResponse(context, 'openai', request.model, '{"ok":"bad","source":"openai"}');
   };
 
-  context.runGemini = request => {
+  context.astRunGemini = request => {
     geminiCalls += 1;
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'gemini',
       operation: 'structured',
       model: request.model,
@@ -216,7 +216,7 @@ test('runAiRequest routes structured schema failures to next candidate', () => {
     });
   };
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     operation: 'structured',
     input: 'return json',
     options: {
@@ -252,8 +252,8 @@ test('runAiRequest routes structured schema failures to next candidate', () => {
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(openAiCalls, 1);
   assert.equal(geminiCalls, 1);
@@ -265,29 +265,29 @@ test('runAiRequest routes structured schema failures to next candidate', () => {
   assert.equal(response.route.attempts[1].status, 'ok');
 });
 
-test('runAiRequest applies cost_first strategy to routing candidates', () => {
+test('astRunAiRequest applies cost_first strategy to routing candidates', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
-  const originalRunOpenRouter = context.runOpenRouter;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
+  const originalRunOpenRouter = context.astRunOpenRouter;
   const callOrder = [];
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     callOrder.push(request.provider);
     return createSuccessResponse(context, request.provider, request.model, 'openai');
   };
-  context.runGemini = request => {
+  context.astRunGemini = request => {
     callOrder.push(request.provider);
     return createSuccessResponse(context, request.provider, request.model, 'gemini');
   };
-  context.runOpenRouter = request => {
+  context.astRunOpenRouter = request => {
     callOrder.push(request.provider);
     return createSuccessResponse(context, request.provider, request.model, 'openrouter');
   };
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     input: 'hello',
     routing: {
       strategy: 'cost_first',
@@ -311,9 +311,9 @@ test('runAiRequest applies cost_first strategy to routing candidates', () => {
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
-  context.runOpenRouter = originalRunOpenRouter;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
+  context.astRunOpenRouter = originalRunOpenRouter;
 
   assert.equal(response.provider, 'openrouter');
   assert.equal(response.output.text, 'openrouter');
@@ -322,19 +322,19 @@ test('runAiRequest applies cost_first strategy to routing candidates', () => {
   assert.equal(response.route.attempts[0].provider, 'openrouter');
 });
 
-test('runAiRequest preserves base options when routing candidate options are omitted', () => {
+test('astRunAiRequest preserves base options when routing candidate options are omitted', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let observedRequest = null;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     observedRequest = request;
     return createSuccessResponse(context, 'openai', request.model, 'ok');
   };
 
-  context.runAiRequest({
+  context.astRunAiRequest({
     input: 'hello',
     options: {
       retries: 0,
@@ -351,14 +351,14 @@ test('runAiRequest preserves base options when routing candidate options are omi
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.ok(observedRequest);
   assert.equal(observedRequest.options.retries, 0);
   assert.equal(observedRequest.options.timeoutMs, 12000);
 });
 
-test('runAiRequest does not leak generic auth keys across provider fallback candidates', () => {
+test('astRunAiRequest does not leak generic auth keys across provider fallback candidates', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -371,18 +371,18 @@ test('runAiRequest does not leak generic auth keys across provider fallback cand
   });
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     throw createProviderError(503, 'temporary upstream failure');
   };
-  context.runGemini = (_request, config) => {
+  context.astRunGemini = (_request, config) => {
     assert.equal(config.apiKey, 'script-gemini-key');
     return createSuccessResponse(context, 'gemini', config.model, 'gemini-success');
   };
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     input: 'hello',
     routing: {
       strategy: 'priority',
@@ -399,19 +399,19 @@ test('runAiRequest does not leak generic auth keys across provider fallback cand
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(response.provider, 'gemini');
   assert.equal(response.output.text, 'gemini-success');
 });
 
-test('validateAiRequest rejects multi-candidate routing when stream is set in candidate options', () => {
+test('astValidateAiRequest rejects multi-candidate routing when stream is set in candidate options', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.validateAiRequest({
+    () => context.astValidateAiRequest({
       input: 'hello',
       onEvent: () => {},
       routing: {

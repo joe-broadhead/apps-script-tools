@@ -6,25 +6,6 @@ function astRagFallbackNormalizeIntent(value, fallback = AST_RAG_DEFAULT_FALLBAC
   return normalized;
 }
 
-function astRagFallbackNormalizePolicy(policy = {}) {
-  if (!astRagIsPlainObject(policy)) {
-    return astRagCloneObject(AST_RAG_DEFAULT_FALLBACK);
-  }
-
-  return {
-    onRetrievalError: astRagNormalizeBoolean(
-      policy.onRetrievalError,
-      AST_RAG_DEFAULT_FALLBACK.onRetrievalError
-    ),
-    onRetrievalEmpty: astRagNormalizeBoolean(
-      policy.onRetrievalEmpty,
-      AST_RAG_DEFAULT_FALLBACK.onRetrievalEmpty
-    ),
-    intent: astRagFallbackNormalizeIntent(policy.intent, AST_RAG_DEFAULT_FALLBACK.intent),
-    factCount: astRagNormalizePositiveInt(policy.factCount, AST_RAG_DEFAULT_FALLBACK.factCount, 1)
-  };
-}
-
 function astRagFallbackCleanSnippet(text) {
   const normalized = typeof text === 'string'
     ? text.replace(/\s+/g, ' ').trim()
@@ -129,7 +110,3 @@ function astRagFallbackFromCitations({
     citations: filtered.slice(0, 3)
   };
 }
-
-const AST_RAG_FALLBACK = Object.freeze({
-  fromCitations: astRagFallbackFromCitations
-});

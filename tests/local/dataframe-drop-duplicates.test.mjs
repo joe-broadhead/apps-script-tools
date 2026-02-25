@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('DataFrame.dropDuplicates uses all columns by default', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -27,8 +27,8 @@ test('DataFrame.dropDuplicates uses all columns by default', () => {
 
 test('DataFrame.dropDuplicates compares Date/object values by content for subset keys', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -48,8 +48,8 @@ test('DataFrame.dropDuplicates compares Date/object values by content for subset
 
 test('DataFrame.dropDuplicates preserves schema for typed empty DataFrames', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

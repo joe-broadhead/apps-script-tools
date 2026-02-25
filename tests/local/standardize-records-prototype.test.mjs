@@ -5,8 +5,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('standardizeRecords ignores inherited enumerable properties', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

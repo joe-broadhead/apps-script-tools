@@ -15,12 +15,12 @@ function createResponse({ status = 200, body = '', headers = {}, blobBytes = nul
   };
 }
 
-test('validateStorageRequest rejects unknown providers', () => {
+test('astValidateStorageRequest rejects unknown providers', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.validateStorageRequest({
+    () => context.astValidateStorageRequest({
       provider: 'azure',
       operation: 'list',
       location: { bucket: 'x' }
@@ -29,11 +29,11 @@ test('validateStorageRequest rejects unknown providers', () => {
   );
 });
 
-test('validateStorageRequest normalizes URI provider and location', () => {
+test('astValidateStorageRequest normalizes URI provider and location', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
-  const request = context.validateStorageRequest({
+  const request = context.astValidateStorageRequest({
     uri: 'gcs://bucket-a/path/to/file.json',
     operation: 'head'
   });
@@ -44,11 +44,11 @@ test('validateStorageRequest normalizes URI provider and location', () => {
   assert.equal(request.uri, 'gcs://bucket-a/path/to/file.json');
 });
 
-test('validateStorageRequest normalizes write payload from text/json to base64', () => {
+test('astValidateStorageRequest normalizes write payload from text/json to base64', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
-  const textRequest = context.validateStorageRequest({
+  const textRequest = context.astValidateStorageRequest({
     uri: 's3://my-bucket/path.txt',
     operation: 'write',
     payload: {
@@ -60,7 +60,7 @@ test('validateStorageRequest normalizes write payload from text/json to base64',
   assert.equal(typeof textRequest.payload.base64, 'string');
   assert.equal(textRequest.payload.mimeType, 'text/plain');
 
-  const jsonRequest = context.validateStorageRequest({
+  const jsonRequest = context.astValidateStorageRequest({
     uri: 'dbfs:/mnt/data.json',
     operation: 'write',
     payload: {
@@ -72,12 +72,12 @@ test('validateStorageRequest normalizes write payload from text/json to base64',
   assert.equal(jsonRequest.payload.mimeType, 'application/json');
 });
 
-test('validateStorageRequest enforces single payload mode for write', () => {
+test('astValidateStorageRequest enforces single payload mode for write', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.validateStorageRequest({
+    () => context.astValidateStorageRequest({
       uri: 'gcs://bucket/path.txt',
       operation: 'write',
       payload: {
@@ -89,11 +89,11 @@ test('validateStorageRequest enforces single payload mode for write', () => {
   );
 });
 
-test('validateStorageRequest applies option defaults and validates operation', () => {
+test('astValidateStorageRequest applies option defaults and validates operation', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
-  const request = context.validateStorageRequest({
+  const request = context.astValidateStorageRequest({
     uri: 's3://my-bucket',
     operation: 'list'
   });
@@ -102,7 +102,7 @@ test('validateStorageRequest applies option defaults and validates operation', (
   assert.equal(request.options.retries, 2);
 
   assert.throws(
-    () => context.validateStorageRequest({
+    () => context.astValidateStorageRequest({
       uri: 's3://my-bucket/key',
       operation: 'clone'
     }),
@@ -110,11 +110,11 @@ test('validateStorageRequest applies option defaults and validates operation', (
   );
 });
 
-test('validateStorageRequest normalizes conditional preconditions', () => {
+test('astValidateStorageRequest normalizes conditional preconditions', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
-  const request = context.validateStorageRequest({
+  const request = context.astValidateStorageRequest({
     uri: 's3://my-bucket/key.txt',
     operation: 'write',
     options: {
@@ -126,7 +126,7 @@ test('validateStorageRequest normalizes conditional preconditions', () => {
   assert.equal(request.preconditions.ifMatch, '12345');
   assert.equal(request.preconditions.ifNoneMatch, null);
 
-  const requestCreateOnly = context.validateStorageRequest({
+  const requestCreateOnly = context.astValidateStorageRequest({
     uri: 's3://my-bucket/key.txt',
     operation: 'write',
     options: {
@@ -137,7 +137,7 @@ test('validateStorageRequest normalizes conditional preconditions', () => {
   assert.equal(requestCreateOnly.preconditions.ifNoneMatch, '*');
 
   assert.throws(
-    () => context.validateStorageRequest({
+    () => context.astValidateStorageRequest({
       uri: 's3://my-bucket/key.txt',
       operation: 'write',
       options: {
@@ -150,11 +150,11 @@ test('validateStorageRequest normalizes conditional preconditions', () => {
   );
 });
 
-test('validateStorageRequest normalizes copy request fromUri/toUri and inferred provider', () => {
+test('astValidateStorageRequest normalizes copy request fromUri/toUri and inferred provider', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
-  const request = context.validateStorageRequest({
+  const request = context.astValidateStorageRequest({
     operation: 'copy',
     fromUri: 'gcs://source-bucket/path/a.txt',
     toUri: 'gcs://target-bucket/path/b.txt'

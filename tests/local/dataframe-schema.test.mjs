@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('DataFrame.schema returns inferred and casted types in local context', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

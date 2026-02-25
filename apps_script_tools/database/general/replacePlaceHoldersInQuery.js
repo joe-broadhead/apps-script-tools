@@ -1,5 +1,5 @@
 /**
- * @function replacePlaceHoldersInQuery
+ * @function astReplacePlaceHoldersInQuery
  * @description Replaces placeholders in a SQL query with provided values. Placeholders are specified in 
  *              the format `{{key}}` and are replaced with their corresponding values. String values are 
  *              automatically wrapped in single quotes.
@@ -12,7 +12,7 @@
  * const query = "SELECT * FROM users WHERE region = {{region}} AND age > {{minAge}}";
  * const placeholders = { region: "North", minAge: 25 };
  * 
- * const finalQuery = replacePlaceHoldersInQuery(query, placeholders);
+ * const finalQuery = astReplacePlaceHoldersInQuery(query, placeholders);
  * console.log(finalQuery);
  * // Output: "SELECT * FROM users WHERE region = 'North' AND age > 25"
  * 
@@ -28,7 +28,7 @@ function astEscapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function replacePlaceHoldersInQuery(query, placeholders) {
+function astReplacePlaceHoldersInQuery(query, placeholders) {
   if (typeof query !== 'string') {
     throw new Error('Query must be a string');
   }

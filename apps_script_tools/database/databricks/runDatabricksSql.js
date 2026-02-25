@@ -1,8 +1,8 @@
 /**
- * @function runDatabricksSql
+ * @function astRunDatabricksSql
  * @description Executes SQL on Databricks and returns a DataFrame.
  */
-function buildDatabricksSqlError(message, details = {}, cause = null) {
+function astBuildDatabricksSqlError(message, details = {}, cause = null) {
   const error = new Error(message);
   error.name = 'DatabricksSqlError';
   error.provider = 'databricks';
@@ -13,7 +13,7 @@ function buildDatabricksSqlError(message, details = {}, cause = null) {
   return error;
 }
 
-function normalizeDatabricksSqlOptions(options = {}) {
+function astNormalizeDatabricksSqlOptions(options = {}) {
   const raw = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
 
   const maxWaitMs = Number.isInteger(raw.maxWaitMs) && raw.maxWaitMs > 0
@@ -25,7 +25,7 @@ function normalizeDatabricksSqlOptions(options = {}) {
     : 500;
 
   if (pollIntervalMs > maxWaitMs) {
-    throw buildDatabricksSqlError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
+    throw astBuildDatabricksSqlError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
       options: raw
     });
   }
@@ -43,7 +43,7 @@ function astNormalizeDatabricksHost(rawHost) {
 
 function astAssertDatabricksExecutionParameters(parameters, mode = 'execute') {
   if (parameters == null || typeof parameters !== 'object' || Array.isArray(parameters)) {
-    throw buildDatabricksSqlError('Databricks parameters must be an object');
+    throw astBuildDatabricksSqlError('Databricks parameters must be an object');
   }
 
   const host = astNormalizeDatabricksHost(parameters.host);
@@ -59,13 +59,13 @@ function astAssertDatabricksExecutionParameters(parameters, mode = 'execute') {
     if (!token) missing.push('token');
 
     if (missing.length > 0) {
-      throw buildDatabricksSqlError(
+      throw astBuildDatabricksSqlError(
         `Missing required Databricks parameters: ${missing.join(', ')}`,
         { missingFields: missing }
       );
     }
   } else if (!host || !token) {
-    throw buildDatabricksSqlError('Databricks parameters require non-empty host and token');
+    throw astBuildDatabricksSqlError('Databricks parameters require non-empty host and token');
   }
 
   return {
@@ -119,20 +119,20 @@ function astDatabricksSubmitStatement(apiBaseUrl, token, payload) {
   return JSON.parse(response.getContentText());
 }
 
-function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, options = {}) {
+function astExecuteDatabricksSqlDetailed(query, parameters, placeholders = {}, options = {}) {
   if (typeof query !== 'string' || query.trim().length === 0) {
-    throw buildDatabricksSqlError('Databricks SQL query must be a non-empty string');
+    throw astBuildDatabricksSqlError('Databricks SQL query must be a non-empty string');
   }
 
   const normalizedParameters = astAssertDatabricksExecutionParameters(parameters, 'execute');
-  const normalizedOptions = normalizeDatabricksSqlOptions(options);
+  const normalizedOptions = astNormalizeDatabricksSqlOptions(options);
   const apiBaseUrl = astDatabricksBuildStatementsApiBase(normalizedParameters.host);
 
   try {
     const submitPayload = {
       warehouse_id: normalizedParameters.sqlWarehouseId,
       schema: normalizedParameters.schema,
-      statement: replacePlaceHoldersInQuery(query, placeholders),
+      statement: astReplacePlaceHoldersInQuery(query, placeholders),
       disposition: 'EXTERNAL_LINKS',
       format: 'JSON_ARRAY'
     };
@@ -145,7 +145,7 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
 
     const statementId = responseData && responseData.statement_id ? String(responseData.statement_id) : '';
     if (!statementId) {
-      throw buildDatabricksSqlError(
+      throw astBuildDatabricksSqlError(
         'Databricks SQL API response did not include statement_id',
         { response: responseData }
       );
@@ -155,14 +155,14 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
     let pollCount = 0;
 
     while (true) {
-      const resultData = fetchStatementStatus(apiBaseUrl, statementId, normalizedParameters.token);
+      const resultData = astFetchStatementStatus(apiBaseUrl, statementId, normalizedParameters.token);
       const state = resultData && resultData.status && resultData.status.state;
 
       switch (state) {
         case 'SUCCEEDED': {
           const elapsedMs = Date.now() - pollStartedAt;
           return {
-            dataFrame: downloadAllChunks(resultData, normalizedParameters.host, normalizedParameters.token),
+            dataFrame: astDownloadAllChunks(resultData, normalizedParameters.host, normalizedParameters.token),
             execution: {
               provider: 'databricks',
               executionId: statementId,
@@ -179,7 +179,7 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
         case 'FAILED':
         case 'CANCELED':
         case 'CLOSED':
-          throw buildDatabricksSqlError(
+          throw astBuildDatabricksSqlError(
             `Databricks SQL statement ${String(state).toLowerCase()}`,
             { state, error: resultData && resultData.status ? resultData.status.error : null, statementId }
           );
@@ -189,7 +189,7 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
           const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
 
           if (remainingMs <= 0) {
-            throw buildDatabricksSqlError(
+            throw astBuildDatabricksSqlError(
               `Databricks SQL query timed out after ${normalizedOptions.maxWaitMs}ms`,
               {
                 state,
@@ -207,7 +207,7 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
           break;
         }
         default:
-          throw buildDatabricksSqlError(
+          throw astBuildDatabricksSqlError(
             `Unknown Databricks SQL statement state: ${state}`,
             { state, statementId, status: resultData ? resultData.status : null }
           );
@@ -218,7 +218,7 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
       throw error;
     }
 
-    throw buildDatabricksSqlError(
+    throw astBuildDatabricksSqlError(
       'Databricks SQL execution failed',
       {
         host: normalizedParameters.host,
@@ -230,21 +230,21 @@ function executeDatabricksSqlDetailed(query, parameters, placeholders = {}, opti
   }
 }
 
-function runDatabricksSql(query, parameters, placeholders = {}, options = {}) {
-  return executeDatabricksSqlDetailed(query, parameters, placeholders, options).dataFrame;
+function astRunDatabricksSql(query, parameters, placeholders = {}, options = {}) {
+  return astExecuteDatabricksSqlDetailed(query, parameters, placeholders, options).dataFrame;
 }
 
-function getDatabricksSqlStatus(parameters, statementId) {
+function astGetDatabricksSqlStatus(parameters, statementId) {
   const normalizedParameters = astAssertDatabricksExecutionParameters(parameters, 'control');
   const normalizedStatementId = typeof statementId === 'string' ? statementId.trim() : '';
 
   if (!normalizedStatementId) {
-    throw buildDatabricksSqlError('Databricks status requires a non-empty statementId');
+    throw astBuildDatabricksSqlError('Databricks status requires a non-empty statementId');
   }
 
   try {
     const apiBaseUrl = astDatabricksBuildStatementsApiBase(normalizedParameters.host);
-    const resultData = fetchStatementStatus(apiBaseUrl, normalizedStatementId, normalizedParameters.token);
+    const resultData = astFetchStatementStatus(apiBaseUrl, normalizedStatementId, normalizedParameters.token);
     const state = resultData && resultData.status && resultData.status.state
       ? String(resultData.status.state)
       : 'UNKNOWN';
@@ -263,7 +263,7 @@ function getDatabricksSqlStatus(parameters, statementId) {
       throw error;
     }
 
-    throw buildDatabricksSqlError(
+    throw astBuildDatabricksSqlError(
       'Databricks status lookup failed',
       { host: normalizedParameters.host, statementId: normalizedStatementId },
       error
@@ -271,12 +271,12 @@ function getDatabricksSqlStatus(parameters, statementId) {
   }
 }
 
-function cancelDatabricksSql(parameters, statementId) {
+function astCancelDatabricksSql(parameters, statementId) {
   const normalizedParameters = astAssertDatabricksExecutionParameters(parameters, 'control');
   const normalizedStatementId = typeof statementId === 'string' ? statementId.trim() : '';
 
   if (!normalizedStatementId) {
-    throw buildDatabricksSqlError('Databricks cancel requires a non-empty statementId');
+    throw astBuildDatabricksSqlError('Databricks cancel requires a non-empty statementId');
   }
 
   try {
@@ -291,7 +291,7 @@ function cancelDatabricksSql(parameters, statementId) {
     const statusCode = astDatabricksGetHttpStatus(cancelResponse);
 
     if (statusCode < 200 || statusCode >= 300) {
-      throw buildDatabricksSqlError(
+      throw astBuildDatabricksSqlError(
         'Databricks cancel request failed',
         {
           host: normalizedParameters.host,
@@ -302,7 +302,7 @@ function cancelDatabricksSql(parameters, statementId) {
       );
     }
 
-    const latest = getDatabricksSqlStatus(normalizedParameters, normalizedStatementId);
+    const latest = astGetDatabricksSqlStatus(normalizedParameters, normalizedStatementId);
     const latestState = typeof latest.state === 'string' ? latest.state.toUpperCase() : '';
     const isCanceled = latestState === 'CANCELED' || latestState === 'CLOSED';
     const response = Object.assign({}, latest, { canceled: isCanceled });
@@ -317,7 +317,7 @@ function cancelDatabricksSql(parameters, statementId) {
       throw error;
     }
 
-    throw buildDatabricksSqlError(
+    throw astBuildDatabricksSqlError(
       'Databricks cancel failed',
       { host: normalizedParameters.host, statementId: normalizedStatementId },
       error
@@ -325,7 +325,7 @@ function cancelDatabricksSql(parameters, statementId) {
   }
 }
 
-function fetchStatementStatus(apiBaseUrl, statementId, token) {
+function astFetchStatementStatus(apiBaseUrl, statementId, token) {
   const response = UrlFetchApp.fetch(`${apiBaseUrl}${statementId}`, {
     method: 'get',
     headers: {
@@ -335,7 +335,7 @@ function fetchStatementStatus(apiBaseUrl, statementId, token) {
   return JSON.parse(response.getContentText());
 }
 
-function fetchChunk(chunkLink, host, token) {
+function astFetchChunk(chunkLink, host, token) {
   const chunkUrl = `https://${host}${chunkLink}`;
   const chunkResponse = UrlFetchApp.fetch(chunkUrl, {
     method: 'get',
@@ -346,7 +346,7 @@ function fetchChunk(chunkLink, host, token) {
   return JSON.parse(chunkResponse.getContentText());
 }
 
-function downloadAllChunks(results, host, token) {
+function astDownloadAllChunks(results, host, token) {
   const manifest = results && results.manifest ? results.manifest : {};
   const result = results && results.result ? results.result : {};
   const schema = manifest && manifest.schema ? manifest.schema : {};
@@ -377,7 +377,7 @@ function downloadAllChunks(results, host, token) {
   }
 
   while (nextChunkInternalLink) {
-    const currentChunk = fetchChunk(nextChunkInternalLink, host, token);
+    const currentChunk = astFetchChunk(nextChunkInternalLink, host, token);
     const links = Array.isArray(currentChunk && currentChunk.external_links)
       ? currentChunk.external_links
       : [];

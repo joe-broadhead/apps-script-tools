@@ -76,7 +76,7 @@ const AST_UTILITY_NAMES = Object.freeze([
 ]);
 const AST_UTILS = {};
 
-function resolveAstBinding(name, lexicalResolver) {
+function astResolveAstBinding(name, lexicalResolver) {
   if (typeof lexicalResolver === 'function') {
     const lexicalValue = lexicalResolver();
     if (typeof lexicalValue !== 'undefined') {
@@ -88,7 +88,7 @@ function resolveAstBinding(name, lexicalResolver) {
 
 AST_UTILITY_NAMES.forEach(name => {
   Object.defineProperty(AST_UTILS, name, {
-    get: () => resolveAstBinding(name, () => AST_GLOBAL[name]),
+    get: () => astResolveAstBinding(name, () => AST_GLOBAL[name]),
     enumerable: true
   });
 });
@@ -101,83 +101,83 @@ Object.defineProperties(AST, {
     enumerable: true
   },
   Series: {
-    get: () => resolveAstBinding('Series', () => (typeof Series === 'undefined' ? undefined : Series)),
+    get: () => astResolveAstBinding('Series', () => (typeof Series === 'undefined' ? undefined : Series)),
     enumerable: true
   },
   DataFrame: {
-    get: () => resolveAstBinding('DataFrame', () => (typeof DataFrame === 'undefined' ? undefined : DataFrame)),
+    get: () => astResolveAstBinding('DataFrame', () => (typeof DataFrame === 'undefined' ? undefined : DataFrame)),
     enumerable: true
   },
   GroupBy: {
-    get: () => resolveAstBinding('GroupBy', () => (typeof GroupBy === 'undefined' ? undefined : GroupBy)),
+    get: () => astResolveAstBinding('GroupBy', () => (typeof GroupBy === 'undefined' ? undefined : GroupBy)),
     enumerable: true
   },
   Sheets: {
     get: () => ({
-      openById: resolveAstBinding('openSpreadsheetById', () => (typeof openSpreadsheetById === 'undefined' ? undefined : openSpreadsheetById)),
-      openByUrl: resolveAstBinding('openSpreadsheetByUrl', () => (typeof openSpreadsheetByUrl === 'undefined' ? undefined : openSpreadsheetByUrl)),
-      EnhancedSheet: resolveAstBinding('EnhancedSheet', () => (typeof EnhancedSheet === 'undefined' ? undefined : EnhancedSheet)),
-      EnhancedSpreadsheet: resolveAstBinding('EnhancedSpreadsheet', () => (typeof EnhancedSpreadsheet === 'undefined' ? undefined : EnhancedSpreadsheet)),
-      numberToSheetRangeNotation: resolveAstBinding('numberToSheetRangeNotation', () => (typeof numberToSheetRangeNotation === 'undefined' ? undefined : numberToSheetRangeNotation))
+      openById: astResolveAstBinding('openSpreadsheetById', () => (typeof openSpreadsheetById === 'undefined' ? undefined : openSpreadsheetById)),
+      openByUrl: astResolveAstBinding('openSpreadsheetByUrl', () => (typeof openSpreadsheetByUrl === 'undefined' ? undefined : openSpreadsheetByUrl)),
+      EnhancedSheet: astResolveAstBinding('EnhancedSheet', () => (typeof EnhancedSheet === 'undefined' ? undefined : EnhancedSheet)),
+      EnhancedSpreadsheet: astResolveAstBinding('EnhancedSpreadsheet', () => (typeof EnhancedSpreadsheet === 'undefined' ? undefined : EnhancedSpreadsheet)),
+      numberToSheetRangeNotation: astResolveAstBinding('numberToSheetRangeNotation', () => (typeof numberToSheetRangeNotation === 'undefined' ? undefined : numberToSheetRangeNotation))
     }),
     enumerable: true
   },
   Drive: {
     get: () => ({
-      read: resolveAstBinding('readFileFromDrive', () => (typeof readFileFromDrive === 'undefined' ? undefined : readFileFromDrive)),
-      create: resolveAstBinding('createFileInDrive', () => (typeof createFileInDrive === 'undefined' ? undefined : createFileInDrive))
+      read: astResolveAstBinding('readFileFromDrive', () => (typeof readFileFromDrive === 'undefined' ? undefined : readFileFromDrive)),
+      create: astResolveAstBinding('createFileInDrive', () => (typeof createFileInDrive === 'undefined' ? undefined : createFileInDrive))
     }),
     enumerable: true
   },
   AI: {
-    get: () => resolveAstBinding('AST_AI', () => (typeof AST_AI === 'undefined' ? undefined : AST_AI)),
+    get: () => astResolveAstBinding('AST_AI', () => (typeof AST_AI === 'undefined' ? undefined : AST_AI)),
     enumerable: true
   },
   RAG: {
-    get: () => resolveAstBinding('AST_RAG', () => (typeof AST_RAG === 'undefined' ? undefined : AST_RAG)),
+    get: () => astResolveAstBinding('AST_RAG', () => (typeof AST_RAG === 'undefined' ? undefined : AST_RAG)),
     enumerable: true
   },
   Cache: {
-    get: () => resolveAstBinding('AST_CACHE', () => (typeof AST_CACHE === 'undefined' ? undefined : AST_CACHE)),
+    get: () => astResolveAstBinding('AST_CACHE', () => (typeof AST_CACHE === 'undefined' ? undefined : AST_CACHE)),
     enumerable: true
   },
   Storage: {
-    get: () => resolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
+    get: () => astResolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
     enumerable: true
   },
   Config: {
-    get: () => resolveAstBinding('AST_CONFIG', () => (typeof AST_CONFIG === 'undefined' ? undefined : AST_CONFIG)),
+    get: () => astResolveAstBinding('AST_CONFIG', () => (typeof AST_CONFIG === 'undefined' ? undefined : AST_CONFIG)),
     enumerable: true
   },
   Runtime: {
-    get: () => resolveAstBinding('AST_RUNTIME', () => (typeof AST_RUNTIME === 'undefined' ? undefined : AST_RUNTIME)),
+    get: () => astResolveAstBinding('AST_RUNTIME', () => (typeof AST_RUNTIME === 'undefined' ? undefined : AST_RUNTIME)),
     enumerable: true
   },
   Telemetry: {
-    get: () => resolveAstBinding('AST_TELEMETRY', () => (typeof AST_TELEMETRY === 'undefined' ? undefined : AST_TELEMETRY)),
+    get: () => astResolveAstBinding('AST_TELEMETRY', () => (typeof AST_TELEMETRY === 'undefined' ? undefined : AST_TELEMETRY)),
     enumerable: true
   },
   TelemetryHelpers: {
-    get: () => resolveAstBinding('AST_TELEMETRY_HELPERS', () => (typeof AST_TELEMETRY_HELPERS === 'undefined' ? undefined : AST_TELEMETRY_HELPERS)),
+    get: () => astResolveAstBinding('AST_TELEMETRY_HELPERS', () => (typeof AST_TELEMETRY_HELPERS === 'undefined' ? undefined : AST_TELEMETRY_HELPERS)),
     enumerable: true
   },
   Jobs: {
-    get: () => resolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
+    get: () => astResolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
     enumerable: true
   },
   Chat: {
-    get: () => resolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
+    get: () => astResolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
     enumerable: true
   },
   Sql: {
     get: () => ({
-      run: resolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery)),
-      prepare: resolveAstBinding('astSqlPrepare', () => (typeof astSqlPrepare === 'undefined' ? undefined : astSqlPrepare)),
-      executePrepared: resolveAstBinding('astSqlExecutePrepared', () => (typeof astSqlExecutePrepared === 'undefined' ? undefined : astSqlExecutePrepared)),
-      status: resolveAstBinding('astSqlStatus', () => (typeof astSqlStatus === 'undefined' ? undefined : astSqlStatus)),
-      cancel: resolveAstBinding('astSqlCancel', () => (typeof astSqlCancel === 'undefined' ? undefined : astSqlCancel)),
-      providers: resolveAstBinding('astListSqlProviders', () => (typeof astListSqlProviders === 'undefined' ? undefined : astListSqlProviders)),
-      capabilities: resolveAstBinding('astGetSqlProviderCapabilities', () => (typeof astGetSqlProviderCapabilities === 'undefined' ? undefined : astGetSqlProviderCapabilities))
+      run: astResolveAstBinding('runSqlQuery', () => (typeof runSqlQuery === 'undefined' ? undefined : runSqlQuery)),
+      prepare: astResolveAstBinding('astSqlPrepare', () => (typeof astSqlPrepare === 'undefined' ? undefined : astSqlPrepare)),
+      executePrepared: astResolveAstBinding('astSqlExecutePrepared', () => (typeof astSqlExecutePrepared === 'undefined' ? undefined : astSqlExecutePrepared)),
+      status: astResolveAstBinding('astSqlStatus', () => (typeof astSqlStatus === 'undefined' ? undefined : astSqlStatus)),
+      cancel: astResolveAstBinding('astSqlCancel', () => (typeof astSqlCancel === 'undefined' ? undefined : astSqlCancel)),
+      providers: astResolveAstBinding('astListSqlProviders', () => (typeof astListSqlProviders === 'undefined' ? undefined : astListSqlProviders)),
+      capabilities: astResolveAstBinding('astGetSqlProviderCapabilities', () => (typeof astGetSqlProviderCapabilities === 'undefined' ? undefined : astGetSqlProviderCapabilities))
     }),
     enumerable: true
   },

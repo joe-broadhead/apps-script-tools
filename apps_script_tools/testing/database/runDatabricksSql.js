@@ -1,9 +1,9 @@
 const DATABASE_RUN_DATABRICKS_SQL_TESTS = [
   {
-    description: 'runDatabricksSql() should reject pollIntervalMs greater than maxWaitMs',
+    description: 'astRunDatabricksSql() should reject pollIntervalMs greater than maxWaitMs',
     test: () => {
       try {
-        runDatabricksSql(
+        astRunDatabricksSql(
           'select 1',
           {
             host: 'dbc.example.com',
@@ -26,7 +26,7 @@ const DATABASE_RUN_DATABRICKS_SQL_TESTS = [
     },
   },
   {
-    description: 'runDatabricksSql() should cap final polling sleep to remaining timeout budget',
+    description: 'astRunDatabricksSql() should cap final polling sleep to remaining timeout budget',
     test: () => {
       const originalFetch = UrlFetchApp.fetch;
       const originalSleep = Utilities.sleep;
@@ -57,7 +57,7 @@ const DATABASE_RUN_DATABRICKS_SQL_TESTS = [
       Date.now = () => now;
 
       try {
-        runDatabricksSql(
+        astRunDatabricksSql(
           'select 1',
           {
             host: 'dbc.example.com',

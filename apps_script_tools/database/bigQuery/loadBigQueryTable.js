@@ -1,5 +1,5 @@
 /**
- * @function loadBigQueryTable
+ * @function astLoadBigQueryTable
  * @description Loads tabular data into a BigQuery table using CSV load jobs.
  * @param {Object} config - Table load configuration.
  * @param {Array<Array<any>>} config.arrays - 2D arrays where first row is headers.
@@ -13,7 +13,7 @@
  * @param {Number} [config.options.maxWaitMs=120000] - Maximum wait time for load completion.
  * @param {Number} [config.options.pollIntervalMs=1000] - Poll interval while waiting for load completion.
  */
-function buildBigQueryLoadError(message, details = {}, cause = null) {
+function astBuildBigQueryLoadError(message, details = {}, cause = null) {
   const error = new Error(message);
   error.name = 'BigQueryLoadError';
   error.provider = 'bigquery';
@@ -24,7 +24,7 @@ function buildBigQueryLoadError(message, details = {}, cause = null) {
   return error;
 }
 
-function normalizeBigQueryLoadOptions(options = {}) {
+function astNormalizeBigQueryLoadOptions(options = {}) {
   const raw = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
 
   const maxWaitMs = Number.isInteger(raw.maxWaitMs) && raw.maxWaitMs > 0
@@ -36,7 +36,7 @@ function normalizeBigQueryLoadOptions(options = {}) {
     : 1000;
 
   if (pollIntervalMs > maxWaitMs) {
-    throw buildBigQueryLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
+    throw astBuildBigQueryLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs', {
       options: raw
     });
   }
@@ -47,9 +47,9 @@ function normalizeBigQueryLoadOptions(options = {}) {
   };
 }
 
-function loadBigQueryTable(config) {
+function astLoadBigQueryTable(config) {
   if (config == null || typeof config !== 'object' || Array.isArray(config)) {
-    throw buildBigQueryLoadError('loadBigQueryTable requires a config object');
+    throw astBuildBigQueryLoadError('astLoadBigQueryTable requires a config object');
   }
 
   const {
@@ -61,24 +61,24 @@ function loadBigQueryTable(config) {
     options = {}
   } = config;
 
-  const normalizedOptions = normalizeBigQueryLoadOptions(options);
+  const normalizedOptions = astNormalizeBigQueryLoadOptions(options);
 
   if (!Array.isArray(arrays) || arrays.length === 0) {
-    throw buildBigQueryLoadError('loadBigQueryTable requires non-empty arrays with a header row');
+    throw astBuildBigQueryLoadError('astLoadBigQueryTable requires non-empty arrays with a header row');
   }
 
   if (typeof tableName !== 'string' || tableName.trim().length === 0) {
-    throw buildBigQueryLoadError('loadBigQueryTable requires a non-empty tableName');
+    throw astBuildBigQueryLoadError('astLoadBigQueryTable requires a non-empty tableName');
   }
 
   if (!tableSchema || typeof tableSchema !== 'object') {
-    throw buildBigQueryLoadError('loadBigQueryTable requires a tableSchema object');
+    throw astBuildBigQueryLoadError('astLoadBigQueryTable requires a tableSchema object');
   }
 
   const { projectId, datasetId: parameterDatasetId } = bigquery_parameters;
 
   if (!projectId) {
-    throw buildBigQueryLoadError('bigquery_parameters.projectId is required');
+    throw astBuildBigQueryLoadError('bigquery_parameters.projectId is required');
   }
 
   const [datasetPart, tablePart] = tableName.includes('.')
@@ -86,7 +86,7 @@ function loadBigQueryTable(config) {
     : [parameterDatasetId, tableName];
 
   if (!datasetPart || !tablePart) {
-    throw buildBigQueryLoadError('BigQuery destination table must include dataset and table name');
+    throw astBuildBigQueryLoadError('BigQuery destination table must include dataset and table name');
   }
 
   const headers = arrays[0].map(header => String(header).trim());
@@ -117,7 +117,7 @@ function loadBigQueryTable(config) {
       writeDisposition = 'WRITE_TRUNCATE';
       break;
     default:
-      throw buildBigQueryLoadError(`Invalid BigQuery load mode '${mode}'. Expected one of: insert, overwrite`);
+      throw astBuildBigQueryLoadError(`Invalid BigQuery load mode '${mode}'. Expected one of: insert, overwrite`);
   }
   const loadJob = {
     configuration: {
@@ -141,7 +141,7 @@ function loadBigQueryTable(config) {
     const job = BigQuery.Jobs.insert(loadJob, projectId, csvBlob);
 
     if (job && job.status && job.status.errorResult) {
-      throw buildBigQueryLoadError(
+      throw astBuildBigQueryLoadError(
         `BigQuery load failed: ${JSON.stringify(job.status.errorResult)}`,
         { phase: 'insert', errorResult: job.status.errorResult }
       );
@@ -149,7 +149,7 @@ function loadBigQueryTable(config) {
 
     const jobId = job && job.jobReference ? job.jobReference.jobId : null;
     if (typeof jobId !== 'string' || jobId.trim().length === 0) {
-      throw buildBigQueryLoadError('BigQuery load response did not include a valid jobId', {
+      throw astBuildBigQueryLoadError('BigQuery load response did not include a valid jobId', {
         phase: 'insert',
         response: job
       });
@@ -164,7 +164,7 @@ function loadBigQueryTable(config) {
       const remainingMs = normalizedOptions.maxWaitMs - elapsedMs;
 
       if (remainingMs <= 0) {
-        throw buildBigQueryLoadError(
+        throw astBuildBigQueryLoadError(
           `BigQuery load timed out after ${normalizedOptions.maxWaitMs}ms`,
           {
             phase: 'poll',
@@ -184,7 +184,7 @@ function loadBigQueryTable(config) {
       const latestStatus = latest && latest.status ? latest.status : {};
 
       if (latestStatus.errorResult) {
-        throw buildBigQueryLoadError(
+        throw astBuildBigQueryLoadError(
           `BigQuery load failed: ${JSON.stringify(latestStatus.errorResult)}`,
           { phase: 'poll', jobId, errorResult: latestStatus.errorResult }
         );
@@ -197,7 +197,7 @@ function loadBigQueryTable(config) {
       throw error;
     }
 
-    throw buildBigQueryLoadError(
+    throw astBuildBigQueryLoadError(
       'BigQuery load failed',
       { projectId, datasetId: datasetPart, tableId: tablePart },
       error

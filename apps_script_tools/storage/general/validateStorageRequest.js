@@ -312,7 +312,7 @@ function astStorageResolveRequestProvider({
   return provider;
 }
 
-function validateStorageRequest(request = {}) {
+function astValidateStorageRequest(request = {}) {
   if (!astStorageIsPlainObject(request)) {
     throw new AstStorageValidationError('Storage request must be an object');
   }

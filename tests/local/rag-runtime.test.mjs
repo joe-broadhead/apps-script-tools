@@ -1682,7 +1682,7 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'Contact support@example.com [S1]',
@@ -1719,7 +1719,7 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
   assert.equal(grounded.citations[0].finalScore, grounded.citations[0].score);
   assert.equal(grounded.citations[0].rerankScore, null);
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'I think it is support@example.com.',
@@ -1777,7 +1777,7 @@ test('answer supports lexical retrieval mode without embedding calls', () => {
     throw new Error('astRagEmbedTexts should not run in lexical mode');
   };
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'The timeline includes preparation and reopening [S1]',
@@ -1852,7 +1852,7 @@ test('answer cache reuses grounded response when history is empty', () => {
       usage: { inputTokens: 1, totalTokens: 1 }
     };
   };
-  context.runAiRequest = () => {
+  context.astRunAiRequest = () => {
     generationCalls += 1;
     return {
       output: {
@@ -1929,7 +1929,7 @@ test('answer cache key includes generation prompt controls', () => {
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = () => {
+  context.astRunAiRequest = () => {
     generationCalls += 1;
     return {
       output: {
@@ -2008,7 +2008,7 @@ test('answer returns insufficient_context when access policy excludes all retrie
   });
 
   let aiCallCount = 0;
-  context.runAiRequest = () => {
+  context.astRunAiRequest = () => {
     aiCallCount += 1;
     return {
       output: {
@@ -2087,7 +2087,7 @@ test('answer citation validation rejects inaccessible cited chunks when access i
     vectorScore: 1,
     lexicalScore: null
   }];
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'Denied content [S1]',
@@ -2163,7 +2163,7 @@ test('answer diagnostics include stable retrieval and generation metadata', () =
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     finishReason: 'STOP',
     output: {
       json: {
@@ -2270,7 +2270,7 @@ test('answer diagnostics include context budget stats when generation budget is 
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = request => {
+  context.astRunAiRequest = request => {
     const input = Array.isArray(request && request.input) ? request.input : [];
     const userPrompt = input[input.length - 1] || {};
     assert.equal(typeof userPrompt.content, 'string');
@@ -2530,7 +2530,7 @@ test('answer maxRetrievalMs is enforced on cached-answer fast path', () => {
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = () => {
+  context.astRunAiRequest = () => {
     generationCalls += 1;
     return {
       output: {
@@ -2624,7 +2624,7 @@ test('answer generation controls customize grounding prompt while keeping citati
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = request => {
+  context.astRunAiRequest = request => {
     capturedMessages = request.input;
     return {
       output: {
@@ -2695,7 +2695,7 @@ test('answer omits diagnostics by default when diagnostics option is not enabled
     usage: { inputTokens: 1, totalTokens: 1 }
   });
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'No diagnostics response [S1]',
@@ -2780,7 +2780,7 @@ test('answer recovery policy relaxes retrieval and applies recovered candidates'
     }];
   };
 
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'Recovery answer [S1]',
@@ -3306,7 +3306,7 @@ test('answer reuses retrieval payload and skips query embedding when payload is 
       usage: { inputTokens: 1, totalTokens: 1 }
     };
   };
-  context.runAiRequest = () => ({
+  context.astRunAiRequest = () => ({
     output: {
       json: {
         answer: 'Project launch is underway [S1]',
@@ -3385,7 +3385,7 @@ test('answer bypasses answer cache when retrieval payload is provided', () => {
   context.astRagEmbedTexts = () => {
     throw new Error('Embedding path should not run when retrieval payload is supplied');
   };
-  context.runAiRequest = () => {
+  context.astRunAiRequest = () => {
     generationCalls += 1;
     return {
       output: {

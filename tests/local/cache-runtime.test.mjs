@@ -109,7 +109,7 @@ function createStorageRunnerMock() {
   return {
     objects,
     requests,
-    runStorageRequest: request => {
+    astRunStorageRequest: request => {
       requests.push(
         JSON.parse(
           JSON.stringify(request || {})
@@ -611,7 +611,7 @@ test('script_properties backend isolates collision-prone namespace names', () =>
 test('storage_json backend supports persistence through AST.Storage providers', () => {
   const storage = createStorageRunnerMock();
   const context = createGasContext({
-    runStorageRequest: storage.runStorageRequest,
+    astRunStorageRequest: storage.astRunStorageRequest,
     LockService: {
       getScriptLock: () => ({
         tryLock: () => true,
@@ -661,7 +661,7 @@ test('storage_json backend supports persistence through AST.Storage providers', 
 test('storage_json backend isolates collision-prone namespace names', () => {
   const storage = createStorageRunnerMock();
   const context = createGasContext({
-    runStorageRequest: storage.runStorageRequest,
+    astRunStorageRequest: storage.astRunStorageRequest,
     LockService: {
       getScriptLock: () => ({
         tryLock: () => true,
@@ -702,7 +702,7 @@ test('storage_json trim probe is not capped at 50k and uses tag mutation lock pa
   const storage = createStorageRunnerMock();
   let scriptLockCalls = 0;
   const context = createGasContext({
-    runStorageRequest: storage.runStorageRequest,
+    astRunStorageRequest: storage.astRunStorageRequest,
     LockService: {
       getScriptLock: () => ({
         tryLock: () => {

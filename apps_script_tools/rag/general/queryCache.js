@@ -222,44 +222,6 @@ function astRagCacheSet(cacheConfig, key, value, ttlSec, diagnosticsCollector = 
   }
 }
 
-function astRagCacheDelete(cacheConfig, key, diagnosticsCollector = null, context = {}) {
-  if (
-    !cacheConfig ||
-    cacheConfig.enabled !== true ||
-    typeof astCacheDeleteValue !== 'function'
-  ) {
-    if (typeof diagnosticsCollector === 'function') {
-      diagnosticsCollector({
-        operation: 'delete',
-        path: astRagNormalizeString(context.path, null),
-        backend: astRagNormalizeString(cacheConfig && cacheConfig.backend, AST_RAG_CACHE_DEFAULTS.backend),
-        namespace: astRagNormalizeString(cacheConfig && cacheConfig.namespace, AST_RAG_CACHE_DEFAULTS.namespace),
-        lockScope: astRagNormalizeString(cacheConfig && cacheConfig.lockScope, AST_RAG_CACHE_DEFAULTS.lockScope),
-        durationMs: 0,
-        lockWaitMs: 0,
-        lockContention: 0,
-        hit: false,
-        errorClass: null
-      });
-    }
-    return null;
-  }
-
-  const options = astRagBuildCacheOptions(cacheConfig, cacheConfig.ttlSec);
-  const operationMeta = astRagBuildCacheOperationMeta(options, 'delete', context);
-  astRagAttachCacheTrace(options, operationMeta);
-  const startedAtMs = new Date().getTime();
-
-  try {
-    return astCacheDeleteValue(key, options);
-  } catch (error) {
-    operationMeta.errorClass = error && error.name ? error.name : 'Error';
-    return null;
-  } finally {
-    astRagFinalizeCacheOperationMeta(operationMeta, startedAtMs, diagnosticsCollector);
-  }
-}
-
 function astRagBuildIndexDocumentCacheKey(indexFileId, versionToken) {
   return astRagBuildCacheKey({
     kind: 'index_document',

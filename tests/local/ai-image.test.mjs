@@ -28,7 +28,7 @@ function imageRequest(provider) {
   };
 }
 
-test('runOpenAi returns normalized image payload', () => {
+test('astRunOpenAi returns normalized image payload', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -43,7 +43,7 @@ test('runOpenAi returns normalized image payload', () => {
 
   loadAiScripts(context);
 
-  const output = context.runOpenAi(imageRequest('openai'), {
+  const output = context.astRunOpenAi(imageRequest('openai'), {
     provider: 'openai',
     apiKey: 'key',
     model: 'gpt-image-1'
@@ -53,7 +53,7 @@ test('runOpenAi returns normalized image payload', () => {
   assert.equal(output.output.images[0].mimeType, 'image/png');
 });
 
-test('runGemini returns normalized image payload', () => {
+test('astRunGemini returns normalized image payload', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -74,7 +74,7 @@ test('runGemini returns normalized image payload', () => {
 
   loadAiScripts(context);
 
-  const output = context.runGemini(imageRequest('gemini'), {
+  const output = context.astRunGemini(imageRequest('gemini'), {
     provider: 'gemini',
     apiKey: 'key',
     model: 'gemini-2.0-flash-preview-image-generation'
@@ -84,7 +84,7 @@ test('runGemini returns normalized image payload', () => {
   assert.equal(output.output.images[0].base64, 'Z2VtaW5pSW1hZ2U=');
 });
 
-test('runOpenRouter and runPerplexity image parsing handles generic payload', () => {
+test('astRunOpenRouter and astRunPerplexity image parsing handles generic payload', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -98,13 +98,13 @@ test('runOpenRouter and runPerplexity image parsing handles generic payload', ()
 
   loadAiScripts(context);
 
-  const openRouter = context.runOpenRouter(imageRequest('openrouter'), {
+  const openRouter = context.astRunOpenRouter(imageRequest('openrouter'), {
     provider: 'openrouter',
     apiKey: 'key',
     model: 'openrouter/model'
   });
 
-  const perplexity = context.runPerplexity(imageRequest('perplexity'), {
+  const perplexity = context.astRunPerplexity(imageRequest('perplexity'), {
     provider: 'perplexity',
     apiKey: 'key',
     model: 'sonar-image'
@@ -114,7 +114,7 @@ test('runOpenRouter and runPerplexity image parsing handles generic payload', ()
   assert.equal(perplexity.output.images.length, 1);
 });
 
-test('runOpenAi throws parse error when image payload is missing', () => {
+test('astRunOpenAi throws parse error when image payload is missing', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -126,7 +126,7 @@ test('runOpenAi throws parse error when image payload is missing', () => {
   loadAiScripts(context);
 
   assert.throws(
-    () => context.runOpenAi(imageRequest('openai'), {
+    () => context.astRunOpenAi(imageRequest('openai'), {
       provider: 'openai',
       apiKey: 'key',
       model: 'gpt-image-1'

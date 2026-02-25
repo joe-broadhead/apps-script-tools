@@ -68,7 +68,7 @@ test('GCS list/read/delete operations return normalized output', () => {
 
   loadStorageScripts(context);
 
-  const listResult = context.runStorageRequest({
+  const listResult = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/folder/',
     operation: 'list'
   });
@@ -77,7 +77,7 @@ test('GCS list/read/delete operations return normalized output', () => {
   assert.equal(listResult.output.items.length, 1);
   assert.equal(listResult.page.nextPageToken, 'token-2');
 
-  const readResult = context.runStorageRequest({
+  const readResult = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/folder/a.txt',
     operation: 'read'
   });
@@ -85,7 +85,7 @@ test('GCS list/read/delete operations return normalized output', () => {
   assert.equal(readResult.output.data.mimeType, 'text/plain');
   assert.equal(readResult.output.data.text, 'hi');
 
-  const delResult = context.runStorageRequest({
+  const delResult = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/folder/a.txt',
     operation: 'delete'
   });
@@ -110,7 +110,7 @@ test('GCS maps 404 to AstStorageNotFoundError', () => {
   loadStorageScripts(context);
 
   assert.throws(
-    () => context.runStorageRequest({
+    () => context.astRunStorageRequest({
       uri: 'gcs://my-bucket/missing.txt',
       operation: 'head'
     }),
@@ -167,7 +167,7 @@ test('GCS service-account mode exchanges JWT assertion token', () => {
 
   loadStorageScripts(context);
 
-  const result = context.runStorageRequest({
+  const result = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/',
     operation: 'list',
     auth: {
@@ -205,7 +205,7 @@ test('GCS read returns soft-cap warnings when payload exceeds configured limit',
   loadStorageScripts(context);
   context.astStorageGetSoftLimitBytes = () => 1;
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'gcs://bucket/path.txt',
     operation: 'read'
   });
@@ -241,7 +241,7 @@ test('GCS list marks truncated when maxItems caps merged results', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/folder/',
     operation: 'list',
     options: {
@@ -268,7 +268,7 @@ test('GCS exists returns false instead of throwing for missing objects', () => {
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/missing.txt',
     operation: 'exists'
   });
@@ -346,7 +346,7 @@ test('GCS copy/move/signed_url/multipart_write operations return normalized outp
 
   loadStorageScripts(context);
 
-  const copied = context.runStorageRequest({
+  const copied = context.astRunStorageRequest({
     operation: 'copy',
     fromUri: 'gcs://source-bucket/path/a.txt',
     toUri: 'gcs://target-bucket/path/b.txt'
@@ -354,14 +354,14 @@ test('GCS copy/move/signed_url/multipart_write operations return normalized outp
   assert.equal(copied.output.copied.fromUri, 'gcs://source-bucket/path/a.txt');
   assert.equal(copied.output.copied.toUri, 'gcs://target-bucket/path/b.txt');
 
-  const moved = context.runStorageRequest({
+  const moved = context.astRunStorageRequest({
     operation: 'move',
     fromUri: 'gcs://source-bucket/path/a.txt',
     toUri: 'gcs://target-bucket/path/c.txt'
   });
   assert.equal(moved.output.moved.deletedSource, true);
 
-  const signed = context.runStorageRequest({
+  const signed = context.astRunStorageRequest({
     operation: 'signed_url',
     uri: 'gcs://target-bucket/path/b.txt',
     options: {
@@ -382,7 +382,7 @@ test('GCS copy/move/signed_url/multipart_write operations return normalized outp
   assert.equal(signed.output.signedUrl.method, 'PUT');
   assert.match(signed.output.signedUrl.url, /X-Goog-Signature=/);
 
-  const multipart = context.runStorageRequest({
+  const multipart = context.astRunStorageRequest({
     operation: 'multipart_write',
     uri: 'gcs://target-bucket/path/upload.txt',
     payload: {
@@ -420,7 +420,7 @@ test('GCS write maps ifNoneMatch="*" to create-only generation precondition', ()
 
   loadStorageScripts(context);
 
-  const out = context.runStorageRequest({
+  const out = context.astRunStorageRequest({
     uri: 'gcs://my-bucket/path/new.txt',
     operation: 'write',
     payload: { text: 'hello' },

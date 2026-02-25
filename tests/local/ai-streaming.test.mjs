@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 
-test('runAiRequest emits deterministic stream events for text responses', () => {
+test('astRunAiRequest emits deterministic stream events for text responses', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   const events = [];
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
 
-  context.runOpenAi = () => context.normalizeAiResponse({
+  context.astRunOpenAi = () => context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'text',
     model: 'gpt-4.1-mini',
@@ -20,7 +20,7 @@ test('runAiRequest emits deterministic stream events for text responses', () => 
     }
   });
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     provider: 'openai',
     model: 'gpt-4.1-mini',
     input: 'hello',
@@ -33,7 +33,7 @@ test('runAiRequest emits deterministic stream events for text responses', () => 
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'abcdefghi');
   assert.equal(
@@ -51,12 +51,12 @@ test('AST.AI.stream helper forces stream mode and emits token events', () => {
   loadAiScripts(context, { includeAst: true });
 
   const events = [];
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let seenRequest = null;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     seenRequest = request;
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'text',
       model: 'gpt-4.1-mini',
@@ -78,7 +78,7 @@ test('AST.AI.stream helper forces stream mode and emits token events', () => {
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'wxyz');
   assert.equal(Boolean(seenRequest && seenRequest.options && seenRequest.options.stream), true);
@@ -88,18 +88,18 @@ test('AST.AI.stream helper forces stream mode and emits token events', () => {
   );
 });
 
-test('runAiRequest stream mode emits tool_call and tool_result events for tool workflows', () => {
+test('astRunAiRequest stream mode emits tool_call and tool_result events for tool workflows', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   const events = [];
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     calls += 1;
     if (calls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -113,7 +113,7 @@ test('runAiRequest stream mode emits tool_call and tool_result events for tool w
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -123,7 +123,7 @@ test('runAiRequest stream mode emits tool_call and tool_result events for tool w
     });
   };
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     provider: 'openai',
     operation: 'tools',
     model: 'gpt-4.1-mini',
@@ -152,7 +152,7 @@ test('runAiRequest stream mode emits tool_call and tool_result events for tool w
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done');
   assert.equal(response.output.toolResults.length, 1);
@@ -181,9 +181,9 @@ test('stream events use resolved config model when request.model is omitted', ()
   loadAiScripts(context);
 
   const events = [];
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
 
-  context.runOpenAi = () => context.normalizeAiResponse({
+  context.astRunOpenAi = () => context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'text',
     output: {
@@ -191,7 +191,7 @@ test('stream events use resolved config model when request.model is omitted', ()
     }
   });
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     provider: 'openai',
     input: 'hello',
     auth: { apiKey: 'key' },
@@ -202,7 +202,7 @@ test('stream events use resolved config model when request.model is omitted', ()
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.model, '');
   const eventModels = events.map(event => event.model);

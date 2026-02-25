@@ -59,4 +59,3 @@ class TernarySearchTree {
     return searchNode(this.root, word, 0);
   };
 }
-  

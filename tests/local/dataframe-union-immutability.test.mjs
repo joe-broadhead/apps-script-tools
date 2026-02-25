@@ -5,8 +5,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('DataFrame.union returns a clone when the right DataFrame is empty', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

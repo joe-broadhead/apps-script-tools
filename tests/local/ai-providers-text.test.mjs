@@ -28,7 +28,7 @@ function baseRequest(operation = 'text') {
   };
 }
 
-test('runOpenAi normalizes text output', () => {
+test('astRunOpenAi normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -46,7 +46,7 @@ test('runOpenAi normalizes text output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runOpenAi(baseRequest('text'), {
+  const output = context.astRunOpenAi(baseRequest('text'), {
     provider: 'openai',
     apiKey: 'key',
     model: 'gpt-4.1-mini'
@@ -57,7 +57,7 @@ test('runOpenAi normalizes text output', () => {
   assert.equal(output.provider, 'openai');
 });
 
-test('runGemini normalizes text output', () => {
+test('astRunGemini normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -82,7 +82,7 @@ test('runGemini normalizes text output', () => {
     provider: 'gemini'
   });
 
-  const output = context.runGemini(request, {
+  const output = context.astRunGemini(request, {
     provider: 'gemini',
     apiKey: 'key',
     model: 'gemini-2.0-flash'
@@ -93,7 +93,7 @@ test('runGemini normalizes text output', () => {
   assert.equal(output.provider, 'gemini');
 });
 
-test('runGemini forwards system messages as systemInstruction when request.system is omitted', () => {
+test('astRunGemini forwards system messages as systemInstruction when request.system is omitted', () => {
   let capturedPayload = null;
 
   const context = createGasContext({
@@ -127,7 +127,7 @@ test('runGemini forwards system messages as systemInstruction when request.syste
     ]
   });
 
-  context.runGemini(request, {
+  context.astRunGemini(request, {
     provider: 'gemini',
     apiKey: 'key',
     model: 'gemini-2.0-flash'
@@ -137,7 +137,7 @@ test('runGemini forwards system messages as systemInstruction when request.syste
   assert.equal(capturedPayload.contents.length, 1);
 });
 
-test('runVertexGemini normalizes text output', () => {
+test('astRunVertexGemini normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -162,7 +162,7 @@ test('runVertexGemini normalizes text output', () => {
     provider: 'vertex_gemini'
   });
 
-  const output = context.runVertexGemini(request, {
+  const output = context.astRunVertexGemini(request, {
     provider: 'vertex_gemini',
     projectId: 'p',
     location: 'us-central1',
@@ -175,7 +175,7 @@ test('runVertexGemini normalizes text output', () => {
   assert.equal(output.provider, 'vertex_gemini');
 });
 
-test('runVertexGemini forwards system messages as systemInstruction when request.system is omitted', () => {
+test('astRunVertexGemini forwards system messages as systemInstruction when request.system is omitted', () => {
   let capturedPayload = null;
 
   const context = createGasContext({
@@ -209,7 +209,7 @@ test('runVertexGemini forwards system messages as systemInstruction when request
     ]
   });
 
-  context.runVertexGemini(request, {
+  context.astRunVertexGemini(request, {
     provider: 'vertex_gemini',
     projectId: 'p',
     location: 'us-central1',
@@ -221,7 +221,7 @@ test('runVertexGemini forwards system messages as systemInstruction when request
   assert.equal(capturedPayload.contents.length, 1);
 });
 
-test('runOpenRouter normalizes text output', () => {
+test('astRunOpenRouter normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -242,7 +242,7 @@ test('runOpenRouter normalizes text output', () => {
     provider: 'openrouter'
   });
 
-  const output = context.runOpenRouter(request, {
+  const output = context.astRunOpenRouter(request, {
     provider: 'openrouter',
     apiKey: 'key',
     model: 'openrouter/model'
@@ -253,7 +253,7 @@ test('runOpenRouter normalizes text output', () => {
   assert.equal(output.provider, 'openrouter');
 });
 
-test('runPerplexity normalizes text output', () => {
+test('astRunPerplexity normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -274,7 +274,7 @@ test('runPerplexity normalizes text output', () => {
     provider: 'perplexity'
   });
 
-  const output = context.runPerplexity(request, {
+  const output = context.astRunPerplexity(request, {
     provider: 'perplexity',
     apiKey: 'key',
     model: 'sonar-pro'
