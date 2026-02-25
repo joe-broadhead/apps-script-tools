@@ -7,12 +7,12 @@ const AST_CACHE_STORAGE_TRIM_BATCH_SIZE = 64;
 const AST_CACHE_STORAGE_HARD_MAX_LIST_ITEMS = 2000000;
 
 function astCacheStorageRequireRunner() {
-  if (typeof runStorageRequest === 'function') {
-    return runStorageRequest;
+  if (typeof astRunStorageRequest === 'function') {
+    return astRunStorageRequest;
   }
 
   throw new AstCacheCapabilityError(
-    'runStorageRequest is required for cache storage_json backend'
+    'astRunStorageRequest is required for cache storage_json backend'
   );
 }
 

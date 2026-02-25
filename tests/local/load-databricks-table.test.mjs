@@ -27,10 +27,10 @@ function baseConfig(mode = 'insert') {
   };
 }
 
-test('loadDatabricksTable forwards options to each Databricks SQL statement', () => {
+test('astLoadDatabricksTable forwards options to each Databricks SQL statement', () => {
   const captured = [];
   const context = createGasContext({
-    runDatabricksSql: (...args) => {
+    astRunDatabricksSql: (...args) => {
       captured.push(args);
       return {};
     }
@@ -41,7 +41,7 @@ test('loadDatabricksTable forwards options to each Databricks SQL statement', ()
     SCRIPT
   ]);
 
-  context.loadDatabricksTable(baseConfig('insert'));
+  context.astLoadDatabricksTable(baseConfig('insert'));
 
   assert.ok(captured.length >= 2);
   assert.equal(
@@ -53,9 +53,9 @@ test('loadDatabricksTable forwards options to each Databricks SQL statement', ()
   );
 });
 
-test('loadDatabricksTable throws for unsupported write mode', () => {
+test('astLoadDatabricksTable throws for unsupported write mode', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -64,14 +64,14 @@ test('loadDatabricksTable throws for unsupported write mode', () => {
   ]);
 
   assert.throws(
-    () => context.loadDatabricksTable(baseConfig('upsert')),
+    () => context.astLoadDatabricksTable(baseConfig('upsert')),
     /Unsupported mode/
   );
 });
 
-test('loadDatabricksTable requires mergeKey in merge mode', () => {
+test('astLoadDatabricksTable requires mergeKey in merge mode', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -83,14 +83,14 @@ test('loadDatabricksTable requires mergeKey in merge mode', () => {
   delete config.mergeKey;
 
   assert.throws(
-    () => context.loadDatabricksTable(config),
+    () => context.astLoadDatabricksTable(config),
     /mergeKey is required for merge mode/
   );
 });
 
-test('loadDatabricksTable validates mergeKey exists in headers', () => {
+test('astLoadDatabricksTable validates mergeKey exists in headers', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -102,14 +102,14 @@ test('loadDatabricksTable validates mergeKey exists in headers', () => {
   config.mergeKey = 'missing_id';
 
   assert.throws(
-    () => context.loadDatabricksTable(config),
+    () => context.astLoadDatabricksTable(config),
     /must exist in header columns/
   );
 });
 
-test('loadDatabricksTable validates row width matches header width', () => {
+test('astLoadDatabricksTable validates row width matches header width', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -124,14 +124,14 @@ test('loadDatabricksTable validates row width matches header width', () => {
   ];
 
   assert.throws(
-    () => context.loadDatabricksTable(config),
+    () => context.astLoadDatabricksTable(config),
     /has length 1, expected 2/
   );
 });
 
-test('loadDatabricksTable validates schema coverage for headers', () => {
+test('astLoadDatabricksTable validates schema coverage for headers', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -143,14 +143,14 @@ test('loadDatabricksTable validates schema coverage for headers', () => {
   config.tableSchema = { id: 'INT' };
 
   assert.throws(
-    () => context.loadDatabricksTable(config),
+    () => context.astLoadDatabricksTable(config),
     /tableSchema is missing definitions for columns: name/
   );
 });
 
-test('loadDatabricksTable validates polling options', () => {
+test('astLoadDatabricksTable validates polling options', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({})
+    astRunDatabricksSql: () => ({})
   });
 
   loadScripts(context, [
@@ -165,14 +165,14 @@ test('loadDatabricksTable validates polling options', () => {
   };
 
   assert.throws(
-    () => context.loadDatabricksTable(config),
+    () => context.astLoadDatabricksTable(config),
     /options\.pollIntervalMs cannot be greater than options\.maxWaitMs/
   );
 });
 
-test('loadDatabricksTable wraps statement failures in DatabricksLoadError', () => {
+test('astLoadDatabricksTable wraps statement failures in DatabricksLoadError', () => {
   const context = createGasContext({
-    runDatabricksSql: () => {
+    astRunDatabricksSql: () => {
       const err = new Error('statement failed');
       err.name = 'DatabricksSqlError';
       throw err;
@@ -185,7 +185,7 @@ test('loadDatabricksTable wraps statement failures in DatabricksLoadError', () =
   ]);
 
   assert.throws(
-    () => context.loadDatabricksTable(baseConfig('insert')),
+    () => context.astLoadDatabricksTable(baseConfig('insert')),
     error => {
       assert.equal(error.name, 'DatabricksLoadError');
       assert.match(error.message, /Databricks load failed during create table/);
@@ -196,10 +196,10 @@ test('loadDatabricksTable wraps statement failures in DatabricksLoadError', () =
   );
 });
 
-test('loadDatabricksTable executes merge statements when mergeKey is valid', () => {
+test('astLoadDatabricksTable executes merge statements when mergeKey is valid', () => {
   const capturedSql = [];
   const context = createGasContext({
-    runDatabricksSql: (sql) => {
+    astRunDatabricksSql: (sql) => {
       capturedSql.push(sql);
       return {};
     }
@@ -213,7 +213,7 @@ test('loadDatabricksTable executes merge statements when mergeKey is valid', () 
   const config = baseConfig('merge');
   config.mergeKey = 'id';
 
-  context.loadDatabricksTable(config);
+  context.astLoadDatabricksTable(config);
 
   const hasMergeStatement = capturedSql.some(sql => String(sql).toLowerCase().includes('merge into'));
   assert.equal(hasMergeStatement, true);

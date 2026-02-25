@@ -55,10 +55,6 @@ function astStorageListProviders() {
   return AST_STORAGE_PROVIDERS.slice();
 }
 
-function astStorageListOperations() {
-  return AST_STORAGE_OPERATIONS.slice();
-}
-
 function astStorageGetCapabilities(provider) {
   const normalizedProvider = String(provider || '').trim().toLowerCase();
   const capabilities = AST_STORAGE_CAPABILITY_MATRIX[normalizedProvider];

@@ -18,7 +18,7 @@ function astVertexProviderOptions(providerOptions = {}, omitKeys = []) {
   return output;
 }
 
-function runVertexGemini(request, config) {
+function astRunVertexGemini(request, config) {
   const includeRaw = request.options.includeRaw === true;
   const endpoint = astBuildVertexGeminiEndpoint(config, request.providerOptions);
 
@@ -98,7 +98,7 @@ function runVertexGemini(request, config) {
     structuredJson = astAiSafeJsonParse(parsed.text);
   }
 
-  return normalizeAiResponse({
+  return astNormalizeAiResponse({
     provider: 'vertex_gemini',
     operation: request.operation,
     model: config.model,

@@ -2,14 +2,14 @@ AI_TOOLS_TESTS = [
   {
     description: 'AST.AI.tools() should execute function handlers and return tool results',
     test: () => {
-      const originalRunOpenAi = runOpenAi;
+      const originalRunOpenAi = astRunOpenAi;
       let callCount = 0;
 
-      runOpenAi = request => {
+      astRunOpenAi = request => {
         callCount += 1;
 
         if (callCount === 1) {
-          return normalizeAiResponse({
+          return astNormalizeAiResponse({
             provider: 'openai',
             operation: 'tools',
             model: 'gpt-4.1-mini',
@@ -23,7 +23,7 @@ AI_TOOLS_TESTS = [
           });
         }
 
-        return normalizeAiResponse({
+        return astNormalizeAiResponse({
           provider: 'openai',
           operation: 'tools',
           model: 'gpt-4.1-mini',
@@ -70,24 +70,24 @@ AI_TOOLS_TESTS = [
           throw new Error(`Expected tool result 10, but got ${response.output.toolResults[0].result}`);
         }
       } finally {
-        runOpenAi = originalRunOpenAi;
+        astRunOpenAi = originalRunOpenAi;
       }
     }
   },
   {
     description: 'AST.AI.tools() should resolve string handler names from global scope',
     test: () => {
-      const originalRunOpenAi = runOpenAi;
+      const originalRunOpenAi = astRunOpenAi;
       const originalGlobalHandler = this.astAiGlobalAdder;
       let callCount = 0;
 
       this.astAiGlobalAdder = args => args.left + args.right;
 
-      runOpenAi = request => {
+      astRunOpenAi = request => {
         callCount += 1;
 
         if (callCount === 1) {
-          return normalizeAiResponse({
+          return astNormalizeAiResponse({
             provider: 'openai',
             operation: 'tools',
             model: 'gpt-4.1-mini',
@@ -101,7 +101,7 @@ AI_TOOLS_TESTS = [
           });
         }
 
-        return normalizeAiResponse({
+        return astNormalizeAiResponse({
           provider: 'openai',
           operation: 'tools',
           model: 'gpt-4.1-mini',
@@ -141,7 +141,7 @@ AI_TOOLS_TESTS = [
           throw new Error(`Expected tool result 10, but got ${response.output.toolResults[0].result}`);
         }
       } finally {
-        runOpenAi = originalRunOpenAi;
+        astRunOpenAi = originalRunOpenAi;
         if (typeof originalGlobalHandler === 'undefined') {
           delete this.astAiGlobalAdder;
         } else {
@@ -153,10 +153,10 @@ AI_TOOLS_TESTS = [
   {
     description: 'AST.AI.tools() should throw when tool rounds exceed maxToolRounds',
     test: () => {
-      const originalRunOpenAi = runOpenAi;
+      const originalRunOpenAi = astRunOpenAi;
 
-      runOpenAi = request => {
-        return normalizeAiResponse({
+      astRunOpenAi = request => {
+        return astNormalizeAiResponse({
           provider: 'openai',
           operation: 'tools',
           model: 'gpt-4.1-mini',
@@ -198,23 +198,23 @@ AI_TOOLS_TESTS = [
           throw new Error(`Expected AstAiToolLoopError, but got ${error.name}: ${error.message}`);
         }
       } finally {
-        runOpenAi = originalRunOpenAi;
+        astRunOpenAi = originalRunOpenAi;
       }
     }
   },
   {
     description: 'AST.AI.tools() should downgrade named toolChoice to auto after first round',
     test: () => {
-      const originalRunOpenAi = runOpenAi;
+      const originalRunOpenAi = astRunOpenAi;
       const observedToolChoices = [];
       let callCount = 0;
 
-      runOpenAi = request => {
+      astRunOpenAi = request => {
         callCount += 1;
         observedToolChoices.push(request.toolChoice);
 
         if (callCount === 1) {
-          return normalizeAiResponse({
+          return astNormalizeAiResponse({
             provider: 'openai',
             operation: 'tools',
             model: 'gpt-4.1-mini',
@@ -228,7 +228,7 @@ AI_TOOLS_TESTS = [
           });
         }
 
-        return normalizeAiResponse({
+        return astNormalizeAiResponse({
           provider: 'openai',
           operation: 'tools',
           model: 'gpt-4.1-mini',
@@ -280,22 +280,22 @@ AI_TOOLS_TESTS = [
           throw new Error(`Expected second toolChoice to be auto, got ${JSON.stringify(observedToolChoices[1])}`);
         }
       } finally {
-        runOpenAi = originalRunOpenAi;
+        astRunOpenAi = originalRunOpenAi;
       }
     }
   },
   {
     description: 'AST.AI.tools() should replay idempotent tool calls without re-running handler',
     test: () => {
-      const originalRunOpenAi = runOpenAi;
+      const originalRunOpenAi = astRunOpenAi;
       let providerCallCount = 0;
       let handlerCallCount = 0;
 
-      runOpenAi = request => {
+      astRunOpenAi = request => {
         providerCallCount += 1;
 
         if (providerCallCount === 1) {
-          return normalizeAiResponse({
+          return astNormalizeAiResponse({
             provider: 'openai',
             operation: 'tools',
             model: 'gpt-4.1-mini',
@@ -310,7 +310,7 @@ AI_TOOLS_TESTS = [
         }
 
         if (providerCallCount === 2) {
-          return normalizeAiResponse({
+          return astNormalizeAiResponse({
             provider: 'openai',
             operation: 'tools',
             model: 'gpt-4.1-mini',
@@ -324,7 +324,7 @@ AI_TOOLS_TESTS = [
           });
         }
 
-        return normalizeAiResponse({
+        return astNormalizeAiResponse({
           provider: 'openai',
           operation: 'tools',
           model: 'gpt-4.1-mini',
@@ -377,7 +377,7 @@ AI_TOOLS_TESTS = [
           throw new Error('Expected 2 tool results including replayed call');
         }
       } finally {
-        runOpenAi = originalRunOpenAi;
+        astRunOpenAi = originalRunOpenAi;
       }
     }
   }

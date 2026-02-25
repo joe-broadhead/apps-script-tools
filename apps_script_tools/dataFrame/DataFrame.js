@@ -1628,10 +1628,10 @@ var DataFrame = class DataFrame {
 
     switch (provider) {
       case 'databricks':
-        loadDatabricksTable(tableConfig);
+        astLoadDatabricksTable(tableConfig);
         return this;
       case 'bigquery':
-        loadBigQueryTable(tableConfig);
+        astLoadBigQueryTable(tableConfig);
         return this;
       default:
         throw new Error('Provider must be one of: databricks, bigquery');

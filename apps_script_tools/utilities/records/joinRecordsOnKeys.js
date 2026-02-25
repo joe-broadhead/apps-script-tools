@@ -26,8 +26,8 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
 
   const [leftSuffix, rightSuffix] = suffixes;
 
-  const leftKeys = normalizeJoinKeys(on != null ? on : leftOn);
-  const rightKeys = normalizeJoinKeys(on != null ? on : rightOn);
+  const leftKeys = astNormalizeJoinKeys(on != null ? on : leftOn);
+  const rightKeys = astNormalizeJoinKeys(on != null ? on : rightOn);
 
   if (how !== 'cross') {
     if (leftKeys.length === 0 || rightKeys.length === 0 || leftKeys.length !== rightKeys.length) {
@@ -35,8 +35,8 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
     }
   }
 
-  const leftColumns = collectColumns(leftRecs);
-  const rightColumns = collectColumns(rightRecs);
+  const leftColumns = astCollectColumns(leftRecs);
+  const rightColumns = astCollectColumns(rightRecs);
 
   const joinColumns = how === 'cross' ? [] : leftKeys.slice();
   const overlapColumns = leftColumns.filter(col => !joinColumns.includes(col) && rightColumns.includes(col));
@@ -48,7 +48,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
     for (let leftIdx = 0; leftIdx < leftRecs.length; leftIdx++) {
       const leftRecord = leftRecs[leftIdx];
       for (let rightIdx = 0; rightIdx < rightRecs.length; rightIdx++) {
-        crossResult.push(buildJoinedRecord(
+        crossResult.push(astBuildJoinedRecord(
           leftRecord,
           rightRecs[rightIdx],
           joinColumns,
@@ -62,12 +62,12 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
       }
     }
 
-    validateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys);
+    astValidateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys);
     return crossResult;
   }
 
-  const leftBuckets = buildBuckets(leftRecs, leftKeys);
-  const rightBuckets = buildBuckets(rightRecs, rightKeys);
+  const leftBuckets = astBuildBuckets(leftRecs, leftKeys);
+  const rightBuckets = astBuildBuckets(rightRecs, rightKeys);
 
   const joined = [];
 
@@ -76,7 +76,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
 
     for (let leftIdx = 0; leftIdx < leftRecs.length; leftIdx++) {
       const leftRecord = leftRecs[leftIdx];
-      const key = keyFromRecord(leftRecord, leftKeys);
+      const key = astKeyFromRecord(leftRecord, leftKeys);
       const rightMatches = rightBuckets.byKey.get(key);
 
       if (rightMatches && rightMatches.length > 0) {
@@ -84,7 +84,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
           const rightEntry = rightMatches[matchIdx];
           matchedRightIndexes.add(rightEntry.index);
 
-          joined.push(buildJoinedRecord(
+          joined.push(astBuildJoinedRecord(
             leftRecord,
             rightEntry.record,
             joinColumns,
@@ -97,7 +97,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
           ));
         }
       } else if (how === 'left' || how === 'outer') {
-        joined.push(buildJoinedRecord(
+        joined.push(astBuildJoinedRecord(
           leftRecord,
           null,
           joinColumns,
@@ -117,7 +117,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
           continue;
         }
 
-        joined.push(buildJoinedRecord(
+        joined.push(astBuildJoinedRecord(
           null,
           rightRecs[rightIdx],
           joinColumns,
@@ -133,12 +133,12 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
   } else if (how === 'right') {
     for (let rightIdx = 0; rightIdx < rightRecs.length; rightIdx++) {
       const rightRecord = rightRecs[rightIdx];
-      const key = keyFromRecord(rightRecord, rightKeys);
+      const key = astKeyFromRecord(rightRecord, rightKeys);
       const leftMatches = leftBuckets.byKey.get(key);
 
       if (leftMatches && leftMatches.length > 0) {
         for (let matchIdx = 0; matchIdx < leftMatches.length; matchIdx++) {
-          joined.push(buildJoinedRecord(
+          joined.push(astBuildJoinedRecord(
             leftMatches[matchIdx].record,
             rightRecord,
             joinColumns,
@@ -151,7 +151,7 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
           ));
         }
       } else {
-        joined.push(buildJoinedRecord(
+        joined.push(astBuildJoinedRecord(
           null,
           rightRecord,
           joinColumns,
@@ -168,11 +168,11 @@ function joinRecordsOnKeys(leftRecs, rightRecs, how = 'inner', opts = {}) {
     throw new Error(`Unknown join type: ${how}`);
   }
 
-  validateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys, leftBuckets, rightBuckets);
+  astValidateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys, leftBuckets, rightBuckets);
   return joined;
 }
 
-function normalizeJoinKeys(input) {
+function astNormalizeJoinKeys(input) {
   if (input == null) {
     return [];
   }
@@ -180,7 +180,7 @@ function normalizeJoinKeys(input) {
   return Array.isArray(input) ? input : [input];
 }
 
-function collectColumns(records) {
+function astCollectColumns(records) {
   const seen = new Set();
   const columns = [];
 
@@ -199,7 +199,7 @@ function collectColumns(records) {
   return columns;
 }
 
-function keyFromRecord(record, keys) {
+function astKeyFromRecord(record, keys) {
   if (!record) {
     return astBuildValuesKey(keys.map(() => null));
   }
@@ -213,12 +213,12 @@ function keyFromRecord(record, keys) {
   return astBuildValuesKey(values);
 }
 
-function buildBuckets(records, keys) {
+function astBuildBuckets(records, keys) {
   const byKey = new Map();
 
   for (let idx = 0; idx < records.length; idx++) {
     const record = records[idx];
-    const key = keyFromRecord(record, keys);
+    const key = astKeyFromRecord(record, keys);
     const entry = { record, index: idx };
 
     if (!byKey.has(key)) {
@@ -231,7 +231,7 @@ function buildBuckets(records, keys) {
   return { byKey };
 }
 
-function buildJoinedRecord(
+function astBuildJoinedRecord(
   leftRecord,
   rightRecord,
   joinColumns,
@@ -272,13 +272,13 @@ function buildJoinedRecord(
   return record;
 }
 
-function validateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys, leftBuckets = null, rightBuckets = null) {
+function astValidateCardinality(validate, leftRecs, rightRecs, leftKeys, rightKeys, leftBuckets = null, rightBuckets = null) {
   if (!validate) {
     return;
   }
 
-  const leftMap = leftBuckets || buildBuckets(leftRecs, leftKeys);
-  const rightMap = rightBuckets || buildBuckets(rightRecs, rightKeys);
+  const leftMap = leftBuckets || astBuildBuckets(leftRecs, leftKeys);
+  const rightMap = rightBuckets || astBuildBuckets(rightRecs, rightKeys);
 
   const multiL = [...leftMap.byKey.values()].some(bucket => bucket.length > 1);
   const multiR = [...rightMap.byKey.values()].some(bucket => bucket.length > 1);

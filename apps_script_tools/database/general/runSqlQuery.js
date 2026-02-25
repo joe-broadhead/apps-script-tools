@@ -429,7 +429,7 @@ function astSqlExecutePrepared(request = {}) {
     astSqlIsPlainObject(request.options) ? request.options : {}
   );
 
-  const normalizedRequest = validateSqlRequest({
+  const normalizedRequest = astValidateSqlRequest({
     provider: prepared.provider,
     sql: renderedSql,
     parameters: mergedParameters,
@@ -551,7 +551,7 @@ function astSqlCancel(request = {}) {
 }
 
 function runSqlQuery(request = {}) {
-  const normalizedRequest = validateSqlRequest(request);
+  const normalizedRequest = astValidateSqlRequest(request);
   const adapter = astGetSqlProviderAdapter(normalizedRequest.provider);
 
   try {

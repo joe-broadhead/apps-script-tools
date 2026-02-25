@@ -87,6 +87,65 @@ function diffSets(left, right) {
   return [...left].filter(value => !right.has(value));
 }
 
+function extractAstUtilityNames(astText) {
+  const pattern = /const\s+AST_UTILITY_NAMES\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\);/m;
+  const match = astText.match(pattern);
+  if (!match) {
+    throw new Error('Unable to locate AST_UTILITY_NAMES block in AST.js');
+  }
+
+  const values = new Set();
+  const valuePattern = /'([A-Za-z0-9_]+)'/g;
+  let valueMatch = valuePattern.exec(match[1]);
+  while (valueMatch) {
+    values.add(valueMatch[1]);
+    valueMatch = valuePattern.exec(match[1]);
+  }
+
+  return values;
+}
+
+function extractResolveAstBindingNames(astText) {
+  const names = new Set();
+  const pattern = /astResolveAstBinding\('([A-Za-z0-9_]+)'/g;
+  let match = pattern.exec(astText);
+  while (match) {
+    names.add(match[1]);
+    match = pattern.exec(astText);
+  }
+  return names;
+}
+
+function extractTopLevelFunctionNames(fileText) {
+  const names = new Set();
+  const pattern = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+  let match = pattern.exec(fileText);
+  while (match) {
+    names.add(match[1]);
+    match = pattern.exec(fileText);
+  }
+  return names;
+}
+
+function extractExplicitGlobalBindings(fileText) {
+  const names = new Set();
+  const pattern = /^\s*(?:this|globalThis|__\w+Root)\.([A-Za-z_$][\w$]*)\s*=/gm;
+  let match = pattern.exec(fileText);
+  while (match) {
+    names.add(match[1]);
+    match = pattern.exec(fileText);
+  }
+  return names;
+}
+
+function isInternalNameCompliant(name) {
+  return (
+    name.startsWith('ast')
+    || name.startsWith('__ast')
+    || name.endsWith('_')
+  );
+}
+
 const jsFiles = walk(APPS_DIR).filter(file => file.endsWith('.js'));
 const findings = [];
 
@@ -259,6 +318,35 @@ try {
       }
     });
   });
+
+  const astUtilityNames = extractAstUtilityNames(astText);
+  const astBindingNames = extractResolveAstBindingNames(astText);
+
+  jsFiles
+    .filter(file => !file.includes(`${path.sep}testing${path.sep}`))
+    .forEach(file => {
+      const fileText = readText(file);
+      const topLevelFunctions = extractTopLevelFunctionNames(fileText);
+      const explicitGlobalBindings = extractExplicitGlobalBindings(fileText);
+
+      topLevelFunctions.forEach(name => {
+        if (isInternalNameCompliant(name)) {
+          return;
+        }
+
+        if (
+          astUtilityNames.has(name)
+          || astBindingNames.has(name)
+          || explicitGlobalBindings.has(name)
+        ) {
+          return;
+        }
+
+        findings.push(
+          `Top-level function '${name}' in ${path.relative(ROOT, file)} must be explicitly public or use an internal naming marker (ast*/__ast*/_*).`
+        );
+      });
+    });
 } catch (error) {
   findings.push(`Unable to validate docs/API contract consistency: ${error.message}`);
 }

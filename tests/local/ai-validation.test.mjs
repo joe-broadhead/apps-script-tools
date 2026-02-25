@@ -25,17 +25,17 @@ function createServiceAccountJson({
   });
 }
 
-test('validateAiRequest rejects unsupported providers', () => {
+test('astValidateAiRequest rejects unsupported providers', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.validateAiRequest({ provider: 'unknown', input: 'hello' }),
+    () => context.astValidateAiRequest({ provider: 'unknown', input: 'hello' }),
     /Provider must be one of/
   );
 });
 
-test('resolveAiConfig uses request auth first, then script properties', () => {
+test('astResolveAiConfig uses request auth first, then script properties', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -49,7 +49,7 @@ test('resolveAiConfig uses request auth first, then script properties', () => {
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'openai',
     input: 'hello',
     model: 'request-model',
@@ -58,13 +58,13 @@ test('resolveAiConfig uses request auth first, then script properties', () => {
     }
   });
 
-  const resolved = context.resolveAiConfig(normalized);
+  const resolved = context.astResolveAiConfig(normalized);
 
   assert.equal(resolved.apiKey, 'request-key');
   assert.equal(resolved.model, 'request-model');
 });
 
-test('resolveAiConfig falls back to getProperty when getProperties does not include key', () => {
+test('astResolveAiConfig falls back to getProperty when getProperties does not include key', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -80,18 +80,18 @@ test('resolveAiConfig falls back to getProperty when getProperties does not incl
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'openrouter',
     input: 'hello'
   });
 
-  const resolved = context.resolveAiConfig(normalized);
+  const resolved = context.astResolveAiConfig(normalized);
 
   assert.equal(resolved.apiKey, 'script-openrouter-key');
   assert.equal(resolved.model, 'openai/gpt-4o-mini');
 });
 
-test('resolveAiConfig memoizes script properties snapshots and invalidates on configure/clear', () => {
+test('astResolveAiConfig memoizes script properties snapshots and invalidates on configure/clear', () => {
   let getPropertiesCalls = 0;
   const scriptState = {
     OPENAI_API_KEY: 'script-key-v1',
@@ -113,33 +113,33 @@ test('resolveAiConfig memoizes script properties snapshots and invalidates on co
   loadAiScripts(context, { includeAst: true });
   context.AST.AI.clearConfig();
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'openai',
     input: 'hello'
   });
 
-  const first = context.resolveAiConfig(normalized);
-  const second = context.resolveAiConfig(normalized);
+  const first = context.astResolveAiConfig(normalized);
+  const second = context.astResolveAiConfig(normalized);
   assert.equal(first.apiKey, 'script-key-v1');
   assert.equal(second.apiKey, 'script-key-v1');
   assert.equal(getPropertiesCalls, 1);
 
   scriptState.OPENAI_API_KEY = 'script-key-v2';
-  const stillCached = context.resolveAiConfig(normalized);
+  const stillCached = context.astResolveAiConfig(normalized);
   assert.equal(stillCached.apiKey, 'script-key-v1');
   assert.equal(getPropertiesCalls, 1);
 
   context.AST.AI.configure({
     OPENAI_MODEL: 'runtime-model'
   });
-  const afterConfigure = context.resolveAiConfig(normalized);
+  const afterConfigure = context.astResolveAiConfig(normalized);
   assert.equal(afterConfigure.apiKey, 'script-key-v2');
   assert.equal(afterConfigure.model, 'runtime-model');
   assert.equal(getPropertiesCalls, 2);
 
   scriptState.OPENAI_API_KEY = 'script-key-v3';
   context.AST.AI.clearConfig();
-  const afterClear = context.resolveAiConfig(normalized);
+  const afterClear = context.astResolveAiConfig(normalized);
   assert.equal(afterClear.apiKey, 'script-key-v3');
   assert.equal(afterClear.model, 'script-model-v1');
   assert.equal(getPropertiesCalls, 3);
@@ -162,12 +162,12 @@ test('AST.AI.configure enables runtime config fallback for provider auth/model',
     OPENROUTER_MODEL: 'openai/gpt-4o-mini'
   });
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'openrouter',
     input: 'hello'
   });
 
-  const resolved = context.resolveAiConfig(normalized);
+  const resolved = context.astResolveAiConfig(normalized);
 
   assert.equal(resolved.apiKey, 'runtime-openrouter-key');
   assert.equal(resolved.model, 'openai/gpt-4o-mini');
@@ -202,7 +202,7 @@ test('AST exposes AI surface and helper methods', () => {
   );
 });
 
-test('resolveAiConfig supports vertex_gemini service-account auth mode with token cache', () => {
+test('astResolveAiConfig supports vertex_gemini service-account auth mode with token cache', () => {
   const serviceAccountJson = createServiceAccountJson();
   let exchangeCalls = 0;
 
@@ -239,13 +239,13 @@ test('resolveAiConfig supports vertex_gemini service-account auth mode with toke
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'vertex_gemini',
     input: 'hello'
   });
 
-  const resolvedA = context.resolveAiConfig(normalized);
-  const resolvedB = context.resolveAiConfig(normalized);
+  const resolvedA = context.astResolveAiConfig(normalized);
+  const resolvedB = context.astResolveAiConfig(normalized);
 
   assert.equal(resolvedA.oauthToken, 'sa-token');
   assert.equal(resolvedA.authMode, 'auto');
@@ -253,7 +253,7 @@ test('resolveAiConfig supports vertex_gemini service-account auth mode with toke
   assert.equal(exchangeCalls, 1);
 });
 
-test('resolveAiConfig invalidates vertex service-account token cache when private key rotates', () => {
+test('astResolveAiConfig invalidates vertex service-account token cache when private key rotates', () => {
   const clientEmail = 'svc-rotate@example.iam.gserviceaccount.com';
   const serviceAccountJsonA = createServiceAccountJson({ clientEmail });
   const serviceAccountJsonB = createServiceAccountJson({ clientEmail });
@@ -293,15 +293,15 @@ test('resolveAiConfig invalidates vertex service-account token cache when privat
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'vertex_gemini',
     input: 'hello'
   });
 
-  const resolvedA = context.resolveAiConfig(normalized);
-  const resolvedB = context.resolveAiConfig(normalized);
+  const resolvedA = context.astResolveAiConfig(normalized);
+  const resolvedB = context.astResolveAiConfig(normalized);
   activeServiceAccount = serviceAccountJsonB;
-  const resolvedC = context.resolveAiConfig(normalized);
+  const resolvedC = context.astResolveAiConfig(normalized);
 
   assert.equal(resolvedA.oauthToken, 'sa-token-1');
   assert.equal(resolvedB.oauthToken, 'sa-token-1');
@@ -309,7 +309,7 @@ test('resolveAiConfig invalidates vertex service-account token cache when privat
   assert.equal(exchangeCalls, 2);
 });
 
-test('resolveAiConfig vertex oauth mode ignores service-account json', () => {
+test('astResolveAiConfig vertex oauth mode ignores service-account json', () => {
   const serviceAccountJson = createServiceAccountJson();
   let exchangeCalls = 0;
   let oauthCalls = 0;
@@ -348,7 +348,7 @@ test('resolveAiConfig vertex oauth mode ignores service-account json', () => {
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'vertex_gemini',
     input: 'hello',
     auth: {
@@ -356,14 +356,14 @@ test('resolveAiConfig vertex oauth mode ignores service-account json', () => {
     }
   });
 
-  const resolved = context.resolveAiConfig(normalized);
+  const resolved = context.astResolveAiConfig(normalized);
   assert.equal(resolved.oauthToken, 'oauth-token');
   assert.equal(resolved.authMode, 'oauth');
   assert.equal(exchangeCalls, 0);
   assert.equal(oauthCalls, 1);
 });
 
-test('resolveAiConfig vertex service_account mode requires serviceAccountJson', () => {
+test('astResolveAiConfig vertex service_account mode requires serviceAccountJson', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -379,7 +379,7 @@ test('resolveAiConfig vertex service_account mode requires serviceAccountJson', 
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'vertex_gemini',
     input: 'hello',
     auth: {
@@ -388,7 +388,7 @@ test('resolveAiConfig vertex service_account mode requires serviceAccountJson', 
   });
 
   assert.throws(
-    () => context.resolveAiConfig(normalized),
+    () => context.astResolveAiConfig(normalized),
     error => {
       assert.equal(error.name, 'AstAiAuthError');
       assert.match(error.message, /serviceAccountJson/);
@@ -397,7 +397,7 @@ test('resolveAiConfig vertex service_account mode requires serviceAccountJson', 
   );
 });
 
-test('resolveAiConfig rejects vertex service-account token_uri outside allowlist', () => {
+test('astResolveAiConfig rejects vertex service-account token_uri outside allowlist', () => {
   const serviceAccountJson = createServiceAccountJson({
     tokenUri: 'https://example.com/token'
   });
@@ -418,7 +418,7 @@ test('resolveAiConfig rejects vertex service-account token_uri outside allowlist
 
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest({
+  const normalized = context.astValidateAiRequest({
     provider: 'vertex_gemini',
     input: 'hello',
     auth: {
@@ -427,7 +427,7 @@ test('resolveAiConfig rejects vertex service-account token_uri outside allowlist
   });
 
   assert.throws(
-    () => context.resolveAiConfig(normalized),
+    () => context.astResolveAiConfig(normalized),
     error => {
       assert.equal(error.name, 'AstAiAuthError');
       assert.match(error.message, /token_uri is not allowed/i);
@@ -568,12 +568,12 @@ test('astAiHttpRequest rejects delayed success responses that exceed timeout bud
   assert.equal(callCount, 1);
 });
 
-test('validateAiRequest enforces onEvent callback when stream mode is enabled', () => {
+test('astValidateAiRequest enforces onEvent callback when stream mode is enabled', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.validateAiRequest({
+    () => context.astValidateAiRequest({
       provider: 'openai',
       input: 'hello',
       options: {
@@ -584,12 +584,12 @@ test('validateAiRequest enforces onEvent callback when stream mode is enabled', 
   );
 });
 
-test('runAiRequest rejects invalid tool guardrails configuration', () => {
+test('astRunAiRequest rejects invalid tool guardrails configuration', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.runAiRequest({
+    () => context.astRunAiRequest({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -613,12 +613,12 @@ test('runAiRequest rejects invalid tool guardrails configuration', () => {
   );
 });
 
-test('validateAiRequest rejects invalid structured reliability settings', () => {
+test('astValidateAiRequest rejects invalid structured reliability settings', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   assert.throws(
-    () => context.validateAiRequest({
+    () => context.astValidateAiRequest({
       provider: 'openai',
       operation: 'structured',
       input: 'hello',

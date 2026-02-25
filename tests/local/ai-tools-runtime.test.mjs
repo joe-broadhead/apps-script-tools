@@ -29,18 +29,18 @@ function baseToolRequest(tools, options = {}) {
   };
 }
 
-test('runAiRequest executes tool handlers referenced by function', () => {
+test('astRunAiRequest executes tool handlers referenced by function', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     calls += 1;
 
     if (calls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -54,7 +54,7 @@ test('runAiRequest executes tool handlers referenced by function', () => {
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -78,29 +78,29 @@ test('runAiRequest executes tool handlers referenced by function', () => {
       handler: args => args.a + args.b
     }
   ]);
-  const response = context.runAiRequest(request);
+  const response = context.astRunAiRequest(request);
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done');
   assert.equal(response.output.toolResults.length, 1);
   assert.equal(response.output.toolResults[0].result, 6);
 });
 
-test('runAiRequest executes tool handlers referenced by global name string', () => {
+test('astRunAiRequest executes tool handlers referenced by global name string', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
   context.globalAdderTool = args => args.a + args.b;
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     calls += 1;
 
     if (calls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -114,7 +114,7 @@ test('runAiRequest executes tool handlers referenced by global name string', () 
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -124,7 +124,7 @@ test('runAiRequest executes tool handlers referenced by global name string', () 
     });
   };
 
-  const response = context.runAiRequest(baseToolRequest([
+  const response = context.astRunAiRequest(baseToolRequest([
     {
       name: 'global_adder',
       description: 'sum values',
@@ -139,20 +139,20 @@ test('runAiRequest executes tool handlers referenced by global name string', () 
     }
   ]));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done global');
   assert.equal(response.output.toolResults[0].result, 10);
 });
 
-test('runAiRequest throws AstAiToolLoopError when max rounds exceeded', () => {
+test('astRunAiRequest throws AstAiToolLoopError when max rounds exceeded', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
 
-  context.runOpenAi = () => {
-    return context.normalizeAiResponse({
+  context.astRunOpenAi = () => {
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -167,7 +167,7 @@ test('runAiRequest throws AstAiToolLoopError when max rounds exceeded', () => {
   };
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'loop_tool',
         description: 'keep looping',
@@ -178,23 +178,23 @@ test('runAiRequest throws AstAiToolLoopError when max rounds exceeded', () => {
     /Tool execution exceeded maxToolRounds/
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest downgrades named toolChoice to auto after first tool round', () => {
+test('astRunAiRequest downgrades named toolChoice to auto after first tool round', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   const seenToolChoices = [];
   let calls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     calls += 1;
     seenToolChoices.push(request.toolChoice);
 
     if (calls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -208,7 +208,7 @@ test('runAiRequest downgrades named toolChoice to auto after first tool round', 
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -234,9 +234,9 @@ test('runAiRequest downgrades named toolChoice to auto after first tool round', 
   ], { maxToolRounds: 3 });
   request.toolChoice = { name: 'sum_tool' };
 
-  const response = context.runAiRequest(request);
+  const response = context.astRunAiRequest(request);
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done named');
   assert.equal(seenToolChoices.length, 2);
@@ -244,12 +244,12 @@ test('runAiRequest downgrades named toolChoice to auto after first tool round', 
   assert.equal(seenToolChoices[1], 'auto');
 });
 
-test('runAiRequest rejects async tool handlers with typed error', () => {
+test('astRunAiRequest rejects async tool handlers with typed error', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = () => context.normalizeAiResponse({
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = () => context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'tools',
     model: 'gpt-4.1-mini',
@@ -263,7 +263,7 @@ test('runAiRequest rejects async tool handlers with typed error', () => {
   });
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'async_tool',
         description: 'async tool should fail',
@@ -278,15 +278,15 @@ test('runAiRequest rejects async tool handlers with typed error', () => {
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest rejects non-serializable tool results', () => {
+test('astRunAiRequest rejects non-serializable tool results', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = () => context.normalizeAiResponse({
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = () => context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'tools',
     model: 'gpt-4.1-mini',
@@ -303,7 +303,7 @@ test('runAiRequest rejects non-serializable tool results', () => {
   circular.self = circular;
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'circular_tool',
         description: 'returns circular object',
@@ -318,18 +318,18 @@ test('runAiRequest rejects non-serializable tool results', () => {
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest enforces timeout guardrail for tool handlers', () => {
+test('astRunAiRequest enforces timeout guardrail for tool handlers', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     if (request.messages && request.messages.some(message => message.role === 'tool')) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -337,7 +337,7 @@ test('runAiRequest enforces timeout guardrail for tool handlers', () => {
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -352,7 +352,7 @@ test('runAiRequest enforces timeout guardrail for tool handlers', () => {
   };
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'slow_tool',
         description: 'simulates slow work',
@@ -373,15 +373,15 @@ test('runAiRequest enforces timeout guardrail for tool handlers', () => {
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest enforces argument payload size guardrail', () => {
+test('astRunAiRequest enforces argument payload size guardrail', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = () => context.normalizeAiResponse({
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = () => context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'tools',
     model: 'gpt-4.1-mini',
@@ -397,7 +397,7 @@ test('runAiRequest enforces argument payload size guardrail', () => {
   });
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'limited_args_tool',
         description: 'caps argument size',
@@ -415,17 +415,17 @@ test('runAiRequest enforces argument payload size guardrail', () => {
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest enforces result payload size guardrail', () => {
+test('astRunAiRequest enforces result payload size guardrail', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = request => {
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = request => {
     if (request.messages && request.messages.some(message => message.role === 'tool')) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -433,7 +433,7 @@ test('runAiRequest enforces result payload size guardrail', () => {
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -448,7 +448,7 @@ test('runAiRequest enforces result payload size guardrail', () => {
   };
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'limited_result_tool',
         description: 'caps result size',
@@ -466,19 +466,19 @@ test('runAiRequest enforces result payload size guardrail', () => {
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest retries failed tool handlers when retries guardrail is set', () => {
+test('astRunAiRequest retries failed tool handlers when retries guardrail is set', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let handlerAttempts = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     if (request.messages && request.messages.some(message => message.role === 'tool')) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -486,7 +486,7 @@ test('runAiRequest retries failed tool handlers when retries guardrail is set', 
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -500,7 +500,7 @@ test('runAiRequest retries failed tool handlers when retries guardrail is set', 
     });
   };
 
-  const response = context.runAiRequest(baseToolRequest([
+  const response = context.astRunAiRequest(baseToolRequest([
     {
       name: 'retry_tool',
       description: 'retries once',
@@ -518,26 +518,26 @@ test('runAiRequest retries failed tool handlers when retries guardrail is set', 
     }
   ]));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(handlerAttempts, 2);
   assert.equal(response.output.text, 'done retry');
   assert.equal(response.output.toolResults[0].result, 4);
 });
 
-test('runAiRequest replays idempotent tool calls without re-running handler', () => {
+test('astRunAiRequest replays idempotent tool calls without re-running handler', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let providerCalls = 0;
   let handlerCalls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     providerCalls += 1;
 
     if (providerCalls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -552,7 +552,7 @@ test('runAiRequest replays idempotent tool calls without re-running handler', ()
     }
 
     if (providerCalls === 2) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -566,7 +566,7 @@ test('runAiRequest replays idempotent tool calls without re-running handler', ()
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -576,7 +576,7 @@ test('runAiRequest replays idempotent tool calls without re-running handler', ()
     });
   };
 
-  const response = context.runAiRequest(baseToolRequest([
+  const response = context.astRunAiRequest(baseToolRequest([
     {
       name: 'idempotent_tool',
       description: 'returns deterministic output',
@@ -591,7 +591,7 @@ test('runAiRequest replays idempotent tool calls without re-running handler', ()
     }
   ], { maxToolRounds: 4 }));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done idempotent');
   assert.equal(handlerCalls, 1);
@@ -601,18 +601,18 @@ test('runAiRequest replays idempotent tool calls without re-running handler', ()
   assert.equal(response.output.toolResults[1].idempotentReplay, true);
 });
 
-test('runAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', () => {
+test('astRunAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let providerCalls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     providerCalls += 1;
 
     if (providerCalls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -626,7 +626,7 @@ test('runAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', ()
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -641,7 +641,7 @@ test('runAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', ()
   };
 
   assert.throws(
-    () => context.runAiRequest(baseToolRequest([
+    () => context.astRunAiRequest(baseToolRequest([
       {
         name: 'collision_tool',
         description: 'uses a fixed idempotency key',
@@ -658,23 +658,23 @@ test('runAiRequest throws AstAiToolIdempotencyError on fixed-key collisions', ()
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 });
 
-test('runAiRequest scopes fixed idempotency keys by tool name', () => {
+test('astRunAiRequest scopes fixed idempotency keys by tool name', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let providerCalls = 0;
   let alphaCalls = 0;
   let betaCalls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     providerCalls += 1;
 
     if (providerCalls === 1) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -689,7 +689,7 @@ test('runAiRequest scopes fixed idempotency keys by tool name', () => {
     }
 
     if (providerCalls === 2) {
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'tools',
         model: 'gpt-4.1-mini',
@@ -703,7 +703,7 @@ test('runAiRequest scopes fixed idempotency keys by tool name', () => {
       });
     }
 
-    return context.normalizeAiResponse({
+    return context.astNormalizeAiResponse({
       provider: 'openai',
       operation: 'tools',
       model: 'gpt-4.1-mini',
@@ -713,7 +713,7 @@ test('runAiRequest scopes fixed idempotency keys by tool name', () => {
     });
   };
 
-  const response = context.runAiRequest(baseToolRequest([
+  const response = context.astRunAiRequest(baseToolRequest([
     {
       name: 'alpha_tool',
       description: 'alpha tool',
@@ -740,7 +740,7 @@ test('runAiRequest scopes fixed idempotency keys by tool name', () => {
     }
   ], { maxToolRounds: 4 }));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(response.output.text, 'done scoped idempotency');
   assert.equal(alphaCalls, 1);

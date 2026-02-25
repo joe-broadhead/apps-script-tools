@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('DataFrame.fromColumns builds DataFrame and toColumns round-trips data', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -32,8 +32,8 @@ test('DataFrame.fromColumns builds DataFrame and toColumns round-trips data', ()
 
 test('DataFrame.toArrays does not force toRecords conversion path', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

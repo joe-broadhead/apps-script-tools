@@ -1,4 +1,4 @@
-function buildSqlProviderValidationError(message, details = {}, cause = null) {
+function astBuildSqlProviderValidationError(message, details = {}, cause = null) {
   const error = new Error(message);
   error.name = 'SqlProviderValidationError';
   error.provider = details.provider || 'sql_router';
@@ -22,7 +22,7 @@ function astCreateBigQuerySqlAdapter() {
     },
     validateRequest: request => request,
     executeQuery: request => {
-      return runBigQuerySql(
+      return astRunBigQuerySql(
         request.sql,
         request.parameters,
         request.placeholders,
@@ -30,8 +30,8 @@ function astCreateBigQuerySqlAdapter() {
       );
     },
     executePrepared: request => {
-      if (typeof executeBigQuerySqlDetailed === 'function') {
-        return executeBigQuerySqlDetailed(
+      if (typeof astExecuteBigQuerySqlDetailed === 'function') {
+        return astExecuteBigQuerySqlDetailed(
           request.sql,
           request.parameters,
           request.placeholders || {},
@@ -40,7 +40,7 @@ function astCreateBigQuerySqlAdapter() {
       }
 
       return {
-        dataFrame: runBigQuerySql(
+        dataFrame: astRunBigQuerySql(
           request.sql,
           request.parameters,
           request.placeholders || {},
@@ -50,25 +50,25 @@ function astCreateBigQuerySqlAdapter() {
       };
     },
     getStatus: request => {
-      if (typeof getBigQuerySqlStatus !== 'function') {
-        throw buildSqlProviderValidationError('BigQuery status helper is not available', {
+      if (typeof astGetBigQuerySqlStatus !== 'function') {
+        throw astBuildSqlProviderValidationError('BigQuery status helper is not available', {
           provider: 'bigquery'
         });
       }
 
-      return getBigQuerySqlStatus(
+      return astGetBigQuerySqlStatus(
         request.parameters,
         request.jobId || request.executionId
       );
     },
     cancelExecution: request => {
-      if (typeof cancelBigQuerySql !== 'function') {
-        throw buildSqlProviderValidationError('BigQuery cancel helper is not available', {
+      if (typeof astCancelBigQuerySql !== 'function') {
+        throw astBuildSqlProviderValidationError('BigQuery cancel helper is not available', {
           provider: 'bigquery'
         });
       }
 
-      return cancelBigQuerySql(
+      return astCancelBigQuerySql(
         request.parameters,
         request.jobId || request.executionId
       );
@@ -90,7 +90,7 @@ function astCreateDatabricksSqlAdapter() {
     },
     validateRequest: request => request,
     executeQuery: request => {
-      return runDatabricksSql(
+      return astRunDatabricksSql(
         request.sql,
         request.parameters,
         request.placeholders,
@@ -98,8 +98,8 @@ function astCreateDatabricksSqlAdapter() {
       );
     },
     executePrepared: request => {
-      if (typeof executeDatabricksSqlDetailed === 'function') {
-        return executeDatabricksSqlDetailed(
+      if (typeof astExecuteDatabricksSqlDetailed === 'function') {
+        return astExecuteDatabricksSqlDetailed(
           request.sql,
           request.parameters,
           request.placeholders || {},
@@ -108,7 +108,7 @@ function astCreateDatabricksSqlAdapter() {
       }
 
       return {
-        dataFrame: runDatabricksSql(
+        dataFrame: astRunDatabricksSql(
           request.sql,
           request.parameters,
           request.placeholders || {},
@@ -118,25 +118,25 @@ function astCreateDatabricksSqlAdapter() {
       };
     },
     getStatus: request => {
-      if (typeof getDatabricksSqlStatus !== 'function') {
-        throw buildSqlProviderValidationError('Databricks status helper is not available', {
+      if (typeof astGetDatabricksSqlStatus !== 'function') {
+        throw astBuildSqlProviderValidationError('Databricks status helper is not available', {
           provider: 'databricks'
         });
       }
 
-      return getDatabricksSqlStatus(
+      return astGetDatabricksSqlStatus(
         request.parameters,
         request.statementId || request.executionId
       );
     },
     cancelExecution: request => {
-      if (typeof cancelDatabricksSql !== 'function') {
-        throw buildSqlProviderValidationError('Databricks cancel helper is not available', {
+      if (typeof astCancelDatabricksSql !== 'function') {
+        throw astBuildSqlProviderValidationError('Databricks cancel helper is not available', {
           provider: 'databricks'
         });
       }
 
-      return cancelDatabricksSql(
+      return astCancelDatabricksSql(
         request.parameters,
         request.statementId || request.executionId
       );
@@ -154,7 +154,7 @@ function astGetSqlProviderAdapter(provider) {
   const adapter = AST_SQL_PROVIDER_ADAPTERS[provider];
 
   if (!adapter) {
-    throw buildSqlProviderValidationError(
+    throw astBuildSqlProviderValidationError(
       'Provider must be one of: databricks, bigquery',
       {
         provider,

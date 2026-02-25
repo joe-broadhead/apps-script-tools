@@ -188,9 +188,9 @@ function astResolveConfigString({
   return null;
 }
 
-function resolveAiConfig(request) {
+function astResolveAiConfig(request) {
   if (!request || typeof request !== 'object') {
-    throw new AstAiValidationError('resolveAiConfig expected a normalized AI request object');
+    throw new AstAiValidationError('astResolveAiConfig expected a normalized AI request object');
   }
 
   const auth = request.auth || {};
@@ -379,6 +379,6 @@ function resolveAiConfig(request) {
     }
 
     default:
-      throw new AstAiValidationError('Unknown provider in resolveAiConfig', { provider });
+      throw new AstAiValidationError('Unknown provider in astResolveAiConfig', { provider });
   }
 }

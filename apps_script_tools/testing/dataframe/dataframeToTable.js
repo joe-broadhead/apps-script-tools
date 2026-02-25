@@ -1,12 +1,12 @@
 DATAFRAME_TO_TABLE_TESTS = [
   {
-    description: 'DataFrame.toTable() should route BigQuery loads to loadBigQueryTable',
+    description: 'DataFrame.toTable() should route BigQuery loads to astLoadBigQueryTable',
     test: () => {
-      const originalLoadBigQueryTable = loadBigQueryTable;
+      const originalLoadBigQueryTable = astLoadBigQueryTable;
       let callCount = 0;
       let capturedConfig = null;
 
-      loadBigQueryTable = config => {
+      astLoadBigQueryTable = config => {
         callCount += 1;
         capturedConfig = config;
       };
@@ -25,10 +25,10 @@ DATAFRAME_TO_TABLE_TESTS = [
         }
       });
 
-      loadBigQueryTable = originalLoadBigQueryTable;
+      astLoadBigQueryTable = originalLoadBigQueryTable;
 
       if (callCount !== 1) {
-        throw new Error(`Expected loadBigQueryTable to be called once, got ${callCount}`);
+        throw new Error(`Expected astLoadBigQueryTable to be called once, got ${callCount}`);
       }
 
       if (!capturedConfig || !Array.isArray(capturedConfig.arrays)) {
@@ -37,13 +37,13 @@ DATAFRAME_TO_TABLE_TESTS = [
     },
   },
   {
-    description: 'DataFrame.toTable() should route Databricks loads to loadDatabricksTable',
+    description: 'DataFrame.toTable() should route Databricks loads to astLoadDatabricksTable',
     test: () => {
-      const originalLoadDatabricksTable = loadDatabricksTable;
+      const originalLoadDatabricksTable = astLoadDatabricksTable;
       let callCount = 0;
       let capturedConfig = null;
 
-      loadDatabricksTable = config => {
+      astLoadDatabricksTable = config => {
         callCount += 1;
         capturedConfig = config;
       };
@@ -71,10 +71,10 @@ DATAFRAME_TO_TABLE_TESTS = [
         }
       });
 
-      loadDatabricksTable = originalLoadDatabricksTable;
+      astLoadDatabricksTable = originalLoadDatabricksTable;
 
       if (callCount !== 1) {
-        throw new Error(`Expected loadDatabricksTable to be called once, got ${callCount}`);
+        throw new Error(`Expected astLoadDatabricksTable to be called once, got ${callCount}`);
       }
 
       if (!capturedConfig || !Array.isArray(capturedConfig.arrays)) {

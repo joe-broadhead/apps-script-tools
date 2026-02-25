@@ -36,7 +36,7 @@ test('AST.Sql exposes prepare/executePrepared/status/cancel/providers/capabiliti
 test('astSqlPrepare + astSqlExecutePrepared binds typed params and executes provider detailed path', () => {
   let captured = null;
   const context = createGasContext({
-    executeBigQuerySqlDetailed: (sql, parameters, placeholders, options) => {
+    astExecuteBigQuerySqlDetailed: (sql, parameters, placeholders, options) => {
       captured = { sql, parameters, placeholders, options };
       return {
         dataFrame: { kind: 'df' },
@@ -47,8 +47,8 @@ test('astSqlPrepare + astSqlExecutePrepared binds typed params and executes prov
         }
       };
     },
-    runBigQuerySql: () => ({ kind: 'fallback' }),
-    runDatabricksSql: () => ({ kind: 'dbx' })
+    astRunBigQuerySql: () => ({ kind: 'fallback' }),
+    astRunDatabricksSql: () => ({ kind: 'dbx' })
   });
 
   loadSqlRuntime(context);
@@ -85,8 +85,8 @@ test('astSqlPrepare + astSqlExecutePrepared binds typed params and executes prov
 
 test('astSqlExecutePrepared falls back to executeQuery when detailed provider helper is unavailable', () => {
   const context = createGasContext({
-    runBigQuerySql: () => ({ kind: 'fallback-df' }),
-    runDatabricksSql: () => ({ kind: 'dbx' })
+    astRunBigQuerySql: () => ({ kind: 'fallback-df' }),
+    astRunDatabricksSql: () => ({ kind: 'dbx' })
   });
 
   loadSqlRuntime(context);
@@ -109,8 +109,8 @@ test('astSqlExecutePrepared falls back to executeQuery when detailed provider he
 
 test('astSqlExecutePrepared throws for missing required prepared params', () => {
   const context = createGasContext({
-    runBigQuerySql: () => ({ kind: 'unused' }),
-    runDatabricksSql: () => ({ kind: 'unused' })
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
   });
 
   loadSqlRuntime(context);
@@ -133,9 +133,9 @@ test('astSqlExecutePrepared throws for missing required prepared params', () => 
 test('astSqlStatus routes to provider status helpers', () => {
   let captured = null;
   const context = createGasContext({
-    runBigQuerySql: () => ({ kind: 'unused' }),
-    runDatabricksSql: () => ({ kind: 'unused' }),
-    getBigQuerySqlStatus: (parameters, jobId) => {
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' }),
+    astGetBigQuerySqlStatus: (parameters, jobId) => {
       captured = { parameters, jobId };
       return {
         provider: 'bigquery',
@@ -162,9 +162,9 @@ test('astSqlStatus routes to provider status helpers', () => {
 test('astSqlCancel routes to provider cancel helpers', () => {
   let captured = null;
   const context = createGasContext({
-    runBigQuerySql: () => ({ kind: 'unused' }),
-    runDatabricksSql: () => ({ kind: 'unused' }),
-    cancelDatabricksSql: (parameters, statementId) => {
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' }),
+    astCancelDatabricksSql: (parameters, statementId) => {
       captured = { parameters, statementId };
       return {
         provider: 'databricks',

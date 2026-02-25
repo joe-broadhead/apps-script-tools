@@ -4,8 +4,8 @@ import { createGasContext, loadScripts } from './helpers.mjs';
 
 function createContext(overrides = {}) {
   return createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: () => ({ provider: 'bigquery' }),
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: () => ({ provider: 'bigquery' }),
     ...overrides
   });
 }
@@ -44,11 +44,11 @@ test('astGetSqlProviderAdapter returns typed validation error for unknown provid
 test('runSqlQuery uses adapter registry dispatch for provider execution', () => {
   const calls = [];
   const context = createContext({
-    runDatabricksSql: () => {
+    astRunDatabricksSql: () => {
       calls.push('databricks');
       return { provider: 'databricks' };
     },
-    runBigQuerySql: () => {
+    astRunBigQuerySql: () => {
       calls.push('bigquery');
       return { provider: 'bigquery' };
     }

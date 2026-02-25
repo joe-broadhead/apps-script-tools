@@ -4,8 +4,8 @@ import { createGasContext, loadScripts } from './helpers.mjs';
 
 test('runSqlQuery rejects placeholders unless unsafe option is enabled', () => {
   const context = createGasContext({
-    runDatabricksSql: () => ({ provider: 'databricks' }),
-    runBigQuerySql: () => ({ provider: 'bigquery' })
+    astRunDatabricksSql: () => ({ provider: 'databricks' }),
+    astRunBigQuerySql: () => ({ provider: 'bigquery' })
   });
 
   loadScripts(context, [

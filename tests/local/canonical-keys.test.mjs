@@ -4,8 +4,8 @@ import { createGasContext, loadCoreDataContext } from './helpers.mjs';
 
 test('dropDuplicates treats null/undefined/missing equivalently for key comparisons', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -22,8 +22,8 @@ test('dropDuplicates treats null/undefined/missing equivalently for key comparis
 
 test('dropDuplicates canonicalizes object keys for deterministic comparison', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);
@@ -39,8 +39,8 @@ test('dropDuplicates canonicalizes object keys for deterministic comparison', ()
 
 test('merge aligns null and undefined join keys', () => {
   const context = createGasContext({
-    loadDatabricksTable: () => {},
-    loadBigQueryTable: () => {}
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
   });
 
   loadCoreDataContext(context);

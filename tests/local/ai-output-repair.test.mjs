@@ -5,7 +5,7 @@ import { createGasContext } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 
 function normalizedTextResponse(context, text, finishReason = null) {
-  return context.normalizeAiResponse({
+  return context.astNormalizeAiResponse({
     provider: 'openai',
     operation: 'text',
     model: 'gpt-4.1-mini',
@@ -37,8 +37,8 @@ test('OutputRepair.continueIfTruncated requests continuation when finishReason i
   loadAiScripts(context, { includeAst: true });
 
   let calls = 0;
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = () => {
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = () => {
     calls += 1;
     return normalizedTextResponse(context, ' and the final milestone is reopening.');
   };
@@ -51,7 +51,7 @@ test('OutputRepair.continueIfTruncated requests continuation when finishReason i
     auth: { apiKey: 'test-key' }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(calls, 1);
   assert.equal(result.continued, true);
@@ -65,8 +65,8 @@ test('OutputRepair.continueIfTruncated merges overlap to avoid duplicate continu
   const context = createGasContext();
   loadAiScripts(context, { includeAst: true });
 
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = () => normalizedTextResponse(
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = () => normalizedTextResponse(
     context,
     'are plan, build, and launch.'
   );
@@ -79,7 +79,7 @@ test('OutputRepair.continueIfTruncated merges overlap to avoid duplicate continu
     auth: { apiKey: 'test-key' }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(result.text, 'The project phases are plan, build, and launch.');
 });
@@ -89,8 +89,8 @@ test('OutputRepair.continueIfTruncated uses the partial tail in continuation pro
   loadAiScripts(context, { includeAst: true });
 
   let capturedPrompt = '';
-  const originalRunOpenAi = context.runOpenAi;
-  context.runOpenAi = request => {
+  const originalRunOpenAi = context.astRunOpenAi;
+  context.astRunOpenAi = request => {
     capturedPrompt = request.input;
     return normalizedTextResponse(context, ' and completion.');
   };
@@ -107,7 +107,7 @@ test('OutputRepair.continueIfTruncated uses the partial tail in continuation pro
     auth: { apiKey: 'test-key' }
   });
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(capturedPrompt.includes('HEAD_MARKER_SHOULD_NOT_BE_IN_TAIL'), false);
   assert.equal(capturedPrompt.includes('TAIL_MARKER_SHOULD_BE_PRESENT'), true);

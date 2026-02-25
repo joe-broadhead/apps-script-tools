@@ -105,13 +105,13 @@ function astTelemetryStorageBuildWriteRequest(uri, payloadText, config = {}) {
 }
 
 function astTelemetryStorageExecuteWrite(uri, payloadText, config = {}) {
-  if (typeof runStorageRequest !== 'function') {
+  if (typeof astRunStorageRequest !== 'function') {
     throw new AstTelemetryCapabilityError(
-      'runStorageRequest is required for telemetry storage_json sink'
+      'astRunStorageRequest is required for telemetry storage_json sink'
     );
   }
 
-  return runStorageRequest(astTelemetryStorageBuildWriteRequest(uri, payloadText, config));
+  return astRunStorageRequest(astTelemetryStorageBuildWriteRequest(uri, payloadText, config));
 }
 
 function astTelemetryStorageFlushBuffer(config = {}, options = {}) {

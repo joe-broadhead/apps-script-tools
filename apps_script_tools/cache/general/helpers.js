@@ -11,10 +11,6 @@ function astCacheNormalizeString(value, fallback = '') {
   return normalized.length > 0 ? normalized : fallback;
 }
 
-function astCacheNormalizeBoolean(value, fallback = false) {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
 function astCacheNormalizePositiveInt(value, fallback, minValue = 1, maxValue = 2147483647) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -31,10 +27,6 @@ function astCacheNormalizePositiveInt(value, fallback, minValue = 1, maxValue = 
 
 function astCacheNowMs() {
   return Date.now();
-}
-
-function astCacheNowIsoString() {
-  return new Date().toISOString();
 }
 
 function astCacheTryOrFallback(task, fallback) {

@@ -1,25 +1,25 @@
 function astAiRun(request = {}) {
-  return runAiRequest(request);
+  return astRunAiRequest(request);
 }
 
 function astAiText(request = {}) {
-  return runAiRequest(Object.assign({}, request, { operation: 'text' }));
+  return astRunAiRequest(Object.assign({}, request, { operation: 'text' }));
 }
 
 function astAiStructured(request = {}) {
-  return runAiRequest(Object.assign({}, request, { operation: 'structured' }));
+  return astRunAiRequest(Object.assign({}, request, { operation: 'structured' }));
 }
 
 function astAiTools(request = {}) {
-  return runAiRequest(Object.assign({}, request, { operation: 'tools' }));
+  return astRunAiRequest(Object.assign({}, request, { operation: 'tools' }));
 }
 
 function astAiImage(request = {}) {
-  return runAiRequest(Object.assign({}, request, { operation: 'image' }));
+  return astRunAiRequest(Object.assign({}, request, { operation: 'image' }));
 }
 
 function astAiStream(request = {}) {
-  return runAiRequest(Object.assign({}, request, {
+  return astRunAiRequest(Object.assign({}, request, {
     options: Object.assign({}, request.options || {}, { stream: true })
   }));
 }

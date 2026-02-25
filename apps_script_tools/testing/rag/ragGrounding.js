@@ -4,7 +4,7 @@ RAG_GROUNDING_TESTS = [
     test: () => {
       const originalLoad = astRagLoadIndexDocument;
       const originalEmbed = astRagEmbedTexts;
-      const originalRunAiRequest = runAiRequest;
+      const originalRunAiRequest = astRunAiRequest;
 
       astRagLoadIndexDocument = () => ({
         indexFileId: 'idx',
@@ -37,7 +37,7 @@ RAG_GROUNDING_TESTS = [
         }
       });
 
-      runAiRequest = () => ({
+      astRunAiRequest = () => ({
         output: {
           json: {
             answer: 'Grounded evidence text [S1]',
@@ -94,7 +94,7 @@ RAG_GROUNDING_TESTS = [
       } finally {
         astRagLoadIndexDocument = originalLoad;
         astRagEmbedTexts = originalEmbed;
-        runAiRequest = originalRunAiRequest;
+        astRunAiRequest = originalRunAiRequest;
       }
     }
   },
@@ -103,7 +103,7 @@ RAG_GROUNDING_TESTS = [
     test: () => {
       const originalLoad = astRagLoadIndexDocument;
       const originalEmbed = astRagEmbedTexts;
-      const originalRunAiRequest = runAiRequest;
+      const originalRunAiRequest = astRunAiRequest;
 
       astRagLoadIndexDocument = () => ({
         indexFileId: 'idx',
@@ -136,7 +136,7 @@ RAG_GROUNDING_TESTS = [
         }
       });
 
-      runAiRequest = () => ({
+      astRunAiRequest = () => ({
         output: {
           json: {
             answer: 'Ungrounded response with no citations',
@@ -174,7 +174,7 @@ RAG_GROUNDING_TESTS = [
       } finally {
         astRagLoadIndexDocument = originalLoad;
         astRagEmbedTexts = originalEmbed;
-        runAiRequest = originalRunAiRequest;
+        astRunAiRequest = originalRunAiRequest;
       }
     }
   },
@@ -183,7 +183,7 @@ RAG_GROUNDING_TESTS = [
     test: () => {
       const originalLoad = astRagLoadIndexDocument;
       const originalEmbed = astRagEmbedTexts;
-      const originalRunAiRequest = runAiRequest;
+      const originalRunAiRequest = astRunAiRequest;
 
       astRagLoadIndexDocument = () => ({
         indexFileId: 'idx',
@@ -216,7 +216,7 @@ RAG_GROUNDING_TESTS = [
         }
       });
 
-      runAiRequest = () => ({
+      astRunAiRequest = () => ({
         output: {
           json: {
             answer: 'Risk details [S1]',
@@ -256,7 +256,7 @@ RAG_GROUNDING_TESTS = [
       } finally {
         astRagLoadIndexDocument = originalLoad;
         astRagEmbedTexts = originalEmbed;
-        runAiRequest = originalRunAiRequest;
+        astRunAiRequest = originalRunAiRequest;
       }
     }
   },
@@ -265,7 +265,7 @@ RAG_GROUNDING_TESTS = [
     test: () => {
       const originalLoad = astRagLoadIndexDocument;
       const originalEmbed = astRagEmbedTexts;
-      const originalRunAiRequest = runAiRequest;
+      const originalRunAiRequest = astRunAiRequest;
 
       astRagLoadIndexDocument = () => ({
         indexFileId: 'idx',
@@ -299,7 +299,7 @@ RAG_GROUNDING_TESTS = [
       });
 
       let aiCallCount = 0;
-      runAiRequest = () => {
+      astRunAiRequest = () => {
         aiCallCount += 1;
         return {
           output: {
@@ -346,7 +346,7 @@ RAG_GROUNDING_TESTS = [
       } finally {
         astRagLoadIndexDocument = originalLoad;
         astRagEmbedTexts = originalEmbed;
-        runAiRequest = originalRunAiRequest;
+        astRunAiRequest = originalRunAiRequest;
       }
     }
   }

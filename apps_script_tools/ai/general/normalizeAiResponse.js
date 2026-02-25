@@ -67,7 +67,7 @@ function astNormalizeImages(images) {
     .filter(Boolean);
 }
 
-function normalizeAiResponse(payload = {}) {
+function astNormalizeAiResponse(payload = {}) {
   const output = payload.output || {};
   const includeRaw = payload.includeRaw === true;
 

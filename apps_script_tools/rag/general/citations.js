@@ -133,10 +133,3 @@ function astRagCitationToUrl(citation = {}) {
 
   return normalized.url;
 }
-
-const AST_RAG_CITATIONS = Object.freeze({
-  normalizeInline: astRagCitationNormalizeInline,
-  extractInlineIds: astRagCitationExtractIds,
-  filterForAnswer: astRagCitationFilterForAnswer,
-  toUrl: astRagCitationToUrl
-});

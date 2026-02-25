@@ -30,32 +30,32 @@ function baseStructuredRequest(overrides = {}) {
 }
 
 function normalizedStructuredResponse(context, payload = {}) {
-  return context.normalizeAiResponse(Object.assign({
+  return context.astNormalizeAiResponse(Object.assign({
     provider: 'openai',
     operation: 'structured',
     model: 'gpt-4.1-mini'
   }, payload));
 }
 
-test('validateAiRequest normalizes structured reliability defaults', () => {
+test('astValidateAiRequest normalizes structured reliability defaults', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const normalized = context.validateAiRequest(baseStructuredRequest());
+  const normalized = context.astValidateAiRequest(baseStructuredRequest());
 
   assert.equal(normalized.options.reliability.maxSchemaRetries, 2);
   assert.equal(normalized.options.reliability.repairMode, 'json_repair');
   assert.equal(normalized.options.reliability.strictValidation, true);
 });
 
-test('runAiRequest retries schema failures and returns valid structured output', () => {
+test('astRunAiRequest retries schema failures and returns valid structured output', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     calls += 1;
 
     if (calls === 1) {
@@ -75,22 +75,22 @@ test('runAiRequest retries schema failures and returns valid structured output',
     });
   };
 
-  const response = context.runAiRequest(baseStructuredRequest());
+  const response = context.astRunAiRequest(baseStructuredRequest());
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(calls, 2);
   assert.equal(JSON.stringify(response.output.json), JSON.stringify({ ok: true, source: 'openai' }));
 });
 
-test('runAiRequest repairs malformed JSON in structured output with json_repair mode', () => {
+test('astRunAiRequest repairs malformed JSON in structured output with json_repair mode', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     calls += 1;
     return normalizedStructuredResponse(context, {
       output: {
@@ -100,7 +100,7 @@ test('runAiRequest repairs malformed JSON in structured output with json_repair 
     });
   };
 
-  const response = context.runAiRequest(baseStructuredRequest({
+  const response = context.astRunAiRequest(baseStructuredRequest({
     options: {
       reliability: {
         maxSchemaRetries: 0,
@@ -110,27 +110,27 @@ test('runAiRequest repairs malformed JSON in structured output with json_repair 
     }
   }));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(calls, 1);
   assert.equal(JSON.stringify(response.output.json), JSON.stringify({ ok: true, source: 'openai' }));
 });
 
-test('runAiRequest supports llm_repair mode for malformed structured output', () => {
+test('astRunAiRequest supports llm_repair mode for malformed structured output', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = request => {
+  context.astRunOpenAi = request => {
     calls += 1;
 
     if (request.operation === 'text') {
       assert.equal(Array.isArray(request.messages), true);
       assert.equal(request.messages[0].role, 'system');
       assert.equal(request.messages[1].role, 'user');
-      return context.normalizeAiResponse({
+      return context.astNormalizeAiResponse({
         provider: 'openai',
         operation: 'text',
         model: 'gpt-4.1-mini',
@@ -148,7 +148,7 @@ test('runAiRequest supports llm_repair mode for malformed structured output', ()
     });
   };
 
-  const response = context.runAiRequest(baseStructuredRequest({
+  const response = context.astRunAiRequest(baseStructuredRequest({
     options: {
       reliability: {
         maxSchemaRetries: 0,
@@ -158,20 +158,20 @@ test('runAiRequest supports llm_repair mode for malformed structured output', ()
     }
   }));
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
 
   assert.equal(calls, 2);
   assert.equal(JSON.stringify(response.output.json), JSON.stringify({ ok: true, source: 'repair' }));
 });
 
-test('runAiRequest throws deterministic parse error with diagnostics after retry exhaustion', () => {
+test('astRunAiRequest throws deterministic parse error with diagnostics after retry exhaustion', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
-  const originalRunOpenAi = context.runOpenAi;
+  const originalRunOpenAi = context.astRunOpenAi;
   let calls = 0;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     calls += 1;
     return normalizedStructuredResponse(context, {
       output: {
@@ -182,7 +182,7 @@ test('runAiRequest throws deterministic parse error with diagnostics after retry
   };
 
   assert.throws(
-    () => context.runAiRequest(baseStructuredRequest({
+    () => context.astRunAiRequest(baseStructuredRequest({
       options: {
         reliability: {
           maxSchemaRetries: 1,
@@ -201,6 +201,6 @@ test('runAiRequest throws deterministic parse error with diagnostics after retry
     }
   );
 
-  context.runOpenAi = originalRunOpenAi;
+  context.astRunOpenAi = originalRunOpenAi;
   assert.equal(calls, 2);
 });

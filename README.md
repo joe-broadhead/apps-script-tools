@@ -212,6 +212,7 @@ Notes:
 - Docs check: `mkdocs build --strict`
 - Apps Script integration checks: `.github/workflows/integration-gas.yml`
 - Optional live AI smoke checks: `.github/workflows/integration-ai-live.yml`
+- Naming convention and contribution rules: `CONTRIBUTING.md`
 
 ## Release
 

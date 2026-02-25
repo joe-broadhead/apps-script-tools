@@ -1,5 +1,5 @@
 /**
- * @function loadDatabricksTable
+ * @function astLoadDatabricksTable
  * @description Loads data into a Databricks table using specified modes (`insert`, `overwrite`, `merge`). 
  *              Creates the table if it does not exist, appends a `last_updated_at` column, and processes data 
  *              in batches to handle large datasets efficiently.
@@ -31,7 +31,7 @@
  *   amount: "FLOAT"
  * };
  * 
- * loadDatabricksTable({
+ * astLoadDatabricksTable({
  *   arrays: data,
  *   tableName: "sales_data",
  *   tableSchema: tableSchema,
@@ -48,9 +48,9 @@
  * - Time Complexity: O(n), where `n` is the number of rows.
  * - Space Complexity: O(batchSize), as data is processed in chunks.
  * 
- * @see sqlLiteral - Converts data values to SQL-safe literals.
+ * @see astSqlLiteral - Converts data values to SQL-safe literals.
  */
-function buildDatabricksLoadError(message, details = {}, cause = null) {
+function astBuildDatabricksLoadError(message, details = {}, cause = null) {
   const error = new Error(message);
   error.name = 'DatabricksLoadError';
   error.provider = 'databricks';
@@ -61,9 +61,9 @@ function buildDatabricksLoadError(message, details = {}, cause = null) {
   return error;
 }
 
-function normalizeDatabricksLoadConfig(config = {}) {
+function astNormalizeDatabricksLoadConfig(config = {}) {
   if (config == null || typeof config !== 'object' || Array.isArray(config)) {
-    throw buildDatabricksLoadError('loadDatabricksTable requires a config object');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable requires a config object');
   }
 
   const {
@@ -78,77 +78,77 @@ function normalizeDatabricksLoadConfig(config = {}) {
   } = config;
 
   if (!Array.isArray(arrays) || arrays.length === 0 || !Array.isArray(arrays[0])) {
-    throw buildDatabricksLoadError('loadDatabricksTable requires non-empty arrays with a header row');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable requires non-empty arrays with a header row');
   }
 
   const headers = arrays[0].map(header => String(header).trim());
   if (headers.length === 0) {
-    throw buildDatabricksLoadError('loadDatabricksTable header row must include at least one column');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable header row must include at least one column');
   }
 
   if (headers.some(header => header.length === 0)) {
-    throw buildDatabricksLoadError('loadDatabricksTable header values must be non-empty strings');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable header values must be non-empty strings');
   }
 
   const uniqueHeaders = new Set(headers);
   if (uniqueHeaders.size !== headers.length) {
-    throw buildDatabricksLoadError('loadDatabricksTable header values must be unique');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable header values must be unique');
   }
 
   const rows = arrays.slice(1);
   rows.forEach((row, rowIdx) => {
     if (!Array.isArray(row)) {
-      throw buildDatabricksLoadError(`Data row at index ${rowIdx + 1} must be an array`);
+      throw astBuildDatabricksLoadError(`Data row at index ${rowIdx + 1} must be an array`);
     }
 
     if (row.length !== headers.length) {
-      throw buildDatabricksLoadError(
+      throw astBuildDatabricksLoadError(
         `Data row at index ${rowIdx + 1} has length ${row.length}, expected ${headers.length}`
       );
     }
   });
 
   if (typeof tableName !== 'string' || tableName.trim().length === 0) {
-    throw buildDatabricksLoadError('loadDatabricksTable requires a non-empty tableName');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable requires a non-empty tableName');
   }
 
   if (tableSchema == null || typeof tableSchema !== 'object' || Array.isArray(tableSchema)) {
-    throw buildDatabricksLoadError('loadDatabricksTable requires a tableSchema object');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable requires a tableSchema object');
   }
 
   const schemaEntries = Object.entries(tableSchema);
   if (schemaEntries.length === 0) {
-    throw buildDatabricksLoadError('loadDatabricksTable requires tableSchema with at least one column');
+    throw astBuildDatabricksLoadError('astLoadDatabricksTable requires tableSchema with at least one column');
   }
 
   schemaEntries.forEach(([columnName, columnType]) => {
     if (typeof columnName !== 'string' || columnName.trim().length === 0) {
-      throw buildDatabricksLoadError('tableSchema column names must be non-empty strings');
+      throw astBuildDatabricksLoadError('tableSchema column names must be non-empty strings');
     }
     if (typeof columnType !== 'string' || columnType.trim().length === 0) {
-      throw buildDatabricksLoadError(`tableSchema.${columnName} must be a non-empty string type`);
+      throw astBuildDatabricksLoadError(`tableSchema.${columnName} must be a non-empty string type`);
     }
   });
 
   const schemaColumnNames = Object.keys(tableSchema);
   const missingSchemaColumns = headers.filter(header => !schemaColumnNames.includes(header));
   if (missingSchemaColumns.length > 0) {
-    throw buildDatabricksLoadError(
+    throw astBuildDatabricksLoadError(
       `tableSchema is missing definitions for columns: ${missingSchemaColumns.join(', ')}`
     );
   }
 
   if (!Number.isInteger(batchSize) || batchSize < 1) {
-    throw buildDatabricksLoadError('batchSize must be a positive integer');
+    throw astBuildDatabricksLoadError('batchSize must be a positive integer');
   }
 
   const allowedModes = ['insert', 'overwrite', 'merge'];
   if (!allowedModes.includes(mode)) {
-    throw buildDatabricksLoadError(`Unsupported mode: ${mode}`);
+    throw astBuildDatabricksLoadError(`Unsupported mode: ${mode}`);
   }
 
   if (databricks_parameters == null || typeof databricks_parameters !== 'object' || Array.isArray(databricks_parameters)) {
-    throw buildDatabricksLoadError('databricks_parameters must be an object');
+    throw astBuildDatabricksLoadError('databricks_parameters must be an object');
   }
 
   const requiredDatabricksFields = ['host', 'sqlWarehouseId', 'schema', 'token'];
@@ -158,24 +158,24 @@ function normalizeDatabricksLoadConfig(config = {}) {
   });
 
   if (missingDatabricksFields.length > 0) {
-    throw buildDatabricksLoadError(
+    throw astBuildDatabricksLoadError(
       `Missing required Databricks parameters: ${missingDatabricksFields.join(', ')}`
     );
   }
 
   if (options == null || typeof options !== 'object' || Array.isArray(options)) {
-    throw buildDatabricksLoadError('options must be an object when provided');
+    throw astBuildDatabricksLoadError('options must be an object when provided');
   }
 
   const maxWaitMs = options.maxWaitMs;
   const pollIntervalMs = options.pollIntervalMs;
 
   if (maxWaitMs != null && (!Number.isInteger(maxWaitMs) || maxWaitMs < 1)) {
-    throw buildDatabricksLoadError('options.maxWaitMs must be a positive integer when provided');
+    throw astBuildDatabricksLoadError('options.maxWaitMs must be a positive integer when provided');
   }
 
   if (pollIntervalMs != null && (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 1)) {
-    throw buildDatabricksLoadError('options.pollIntervalMs must be a positive integer when provided');
+    throw astBuildDatabricksLoadError('options.pollIntervalMs must be a positive integer when provided');
   }
 
   if (
@@ -183,18 +183,18 @@ function normalizeDatabricksLoadConfig(config = {}) {
     Number.isInteger(pollIntervalMs) &&
     pollIntervalMs > maxWaitMs
   ) {
-    throw buildDatabricksLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs');
+    throw astBuildDatabricksLoadError('options.pollIntervalMs cannot be greater than options.maxWaitMs');
   }
 
   const normalizedMergeKey = typeof mergeKey === 'string' ? mergeKey.trim() : mergeKey;
 
   if (mode === 'merge') {
     if (typeof normalizedMergeKey !== 'string' || normalizedMergeKey.length === 0) {
-      throw buildDatabricksLoadError('mergeKey is required for merge mode');
+      throw astBuildDatabricksLoadError('mergeKey is required for merge mode');
     }
 
     if (!headers.includes(normalizedMergeKey)) {
-      throw buildDatabricksLoadError(`mergeKey '${normalizedMergeKey}' must exist in header columns`);
+      throw astBuildDatabricksLoadError(`mergeKey '${normalizedMergeKey}' must exist in header columns`);
     }
   }
 
@@ -212,15 +212,15 @@ function normalizeDatabricksLoadConfig(config = {}) {
   };
 }
 
-function executeDatabricksLoadStatement(sql, databricks_parameters, options, details = {}) {
+function astExecuteDatabricksLoadStatement(sql, databricks_parameters, options, details = {}) {
   try {
-    return runDatabricksSql(sql, databricks_parameters, {}, options);
+    return astRunDatabricksSql(sql, databricks_parameters, {}, options);
   } catch (error) {
     if (error && error.name === 'DatabricksLoadError') {
       throw error;
     }
 
-    throw buildDatabricksLoadError(
+    throw astBuildDatabricksLoadError(
       `Databricks load failed during ${details.phase || 'statement execution'}`,
       details,
       error
@@ -228,8 +228,8 @@ function executeDatabricksLoadStatement(sql, databricks_parameters, options, det
   }
 }
 
-function loadDatabricksTable(config) {
-  const normalizedConfig = normalizeDatabricksLoadConfig(config);
+function astLoadDatabricksTable(config) {
+  const normalizedConfig = astNormalizeDatabricksLoadConfig(config);
 
   const {
     headers,
@@ -250,7 +250,7 @@ function loadDatabricksTable(config) {
     .join(',')
   );
 
-  executeDatabricksLoadStatement(`
+  astExecuteDatabricksLoadStatement(`
     create table if not exists ${tableName} (
       ${defs}
     )`,
@@ -263,7 +263,7 @@ function loadDatabricksTable(config) {
   const chunks = arrayChunk(rows, batchSize);
 
   if(mode === 'overwrite') {
-    executeDatabricksLoadStatement(
+    astExecuteDatabricksLoadStatement(
       `truncate table ${tableName}`,
       databricks_parameters,
       options,
@@ -274,7 +274,7 @@ function loadDatabricksTable(config) {
   chunks.forEach((chunkRows, chunkIndex) => {
     const vals = (
       chunkRows
-      .map(row => `(${row.map(sqlLiteral).join(', ')})`)
+      .map(row => `(${row.map(astSqlLiteral).join(', ')})`)
       .join(',')
     );
 
@@ -296,7 +296,7 @@ function loadDatabricksTable(config) {
         break;
 
       case 'merge':
-        if (!mergeKey) throw buildDatabricksLoadError('mergeKey is required for merge mode');
+        if (!mergeKey) throw astBuildDatabricksLoadError('mergeKey is required for merge mode');
         const colAliases = (
           headers
           .map((h, i) => `col${i+1} AS ${h}`)
@@ -332,10 +332,10 @@ function loadDatabricksTable(config) {
         break;
 
       default:
-        throw buildDatabricksLoadError(`Unsupported mode: ${mode}`);
+        throw astBuildDatabricksLoadError(`Unsupported mode: ${mode}`);
     }
 
-    executeDatabricksLoadStatement(
+    astExecuteDatabricksLoadStatement(
       sql,
       databricks_parameters,
       options,
@@ -346,18 +346,18 @@ function loadDatabricksTable(config) {
 };
 
 /**
- * @function sqlLiteral
+ * @function astSqlLiteral
  * @description Converts a given value to a SQL-safe literal. Handles `NULL`, booleans, numbers, dates, 
  *              and strings, escaping single quotes in strings and formatting dates in `"yyyy-MM-dd"` format.
  * @param {*} value - The value to be converted to a SQL-safe literal.
  * @returns {String} The SQL-safe representation of the value as a string.
  * 
  * @example
- * console.log(sqlLiteral(null));      // Outputs: 'NULL'
- * console.log(sqlLiteral(true));      // Outputs: 'true'
- * console.log(sqlLiteral(123));       // Outputs: '123'
- * console.log(sqlLiteral(new Date("2025-01-01"))); // Outputs: '2025-01-01'
- * console.log(sqlLiteral("O'Reilly")); // Outputs: `'O''Reilly'`
+ * console.log(astSqlLiteral(null));      // Outputs: 'NULL'
+ * console.log(astSqlLiteral(true));      // Outputs: 'true'
+ * console.log(astSqlLiteral(123));       // Outputs: '123'
+ * console.log(astSqlLiteral(new Date("2025-01-01"))); // Outputs: '2025-01-01'
+ * console.log(astSqlLiteral("O'Reilly")); // Outputs: `'O''Reilly'`
  * 
  * @note
  * - Behavior:
@@ -368,7 +368,7 @@ function loadDatabricksTable(config) {
  * - Time Complexity: O(n), where `n` is the length of the string (for escaping).
  * - Space Complexity: O(n), as a new string is created for the SQL-safe representation.
  */
-function sqlLiteral(value) {
+function astSqlLiteral(value) {
   switch (true) {
     case value === '' || value == null:
       return 'NULL';

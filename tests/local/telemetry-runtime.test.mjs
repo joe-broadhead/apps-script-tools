@@ -304,7 +304,7 @@ test('Telemetry reset clears buffered drive_json records', () => {
 test('Telemetry storage_json sink supports manual flush mode', () => {
   const writes = [];
   const context = createGasContext({
-    runStorageRequest: request => {
+    astRunStorageRequest: request => {
       writes.push(request);
       return {
         provider: 's3',
@@ -339,7 +339,7 @@ test('Telemetry storage_json sink supports manual flush mode', () => {
 test('Telemetry reset clears buffered storage_json records', () => {
   const writes = [];
   const context = createGasContext({
-    runStorageRequest: request => {
+    astRunStorageRequest: request => {
       writes.push(request);
       return {
         provider: 's3',
@@ -372,7 +372,7 @@ test('Telemetry reset clears buffered storage_json records', () => {
 test('Telemetry storage_json sink flushes on threshold', () => {
   const writes = [];
   const context = createGasContext({
-    runStorageRequest: request => {
+    astRunStorageRequest: request => {
       writes.push(request);
       return {
         provider: 'gcs',
@@ -435,7 +435,7 @@ test('Telemetry keeps running traces eligible for endSpan under maxTraceCount pr
   assert.equal(context.AST.Telemetry.getTrace('trace_1'), null);
 });
 
-test('runAiRequest emits telemetry span_end records', () => {
+test('astRunAiRequest emits telemetry span_end records', () => {
   const logger = createLoggerCapture();
   const context = createGasContext({
     Logger: logger.Logger,
@@ -471,7 +471,7 @@ test('runAiRequest emits telemetry span_end records', () => {
     sink: 'logger'
   });
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     provider: 'openai',
     operation: 'text',
     input: 'hello',
@@ -497,7 +497,7 @@ test('runAiRequest emits telemetry span_end records', () => {
   assert.equal(spanLog.span.status, 'ok');
 });
 
-test('runAiRequest telemetry attributes provider/model to successful fallback attempt', () => {
+test('astRunAiRequest telemetry attributes provider/model to successful fallback attempt', () => {
   const logger = createLoggerCapture();
   const context = createGasContext({
     Logger: logger.Logger
@@ -512,17 +512,17 @@ test('runAiRequest telemetry attributes provider/model to successful fallback at
     sink: 'logger'
   });
 
-  const originalRunOpenAi = context.runOpenAi;
-  const originalRunGemini = context.runGemini;
+  const originalRunOpenAi = context.astRunOpenAi;
+  const originalRunGemini = context.astRunGemini;
 
-  context.runOpenAi = () => {
+  context.astRunOpenAi = () => {
     const error = new Error('temporary upstream failure');
     error.name = 'AstAiProviderError';
     error.details = { statusCode: 503 };
     throw error;
   };
 
-  context.runGemini = request => context.normalizeAiResponse({
+  context.astRunGemini = request => context.astNormalizeAiResponse({
     provider: 'gemini',
     operation: 'text',
     model: request.model,
@@ -531,7 +531,7 @@ test('runAiRequest telemetry attributes provider/model to successful fallback at
     }
   });
 
-  const response = context.runAiRequest({
+  const response = context.astRunAiRequest({
     input: 'hello',
     routing: {
       strategy: 'priority',
@@ -550,8 +550,8 @@ test('runAiRequest telemetry attributes provider/model to successful fallback at
     }
   });
 
-  context.runOpenAi = originalRunOpenAi;
-  context.runGemini = originalRunGemini;
+  context.astRunOpenAi = originalRunOpenAi;
+  context.astRunGemini = originalRunGemini;
 
   assert.equal(response.provider, 'gemini');
 

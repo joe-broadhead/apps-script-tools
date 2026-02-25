@@ -202,7 +202,7 @@ function astAiContinueIfTruncated(request = {}) {
   for (let pass = 1; pass <= passes; pass += 1) {
     passesUsed = pass;
     const prompt = astAiBuildContinuationPrompt(text, request.question, request.citations);
-    const response = runAiRequest({
+    const response = astRunAiRequest({
       provider,
       operation: 'text',
       model,

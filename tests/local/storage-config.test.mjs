@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadStorageScripts } from './storage-helpers.mjs';
 
-test('resolveStorageConfig uses request auth first, then runtime config, then script properties', () => {
+test('astResolveStorageConfig uses request auth first, then runtime config, then script properties', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -26,7 +26,7 @@ test('resolveStorageConfig uses request auth first, then runtime config, then sc
     S3_REGION: 'us-east-1'
   });
 
-  const normalized = context.validateStorageRequest({
+  const normalized = context.astValidateStorageRequest({
     uri: 's3://bucket/key',
     operation: 'head',
     auth: {
@@ -36,22 +36,22 @@ test('resolveStorageConfig uses request auth first, then runtime config, then sc
     }
   });
 
-  const resolved = context.resolveStorageConfig(normalized);
+  const resolved = context.astResolveStorageConfig(normalized);
 
   assert.equal(resolved.accessKeyId, 'request-ak');
   assert.equal(resolved.secretAccessKey, 'request-sk');
   assert.equal(resolved.region, 'ap-south-1');
 
-  const fallbackNormalized = context.validateStorageRequest({
+  const fallbackNormalized = context.astValidateStorageRequest({
     uri: 's3://bucket/key',
     operation: 'head'
   });
-  const runtimeResolved = context.resolveStorageConfig(fallbackNormalized);
+  const runtimeResolved = context.astResolveStorageConfig(fallbackNormalized);
   assert.equal(runtimeResolved.accessKeyId, 'runtime-ak');
   assert.equal(runtimeResolved.region, 'us-east-1');
 });
 
-test('resolveStorageConfig supports GCS auto auth fallback using oauth token', () => {
+test('astResolveStorageConfig supports GCS auto auth fallback using oauth token', () => {
   const context = createGasContext({
     ScriptApp: {
       getOAuthToken: () => 'oauth-token-from-scriptapp'
@@ -65,17 +65,17 @@ test('resolveStorageConfig supports GCS auto auth fallback using oauth token', (
 
   loadStorageScripts(context);
 
-  const normalized = context.validateStorageRequest({
+  const normalized = context.astValidateStorageRequest({
     uri: 'gcs://bucket/key',
     operation: 'read'
   });
 
-  const resolved = context.resolveStorageConfig(normalized);
+  const resolved = context.astResolveStorageConfig(normalized);
   assert.equal(resolved.authMode, 'auto');
   assert.equal(resolved.oauthToken, 'oauth-token-from-scriptapp');
 });
 
-test('resolveStorageConfig memoizes script properties snapshots and invalidates on clearConfig', () => {
+test('astResolveStorageConfig memoizes script properties snapshots and invalidates on clearConfig', () => {
   let getPropertiesCalls = 0;
   const scriptState = {
     S3_ACCESS_KEY_ID: 'script-ak-v1',
@@ -98,24 +98,24 @@ test('resolveStorageConfig memoizes script properties snapshots and invalidates 
   loadStorageScripts(context, { includeAst: true });
   context.AST.Storage.clearConfig();
 
-  const normalized = context.validateStorageRequest({
+  const normalized = context.astValidateStorageRequest({
     uri: 's3://bucket/key',
     operation: 'head'
   });
 
-  const first = context.resolveStorageConfig(normalized);
-  const second = context.resolveStorageConfig(normalized);
+  const first = context.astResolveStorageConfig(normalized);
+  const second = context.astResolveStorageConfig(normalized);
   assert.equal(first.accessKeyId, 'script-ak-v1');
   assert.equal(second.accessKeyId, 'script-ak-v1');
   assert.equal(getPropertiesCalls, 1);
 
   scriptState.S3_ACCESS_KEY_ID = 'script-ak-v2';
-  const stillCached = context.resolveStorageConfig(normalized);
+  const stillCached = context.astResolveStorageConfig(normalized);
   assert.equal(stillCached.accessKeyId, 'script-ak-v1');
   assert.equal(getPropertiesCalls, 1);
 
   context.AST.Storage.clearConfig();
-  const refreshed = context.resolveStorageConfig(normalized);
+  const refreshed = context.astResolveStorageConfig(normalized);
   assert.equal(refreshed.accessKeyId, 'script-ak-v2');
   assert.equal(getPropertiesCalls, 2);
 });
@@ -147,7 +147,7 @@ test('AST exposes Storage surface and runtime config methods', () => {
   );
 });
 
-test('resolveStorageConfig requires dbfs host and token', () => {
+test('astResolveStorageConfig requires dbfs host and token', () => {
   const context = createGasContext({
     PropertiesService: {
       getScriptProperties: () => ({
@@ -158,13 +158,13 @@ test('resolveStorageConfig requires dbfs host and token', () => {
 
   loadStorageScripts(context);
 
-  const normalized = context.validateStorageRequest({
+  const normalized = context.astValidateStorageRequest({
     uri: 'dbfs:/mnt/path.txt',
     operation: 'head'
   });
 
   assert.throws(
-    () => context.resolveStorageConfig(normalized),
+    () => context.astResolveStorageConfig(normalized),
     /Missing required storage configuration field 'host'/
   );
 });

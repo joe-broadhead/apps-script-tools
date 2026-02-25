@@ -36,7 +36,7 @@ function structuredRequest(provider) {
   };
 }
 
-test('runOpenAi parses structured output', () => {
+test('astRunOpenAi parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -52,7 +52,7 @@ test('runOpenAi parses structured output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runOpenAi(structuredRequest('openai'), {
+  const output = context.astRunOpenAi(structuredRequest('openai'), {
     provider: 'openai',
     apiKey: 'key',
     model: 'gpt-4.1-mini'
@@ -61,7 +61,7 @@ test('runOpenAi parses structured output', () => {
   assert.equal(JSON.stringify(output.output.json), JSON.stringify({ ok: true, source: 'openai' }));
 });
 
-test('runGemini parses structured output', () => {
+test('astRunGemini parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -76,7 +76,7 @@ test('runGemini parses structured output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runGemini(structuredRequest('gemini'), {
+  const output = context.astRunGemini(structuredRequest('gemini'), {
     provider: 'gemini',
     apiKey: 'key',
     model: 'gemini-2.0-flash'
@@ -85,7 +85,7 @@ test('runGemini parses structured output', () => {
   assert.equal(JSON.stringify(output.output.json), JSON.stringify({ ok: true, source: 'gemini' }));
 });
 
-test('runVertexGemini parses structured output', () => {
+test('astRunVertexGemini parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -100,7 +100,7 @@ test('runVertexGemini parses structured output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runVertexGemini(structuredRequest('vertex_gemini'), {
+  const output = context.astRunVertexGemini(structuredRequest('vertex_gemini'), {
     provider: 'vertex_gemini',
     projectId: 'proj',
     location: 'us-central1',
@@ -111,7 +111,7 @@ test('runVertexGemini parses structured output', () => {
   assert.equal(JSON.stringify(output.output.json), JSON.stringify({ ok: true, source: 'vertex' }));
 });
 
-test('runOpenRouter parses structured output', () => {
+test('astRunOpenRouter parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -126,7 +126,7 @@ test('runOpenRouter parses structured output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runOpenRouter(structuredRequest('openrouter'), {
+  const output = context.astRunOpenRouter(structuredRequest('openrouter'), {
     provider: 'openrouter',
     apiKey: 'key',
     model: 'openrouter/model'
@@ -135,7 +135,7 @@ test('runOpenRouter parses structured output', () => {
   assert.equal(JSON.stringify(output.output.json), JSON.stringify({ ok: true, source: 'openrouter' }));
 });
 
-test('runPerplexity parses structured output', () => {
+test('astRunPerplexity parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {
       fetch: () => asResponse({
@@ -150,7 +150,7 @@ test('runPerplexity parses structured output', () => {
 
   loadAiScripts(context);
 
-  const output = context.runPerplexity(structuredRequest('perplexity'), {
+  const output = context.astRunPerplexity(structuredRequest('perplexity'), {
     provider: 'perplexity',
     apiKey: 'key',
     model: 'sonar-pro'

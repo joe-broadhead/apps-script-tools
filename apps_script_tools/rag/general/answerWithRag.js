@@ -831,8 +831,8 @@ function astRagAnswerCore(request = {}) {
       return preparedInsufficient;
     }
 
-    if (typeof runAiRequest !== 'function') {
-      throw new AstRagGroundingError('runAiRequest is not available; AST.AI runtime is required for RAG.answer');
+    if (typeof astRunAiRequest !== 'function') {
+      throw new AstRagGroundingError('astRunAiRequest is not available; AST.AI runtime is required for RAG.answer');
     }
 
     diagnostics.generation.status = 'started';
@@ -855,7 +855,7 @@ function astRagAnswerCore(request = {}) {
         diagnostics.retrieval.contextBudget = astRagCloneObject(prompt.contextStats);
       }
 
-      const aiResponse = runAiRequest({
+      const aiResponse = astRunAiRequest({
         provider: normalizedRequest.generation.provider,
         operation: 'structured',
         model: normalizedRequest.generation.model,

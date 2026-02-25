@@ -209,9 +209,9 @@ function astStorageNormalizeDatabricksHost(host) {
   return withoutProtocol;
 }
 
-function resolveStorageConfig(request) {
+function astResolveStorageConfig(request) {
   if (!astStorageIsPlainObject(request)) {
-    throw new AstStorageValidationError('resolveStorageConfig expected a normalized storage request object');
+    throw new AstStorageValidationError('astResolveStorageConfig expected a normalized storage request object');
   }
 
   const runtimeConfig = astStorageGetRuntimeConfig();
@@ -359,7 +359,7 @@ function resolveStorageConfig(request) {
     };
   }
 
-  throw new AstStorageValidationError('Unknown storage provider in resolveStorageConfig', {
+  throw new AstStorageValidationError('Unknown storage provider in astResolveStorageConfig', {
     provider
   });
 }

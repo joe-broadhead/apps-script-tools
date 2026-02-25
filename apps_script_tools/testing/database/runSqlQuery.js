@@ -83,9 +83,9 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
   {
     description: 'runSqlQuery() should surface Databricks provider failures as thrown errors',
     test: () => {
-      const originalRunDatabricksSql = runDatabricksSql;
+      const originalRunDatabricksSql = astRunDatabricksSql;
 
-      runDatabricksSql = () => {
+      astRunDatabricksSql = () => {
         throw new Error('Databricks statement failed');
       };
 
@@ -106,7 +106,7 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
           throw new Error(`Unexpected error message: ${error.message}`);
         }
       } finally {
-        runDatabricksSql = originalRunDatabricksSql;
+        astRunDatabricksSql = originalRunDatabricksSql;
       }
     },
   },
@@ -134,10 +134,10 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
   {
     description: 'runSqlQuery() should forward normalized options to providers',
     test: () => {
-      const originalRunBigQuerySql = runBigQuerySql;
+      const originalRunBigQuerySql = astRunBigQuerySql;
       let captured = null;
 
-      runBigQuerySql = (sql, parameters, placeholders, options) => {
+      astRunBigQuerySql = (sql, parameters, placeholders, options) => {
         captured = { sql, parameters, placeholders, options };
         return DataFrame.fromRecords([{ ok: true }]);
       };
@@ -156,24 +156,24 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
         });
 
         if (!captured) {
-          throw new Error('Expected runBigQuerySql to be called');
+          throw new Error('Expected astRunBigQuerySql to be called');
         }
 
         if (captured.options.maxWaitMs !== 2000 || captured.options.pollIntervalMs !== 250) {
           throw new Error(`Expected options to be forwarded, got ${JSON.stringify(captured.options)}`);
         }
       } finally {
-        runBigQuerySql = originalRunBigQuerySql;
+        astRunBigQuerySql = originalRunBigQuerySql;
       }
     },
   },
   {
     description: 'runSqlQuery() should forward normalized options to Databricks provider',
     test: () => {
-      const originalRunDatabricksSql = runDatabricksSql;
+      const originalRunDatabricksSql = astRunDatabricksSql;
       let captured = null;
 
-      runDatabricksSql = (sql, parameters, placeholders, options) => {
+      astRunDatabricksSql = (sql, parameters, placeholders, options) => {
         captured = { sql, parameters, placeholders, options };
         return DataFrame.fromRecords([{ ok: true }]);
       };
@@ -195,24 +195,24 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
         });
 
         if (!captured) {
-          throw new Error('Expected runDatabricksSql to be called');
+          throw new Error('Expected astRunDatabricksSql to be called');
         }
 
         if (captured.options.maxWaitMs !== 2000 || captured.options.pollIntervalMs !== 300) {
           throw new Error(`Expected options to be forwarded, got ${JSON.stringify(captured.options)}`);
         }
       } finally {
-        runDatabricksSql = originalRunDatabricksSql;
+        astRunDatabricksSql = originalRunDatabricksSql;
       }
     },
   },
   {
     description: 'astSqlPrepare()/astSqlExecutePrepared() should bind params and route to detailed provider execution',
     test: () => {
-      const originalExecuteBigQuerySqlDetailed = executeBigQuerySqlDetailed;
+      const originalExecuteBigQuerySqlDetailed = astExecuteBigQuerySqlDetailed;
       let captured = null;
 
-      executeBigQuerySqlDetailed = (sql, parameters, placeholders, options) => {
+      astExecuteBigQuerySqlDetailed = (sql, parameters, placeholders, options) => {
         captured = { sql, parameters, placeholders, options };
         return {
           dataFrame: DataFrame.fromRecords([{ ok: true }]),
@@ -244,7 +244,7 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
         });
 
         if (!captured) {
-          throw new Error('Expected executeBigQuerySqlDetailed to be called');
+          throw new Error('Expected astExecuteBigQuerySqlDetailed to be called');
         }
         if (!/id = 9/.test(captured.sql) || !/region = 'north'/.test(captured.sql)) {
           throw new Error(`Unexpected rendered SQL: ${captured.sql}`);
@@ -253,17 +253,17 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
           throw new Error(`Unexpected execution payload: ${JSON.stringify(out.execution)}`);
         }
       } finally {
-        executeBigQuerySqlDetailed = originalExecuteBigQuerySqlDetailed;
+        astExecuteBigQuerySqlDetailed = originalExecuteBigQuerySqlDetailed;
       }
     },
   },
   {
     description: 'astSqlStatus() should route status requests through provider adapter',
     test: () => {
-      const originalGetBigQuerySqlStatus = getBigQuerySqlStatus;
+      const originalGetBigQuerySqlStatus = astGetBigQuerySqlStatus;
       let captured = null;
 
-      getBigQuerySqlStatus = (parameters, jobId) => {
+      astGetBigQuerySqlStatus = (parameters, jobId) => {
         captured = { parameters, jobId };
         return {
           provider: 'bigquery',
@@ -287,17 +287,17 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
           throw new Error(`Expected RUNNING, got ${status.state}`);
         }
       } finally {
-        getBigQuerySqlStatus = originalGetBigQuerySqlStatus;
+        astGetBigQuerySqlStatus = originalGetBigQuerySqlStatus;
       }
     },
   },
   {
     description: 'astSqlCancel() should route cancel requests through provider adapter',
     test: () => {
-      const originalCancelDatabricksSql = cancelDatabricksSql;
+      const originalCancelDatabricksSql = astCancelDatabricksSql;
       let captured = null;
 
-      cancelDatabricksSql = (parameters, statementId) => {
+      astCancelDatabricksSql = (parameters, statementId) => {
         captured = { parameters, statementId };
         return {
           provider: 'databricks',
@@ -324,14 +324,14 @@ const DATABASE_RUN_SQL_QUERY_TESTS = [
           throw new Error(`Expected canceled=true, got ${JSON.stringify(status)}`);
         }
       } finally {
-        cancelDatabricksSql = originalCancelDatabricksSql;
+        astCancelDatabricksSql = originalCancelDatabricksSql;
       }
     },
   },
   {
-    description: 'replacePlaceHoldersInQuery() should escape regex placeholder keys safely',
+    description: 'astReplacePlaceHoldersInQuery() should escape regex placeholder keys safely',
     test: () => {
-      const output = replacePlaceHoldersInQuery(
+      const output = astReplacePlaceHoldersInQuery(
         'select {{a+b}} as plus_key, {{region.name}} as region_key',
         { 'a+b': 5, 'region.name': 'north' }
       );

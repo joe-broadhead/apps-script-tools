@@ -109,23 +109,6 @@ function astConfigBuildSnapshotCacheKey(keys) {
   return normalizedKeys.slice().sort().join('\u0001');
 }
 
-function astConfigProjectEntriesForKeys(entries, requestedKeys) {
-  if (!Array.isArray(requestedKeys)) {
-    return astConfigCloneEntries(entries);
-  }
-
-  const output = {};
-  for (let idx = 0; idx < requestedKeys.length; idx += 1) {
-    const key = requestedKeys[idx];
-    if (!Object.prototype.hasOwnProperty.call(entries, key)) {
-      continue;
-    }
-    output[key] = entries[key];
-  }
-
-  return output;
-}
-
 function astConfigInvalidateScriptPropertiesSnapshotMemoized() {
   AST_CONFIG_SCRIPT_PROPERTIES_CACHE = {
     nextHandleId: 1,

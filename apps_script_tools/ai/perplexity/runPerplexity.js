@@ -10,7 +10,7 @@ function astPerplexityProviderOptions(providerOptions = {}, omitKeys = []) {
   return output;
 }
 
-function runPerplexity(request, config) {
+function astRunPerplexity(request, config) {
   const includeRaw = request.options.includeRaw === true;
   const endpoint = request.providerOptions.chatEndpoint || 'https://api.perplexity.ai/chat/completions';
 
@@ -76,7 +76,7 @@ function runPerplexity(request, config) {
       });
     }
 
-    return normalizeAiResponse({
+    return astNormalizeAiResponse({
       provider: 'perplexity',
       operation: 'image',
       model: responseJson.model || config.model,
@@ -104,7 +104,7 @@ function runPerplexity(request, config) {
     structuredJson = astAiSafeJsonParse(text);
   }
 
-  return normalizeAiResponse({
+  return astNormalizeAiResponse({
     provider: 'perplexity',
     operation: request.operation,
     model: responseJson.model || config.model,

@@ -210,7 +210,7 @@ function astNormalizeAiOptions(options = {}) {
   };
 }
 
-function validateAiRequest(request = {}, forcedOperation) {
+function astValidateAiRequest(request = {}, forcedOperation) {
   if (!astIsPlainObject(request)) {
     throw new AstAiValidationError('AI request must be an object');
   }

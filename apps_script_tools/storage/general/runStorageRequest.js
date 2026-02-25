@@ -136,11 +136,11 @@ function astStorageNormalizeResponse(request, adapterResult = {}) {
   return response;
 }
 
-function runStorageRequest(request = {}) {
-  const normalizedRequest = validateStorageRequest(request);
+function astRunStorageRequest(request = {}) {
+  const normalizedRequest = astValidateStorageRequest(request);
   astStorageAssertOperationSupported(normalizedRequest.provider, normalizedRequest.operation);
 
-  const resolvedConfig = resolveStorageConfig(normalizedRequest);
+  const resolvedConfig = astResolveStorageConfig(normalizedRequest);
   const adapter = astStorageGetProviderAdapter(normalizedRequest.provider);
 
   let adapterResult;

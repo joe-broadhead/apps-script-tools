@@ -78,12 +78,3 @@ function astRagCosineSimilarityWithNorm(leftVector, leftNorm, rightVector, right
 
   return dot / (normalizedLeftNorm * normalizedRightNorm);
 }
-
-function astRagCosineSimilarity(leftVector, rightVector) {
-  return astRagCosineSimilarityWithNorm(
-    leftVector,
-    astRagVectorNorm(leftVector),
-    rightVector,
-    astRagVectorNorm(rightVector)
-  );
-}
