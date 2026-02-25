@@ -15,6 +15,59 @@ function astRagApplyChunkFilters(chunks, filters = {}) {
   });
 }
 
+function astRagResolveRetrievalSelectionLimit(retrieval = {}) {
+  const topK = astRagNormalizePositiveInt(
+    retrieval.topK,
+    AST_RAG_DEFAULT_RETRIEVAL.topK,
+    1
+  );
+  const rerankEnabled = retrieval
+    && retrieval.rerank
+    && retrieval.rerank.enabled === true;
+  if (!rerankEnabled) {
+    return topK;
+  }
+
+  const rerankTopN = astRagNormalizePositiveInt(
+    retrieval.rerank.topN,
+    AST_RAG_DEFAULT_RETRIEVAL.rerank.topN,
+    1
+  );
+  return Math.max(topK, rerankTopN);
+}
+
+function astRagBuildLexicalPrefilterSet(chunks, lexicalScores, limit) {
+  const candidateScores = (Array.isArray(chunks) ? chunks : []).map(chunk => ({
+    chunkId: chunk.chunkId,
+    vectorScore: null,
+    lexicalScore: lexicalScores[chunk.chunkId] || 0,
+    finalScore: lexicalScores[chunk.chunkId] || 0
+  }));
+
+  const selected = astRagSelectTopScoredResults(
+    candidateScores,
+    astRagNormalizePositiveInt(limit, candidateScores.length, 1)
+  );
+  return new Set(selected.map(item => item.chunkId));
+}
+
+function astRagUpdateRetrievalDiagnostics(diagnostics, payload = {}) {
+  if (!astRagIsPlainObject(diagnostics)) {
+    return;
+  }
+  if (!astRagIsPlainObject(diagnostics.retrieval)) {
+    diagnostics.retrieval = {};
+  }
+
+  diagnostics.retrieval.candidateCounts = Object.assign(
+    {},
+    astRagIsPlainObject(diagnostics.retrieval.candidateCounts)
+      ? diagnostics.retrieval.candidateCounts
+      : {},
+    payload
+  );
+}
+
 function astRagProjectChunkForRetrieval(chunk = {}) {
   return {
     chunkId: chunk.chunkId,
@@ -29,23 +82,70 @@ function astRagProjectChunkForRetrieval(chunk = {}) {
   };
 }
 
-function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval = {}) {
-  const filteredByQuery = astRagApplyChunkFilters(indexDocument.chunks || [], retrieval.filters || {});
-  const chunks = astRagApplyAccessControl(filteredByQuery, retrieval.access || {}, {
+function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval = {}, runtime = {}) {
+  const diagnostics = astRagIsPlainObject(runtime) ? runtime.diagnostics : null;
+  const sourceChunks = Array.isArray(indexDocument.chunks) ? indexDocument.chunks : [];
+  const filteredByQuery = astRagApplyChunkFilters(sourceChunks, retrieval.filters || {});
+  const filteredByAccess = astRagApplyAccessControl(filteredByQuery, retrieval.access || {}, {
     enforceAccessControl: retrieval.enforceAccessControl
   });
-  if (chunks.length === 0) {
+  if (filteredByAccess.length === 0) {
+    astRagUpdateRetrievalDiagnostics(diagnostics, {
+      source: sourceChunks.length,
+      afterFilters: filteredByQuery.length,
+      afterAccess: 0,
+      afterLexicalPrefilter: 0,
+      scored: 0,
+      aboveMinScore: 0,
+      selectedForRerank: 0,
+      returned: 0,
+      droppedByMinScore: 0,
+      droppedByLexicalPrefilter: 0
+    });
     return [];
   }
 
-  const lexical = (retrieval.mode === 'hybrid' || retrieval.mode === 'lexical')
-    ? astRagComputeLexicalScores(query, chunks)
+  let candidateChunks = filteredByAccess;
+  const lexicalPrefilterTopN = astRagNormalizePositiveInt(
+    retrieval.lexicalPrefilterTopN,
+    AST_RAG_DEFAULT_RETRIEVAL.lexicalPrefilterTopN,
+    0
+  );
+  const shouldComputeLexical = (
+    retrieval.mode === 'hybrid'
+    || retrieval.mode === 'lexical'
+    || lexicalPrefilterTopN > 0
+  );
+  const lexical = shouldComputeLexical
+    ? astRagComputeLexicalScores(query, candidateChunks)
     : { scores: {} };
+  if (
+    lexicalPrefilterTopN > 0 &&
+    retrieval.mode !== 'lexical' &&
+    candidateChunks.length > lexicalPrefilterTopN
+  ) {
+    const prefilteredSet = astRagBuildLexicalPrefilterSet(
+      candidateChunks,
+      lexical.scores || {},
+      lexicalPrefilterTopN
+    );
+    candidateChunks = candidateChunks.filter(chunk => prefilteredSet.has(chunk.chunkId));
+  }
 
-  const scored = chunks.map(chunk => {
+  let queryNorm = null;
+  if (retrieval.mode !== 'lexical') {
+    queryNorm = astRagVectorNorm(queryVector);
+  }
+
+  const scored = candidateChunks.map(chunk => {
     const vectorScore = retrieval.mode === 'lexical'
       ? null
-      : astRagCosineSimilarity(queryVector, chunk.embedding);
+      : astRagCosineSimilarityWithNorm(
+        queryVector,
+        queryNorm,
+        chunk.embedding,
+        chunk.embeddingNorm
+      );
     const lexicalScore = lexical.scores[chunk.chunkId] || 0;
 
     return Object.assign(
@@ -57,14 +157,29 @@ function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval
     );
   });
 
-  const fused = astRagFuseRetrievalScores(scored, retrieval);
-  const ranked = astRagSortScoredResults(fused)
+  const fused = astRagFuseRetrievalScores(scored, retrieval)
     .filter(item => item.finalScore >= retrieval.minScore);
-  const reranked = astRagRerankResults(query, ranked, retrieval.rerank || {});
-
-  return reranked
+  const selectionLimit = astRagResolveRetrievalSelectionLimit(retrieval);
+  const selectedForRerank = astRagSelectTopScoredResults(fused, selectionLimit);
+  const reranked = astRagRerankResults(query, selectedForRerank, retrieval.rerank || {});
+  const returned = reranked
     .slice(0, retrieval.topK)
     .map(item => Object.assign({}, item, {
       score: item.finalScore
     }));
+
+  astRagUpdateRetrievalDiagnostics(diagnostics, {
+    source: sourceChunks.length,
+    afterFilters: filteredByQuery.length,
+    afterAccess: filteredByAccess.length,
+    afterLexicalPrefilter: candidateChunks.length,
+    scored: scored.length,
+    aboveMinScore: fused.length,
+    selectedForRerank: selectedForRerank.length,
+    returned: returned.length,
+    droppedByMinScore: Math.max(0, scored.length - fused.length),
+    droppedByLexicalPrefilter: Math.max(0, filteredByAccess.length - candidateChunks.length)
+  });
+
+  return returned;
 }

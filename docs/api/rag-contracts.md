@@ -87,6 +87,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     topK: 8,
     minScore: 0.2,
     mode: 'vector' | 'hybrid' | 'lexical',
+    lexicalPrefilterTopN: 0, // optional lexical shortlist before vector scoring (vector/hybrid)
     vectorWeight: 0.65, // hybrid only
     lexicalWeight: 0.35, // hybrid only
     recovery: {
@@ -147,6 +148,7 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     topK: 8,
     minScore: 0.2,
     mode: 'vector' | 'hybrid' | 'lexical',
+    lexicalPrefilterTopN: 0, // optional lexical shortlist before vector scoring (vector/hybrid)
     vectorWeight: 0.65, // hybrid only
     lexicalWeight: 0.35, // hybrid only
     rerank: {
@@ -182,7 +184,9 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
     },
     instructions: 'optional grounding-safe instruction override',
     style: 'chat' | 'concise' | 'detailed' | 'bullets',
-    forbiddenPhrases: ['optional phrases that must not appear in output']
+    forbiddenPhrases: ['optional phrases that must not appear in output'],
+    maxContextChars: 24000, // optional prompt context char budget
+    maxContextTokensApprox: 6000 // optional prompt context token-approx budget
   },
   options: {
     requireCitations: true,
@@ -406,13 +410,36 @@ Resolution precedence for Vertex service-account JSON:
       ms,
       rawSources,
       usableSources,
+      lexicalPrefilterTopN,
       emptyReason, // null | no_index_chunks | payload_empty | filters_excluded_all | access_filtered_all | below_min_score | no_matches | retrieval_error
       recoveryAttempted,
       recoveryApplied,
       attempts: [{ attempt, topK, minScore, returned, ms }],
       timedOut,
       timeoutMs,
-      timeoutStage
+      timeoutStage,
+      candidateCounts: {
+        source,
+        afterFilters,
+        afterAccess,
+        afterLexicalPrefilter,
+        scored,
+        aboveMinScore,
+        selectedForRerank,
+        returned,
+        droppedByMinScore,
+        droppedByLexicalPrefilter
+      },
+      contextBudget: {
+        maxContextChars,
+        maxContextTokensApprox,
+        inputBlocks,
+        selectedBlocks,
+        droppedBlocks,
+        truncatedBlocks,
+        usedChars,
+        usedTokensApprox
+      }
     },
     generation: {
       status: 'not_started' | 'started' | 'ok' | 'error' | 'skipped',

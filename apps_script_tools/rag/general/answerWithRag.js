@@ -37,13 +37,36 @@ function astRagBuildAnswerDiagnostics(cacheConfig = {}, timeoutMs = null) {
       ms: 0,
       rawSources: 0,
       usableSources: 0,
+      lexicalPrefilterTopN: 0,
       emptyReason: null,
       recoveryAttempted: false,
       recoveryApplied: false,
       attempts: [],
       timedOut: false,
       timeoutMs: typeof timeoutMs === 'number' && isFinite(timeoutMs) ? timeoutMs : null,
-      timeoutStage: null
+      timeoutStage: null,
+      candidateCounts: {
+        source: 0,
+        afterFilters: 0,
+        afterAccess: 0,
+        afterLexicalPrefilter: 0,
+        scored: 0,
+        aboveMinScore: 0,
+        selectedForRerank: 0,
+        returned: 0,
+        droppedByMinScore: 0,
+        droppedByLexicalPrefilter: 0
+      },
+      contextBudget: {
+        maxContextChars: null,
+        maxContextTokensApprox: null,
+        inputBlocks: 0,
+        selectedBlocks: 0,
+        droppedBlocks: 0,
+        truncatedBlocks: 0,
+        usedChars: 0,
+        usedTokensApprox: 0
+      }
     },
     generation: {
       status: 'not_started',
@@ -320,6 +343,7 @@ function astRagAnswerCore(request = {}) {
 
     const diagnostics = astRagBuildAnswerDiagnostics(cacheConfig, retrievalTimeoutMs);
     diagnostics.timings.validationMs = Math.max(0, astRagNowMs() - validationStartMs);
+    diagnostics.retrieval.lexicalPrefilterTopN = normalizedRequest.retrieval.lexicalPrefilterTopN || 0;
     const retrievalBudgetStartedAtMs = astRagNowMs();
 
     const indexLoadStartMs = astRagNowMs();
@@ -524,7 +548,8 @@ function astRagAnswerCore(request = {}) {
           indexDocument,
           normalizedRequest.question,
           queryVector,
-          normalizedRequest.retrieval
+          normalizedRequest.retrieval,
+          { diagnostics }
         );
         astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval', diagnostics);
       }
@@ -663,7 +688,8 @@ function astRagAnswerCore(request = {}) {
             indexDocument,
             normalizedRequest.question,
             queryVector,
-            candidateRetrieval
+            candidateRetrieval,
+            { diagnostics }
           );
           astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'recovery', diagnostics);
         }
@@ -727,7 +753,8 @@ function astRagAnswerCore(request = {}) {
                 indexDocument,
                 normalizedRequest.question,
                 queryVector,
-                relaxedForFallback
+                relaxedForFallback,
+                { diagnostics }
               )
               : []
           );
@@ -819,9 +846,14 @@ function astRagAnswerCore(request = {}) {
         {
           instructions: normalizedRequest.generation.instructions,
           style: normalizedRequest.generation.style,
-          forbiddenPhrases: normalizedRequest.generation.forbiddenPhrases
+          forbiddenPhrases: normalizedRequest.generation.forbiddenPhrases,
+          maxContextChars: normalizedRequest.generation.maxContextChars,
+          maxContextTokensApprox: normalizedRequest.generation.maxContextTokensApprox
         }
       );
+      if (astRagIsPlainObject(prompt.contextStats)) {
+        diagnostics.retrieval.contextBudget = astRagCloneObject(prompt.contextStats);
+      }
 
       const aiResponse = runAiRequest({
         provider: normalizedRequest.generation.provider,

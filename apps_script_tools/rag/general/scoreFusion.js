@@ -90,25 +90,54 @@ function astRagFuseRetrievalScores(scoredChunks = [], retrieval = {}) {
   });
 }
 
+function astRagCompareScoredResults(left, right) {
+  const scoreDiff = (right.finalScore || 0) - (left.finalScore || 0);
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+
+  const vectorDiff = (right.vectorScore || 0) - (left.vectorScore || 0);
+  if (vectorDiff !== 0) {
+    return vectorDiff;
+  }
+
+  const lexicalDiff = (right.lexicalScore || 0) - (left.lexicalScore || 0);
+  if (lexicalDiff !== 0) {
+    return lexicalDiff;
+  }
+
+  const leftId = astRagNormalizeString(left.chunkId, '');
+  const rightId = astRagNormalizeString(right.chunkId, '');
+  return leftId < rightId ? -1 : (leftId > rightId ? 1 : 0);
+}
+
 function astRagSortScoredResults(scoredResults = []) {
-  return scoredResults.slice().sort((left, right) => {
-    const scoreDiff = (right.finalScore || 0) - (left.finalScore || 0);
-    if (scoreDiff !== 0) {
-      return scoreDiff;
-    }
+  return scoredResults.slice().sort(astRagCompareScoredResults);
+}
 
-    const vectorDiff = (right.vectorScore || 0) - (left.vectorScore || 0);
-    if (vectorDiff !== 0) {
-      return vectorDiff;
-    }
+function astRagSelectTopScoredResults(scoredResults = [], maxResults) {
+  const list = Array.isArray(scoredResults) ? scoredResults : [];
+  if (list.length === 0) {
+    return [];
+  }
 
-    const lexicalDiff = (right.lexicalScore || 0) - (left.lexicalScore || 0);
-    if (lexicalDiff !== 0) {
-      return lexicalDiff;
-    }
+  const limit = astRagNormalizePositiveInt(maxResults, list.length, 1);
+  if (limit >= list.length) {
+    return astRagSortScoredResults(list);
+  }
 
-    const leftId = astRagNormalizeString(left.chunkId, '');
-    const rightId = astRagNormalizeString(right.chunkId, '');
-    return leftId < rightId ? -1 : (leftId > rightId ? 1 : 0);
-  });
+  const selected = [];
+  for (let idx = 0; idx < list.length; idx += 1) {
+    const candidate = list[idx];
+    let insertAt = 0;
+    while (insertAt < selected.length && astRagCompareScoredResults(selected[insertAt], candidate) <= 0) {
+      insertAt += 1;
+    }
+    selected.splice(insertAt, 0, candidate);
+    if (selected.length > limit) {
+      selected.pop();
+    }
+  }
+
+  return selected;
 }

@@ -582,6 +582,7 @@ test('astRagBuildIndexCore emits telemetry span_end records', () => {
   loadTelemetryScripts(context, { includeAst: true });
   loadScripts(context, [
     'apps_script_tools/rag/general/helpers.js',
+    'apps_script_tools/rag/general/vectorMath.js',
     'apps_script_tools/rag/general/sourceFingerprint.js',
     'apps_script_tools/rag/general/buildRagIndex.js'
   ]);

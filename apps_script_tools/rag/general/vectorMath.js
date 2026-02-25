@@ -24,7 +24,24 @@ function astRagNormalizeVector(vector) {
   return values.map(value => value / magnitude);
 }
 
-function astRagCosineSimilarity(leftVector, rightVector) {
+function astRagVectorNorm(vector) {
+  if (!Array.isArray(vector) || vector.length === 0) {
+    throw new AstRagRetrievalError('Embedding vector must be a non-empty array');
+  }
+
+  let sumSquares = 0;
+  for (let idx = 0; idx < vector.length; idx += 1) {
+    const value = Number(vector[idx]);
+    if (!isFinite(value)) {
+      throw new AstRagRetrievalError('Embedding vector contains a non-numeric value', { index: idx });
+    }
+    sumSquares += value * value;
+  }
+
+  return Math.sqrt(sumSquares);
+}
+
+function astRagCosineSimilarityWithNorm(leftVector, leftNorm, rightVector, rightNorm) {
   if (!Array.isArray(leftVector) || !Array.isArray(rightVector) || leftVector.length === 0 || rightVector.length === 0) {
     throw new AstRagRetrievalError('Cosine similarity requires non-empty vectors');
   }
@@ -37,9 +54,6 @@ function astRagCosineSimilarity(leftVector, rightVector) {
   }
 
   let dot = 0;
-  let leftNorm = 0;
-  let rightNorm = 0;
-
   for (let idx = 0; idx < leftVector.length; idx += 1) {
     const left = Number(leftVector[idx]);
     const right = Number(rightVector[idx]);
@@ -49,13 +63,27 @@ function astRagCosineSimilarity(leftVector, rightVector) {
     }
 
     dot += left * right;
-    leftNorm += left * left;
-    rightNorm += right * right;
   }
 
-  if (leftNorm === 0 || rightNorm === 0) {
+  const normalizedLeftNorm = typeof leftNorm === 'number' && isFinite(leftNorm)
+    ? leftNorm
+    : astRagVectorNorm(leftVector);
+  const normalizedRightNorm = typeof rightNorm === 'number' && isFinite(rightNorm)
+    ? rightNorm
+    : astRagVectorNorm(rightVector);
+
+  if (normalizedLeftNorm === 0 || normalizedRightNorm === 0) {
     return 0;
   }
 
-  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+  return dot / (normalizedLeftNorm * normalizedRightNorm);
+}
+
+function astRagCosineSimilarity(leftVector, rightVector) {
+  return astRagCosineSimilarityWithNorm(
+    leftVector,
+    astRagVectorNorm(leftVector),
+    rightVector,
+    astRagVectorNorm(rightVector)
+  );
 }

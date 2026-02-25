@@ -81,6 +81,7 @@ Current release state:
 - `AST.RAG.answer(...)` fallback controls for retrieval error/empty paths (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 - `AST.RAG.search(...)` / `AST.RAG.answer(...)` retrieval latency budgets (`options.maxRetrievalMs`) and answer timeout policy (`options.onRetrievalTimeout`).
 - `AST.RAG.answer(...)` prompt controls (`generation.instructions`, `generation.style`, `generation.forbiddenPhrases`) with grounding preserved.
+- `AST.RAG.search(...)` / `AST.RAG.answer(...)` lexical prefilter control (`retrieval.lexicalPrefilterTopN`) and prompt context budgets (`generation.maxContextChars`, `generation.maxContextTokensApprox`) for larger indexes.
 
 ## Install As Apps Script Library
 
