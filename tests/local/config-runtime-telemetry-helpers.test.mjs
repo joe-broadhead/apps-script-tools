@@ -159,7 +159,7 @@ test('AST.Config memoization is scoped per scriptProperties handle', () => {
   assert.equal(fromB.OPENAI_API_KEY, 'key-from-b');
 });
 
-test('AST.Config memoization is preserved across equivalent script property wrappers', () => {
+test('AST.Config memoization is isolated across equivalent script property wrappers by default', () => {
   let getPropertiesCalls = 0;
   const store = {
     OPENAI_API_KEY: 'key-v1'
@@ -195,16 +195,111 @@ test('AST.Config memoization is preserved across equivalent script property wrap
     scriptProperties: new ScriptPropertiesWrapper(store),
     keys: ['OPENAI_API_KEY']
   });
+  assert.equal(second.OPENAI_API_KEY, 'key-v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
+test('AST.Config memoization can be shared across equivalent wrappers with cacheScopeId', () => {
+  let getPropertiesCalls = 0;
+  const store = {
+    OPENAI_API_KEY: 'key-v1'
+  };
+
+  function ScriptPropertiesWrapper(backingStore) {
+    this.store = backingStore;
+  }
+
+  ScriptPropertiesWrapper.prototype.getProperties = function getProperties() {
+    getPropertiesCalls += 1;
+    return Object.assign({}, this.store);
+  };
+
+  ScriptPropertiesWrapper.prototype.getProperty = function getProperty(key) {
+    return Object.prototype.hasOwnProperty.call(this.store, key)
+      ? this.store[key]
+      : null;
+  };
+
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const first = context.astConfigFromScriptProperties({
+    scriptProperties: new ScriptPropertiesWrapper(store),
+    keys: ['OPENAI_API_KEY'],
+    cacheScopeId: 'shared-wrapper'
+  });
+  assert.equal(first.OPENAI_API_KEY, 'key-v1');
+  assert.equal(getPropertiesCalls, 1);
+
+  store.OPENAI_API_KEY = 'key-v2';
+  const second = context.astConfigFromScriptProperties({
+    scriptProperties: new ScriptPropertiesWrapper(store),
+    keys: ['OPENAI_API_KEY'],
+    cacheScopeId: 'shared-wrapper'
+  });
   assert.equal(second.OPENAI_API_KEY, 'key-v1');
   assert.equal(getPropertiesCalls, 1);
 
   const refreshed = context.astConfigFromScriptProperties({
     scriptProperties: new ScriptPropertiesWrapper(store),
     keys: ['OPENAI_API_KEY'],
+    cacheScopeId: 'shared-wrapper',
     forceRefresh: true
   });
   assert.equal(refreshed.OPENAI_API_KEY, 'key-v2');
   assert.equal(getPropertiesCalls, 2);
+});
+
+test('astConfigResolveFirstString ignores non-string candidates', () => {
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const resolved = context.astConfigResolveFirstString(
+    [false, 0, { model: 'x' }, '  model-v1  '],
+    'fallback-model'
+  );
+  assert.equal(resolved, 'model-v1');
+
+  const fallback = context.astConfigResolveFirstString([false, 0, null], 'fallback-model');
+  assert.equal(fallback, 'fallback-model');
+});
+
+test('astConfigResolveFirstInteger rejects boolean candidates', () => {
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const tolerant = context.astConfigResolveFirstInteger(
+    [true, '120'],
+    { fallback: 300, min: 1, max: 3600, strict: false }
+  );
+  assert.equal(tolerant, 120);
+
+  assert.throws(
+    () => context.astConfigResolveFirstInteger(
+      [false, '120'],
+      { fallback: 300, min: 1, max: 3600 }
+    ),
+    /Expected integer configuration value/
+  );
+});
+
+test('astConfigMergeNormalizedConfig preserves values for keys requiring trim normalization', () => {
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const merged = context.astConfigMergeNormalizedConfig(
+    {},
+    {
+      ' OPENAI_API_KEY ': ' key-123 '
+    }
+  );
+
+  assert.equal(
+    JSON.stringify(merged),
+    JSON.stringify({
+      OPENAI_API_KEY: 'key-123'
+    })
+  );
 });
 
 test('AST.Runtime.configureFromProps configures selected modules from script properties', () => {

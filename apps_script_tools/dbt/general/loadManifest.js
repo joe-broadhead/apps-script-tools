@@ -507,6 +507,15 @@ function astDbtBuildCompactPersistentIndex(index = {}, mode = 'compact') {
 
 function astDbtDigestHex(value) {
   const text = String(value || '');
+
+  if (typeof sha256Hash === 'function') {
+    try {
+      return sha256Hash(text);
+    } catch (_error) {
+      // fallback below
+    }
+  }
+
   try {
     if (
       typeof Utilities !== 'undefined' &&

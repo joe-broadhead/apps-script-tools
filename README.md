@@ -45,6 +45,7 @@
 - `AST.DBT`: dbt `manifest.json` loading, indexing, search, and lineage helpers
 - `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
+- Global utility structures: `Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`
 
 Current release state:
 
@@ -59,39 +60,7 @@ Current release state:
   - strict/basic/off v12 validation modes
   - preindexed manifest bundle for fast repeated lookup/search
 
-`v0.0.4` release highlights:
-
-- New `AST.RAG` module with Drive ingestion (`txt`, `pdf`, Docs, Slides + notes).
-- RAG embedding registry with built-in providers and runtime custom provider registration.
-- Grounded `RAG.answer(...)` orchestration with strict citation mapping and abstention.
-- Drive JSON index lifecycle APIs: `buildIndex`, `syncIndex`, `search`, `previewSources`, `answer`, `inspectIndex`.
-- RAG retrieval payload interop APIs for preview-to-answer reuse: `buildRetrievalCacheKey`, `putRetrievalPayload`, `getRetrievalPayload`, `deleteRetrievalPayload`.
-- RAG index orchestration wrapper: `AST.RAG.IndexManager.create(...).ensure/sync/fastState`.
-- Retrieval mode support in `RAG.search(...)` / `RAG.answer(...)` for `vector`, `hybrid`, and `lexical` (no-embedding) paths, plus optional reranking with explainable score fields (`vectorScore`, `lexicalScore`, `finalScore`).
-- RAG retrieval access-control (`retrieval.access`) and citation/source policy enforcement (`options.enforceAccessControl`).
-- New `AST.Storage` module with unified URI contracts and CRUD operations across `gcs`, `s3`, and `dbfs`.
-- Storage advanced ops: `exists`, `copy`, `move`, `signedUrl`, and `multipartWrite` for production object workflows.
-- SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
-- New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and namespace stats/clear helpers.
-- Cache backend posture for production: prefer `storage_json`; use `drive_json` and `script_properties` only for low-scale paths.
-- New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive/storage NDJSON sinks (including batched `drive_json`/`storage_json` + `flush`).
-- New bootstrap helpers: `AST.Config.fromScriptProperties(...)` and `AST.Runtime.configureFromProps(...)`.
-- New `AST.TelemetryHelpers` wrappers for safe instrumented execution (`withSpan`, `wrap`, `startSpanSafe`, `endSpanSafe`).
-- RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.
-- New `AST.Jobs` module with script-properties checkpointing and run/enqueue/resume/status/list/cancel contracts.
-- New `AST.Chat` module with `ThreadStore.create(...)` for user-scoped thread persistence, lock-aware writes, and bounded history assembly.
-- Breaking contract: internal non-`AST` top-level globals are intentionally unstable; consume documented surfaces through `ASTX.*` only.
-- DataFrame schema contracts with `validateSchema(...)` reporting and `enforceSchema(...)` strict/coercion pathways.
-- `AST.AI.tools(...)` guardrails for timeout, payload caps, retries, and idempotent replay.
-- `AST.AI.structured(...)` reliability policy with schema retries and optional JSON/LLM repair.
-- `AST.AI.OutputRepair.continueIfTruncated(...)` helper for bounded continuation of truncated outputs.
-- `AST.RAG.Citations.*` utility helpers for inline normalization, filtering, and source-link mapping.
-- `AST.RAG.Fallback.fromCitations(...)` deterministic citation-only fallback synthesis.
-- `AST.RAG.answer(...)` recovery controls (`retrieval.recovery`) and optional per-phase diagnostics (`options.diagnostics` or `RAG_DIAGNOSTICS_ENABLED`).
-- `AST.RAG.answer(...)` fallback controls for retrieval error/empty paths (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
-- `AST.RAG.search(...)` / `AST.RAG.answer(...)` retrieval latency budgets (`options.maxRetrievalMs`) and answer timeout policy (`options.onRetrievalTimeout`).
-- `AST.RAG.answer(...)` prompt controls (`generation.instructions`, `generation.style`, `generation.forbiddenPhrases`) with grounding preserved.
-- `AST.RAG.search(...)` / `AST.RAG.answer(...)` lexical prefilter control (`retrieval.lexicalPrefilterTopN`) and prompt context budgets (`generation.maxContextChars`, `generation.maxContextTokensApprox`) for larger indexes.
+Released highlights are tracked in `CHANGELOG.md` under `v0.0.4`.
 
 ## Install As Apps Script Library
 
@@ -209,6 +178,27 @@ function demoAstDbtManifestSearch() {
   });
 
   Logger.log(search.items);
+}
+```
+
+```javascript
+function demoAstStructures() {
+  // These classes are available globally after the library loads.
+  const queue = new Queue();
+  queue.enqueue('a');
+  queue.enqueue('b');
+  Logger.log(queue.dequeue()); // a
+
+  const ds = new DisjointSet(['u1', 'u2', 'u3']);
+  ds.union('u1', 'u2');
+  Logger.log(ds.connected('u1', 'u2')); // true
+
+  const cache = new LruCache(2);
+  cache.set('k1', { ok: true });
+  cache.set('k2', { ok: true });
+  cache.get('k1');
+  cache.set('k3', { ok: true }); // evicts k2
+  Logger.log(cache.get('k2')); // null
 }
 ```
 

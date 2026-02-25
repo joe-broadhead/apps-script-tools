@@ -53,22 +53,31 @@ function astDbtSetRuntimeConfig(config = {}, options = {}) {
   }
 
   const merge = options.merge !== false;
-  const next = merge ? astDbtGetRuntimeConfig() : {};
+  let next;
+  if (typeof astConfigMergeNormalizedConfig === 'function') {
+    next = astConfigMergeNormalizedConfig(
+      merge ? astDbtGetRuntimeConfig() : {},
+      config,
+      { merge: true }
+    );
+  } else {
+    next = merge ? astDbtGetRuntimeConfig() : {};
 
-  Object.keys(config).forEach(key => {
-    const normalizedKey = astDbtNormalizeString(key, '');
-    if (!normalizedKey) {
-      return;
-    }
+    Object.keys(config).forEach(key => {
+      const normalizedKey = astDbtNormalizeString(key, '');
+      if (!normalizedKey) {
+        return;
+      }
 
-    const normalizedValue = astDbtNormalizeConfigValue(config[key]);
-    if (normalizedValue == null) {
-      delete next[normalizedKey];
-      return;
-    }
+      const normalizedValue = astDbtNormalizeConfigValue(config[key]);
+      if (normalizedValue == null) {
+        delete next[normalizedKey];
+        return;
+      }
 
-    next[normalizedKey] = normalizedValue;
-  });
+      next[normalizedKey] = normalizedValue;
+    });
+  }
 
   AST_DBT_RUNTIME_CONFIG = next;
   astDbtInvalidateScriptPropertiesSnapshotCache();
@@ -130,6 +139,10 @@ function astDbtGetScriptPropertiesSnapshot() {
 }
 
 function astDbtResolveConfigString(candidates = [], fallback = null) {
+  if (typeof astConfigResolveFirstString === 'function') {
+    return astConfigResolveFirstString(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const normalized = astDbtNormalizeConfigValue(candidates[idx]);
     if (normalized != null) {
@@ -140,6 +153,10 @@ function astDbtResolveConfigString(candidates = [], fallback = null) {
 }
 
 function astDbtResolveConfigBoolean(candidates = [], fallback = false) {
+  if (typeof astConfigResolveFirstBoolean === 'function') {
+    return astConfigResolveFirstBoolean(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const value = candidates[idx];
 
@@ -167,6 +184,19 @@ function astDbtResolveConfigBoolean(candidates = [], fallback = false) {
 }
 
 function astDbtResolveConfigInteger(candidates = [], fallback, min = 1) {
+  if (typeof astConfigResolveFirstInteger === 'function') {
+    return astConfigResolveFirstInteger(candidates, {
+      fallback,
+      min,
+      onInvalid: value => {
+        throw new AstDbtValidationError('Expected positive integer configuration value', {
+          value,
+          min
+        });
+      }
+    });
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const value = candidates[idx];
     if (value == null || value === '') {
