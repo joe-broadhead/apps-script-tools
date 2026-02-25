@@ -1,5 +1,6 @@
 const AST_SQL_PREPARED_STATEMENTS = {};
 const AST_SQL_PREPARED_ORDER = [];
+let AST_SQL_PREPARED_ORDER_HEAD = 0;
 const AST_SQL_PREPARED_STATEMENT_MAX = 500;
 const AST_SQL_ALLOWED_PARAM_TYPES = Object.freeze([
   'string',
@@ -292,11 +293,21 @@ function astSqlRenderPreparedSql(prepared, resolvedParams) {
 }
 
 function astSqlPrunePreparedStatements() {
-  while (AST_SQL_PREPARED_ORDER.length > AST_SQL_PREPARED_STATEMENT_MAX) {
-    const oldestId = AST_SQL_PREPARED_ORDER.shift();
+  while ((AST_SQL_PREPARED_ORDER.length - AST_SQL_PREPARED_ORDER_HEAD) > AST_SQL_PREPARED_STATEMENT_MAX) {
+    const oldestId = AST_SQL_PREPARED_ORDER[AST_SQL_PREPARED_ORDER_HEAD];
+    AST_SQL_PREPARED_ORDER[AST_SQL_PREPARED_ORDER_HEAD] = undefined;
+    AST_SQL_PREPARED_ORDER_HEAD += 1;
     if (oldestId && AST_SQL_PREPARED_STATEMENTS[oldestId]) {
       delete AST_SQL_PREPARED_STATEMENTS[oldestId];
     }
+  }
+
+  if (
+    AST_SQL_PREPARED_ORDER_HEAD > 64 &&
+    AST_SQL_PREPARED_ORDER_HEAD * 2 >= AST_SQL_PREPARED_ORDER.length
+  ) {
+    AST_SQL_PREPARED_ORDER.splice(0, AST_SQL_PREPARED_ORDER_HEAD);
+    AST_SQL_PREPARED_ORDER_HEAD = 0;
   }
 }
 

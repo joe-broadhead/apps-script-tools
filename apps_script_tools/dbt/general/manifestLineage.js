@@ -35,9 +35,12 @@ function astDbtTraverseLineage(startUniqueId, adjacencyMap, depth, index, includ
   const nodes = {};
   const edges = [];
   const queue = [{ uniqueId: startUniqueId, depth: 0 }];
+  let queueHead = 0;
 
-  while (queue.length > 0) {
-    const current = queue.shift();
+  while (queueHead < queue.length) {
+    const current = queue[queueHead];
+    queue[queueHead] = undefined;
+    queueHead += 1;
     const currentId = current.uniqueId;
     const currentDepth = current.depth;
 

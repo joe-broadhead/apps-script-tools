@@ -37,9 +37,12 @@ function astRagBuildReusableChunkQueues(chunks) {
       continue;
     }
     if (!queues[chunkHash]) {
-      queues[chunkHash] = [];
+      queues[chunkHash] = {
+        items: [],
+        head: 0
+      };
     }
-    queues[chunkHash].push(chunk);
+    queues[chunkHash].items.push(chunk);
   }
 
   return queues;
@@ -47,10 +50,31 @@ function astRagBuildReusableChunkQueues(chunks) {
 
 function astRagTakeReusableChunk(queues, chunkHash) {
   const hash = astRagNormalizeString(chunkHash, null);
-  if (!hash || !queues || !queues[hash] || queues[hash].length === 0) {
+  if (!hash || !queues || !queues[hash]) {
     return null;
   }
-  return queues[hash].shift();
+
+  const queue = queues[hash];
+  if (!Array.isArray(queue.items) || queue.head >= queue.items.length) {
+    delete queues[hash];
+    return null;
+  }
+
+  const item = queue.items[queue.head];
+  queue.items[queue.head] = undefined;
+  queue.head += 1;
+
+  if (queue.head >= queue.items.length) {
+    delete queues[hash];
+    return item;
+  }
+
+  if (queue.head > 64 && queue.head * 2 >= queue.items.length) {
+    queue.items = queue.items.slice(queue.head);
+    queue.head = 0;
+  }
+
+  return item;
 }
 
 function astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, chunkCount) {
