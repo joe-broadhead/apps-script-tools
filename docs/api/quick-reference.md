@@ -19,6 +19,7 @@ ASTX.Sheets
 ASTX.Drive
 ASTX.AI
 ASTX.RAG
+ASTX.DBT
 ASTX.Cache
 ASTX.Storage
 ASTX.Config
@@ -133,6 +134,25 @@ ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
 ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
 ASTX.RAG.unregisterEmbeddingProvider(name)
+```
+
+## `DBT` essentials
+
+```javascript
+ASTX.DBT.run(request)
+ASTX.DBT.loadManifest(request)
+ASTX.DBT.inspectManifest(request)
+ASTX.DBT.listEntities(request)
+ASTX.DBT.search(request)
+ASTX.DBT.getEntity(request)
+ASTX.DBT.getColumn(request)
+ASTX.DBT.lineage(request)
+ASTX.DBT.providers()
+ASTX.DBT.capabilities(provider)
+ASTX.DBT.validateManifest(request)
+ASTX.DBT.configure(config, options)
+ASTX.DBT.getConfig()
+ASTX.DBT.clearConfig()
 ```
 
 ## `AI` essentials
@@ -301,6 +321,10 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
+- `ASTX.DBT.loadManifest(...)` supports `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/` sources.
+- `ASTX.DBT.search(...)` uses structured filters over entities/columns (tags/meta/depends_on/resourceType/section) with deterministic pagination/sorting.
+- `ASTX.DBT.getEntity(...)` and `ASTX.DBT.getColumn(...)` provide deep model/column metadata retrieval from preindexed bundles.
+- `ASTX.DBT.lineage(...)` traverses `parent_map`/`child_map` with `depends_on.nodes` fallback when lineage maps are missing.
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
 - RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.

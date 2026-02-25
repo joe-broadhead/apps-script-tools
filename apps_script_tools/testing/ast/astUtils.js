@@ -57,6 +57,37 @@ AST_UTILS_TESTS = [
     }
   },
   {
+    description: 'AST namespace should expose DBT helper surface',
+    test: () => {
+      if (!AST || !AST.DBT) {
+        throw new Error('AST.DBT is not available');
+      }
+
+      const requiredMethods = [
+        'run',
+        'loadManifest',
+        'inspectManifest',
+        'listEntities',
+        'search',
+        'getEntity',
+        'getColumn',
+        'lineage',
+        'providers',
+        'capabilities',
+        'validateManifest',
+        'configure',
+        'getConfig',
+        'clearConfig'
+      ];
+
+      requiredMethods.forEach(method => {
+        if (typeof AST.DBT[method] !== 'function') {
+          throw new Error(`AST.DBT.${method} is not available`);
+        }
+      });
+    }
+  },
+  {
     description: 'AST namespace should expose Config and Runtime helper surfaces',
     test: () => {
       if (!AST || !AST.Config || !AST.Runtime) {

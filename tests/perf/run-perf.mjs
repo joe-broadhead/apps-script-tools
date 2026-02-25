@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { createGasContext, loadCoreDataContext } from '../local/helpers.mjs';
+import { loadDbtScripts } from '../local/dbt-helpers.mjs';
 import { runDataFramePerf } from './dataframe.perf.test.mjs';
+import { runDbtManifestPerf } from './dbt-manifest.perf.test.mjs';
 import { runSeriesPerf } from './series.perf.test.mjs';
 import { runUtilitiesPerf } from './utilities.perf.test.mjs';
 
@@ -174,12 +176,14 @@ function runAllBenchmarks(options) {
   });
 
   loadCoreDataContext(context);
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
 
   const dataframeResults = runDataFramePerf(context, { rows: options.rows, samples: options.samples });
+  const dbtResults = runDbtManifestPerf(context, { samples: options.samples });
   const seriesResults = runSeriesPerf(context, { rows: options.rows, samples: options.samples });
   const utilityResults = runUtilitiesPerf(context, { rows: options.rows, samples: options.samples });
 
-  return [...dataframeResults, ...seriesResults, ...utilityResults];
+  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults];
 }
 
 function main() {

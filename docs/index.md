@@ -19,6 +19,7 @@
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
+- `AST.DBT`: dbt `manifest.json` loading, preindexing, search, deep metadata lookup, and lineage traversal.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key ops + invalidation/stats).
 - `AST.Config`: script-properties snapshot helpers for configuration bootstrap.
@@ -40,6 +41,7 @@ flowchart LR
     B --> E[AST.Sheets / AST.Drive]
     B --> I[AST.AI]
     B --> K[AST.RAG]
+    B --> Y[AST.DBT]
     B --> M[AST.Storage]
     B --> Q[AST.Cache]
     B --> S[AST.Config / AST.Runtime]
@@ -51,6 +53,7 @@ flowchart LR
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     K --> L[Drive JSON Index + Cosine Retrieval]
+    Y --> Z[dbt manifest v12 search/index/lineage]
     M --> N[GCS / S3 / DBFS APIs]
     Q --> R["Memory / Drive JSON / Script Properties / Storage JSON"]
     O --> P[Logger / Drive NDJSON / Storage NDJSON]
@@ -81,6 +84,13 @@ flowchart LR
 - `AST.Jobs` orchestration contracts (`run`, `enqueue`, `resume`, `status`, `list`, `cancel`) with script-properties checkpoint state.
 - `AST.Chat` `ThreadStore` contracts for per-user durable thread state and deterministic history bounds.
 - Breaking contract: internal non-`AST` top-level globals are intentionally not stable; consume APIs through `ASTX.*` only.
+
+## `v0.0.5` (unreleased) highlights
+
+- `AST.DBT` namespace for dbt `manifest.json` operations.
+- Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
+- v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
+- Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.
 
 ## Import pattern
 

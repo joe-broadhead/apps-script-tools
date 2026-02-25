@@ -2,9 +2,33 @@
 
 ## v0.0.5 (unreleased)
 
-### Planned
+### Added
 
-- TBD
+- New `AST.DBT` namespace with:
+  - `run`, `loadManifest`, `inspectManifest`, `listEntities`, `search`
+  - `getEntity`, `getColumn`, `lineage`
+  - `providers`, `capabilities`
+  - `validateManifest`, `configure`, `getConfig`, `clearConfig`
+- dbt manifest source loading support for:
+  - `drive://file/<id>`
+  - `drive://path/<folderId>/<fileName>`
+  - `gcs://`, `s3://`, and `dbfs:/` via `AST.Storage` read contracts
+- dbt manifest validation modes:
+  - `strict`, `basic`, `off` for `manifest_v12` contracts
+- Preindexed manifest bundle model for fast repeated lookup/search:
+  - `byUniqueId`, `bySection`, `byResourceType`, `byPackage`, `byTag`
+  - `columnsByUniqueId` and token indexes for entities/columns
+  - lineage normalization from `parent_map`/`child_map` with `depends_on.nodes` fallback
+- New docs:
+  - `getting-started/dbt-manifest-quickstart.md`
+  - `api/dbt-manifest-contracts.md`
+  - `api/dbt-manifest-search.md`
+
+### Changed
+
+- `AST` namespace now exposes `AST.DBT`.
+- `AST.Runtime.configureFromProps(...)` now supports module `DBT`.
+- Local/perf test suites now include DBT manifest coverage and performance thresholds.
 
 ## v0.0.4 - 2026-02-25
 

@@ -1,6 +1,7 @@
 const AST_RUNTIME_MODULE_DEFINITIONS = Object.freeze([
   { name: 'AI', globalName: 'AST_AI' },
   { name: 'RAG', globalName: 'AST_RAG' },
+  { name: 'DBT', globalName: 'AST_DBT' },
   { name: 'Cache', globalName: 'AST_CACHE' },
   { name: 'Storage', globalName: 'AST_STORAGE' },
   { name: 'Telemetry', globalName: 'AST_TELEMETRY' },
@@ -12,6 +13,8 @@ const AST_RUNTIME_MODULE_ALIAS_MAP = Object.freeze({
   ASTAI: 'AI',
   RAG: 'RAG',
   ASTRAG: 'RAG',
+  DBT: 'DBT',
+  ASTDBT: 'DBT',
   CACHE: 'Cache',
   ASTCACHE: 'Cache',
   STORAGE: 'Storage',
