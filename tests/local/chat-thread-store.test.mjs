@@ -6,16 +6,29 @@ import { loadChatScripts } from './chat-helpers.mjs';
 
 function createPropertiesService(seed = {}) {
   const store = { ...seed };
+  const counters = {
+    getProperty: 0,
+    getProperties: 0,
+    setProperty: 0,
+    setProperties: 0,
+    deleteProperty: 0
+  };
   const handle = {
     getProperty: key => {
+      counters.getProperty += 1;
       const normalized = String(key || '');
       return Object.prototype.hasOwnProperty.call(store, normalized) ? store[normalized] : null;
     },
-    getProperties: () => ({ ...store }),
+    getProperties: () => {
+      counters.getProperties += 1;
+      return { ...store };
+    },
     setProperty: (key, value) => {
+      counters.setProperty += 1;
       store[String(key)] = String(value);
     },
     setProperties: (entries, deleteAllOthers) => {
+      counters.setProperties += 1;
       if (deleteAllOthers) {
         Object.keys(store).forEach(key => delete store[key]);
       }
@@ -26,6 +39,7 @@ function createPropertiesService(seed = {}) {
       });
     },
     deleteProperty: key => {
+      counters.deleteProperty += 1;
       delete store[String(key)];
     }
   };
@@ -34,7 +48,8 @@ function createPropertiesService(seed = {}) {
     service: {
       getScriptProperties: () => handle
     },
-    store
+    store,
+    counters
   };
 }
 
@@ -48,7 +63,8 @@ function createChatContext(overrides = {}) {
   loadChatScripts(context, { includeAst: true });
   return {
     context,
-    store: properties.store
+    store: properties.store,
+    counters: properties.counters
   };
 }
 
@@ -80,6 +96,27 @@ test('AST.Chat.configure supports merge=false reset semantics', () => {
   }, { merge: false });
   assert.equal(reset.keyPrefix, 'second_prefix');
   assert.notEqual(reset.durable.namespace, 'first_namespace');
+});
+
+test('chat runtime config snapshot memoization invalidates after clearConfig', () => {
+  const { context, store, counters } = createChatContext();
+
+  store.AST_CHAT_THREAD_MAX = '9';
+
+  const first = context.AST.Chat.clearConfig();
+  const second = context.AST.Chat.getConfig();
+  assert.equal(first.limits.threadMax, 9);
+  assert.equal(second.limits.threadMax, 9);
+  assert.equal(counters.getProperties, 1);
+
+  store.AST_CHAT_THREAD_MAX = '12';
+  const stillCached = context.AST.Chat.getConfig();
+  assert.equal(stillCached.limits.threadMax, 9);
+  assert.equal(counters.getProperties, 1);
+
+  const refreshed = context.AST.Chat.clearConfig();
+  assert.equal(refreshed.limits.threadMax, 12);
+  assert.equal(counters.getProperties, 2);
 });
 
 test('ThreadStore persists user state via durable backend and builds history', () => {

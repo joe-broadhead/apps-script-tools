@@ -191,62 +191,88 @@ function astJobsResolveExecutionOptions(options = {}) {
   }
 
   const runtimeConfig = astJobsGetRuntimeConfig();
-  let scriptConfigSnapshot = null;
+  const scriptConfig = astJobsGetScriptConfigSnapshot();
+  const resolveCandidates = (requestKey, canonicalKey) => ([
+    options[requestKey],
+    runtimeConfig[canonicalKey],
+    scriptConfig[canonicalKey]
+  ]);
 
-  const getScriptConfigSnapshot = () => {
-    if (scriptConfigSnapshot == null) {
-      scriptConfigSnapshot = astJobsGetScriptConfigSnapshot();
-    }
-    return scriptConfigSnapshot;
-  };
+  const resolveString = (requestKey, canonicalKey, fallback) => {
+    const candidates = resolveCandidates(requestKey, canonicalKey);
 
-  const resolveValue = (requestKey, canonicalKey, fallback) => {
-    const requestValue = astJobsNormalizeConfigValue(options[requestKey]);
-    if (requestValue != null) {
-      return requestValue;
-    }
-
-    const runtimeValue = astJobsNormalizeConfigValue(runtimeConfig[canonicalKey]);
-    if (runtimeValue != null) {
-      return runtimeValue;
+    if (typeof astConfigResolveFirstString === 'function') {
+      return astConfigResolveFirstString(candidates, fallback);
     }
 
-    const scriptValue = astJobsNormalizeConfigValue(getScriptConfigSnapshot()[canonicalKey]);
-    if (scriptValue != null) {
-      return scriptValue;
+    for (let idx = 0; idx < candidates.length; idx += 1) {
+      const value = astJobsNormalizeConfigValue(candidates[idx]);
+      if (value != null) {
+        return value;
+      }
     }
 
     return fallback;
   };
 
-  const maxRetries = astJobsNormalizePositiveInt(
-    resolveValue('maxRetries', 'AST_JOBS_DEFAULT_MAX_RETRIES', AST_JOBS_DEFAULT_OPTIONS.maxRetries),
+  const resolveInteger = (requestKey, canonicalKey, fallback, min, max) => {
+    const candidates = resolveCandidates(requestKey, canonicalKey);
+
+    if (typeof astConfigResolveFirstInteger === 'function') {
+      return astConfigResolveFirstInteger(candidates, {
+        fallback,
+        min,
+        max,
+        strict: false
+      });
+    }
+
+    for (let idx = 0; idx < candidates.length; idx += 1) {
+      const value = candidates[idx];
+      if (value == null || value === '' || typeof value === 'boolean') {
+        continue;
+      }
+
+      const normalized = astJobsNormalizePositiveInt(value, null, min, max);
+      if (normalized != null) {
+        return normalized;
+      }
+    }
+
+    return fallback;
+  };
+
+  const maxRetries = resolveInteger(
+    'maxRetries',
+    'AST_JOBS_DEFAULT_MAX_RETRIES',
     AST_JOBS_DEFAULT_OPTIONS.maxRetries,
     0,
     20
   );
 
-  const maxRuntimeMs = astJobsNormalizePositiveInt(
-    resolveValue('maxRuntimeMs', 'AST_JOBS_DEFAULT_MAX_RUNTIME_MS', AST_JOBS_DEFAULT_OPTIONS.maxRuntimeMs),
+  const maxRuntimeMs = resolveInteger(
+    'maxRuntimeMs',
+    'AST_JOBS_DEFAULT_MAX_RUNTIME_MS',
     AST_JOBS_DEFAULT_OPTIONS.maxRuntimeMs,
     1000,
     600000
   );
 
-  const leaseTtlMs = astJobsNormalizePositiveInt(
-    resolveValue('leaseTtlMs', 'AST_JOBS_LEASE_TTL_MS', AST_JOBS_DEFAULT_OPTIONS.leaseTtlMs),
+  const leaseTtlMs = resolveInteger(
+    'leaseTtlMs',
+    'AST_JOBS_LEASE_TTL_MS',
     AST_JOBS_DEFAULT_OPTIONS.leaseTtlMs,
     1000,
     600000
   );
 
   const checkpointStore = astJobsNormalizeString(
-    resolveValue('checkpointStore', 'AST_JOBS_CHECKPOINT_STORE', AST_JOBS_DEFAULT_OPTIONS.checkpointStore),
+    resolveString('checkpointStore', 'AST_JOBS_CHECKPOINT_STORE', AST_JOBS_DEFAULT_OPTIONS.checkpointStore),
     AST_JOBS_DEFAULT_OPTIONS.checkpointStore
   ).toLowerCase();
 
   const propertyPrefix = astJobsNormalizeString(
-    resolveValue('propertyPrefix', 'AST_JOBS_PROPERTY_PREFIX', AST_JOBS_DEFAULT_OPTIONS.propertyPrefix),
+    resolveString('propertyPrefix', 'AST_JOBS_PROPERTY_PREFIX', AST_JOBS_DEFAULT_OPTIONS.propertyPrefix),
     AST_JOBS_DEFAULT_OPTIONS.propertyPrefix
   );
 
