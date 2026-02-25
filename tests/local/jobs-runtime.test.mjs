@@ -6,16 +6,28 @@ import { loadJobsScripts } from './jobs-helpers.mjs';
 
 function createPropertiesService(seed = {}) {
   const store = { ...seed };
+  const counters = {
+    getProperty: 0,
+    getProperties: 0,
+    setProperty: 0,
+    setProperties: 0
+  };
   const handle = {
     getProperty: key => {
+      counters.getProperty += 1;
       const normalized = String(key || '');
       return Object.prototype.hasOwnProperty.call(store, normalized) ? store[normalized] : null;
     },
-    getProperties: () => ({ ...store }),
+    getProperties: () => {
+      counters.getProperties += 1;
+      return { ...store };
+    },
     setProperty: (key, value) => {
+      counters.setProperty += 1;
       store[String(key)] = String(value);
     },
     setProperties: (entries, deleteAllOthers) => {
+      counters.setProperties += 1;
       if (deleteAllOthers) {
         Object.keys(store).forEach(key => delete store[key]);
       }
@@ -31,7 +43,8 @@ function createPropertiesService(seed = {}) {
     service: {
       getScriptProperties: () => handle
     },
-    store
+    store,
+    counters
   };
 }
 
@@ -44,7 +57,50 @@ function createJobsContext() {
   loadJobsScripts(context, { includeAst: true });
   return {
     context,
-    store: properties.store
+    store: properties.store,
+    counters: properties.counters
+  };
+}
+
+function createLegacyJobRecord(jobId, name, propertyPrefix) {
+  const now = new Date().toISOString();
+  return {
+    id: jobId,
+    version: 0,
+    name,
+    status: 'queued',
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    pausedAt: null,
+    completedAt: null,
+    canceledAt: null,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    lastHeartbeatAt: null,
+    lastError: null,
+    options: {
+      maxRetries: 2,
+      maxRuntimeMs: 240000,
+      leaseTtlMs: 120000,
+      checkpointStore: 'properties',
+      autoResume: true,
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'legacy_step',
+        handlerName: 'legacyHandler',
+        dependsOn: [],
+        payload: null,
+        state: 'pending',
+        attempts: 0,
+        startedAt: null,
+        completedAt: null,
+        lastError: null
+      }
+    ],
+    results: {}
   };
 }
 
@@ -102,6 +158,36 @@ test('AST.Jobs.run executes dependent steps and stores outputs', () => {
   assert.equal(result.steps[1].state, 'completed');
 });
 
+test('AST.Jobs.run returns released lease metadata that matches persisted state', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_RUN_RELEASED_${Date.now()}_`;
+
+  context.jobsSimpleComplete = () => true;
+
+  const result = context.AST.Jobs.run({
+    name: 'run-release-state',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'done_step',
+        handler: 'jobsSimpleComplete'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.leaseOwner, null);
+  assert.equal(result.leaseExpiresAt, null);
+
+  const persisted = context.AST.Jobs.status(result.id, {
+    propertyPrefix
+  });
+  assert.equal(result.version, persisted.version);
+  assert.equal(result.updatedAt, persisted.updatedAt);
+});
+
 test('AST.Jobs supports pause and resume with retry semantics', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_RESUME_${Date.now()}_`;
@@ -139,6 +225,119 @@ test('AST.Jobs supports pause and resume with retry semantics', () => {
   assert.equal(secondPass.results.flaky.attempts, 2);
 });
 
+test('AST.Jobs run renews lease for step execution using at least maxRuntimeMs budget', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_LEASE_RENEW_${Date.now()}_`;
+  const renewedTtls = [];
+  const originalRenew = context.astJobsRenewLease;
+
+  context.astJobsRenewLease = (jobId, workerId, leaseTtlMs, options) => {
+    renewedTtls.push(leaseTtlMs);
+    return originalRenew(jobId, workerId, leaseTtlMs, options);
+  };
+
+  context.jobsLeaseRenewNoop = () => true;
+
+  const result = context.AST.Jobs.run({
+    name: 'lease-renew-step-test',
+    options: {
+      propertyPrefix,
+      leaseTtlMs: 1000,
+      maxRuntimeMs: 5000
+    },
+    steps: [
+      {
+        id: 'lease_renew_step',
+        handler: 'jobsLeaseRenewNoop'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(renewedTtls.some(ttl => ttl >= 5000), true);
+});
+
+test('AST.Jobs uses CAS to reject stale writes', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_CAS_${Date.now()}_`;
+
+  context.jobsCasNoop = () => true;
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'cas-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'cas_step',
+        handler: 'jobsCasNoop'
+      }
+    ]
+  });
+
+  const first = context.astJobsReadJobRecord(queued.id);
+  const second = context.astJobsReadJobRecord(queued.id);
+
+  first.status = 'paused';
+  context.astJobsWriteJobRecordCas(first, first.version, {
+    propertyPrefix: first.options.propertyPrefix
+  });
+
+  second.status = 'canceled';
+  assert.throws(
+    () => context.astJobsWriteJobRecordCas(second, second.version, {
+      propertyPrefix: second.options.propertyPrefix
+    }),
+    /version conflict/
+  );
+});
+
+test('AST.Jobs lease acquisition blocks concurrent worker and allows takeover after expiry', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_LEASE_${Date.now()}_`;
+
+  context.jobsLeaseNoop = () => true;
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'lease-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'lease_step',
+        handler: 'jobsLeaseNoop'
+      }
+    ]
+  });
+
+  const firstLease = context.astJobsAcquireLease(queued.id, 'worker_a', 5000, {
+    propertyPrefix
+  });
+  assert.equal(firstLease.leaseOwner, 'worker_a');
+
+  assert.throws(
+    () => context.astJobsAcquireLease(queued.id, 'worker_b', 5000, {
+      propertyPrefix
+    }),
+    /already held by another worker/
+  );
+
+  const staleLease = context.astJobsReadJobRecord(queued.id, {
+    propertyPrefix
+  });
+  staleLease.leaseExpiresAt = new Date(Date.now() - 1000).toISOString();
+  context.astJobsWriteJobRecordCas(staleLease, staleLease.version, {
+    propertyPrefix
+  });
+
+  const takeoverLease = context.astJobsAcquireLease(queued.id, 'worker_b', 5000, {
+    propertyPrefix
+  });
+  assert.equal(takeoverLease.leaseOwner, 'worker_b');
+});
+
 test('AST.Jobs.status resolves jobs without requiring propertyPrefix override', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_STATUS_${Date.now()}_`;
@@ -161,6 +360,20 @@ test('AST.Jobs.status resolves jobs without requiring propertyPrefix override', 
   const status = context.AST.Jobs.status(queued.id);
   assert.equal(status.id, queued.id);
   assert.equal(status.status, 'queued');
+});
+
+test('AST.Jobs.status falls back to legacy prefix scan when locator is missing', () => {
+  const { context, store } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LEGACY_STATUS_${Date.now()}_`;
+  const jobId = `legacy_status_${Date.now()}`;
+  const propertyKey = `${propertyPrefix}${jobId}`;
+
+  store[propertyKey] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-status', propertyPrefix));
+
+  const status = context.AST.Jobs.status(jobId);
+  assert.equal(status.id, jobId);
+  assert.equal(status.options.propertyPrefix, propertyPrefix);
+  assert.equal(typeof store[`AST_JOBS_LOCATOR_${jobId}`], 'string');
 });
 
 test('AST.Jobs.cancel marks queued jobs as canceled and list filters include them', () => {
@@ -254,6 +467,226 @@ test('AST.Jobs.cancel rejects jobs currently marked as running', () => {
     () => context.AST.Jobs.cancel(queued.id),
     /not cancelable/
   );
+});
+
+test('AST.Jobs.resume on completed job does not mutate lease/version state', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_RESUME_COMPLETED_${Date.now()}_`;
+
+  context.jobsCompleteStep = () => true;
+
+  const completed = context.AST.Jobs.run({
+    name: 'resume-completed-no-mutate',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'done_step',
+        handler: 'jobsCompleteStep'
+      }
+    ]
+  });
+  assert.equal(completed.status, 'completed');
+
+  const before = context.AST.Jobs.status(completed.id, {
+    propertyPrefix
+  });
+
+  assert.throws(
+    () => context.AST.Jobs.resume(completed.id, {
+      propertyPrefix
+    }),
+    /terminal|resumable/
+  );
+
+  const after = context.AST.Jobs.status(completed.id, {
+    propertyPrefix
+  });
+  assert.equal(after.status, 'completed');
+  assert.equal(after.version, before.version);
+  assert.equal(after.updatedAt, before.updatedAt);
+});
+
+test('AST.Jobs status/list avoid broad script property scans on indexed paths', () => {
+  const { context, counters } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_INDEXED_${Date.now()}_`;
+
+  context.jobsIndexedNoop = () => true;
+  context.AST.Jobs.clearConfig();
+  context.AST.Jobs.configure({
+    maxRetries: 2,
+    maxRuntimeMs: 240000,
+    leaseTtlMs: 120000,
+    checkpointStore: 'properties',
+    propertyPrefix: 'AST_JOBS_JOB_'
+  }, {
+    merge: false
+  });
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'indexed-test',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'indexed_step',
+        handler: 'jobsIndexedNoop'
+      }
+    ]
+  });
+
+  counters.getProperties = 0;
+  const status = context.AST.Jobs.status(queued.id);
+  const listed = context.AST.Jobs.list({
+    name: 'indexed-test'
+  });
+
+  assert.equal(status.id, queued.id);
+  assert.equal(listed.some(item => item.id === queued.id), true);
+  assert.equal(counters.getProperties, 0);
+});
+
+test('AST.Jobs.list discovers legacy prefixes when registry is missing', () => {
+  const { context, store } = createJobsContext();
+  const prefixA = `AST_JOBS_LEGACY_A_${Date.now()}_`;
+  const prefixB = `AST_JOBS_LEGACY_B_${Date.now()}_`;
+  const idA = `legacy_a_${Date.now()}`;
+  const idB = `legacy_b_${Date.now()}`;
+
+  store[`${prefixA}${idA}`] = JSON.stringify(createLegacyJobRecord(idA, 'legacy-list', prefixA));
+  store[`${prefixB}${idB}`] = JSON.stringify(createLegacyJobRecord(idB, 'legacy-list', prefixB));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const listed = context.AST.Jobs.list({
+    name: 'legacy-list',
+    limit: 20
+  });
+
+  assert.equal(listed.some(item => item.id === idA), true);
+  assert.equal(listed.some(item => item.id === idB), true);
+  assert.equal(typeof store.AST_JOBS_PREFIX_REGISTRY, 'string');
+});
+
+test('AST.Jobs.list with explicit propertyPrefix includes legacy records when indexes are missing', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_EXPLICIT_${Date.now()}_`;
+  const jobId = `legacy_explicit_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-explicit', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const listed = context.AST.Jobs.list({
+    name: 'legacy-explicit',
+    limit: 20
+  }, {
+    propertyPrefix: prefix
+  });
+
+  assert.equal(listed.some(item => item.id === jobId), true);
+});
+
+test('AST.Jobs.list keeps returning legacy records after registry bootstrap', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_REPEAT_${Date.now()}_`;
+  const jobId = `legacy_repeat_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-repeat', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  const first = context.AST.Jobs.list({
+    name: 'legacy-repeat',
+    limit: 20
+  });
+  assert.equal(first.some(item => item.id === jobId), true);
+
+  const second = context.AST.Jobs.list({
+    name: 'legacy-repeat',
+    limit: 20
+  });
+  assert.equal(second.some(item => item.id === jobId), true);
+});
+
+test('AST.Jobs.list keeps legacy scan fallback active when backfill lock fails', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_LOCK_FAIL_${Date.now()}_`;
+  const jobId = `legacy_lock_fail_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-lock-fail', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  let lockFailuresRemaining = 1;
+  context.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        if (lockFailuresRemaining > 0) {
+          lockFailuresRemaining -= 1;
+          return false;
+        }
+        return true;
+      },
+      releaseLock: () => {}
+    })
+  };
+
+  const first = context.AST.Jobs.list({
+    name: 'legacy-lock-fail',
+    limit: 20
+  });
+  assert.equal(first.some(item => item.id === jobId), true);
+  const pendingAfterFirst = JSON.parse(store.AST_JOBS_LEGACY_SCAN_REGISTRY || '{"prefixes": []}');
+  assert.equal(Array.isArray(pendingAfterFirst.prefixes), true);
+  assert.equal(pendingAfterFirst.prefixes.includes(prefix), true);
+
+  const second = context.AST.Jobs.list({
+    name: 'legacy-lock-fail',
+    limit: 20
+  });
+  assert.equal(second.some(item => item.id === jobId), true);
+
+  const pendingAfterSecond = JSON.parse(store.AST_JOBS_LEGACY_SCAN_REGISTRY || '{"prefixes": []}');
+  assert.equal(Array.isArray(pendingAfterSecond.prefixes), true);
+  assert.equal(pendingAfterSecond.prefixes.includes(prefix), false);
+});
+
+test('AST.Jobs.list non-explicit path includes pending legacy prefixes not yet in registry', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_PENDING_${Date.now()}_`;
+  const jobId = `legacy_pending_${Date.now()}`;
+
+  store.AST_JOBS_PREFIX_REGISTRY = JSON.stringify({
+    prefixes: ['AST_JOBS_JOB_']
+  });
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-pending', prefix));
+
+  let lockFailuresRemaining = 1;
+  context.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        if (lockFailuresRemaining > 0) {
+          lockFailuresRemaining -= 1;
+          return false;
+        }
+        return true;
+      },
+      releaseLock: () => {}
+    })
+  };
+
+  const explicit = context.AST.Jobs.list({
+    name: 'legacy-pending',
+    limit: 20
+  }, {
+    propertyPrefix: prefix
+  });
+  assert.equal(explicit.some(item => item.id === jobId), true);
+
+  const nonExplicit = context.AST.Jobs.list({
+    name: 'legacy-pending',
+    limit: 20
+  });
+  assert.equal(nonExplicit.some(item => item.id === jobId), true);
 });
 
 test('AST.Jobs.configure controls runtime defaults', () => {

@@ -10,6 +10,7 @@ const AST_JOBS_ALLOWED_STATUSES = Object.freeze([
 const AST_JOBS_DEFAULT_OPTIONS = Object.freeze({
   maxRetries: 2,
   maxRuntimeMs: 240000,
+  leaseTtlMs: 120000,
   checkpointStore: 'properties',
   autoResume: true,
   propertyPrefix: 'AST_JOBS_JOB_'
@@ -173,6 +174,15 @@ function astJobsNormalizeOptions(options = {}) {
     normalized.maxRuntimeMs = astJobsNormalizePositiveInt(
       options.maxRuntimeMs,
       AST_JOBS_DEFAULT_OPTIONS.maxRuntimeMs,
+      1000,
+      600000
+    );
+  }
+
+  if (typeof options.leaseTtlMs !== 'undefined') {
+    normalized.leaseTtlMs = astJobsNormalizePositiveInt(
+      options.leaseTtlMs,
+      AST_JOBS_DEFAULT_OPTIONS.leaseTtlMs,
       1000,
       600000
     );
