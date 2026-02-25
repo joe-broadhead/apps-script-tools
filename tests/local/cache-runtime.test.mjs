@@ -88,6 +88,7 @@ function createPropertiesService(seed = {}) {
 
 function createStorageRunnerMock() {
   const objects = {};
+  const requests = [];
 
   function normalizeUri(uri) {
     return String(uri || '');
@@ -107,7 +108,13 @@ function createStorageRunnerMock() {
 
   return {
     objects,
+    requests,
     runStorageRequest: request => {
+      requests.push(
+        JSON.parse(
+          JSON.stringify(request || {})
+        )
+      );
       const operation = String(request && request.operation || '').toLowerCase();
       const uri = normalizeUri(request && request.uri);
       const options = request && request.options ? request.options : {};
@@ -640,6 +647,8 @@ test('storage_json backend supports persistence through AST.Storage providers', 
 
   const stats = context.AST.Cache.stats();
   assert.equal(stats.backend, 'storage_json');
+  assert.equal(stats.stats.sets >= 2, true);
+  assert.equal(stats.stats.invalidations >= 1, true);
 
   const persistedUris = Object.keys(storage.objects);
   assert.equal(persistedUris.some(uri => uri.startsWith('s3://cache-bucket/app/cache--')), true);
@@ -687,6 +696,46 @@ test('storage_json backend isolates collision-prone namespace names', () => {
   );
   const namespaceRoots = new Set(entryUris.map(uri => uri.split('/entries/')[0]));
   assert.equal(namespaceRoots.size, 2);
+});
+
+test('storage_json trim probe is not capped at 50k and uses tag mutation lock path', () => {
+  const storage = createStorageRunnerMock();
+  let scriptLockCalls = 0;
+  const context = createGasContext({
+    runStorageRequest: storage.runStorageRequest,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => {
+          scriptLockCalls += 1;
+          return true;
+        },
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    namespace: 'storage_probe_ns',
+    storageUri: 'gcs://cache-bucket/probe/cache.json',
+    maxMemoryEntries: 60000
+  });
+
+  context.AST.Cache.set('probe:key', { ok: true }, { tags: ['probe'] });
+
+  const entryListRequests = storage.requests.filter(request =>
+    String(request && request.operation || '').toLowerCase() === 'list'
+    && /\/entries\/$/.test(String(request && request.uri || ''))
+  );
+  assert.equal(entryListRequests.length > 0, true);
+  assert.equal(
+    entryListRequests.some(request => Number(request.options && request.options.maxItems || 0) > 50000),
+    true
+  );
+  assert.equal(scriptLockCalls > 0, true);
 });
 
 test('drive_json backend supports user lock scope', () => {
