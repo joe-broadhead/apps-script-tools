@@ -48,7 +48,7 @@ ASTX.Telemetry.flush(options)
 Notes:
 
 - `sink='logger'` is default.
-- `sink='drive_json'` appends NDJSON records in Drive.
+- `sink='drive_json'` writes partitioned NDJSON batch files in Drive (`events/YYYY/MM/DD[/HH]`).
 - `sink='storage_json'` writes NDJSON batches to `gcs://`, `s3://`, or `dbfs:/`.
 - `flushMode='threshold'` flushes when event/byte thresholds are reached.
 - call `ASTX.Telemetry.flush()` when using `flushMode='manual'`.
@@ -105,8 +105,9 @@ Manual flush example:
 
 ```javascript
 ASTX.Telemetry.configure({
-  sink: 'storage_json',
-  storageUri: 's3://my-bucket/telemetry',
+  sink: 'drive_json',
+  driveFolderId: 'YOUR_FOLDER_ID',
+  driveFileName: 'ast-telemetry.ndjson',
   flushMode: 'manual'
 });
 

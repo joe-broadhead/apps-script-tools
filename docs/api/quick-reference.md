@@ -315,7 +315,7 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
-- Telemetry records redact secrets by default and can emit to `logger`, Drive NDJSON (`drive_json`), or storage NDJSON batches (`storage_json`).
+- Telemetry records redact secrets by default and can emit to `logger`, Drive partitioned NDJSON batches (`drive_json`), or storage NDJSON batches (`storage_json`).
 - `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
 - `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `Cache`, `Storage`, `Telemetry`, `Jobs`).
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.

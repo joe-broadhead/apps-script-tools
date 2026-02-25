@@ -210,6 +210,10 @@ function astTelemetryFlush(options = {}) {
   const sink = astTelemetryNormalizeSink(config.sink);
 
   try {
+    if (sink === 'drive_json' && typeof astTelemetryFlushDriveJson === 'function') {
+      return astTelemetryFlushDriveJson(config, options);
+    }
+
     if (sink === 'storage_json' && typeof astTelemetryFlushStorageJson === 'function') {
       return astTelemetryFlushStorageJson(config, options);
     }
@@ -515,6 +519,14 @@ function astTelemetryResetStore() {
   AST_TELEMETRY_TRACES = {};
   AST_TELEMETRY_TRACE_ORDER = [];
   AST_TELEMETRY_SPAN_INDEX = {};
+
+  if (typeof astTelemetryResetDriveSinkBuffers === 'function') {
+    astTelemetryResetDriveSinkBuffers();
+  }
+
+  if (typeof astTelemetryResetStorageSinkBuffers === 'function') {
+    astTelemetryResetStorageSinkBuffers();
+  }
 }
 
 function astTelemetryStartSpanSafe(name, context = {}, options = {}) {

@@ -28,40 +28,88 @@ function createOpenAiResponse(body) {
 
 function createDriveMock() {
   const files = {};
+  const filesCreated = [];
+  let folderCounter = 0;
+  let fileCounter = 0;
+  let getBlobCalls = 0;
+  let setContentCalls = 0;
 
-  function createFileHandle(name, content = '') {
-    const state = { name, content };
+  function createIterator(list) {
+    let cursor = 0;
     return {
-      getName: () => state.name,
-      getBlob: () => ({
-        getDataAsString: () => state.content
-      }),
-      setContent: next => {
-        state.content = String(next || '');
+      hasNext: () => cursor < list.length,
+      next: () => list[cursor++]
+    };
+  }
+
+  function createFolderHandle(name, parentPath) {
+    const foldersByName = {};
+    const filesByName = {};
+    const path = parentPath ? `${parentPath}/${name}` : String(name || '');
+    const folderId = `folder_${++folderCounter}`;
+
+    return {
+      getId: () => folderId,
+      getName: () => String(name || ''),
+      getFoldersByName: childName => {
+        const key = String(childName || '');
+        const folder = foldersByName[key];
+        return createIterator(folder ? [folder] : []);
+      },
+      createFolder: childName => {
+        const key = String(childName || '');
+        if (!foldersByName[key]) {
+          foldersByName[key] = createFolderHandle(key, path);
+        }
+        return foldersByName[key];
+      },
+      getFilesByName: fileName => {
+        const key = String(fileName || '');
+        const file = filesByName[key];
+        return createIterator(file ? [file] : []);
+      },
+      createFile: (fileName, content = '') => {
+        const key = String(fileName || '');
+        const state = {
+          id: `file_${++fileCounter}`,
+          name: key,
+          content: String(content || ''),
+          path: path ? `${path}/${key}` : key
+        };
+
+        const handle = {
+          getId: () => state.id,
+          getName: () => state.name,
+          getBlob: () => {
+            getBlobCalls += 1;
+            return {
+              getDataAsString: () => state.content
+            };
+          },
+          setContent: next => {
+            setContentCalls += 1;
+            state.content = String(next || '');
+          }
+        };
+
+        filesByName[key] = handle;
+        files[state.path] = handle;
+        filesCreated.push({
+          path: state.path,
+          file: handle
+        });
+        return handle;
       }
     };
   }
 
-  const folder = {
-    getFilesByName: name => {
-      const key = String(name || '');
-      const list = files[key] ? [files[key]] : [];
-      let cursor = 0;
-      return {
-        hasNext: () => cursor < list.length,
-        next: () => list[cursor++]
-      };
-    },
-    createFile: (name, content) => {
-      const key = String(name || '');
-      const handle = createFileHandle(key, String(content || ''));
-      files[key] = handle;
-      return handle;
-    }
-  };
+  const folder = createFolderHandle('root', '');
 
   return {
     files,
+    filesCreated,
+    getBlobCalls: () => getBlobCalls,
+    setContentCalls: () => setContentCalls,
     DriveApp: {
       getRootFolder: () => folder,
       getFolderById: () => folder
@@ -121,7 +169,7 @@ test('Telemetry redacts sensitive keys in span context', () => {
   assert.ok(logger.logs.length > 0);
 });
 
-test('Telemetry drive_json sink appends records to Drive file', () => {
+test('Telemetry drive_json sink writes partitioned batch files without full-file appends', () => {
   const drive = createDriveMock();
   const context = createGasContext({
     DriveApp: drive.DriveApp
@@ -132,22 +180,33 @@ test('Telemetry drive_json sink appends records to Drive file', () => {
   context.AST.Telemetry.clearConfig();
   context.AST.Telemetry.configure({
     sink: 'drive_json',
-    driveFileName: 'telemetry-test.ndjson'
+    driveFileName: 'telemetry-test.ndjson',
+    flushMode: 'threshold',
+    batchMaxEvents: 2
   });
 
   const spanA = context.AST.Telemetry.startSpan('telemetry.drive.one', {});
   context.AST.Telemetry.endSpan(spanA, {
     status: 'ok'
   });
+  assert.equal(drive.filesCreated.length, 0);
 
   const spanB = context.AST.Telemetry.startSpan('telemetry.drive.two', {});
   context.AST.Telemetry.endSpan(spanB, {
     status: 'ok'
   });
 
-  const file = drive.files['telemetry-test.ndjson'];
-  assert.ok(file, 'Expected sink file to be created');
+  assert.equal(drive.filesCreated.length, 1);
+  assert.equal(drive.getBlobCalls(), 0, 'sink should not read existing files to append records');
+  assert.equal(drive.setContentCalls(), 0, 'sink should not rewrite existing file content');
 
+  const batchFile = drive.filesCreated[0];
+  assert.match(
+    batchFile.path,
+    /events\/\d{4}\/\d{2}\/\d{2}\/\d{2}\/telemetry-test_\d{14}_telemetry_batch_/
+  );
+
+  const file = batchFile.file;
   const lines = file.getBlob().getDataAsString().split('\n').filter(Boolean);
   assert.equal(lines.length, 2);
   const payload = JSON.parse(lines[0]);
@@ -179,7 +238,8 @@ test('Telemetry drive_json sink uses script lock when LockService is available',
   context.AST.Telemetry.clearConfig();
   context.AST.Telemetry.configure({
     sink: 'drive_json',
-    driveFileName: 'telemetry-lock-test.ndjson'
+    driveFileName: 'telemetry-lock-test.ndjson',
+    flushMode: 'immediate'
   });
 
   const spanId = context.AST.Telemetry.startSpan('telemetry.drive.lock', {});
@@ -187,6 +247,58 @@ test('Telemetry drive_json sink uses script lock when LockService is available',
 
   assert.equal(tryLockCalls, 1);
   assert.equal(releaseCalls, 1);
+});
+
+test('Telemetry drive_json sink supports manual flush mode', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'drive_json',
+    driveFileName: 'telemetry-manual.ndjson',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.drive.manual', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+  assert.equal(drive.filesCreated.length, 0);
+
+  const flushResult = context.AST.Telemetry.flush();
+  assert.equal(flushResult.flushed, 1);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(drive.filesCreated.length, 1);
+});
+
+test('Telemetry reset clears buffered drive_json records', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'drive_json',
+    driveFileName: 'telemetry-reset.ndjson',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.drive.reset', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+  assert.equal(drive.filesCreated.length, 0);
+
+  context.AST.Telemetry._reset();
+  const flushResult = context.AST.Telemetry.flush();
+
+  assert.equal(flushResult.flushed, 0);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(drive.filesCreated.length, 0);
 });
 
 test('Telemetry storage_json sink supports manual flush mode', () => {
@@ -222,6 +334,39 @@ test('Telemetry storage_json sink supports manual flush mode', () => {
   assert.equal(writes.length, 1);
   assert.match(writes[0].uri, /^s3:\/\/ast-telemetry\/tests\/events\/\d{4}\/\d{2}\/\d{2}\/\d{2}\/telemetry_batch_/);
   assert.match(writes[0].payload.text, /"type":"span_end"/);
+});
+
+test('Telemetry reset clears buffered storage_json records', () => {
+  const writes = [];
+  const context = createGasContext({
+    runStorageRequest: request => {
+      writes.push(request);
+      return {
+        provider: 's3',
+        operation: 'write',
+        uri: request.uri
+      };
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'storage_json',
+    storageUri: 's3://ast-telemetry/tests',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.storage.reset', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+  assert.equal(writes.length, 0);
+
+  context.AST.Telemetry._reset();
+  const flushResult = context.AST.Telemetry.flush();
+  assert.equal(flushResult.flushed, 0);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(writes.length, 0);
 });
 
 test('Telemetry storage_json sink flushes on threshold', () => {
