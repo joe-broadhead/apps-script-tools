@@ -930,7 +930,10 @@ function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
     return String(left.keyHash || '').localeCompare(String(right.keyHash || ''));
   });
 
-  const overflow = Math.max(1, Math.min(entries.length, entryUris.length - maxEntries));
+  const overflow = entries.length - maxEntries;
+  if (overflow <= 0) {
+    return 0;
+  }
   let removed = 0;
 
   for (let idx = 0; idx < overflow; idx += 1) {
