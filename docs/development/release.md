@@ -16,6 +16,8 @@
 - Drive-only ingestion support includes txt/pdf/Docs/Slides (+ notes).
 - Embedding provider registry supports built-ins and runtime custom providers.
 - Storage module (`AST.Storage`) ships unified CRUD for `gcs`, `s3`, and `dbfs`.
+- Chat module (`AST.Chat`) ships durable thread state contracts for app chat workflows.
+- Breaking contract is documented: internal non-`AST` top-level globals are intentionally unstable and should not be consumed directly.
 - Release-note source of truth is `CHANGELOG.md` (`v0.0.4` section).
 
 ## Pre-release checks

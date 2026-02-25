@@ -26,6 +26,8 @@ Use semantic tags:
   - embedding provider registry and custom provider registration
   - grounding/citation/abstention behavior
   - `AST.Storage` contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`
+  - `AST.Chat` `ThreadStore` contracts for durable user-scoped thread state
+  - breaking note that internal non-`AST` top-level globals are intentionally unstable
 - Confirm docs and README release-state messaging is consistent:
   - published is `v0.0.3`
   - `v0.0.4` is unreleased until tag + GitHub release publish
