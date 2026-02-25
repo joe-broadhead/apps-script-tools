@@ -158,6 +158,36 @@ test('AST.Jobs.run executes dependent steps and stores outputs', () => {
   assert.equal(result.steps[1].state, 'completed');
 });
 
+test('AST.Jobs.run returns released lease metadata that matches persisted state', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_RUN_RELEASED_${Date.now()}_`;
+
+  context.jobsSimpleComplete = () => true;
+
+  const result = context.AST.Jobs.run({
+    name: 'run-release-state',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'done_step',
+        handler: 'jobsSimpleComplete'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.leaseOwner, null);
+  assert.equal(result.leaseExpiresAt, null);
+
+  const persisted = context.AST.Jobs.status(result.id, {
+    propertyPrefix
+  });
+  assert.equal(result.version, persisted.version);
+  assert.equal(result.updatedAt, persisted.updatedAt);
+});
+
 test('AST.Jobs supports pause and resume with retry semantics', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_RESUME_${Date.now()}_`;
@@ -576,6 +606,48 @@ test('AST.Jobs.list keeps returning legacy records after registry bootstrap', ()
     limit: 20
   });
   assert.equal(second.some(item => item.id === jobId), true);
+});
+
+test('AST.Jobs.list keeps legacy scan fallback active when backfill lock fails', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_LOCK_FAIL_${Date.now()}_`;
+  const jobId = `legacy_lock_fail_${Date.now()}`;
+
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-lock-fail', prefix));
+  delete store.AST_JOBS_PREFIX_REGISTRY;
+
+  let lockFailuresRemaining = 1;
+  context.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        if (lockFailuresRemaining > 0) {
+          lockFailuresRemaining -= 1;
+          return false;
+        }
+        return true;
+      },
+      releaseLock: () => {}
+    })
+  };
+
+  const first = context.AST.Jobs.list({
+    name: 'legacy-lock-fail',
+    limit: 20
+  });
+  assert.equal(first.some(item => item.id === jobId), true);
+  const pendingAfterFirst = JSON.parse(store.AST_JOBS_LEGACY_SCAN_REGISTRY || '{"prefixes": []}');
+  assert.equal(Array.isArray(pendingAfterFirst.prefixes), true);
+  assert.equal(pendingAfterFirst.prefixes.includes(prefix), true);
+
+  const second = context.AST.Jobs.list({
+    name: 'legacy-lock-fail',
+    limit: 20
+  });
+  assert.equal(second.some(item => item.id === jobId), true);
+
+  const pendingAfterSecond = JSON.parse(store.AST_JOBS_LEGACY_SCAN_REGISTRY || '{"prefixes": []}');
+  assert.equal(Array.isArray(pendingAfterSecond.prefixes), true);
+  assert.equal(pendingAfterSecond.prefixes.includes(prefix), false);
 });
 
 test('AST.Jobs.configure controls runtime defaults', () => {

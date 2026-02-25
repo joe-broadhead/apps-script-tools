@@ -375,6 +375,7 @@ function astJobsExecutePersistedJob(jobId, options = {}) {
     propertyPrefix: job.options && job.options.propertyPrefix,
     lockTimeoutMs: options.lockTimeoutMs
   };
+  let result = null;
 
   job = astJobsAcquireLease(normalizedJobId, workerId, leaseTtlMs, leaseOptions);
 
@@ -415,14 +416,17 @@ function astJobsExecutePersistedJob(jobId, options = {}) {
     }
 
     astJobsPersistJob(job, persistOptions);
-    return astJobsCloneSerializableValue(job);
+    result = astJobsCloneSerializableValue(job);
   } finally {
     try {
-      astJobsReleaseLease(normalizedJobId, workerId, leaseOptions);
+      const released = astJobsReleaseLease(normalizedJobId, workerId, leaseOptions);
+      result = astJobsCloneSerializableValue(released);
     } catch (_error) {
       // Best effort release to avoid masking primary execution errors.
     }
   }
+
+  return result;
 }
 
 function astJobsRun(request = {}) {
