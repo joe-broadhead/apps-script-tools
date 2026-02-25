@@ -86,3 +86,49 @@ test('AST.DBT.validateManifest returns invalid status without throw by default',
   assert.equal(out.status, 'invalid');
   assert.equal(out.errors.length > 0, true);
 });
+
+test('AST.DBT.validateManifest respects throwOnInvalid=false for prebuilt bundle requests', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const out = context.AST.DBT.validateManifest({
+    bundle: {
+      manifest: {}
+    },
+    options: {
+      validate: 'strict'
+    },
+    throwOnInvalid: false
+  });
+
+  assert.equal(out.status, 'invalid');
+  assert.equal(out.valid, false);
+  assert.equal(Array.isArray(out.errors), true);
+  assert.equal(out.errors.length > 0, true);
+});
+
+test('AST.DBT.loadManifest ignores source defaults when inline manifest is supplied', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: key => (key === 'DBT_MANIFEST_URI' ? 'azure://invalid/manifest.json' : null),
+        getProperties: () => ({
+          DBT_MANIFEST_URI: 'azure://invalid/manifest.json'
+        }),
+        setProperties: () => {}
+      })
+    }
+  });
+
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const out = context.AST.DBT.loadManifest({
+    manifest: createManifestFixture(),
+    options: {
+      validate: 'basic'
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.metadata.projectName, 'demo_project');
+});

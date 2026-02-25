@@ -403,7 +403,7 @@ function astDbtValidateLoadManifestRequest(request = {}) {
     throw new AstDbtValidationError('manifest must be an object when provided');
   }
 
-  const source = manifest ? astDbtNormalizeSourceObject(request, defaults) : astDbtNormalizeSourceObject(request, defaults);
+  const source = manifest ? null : astDbtNormalizeSourceObject(request, defaults);
   if (!manifest && !source) {
     throw new AstDbtValidationError('loadManifest requires source input when manifest is not provided inline');
   }

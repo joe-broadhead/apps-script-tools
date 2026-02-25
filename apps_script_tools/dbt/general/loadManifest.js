@@ -1244,7 +1244,10 @@ function astDbtBuildLoadRequestFromGenericRequest(request = {}) {
 
 function astDbtEnsureBundle(request = {}, options = {}) {
   if (astDbtIsPlainObject(request.bundle)) {
-    return astDbtNormalizeBundle(request.bundle, request.options || options.options || {});
+    return astDbtNormalizeBundle(
+      request.bundle,
+      Object.assign({}, request.options || {}, options.options || {})
+    );
   }
 
   if (astDbtIsPlainObject(request.manifest)) {
