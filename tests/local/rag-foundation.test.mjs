@@ -825,6 +825,31 @@ test('astRagValidateSearchRequest normalizes lexical prefilter topN', () => {
   assert.equal(normalized.retrieval.lexicalPrefilterTopN, 12);
 });
 
+test('astRagValidateSearchRequest defaults lexical prefilter topN to zero when omitted', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const omitted = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_prefilter_omitted',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector'
+    }
+  });
+
+  const explicit = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_prefilter_explicit',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector',
+      lexicalPrefilterTopN: 0
+    }
+  });
+
+  assert.equal(omitted.retrieval.lexicalPrefilterTopN, 0);
+  assert.equal(explicit.retrieval.lexicalPrefilterTopN, 0);
+});
+
 test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', () => {
   const context = createGasContext();
   loadRagScripts(context);
