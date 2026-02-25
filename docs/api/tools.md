@@ -360,12 +360,12 @@ Primary methods:
 - `ASTX.Telemetry.endSpan(spanId, result)` to close span state and persist sink output.
 - `ASTX.Telemetry.recordEvent(event)` to append structured event records.
 - `ASTX.Telemetry.getTrace(traceId)` to retrieve in-memory trace state.
-- `ASTX.Telemetry.flush(options)` to force buffered sink flushes (used by `storage_json` manual mode).
+- `ASTX.Telemetry.flush(options)` to force buffered sink flushes (used by `drive_json` and `storage_json` manual mode).
 
 Sink support:
 
 - `logger` (default) emits JSON payloads to Apps Script `Logger`.
-- `drive_json` appends NDJSON records to a Drive file.
+- `drive_json` writes partitioned NDJSON batch files in Drive (`events/YYYY/MM/DD[/HH]`).
 - `storage_json` writes NDJSON batch files to `gcs://`, `s3://`, or `dbfs:/` via `AST.Storage`.
 
 High-signal behavior:

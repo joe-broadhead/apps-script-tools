@@ -79,8 +79,9 @@ function runWorkflowWithTelemetry() {
 
 ## Drive sink operations
 
-- Sink file content format: newline-delimited JSON (one record per line).
-- Existing files are appended to; file creation is automatic if missing.
+- Sink format: newline-delimited JSON (one record per line) written as partitioned batch files.
+- Default partition layout: `events/YYYY/MM/DD/HH/`.
+- Batch files are rolled by `batchMaxEvents` / `batchMaxBytes` or explicit `ASTX.Telemetry.flush()`.
 - Prefer a dedicated Drive folder for telemetry artifacts.
 
 ## Troubleshooting
@@ -100,7 +101,7 @@ function runWorkflowWithTelemetry() {
 ### Storage sink buffering
 
 - `flushMode='threshold'` auto-flushes when `batchMaxEvents` or `batchMaxBytes` is reached.
-- `flushMode='manual'` keeps records buffered until `ASTX.Telemetry.flush()` is called.
+- `flushMode='manual'` keeps records buffered until `ASTX.Telemetry.flush()` is called (applies to `drive_json` and `storage_json`).
 - `flushMode='immediate'` writes one batch per emitted record.
 
 ### Missing trace when calling `getTrace(traceId)`

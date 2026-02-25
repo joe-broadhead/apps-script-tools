@@ -210,6 +210,10 @@ function astTelemetryFlush(options = {}) {
   const sink = astTelemetryNormalizeSink(config.sink);
 
   try {
+    if (sink === 'drive_json' && typeof astTelemetryFlushDriveJson === 'function') {
+      return astTelemetryFlushDriveJson(config, options);
+    }
+
     if (sink === 'storage_json' && typeof astTelemetryFlushStorageJson === 'function') {
       return astTelemetryFlushStorageJson(config, options);
     }

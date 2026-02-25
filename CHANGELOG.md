@@ -55,6 +55,7 @@
   - typed errors (`AstTelemetryError`, `AstTelemetryValidationError`, `AstTelemetryCapabilityError`)
   - secret redaction (`apiKey`, `token`, `authorization`, `cookie`, etc.)
   - sink support for `logger` and Drive NDJSON (`drive_json`)
+- `Telemetry drive_json` sink now uses partitioned NDJSON batch writes (no full-file read/append path), honoring `flushMode`, `batchMaxEvents`, `batchMaxBytes`, and explicit `AST.Telemetry.flush()`.
 - Runtime instrumentation for:
   - `AST.AI` request execution (`ai.run` spans)
   - `AST.RAG.buildIndex(...)` (`rag.buildIndex` spans)

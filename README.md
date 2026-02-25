@@ -65,7 +65,7 @@ Current release state:
 - SQL ergonomics: `prepare`, `executePrepared`, `status`, and `cancel` on top of provider-routed `run`.
 - New `AST.Cache` module with deterministic TTL semantics, tag invalidation, backend selection, and namespace stats/clear helpers.
 - Cache backend posture for production: prefer `storage_json`; use `drive_json` and `script_properties` only for low-scale paths.
-- New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive/storage NDJSON sinks (including batched `storage_json` + `flush`).
+- New `AST.Telemetry` module with typed spans/events, secret redaction, and `logger`/Drive/storage NDJSON sinks (including batched `drive_json`/`storage_json` + `flush`).
 - New bootstrap helpers: `AST.Config.fromScriptProperties(...)` and `AST.Runtime.configureFromProps(...)`.
 - New `AST.TelemetryHelpers` wrappers for safe instrumented execution (`withSpan`, `wrap`, `startSpanSafe`, `endSpanSafe`).
 - RAG request-level cache controls for embedding/search/answer hot paths with backend overrides.

@@ -1,3 +1,5 @@
+const AST_TELEMETRY_DRIVE_SINK_BUFFERS = {};
+
 function astTelemetryGetDriveFolder(config = {}) {
   if (typeof DriveApp === 'undefined' || !DriveApp) {
     throw new AstTelemetryCapabilityError('DriveApp is required for telemetry drive_json sink');
@@ -18,58 +20,188 @@ function astTelemetryGetDriveFolder(config = {}) {
   return DriveApp.getFolderById(folderId);
 }
 
-function astTelemetryResolveDriveFile(folder, fileName) {
-  if (!folder || typeof folder.getFilesByName !== 'function') {
-    throw new AstTelemetryCapabilityError('Drive folder handle does not support getFilesByName');
+function astTelemetryDriveNormalizeBaseFileName(fileName) {
+  const normalized = astTelemetryNormalizeString(fileName, 'ast-telemetry.ndjson');
+  if (!normalized) {
+    return 'ast-telemetry.ndjson';
+  }
+  return normalized;
+}
+
+function astTelemetryDriveResolveBuffer(config = {}) {
+  const folderId = astTelemetryNormalizeString(config.driveFolderId, '__root__');
+  const baseFileName = astTelemetryDriveNormalizeBaseFileName(config.driveFileName);
+  const key = `${folderId}::${baseFileName}`;
+
+  if (!AST_TELEMETRY_DRIVE_SINK_BUFFERS[key]) {
+    AST_TELEMETRY_DRIVE_SINK_BUFFERS[key] = {
+      key,
+      folderId,
+      baseFileName,
+      records: [],
+      bytes: 0
+    };
   }
 
-  const filesIterator = folder.getFilesByName(fileName);
-  if (filesIterator && typeof filesIterator.hasNext === 'function' && filesIterator.hasNext()) {
-    return filesIterator.next();
+  return AST_TELEMETRY_DRIVE_SINK_BUFFERS[key];
+}
+
+function astTelemetryDriveBuildPartitionSegments(config = {}, now = new Date()) {
+  const partitionByHour = astTelemetryNormalizeBoolean(config.partitionByHour, true);
+  const year = String(now.getUTCFullYear());
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hour = String(now.getUTCHours()).padStart(2, '0');
+
+  if (!partitionByHour) {
+    return ['events', year, month, day];
   }
 
-  if (typeof folder.createFile !== 'function') {
+  return ['events', year, month, day, hour];
+}
+
+function astTelemetryDriveResolveChildFolder(parent, name) {
+  if (
+    !parent
+    || typeof parent.getFoldersByName !== 'function'
+    || typeof parent.createFolder !== 'function'
+  ) {
+    throw new AstTelemetryCapabilityError(
+      'Drive folder handle does not support getFoldersByName/createFolder'
+    );
+  }
+
+  const normalizedName = astTelemetryNormalizeString(name, null);
+  if (!normalizedName) {
+    throw new AstTelemetryCapabilityError('Drive child folder name is required');
+  }
+
+  const existing = parent.getFoldersByName(normalizedName);
+  if (existing && typeof existing.hasNext === 'function' && existing.hasNext()) {
+    return existing.next();
+  }
+
+  try {
+    return parent.createFolder(normalizedName);
+  } catch (error) {
+    const fallback = parent.getFoldersByName(normalizedName);
+    if (fallback && typeof fallback.hasNext === 'function' && fallback.hasNext()) {
+      return fallback.next();
+    }
+    throw error;
+  }
+}
+
+function astTelemetryDriveResolvePartitionFolder(baseFolder, config = {}, now = new Date()) {
+  const segments = astTelemetryDriveBuildPartitionSegments(config, now);
+  let current = baseFolder;
+
+  for (let idx = 0; idx < segments.length; idx += 1) {
+    current = astTelemetryDriveResolveChildFolder(current, segments[idx]);
+  }
+
+  return current;
+}
+
+function astTelemetryDriveBuildBatchFileName(baseFileName, now = new Date()) {
+  const normalized = astTelemetryDriveNormalizeBaseFileName(baseFileName);
+  const extensionMatch = normalized.match(/(\.[a-z0-9]+)$/i);
+  const extension = extensionMatch ? extensionMatch[1] : '.ndjson';
+  const stem = extensionMatch ? normalized.slice(0, -extension.length) : normalized;
+  const timestamp = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+    String(now.getUTCSeconds()).padStart(2, '0')
+  ].join('');
+  const batchId = astTelemetryGenerateId('telemetry_batch');
+  return `${stem}_${timestamp}_${batchId}${extension}`;
+}
+
+function astTelemetryDriveCreateBatchFile(folder, fileName, payloadText) {
+  if (!folder || typeof folder.createFile !== 'function') {
     throw new AstTelemetryCapabilityError('Drive folder handle does not support createFile');
   }
 
-  return folder.createFile(fileName, '', 'application/x-ndjson');
+  return folder.createFile(fileName, payloadText, 'application/x-ndjson');
 }
 
-function astTelemetryReadDriveText(file) {
-  if (!file) {
-    return '';
+function astTelemetryDriveShouldFlush(config = {}, state) {
+  const flushMode = astTelemetryNormalizeString(config.flushMode, 'threshold');
+  if (flushMode === 'immediate') {
+    return true;
+  }
+  if (flushMode === 'manual') {
+    return false;
   }
 
-  if (typeof file.getBlob === 'function') {
-    const blob = file.getBlob();
-    if (blob && typeof blob.getDataAsString === 'function') {
-      return String(blob.getDataAsString() || '');
-    }
-  }
+  const batchMaxEvents = astTelemetryNormalizeNumber(config.batchMaxEvents, 25, 1, 10000);
+  const batchMaxBytes = astTelemetryNormalizeNumber(config.batchMaxBytes, 65536, 512, 5 * 1024 * 1024);
 
-  if (typeof file.getDataAsString === 'function') {
-    return String(file.getDataAsString() || '');
-  }
-
-  return '';
+  return state.records.length >= batchMaxEvents || state.bytes >= batchMaxBytes;
 }
 
-function astTelemetryWriteDriveText(file, content) {
-  if (!file) {
-    throw new AstTelemetryCapabilityError('Drive file handle is not available');
+function astTelemetryDriveFlushBuffer(config = {}, options = {}) {
+  const force = astTelemetryNormalizeBoolean(options.force, false);
+  const state = astTelemetryDriveResolveBuffer(config);
+  const pending = state.records.length;
+
+  if (pending === 0) {
+    return {
+      flushed: 0,
+      pending: 0,
+      bytes: 0,
+      uri: null
+    };
   }
 
-  if (typeof file.setContent === 'function') {
-    file.setContent(content);
-    return;
+  const flushMode = astTelemetryNormalizeString(config.flushMode, 'threshold');
+  if (!force && flushMode === 'manual') {
+    return {
+      flushed: 0,
+      pending,
+      bytes: state.bytes,
+      uri: null
+    };
   }
 
-  if (typeof file.setDataFromString === 'function') {
-    file.setDataFromString(content);
-    return;
+  const canFlush = force || astTelemetryDriveShouldFlush(config, state);
+  if (!canFlush) {
+    return {
+      flushed: 0,
+      pending,
+      bytes: state.bytes,
+      uri: null
+    };
   }
 
-  throw new AstTelemetryCapabilityError('Drive file handle does not support content updates');
+  return astTelemetryRunDriveWriteWithLock(() => {
+    const now = new Date();
+    const baseFolder = astTelemetryGetDriveFolder(config);
+    const partitionFolder = astTelemetryDriveResolvePartitionFolder(baseFolder, config, now);
+    const fileName = astTelemetryDriveBuildBatchFileName(state.baseFileName, now);
+    const payloadText = state.records.join('\n');
+    const file = astTelemetryDriveCreateBatchFile(partitionFolder, fileName, payloadText);
+    const flushed = state.records.length;
+    const bytes = state.bytes;
+
+    state.records = [];
+    state.bytes = 0;
+
+    const fileId = astTelemetryTryOrFallback(
+      () => (file && typeof file.getId === 'function' ? String(file.getId() || '') : ''),
+      ''
+    );
+
+    return {
+      flushed,
+      pending: 0,
+      bytes,
+      uri: fileId ? `drive://file/${fileId}` : null
+    };
+  }, config);
 }
 
 function astTelemetryRunDriveWriteWithLock(task, config = {}) {
@@ -108,21 +240,26 @@ function astTelemetryRunDriveWriteWithLock(task, config = {}) {
 }
 
 function astTelemetrySinkDriveJson(record, config = {}) {
-  const safeFileName = astTelemetryNormalizeString(config.driveFileName, 'ast-telemetry.ndjson');
   const line = astTelemetryTryOrFallback(
     () => JSON.stringify(record),
     '{"error":"telemetry-serialize-failed"}'
   );
 
-  astTelemetryRunDriveWriteWithLock(() => {
-    const folder = astTelemetryGetDriveFolder(config);
-    const file = astTelemetryResolveDriveFile(folder, safeFileName);
-    const existing = astTelemetryReadDriveText(file);
-    const nextContent = existing ? `${existing}\n${line}` : line;
-    astTelemetryWriteDriveText(file, nextContent);
-  }, config);
+  const state = astTelemetryDriveResolveBuffer(config);
+  state.records.push(line);
+  state.bytes += line.length + 1;
+
+  if (astTelemetryDriveShouldFlush(config, state)) {
+    astTelemetryDriveFlushBuffer(config, { force: true });
+  }
+}
+
+function astTelemetryFlushDriveJson(config = {}, options = {}) {
+  return astTelemetryDriveFlushBuffer(config, Object.assign({}, options, { force: true }));
 }
 
 const __astTelemetrySinkDriveRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astTelemetrySinkDriveRoot.astTelemetrySinkDriveJson = astTelemetrySinkDriveJson;
+__astTelemetrySinkDriveRoot.astTelemetryFlushDriveJson = astTelemetryFlushDriveJson;
 this.astTelemetrySinkDriveJson = astTelemetrySinkDriveJson;
+this.astTelemetryFlushDriveJson = astTelemetryFlushDriveJson;
