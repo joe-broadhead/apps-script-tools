@@ -61,12 +61,12 @@ flowchart LR
 
 ## Public release
 
-- Current published release: `v0.0.3`
-- Next release target on `master`: `v0.0.4` (unreleased)
+- Current published release: `v0.0.4`
+- Next release target on `master`: `v0.0.5` (unreleased)
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 
-## `v0.0.4` release-line scope
+## `v0.0.4` release highlights
 
 - `AST.RAG` module for Drive-only ingestion (`txt`, `pdf`, Docs, Slides + speaker notes).
 - Embedding provider registry with built-ins and runtime custom provider registration.

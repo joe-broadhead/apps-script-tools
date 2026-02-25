@@ -18,9 +18,9 @@ Use semantic tags:
 8. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
 9. validate library from a clean consumer Apps Script project
 
-## `v0.0.4` Release Prep Notes
+## `v0.0.5` Release Prep Notes
 
-- Confirm `CHANGELOG.md` `v0.0.4 (unreleased)` includes:
+- Confirm `CHANGELOG.md` `v0.0.5 (unreleased)` includes:
   - `AST.RAG` surface and typed error model
   - Drive ingestion coverage (`txt`, `pdf`, Docs, Slides + notes)
   - embedding provider registry and custom provider registration
@@ -29,10 +29,10 @@ Use semantic tags:
   - `AST.Chat` `ThreadStore` contracts for durable user-scoped thread state
   - breaking note that internal non-`AST` top-level globals are intentionally unstable
 - Confirm docs and README release-state messaging is consistent:
-  - published is `v0.0.3`
-  - `v0.0.4` is unreleased until tag + GitHub release publish
+  - published is `v0.0.4`
+  - `v0.0.5` is unreleased until tag + GitHub release publish
 - For release notes, include exact mapping:
-  - `v0.0.4 -> Apps Script version N` (from `clasp version` output)
+  - `v0.0.5 -> Apps Script version N` (from `clasp version` output)
 
 ## Apps Script Publish (`clasp`)
 

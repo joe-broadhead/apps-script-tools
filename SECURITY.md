@@ -2,8 +2,8 @@
 
 ## Supported Version
 
-Current published release line: `v0.0.3`.
-Next release target on `master`: `v0.0.4` (unreleased).
+Current published release line: `v0.0.4`.
+Next release target on `master`: `v0.0.5` (unreleased).
 
 ## Reporting Security Issues
 

@@ -47,10 +47,10 @@
 
 Current release state:
 
-- Published: `v0.0.3`
-- Next release target on `master`: `v0.0.4` (unreleased)
+- Published: `v0.0.4`
+- Next release target on `master`: `v0.0.5` (unreleased)
 
-`v0.0.4` release-line highlights already on `master`:
+`v0.0.4` release highlights:
 
 - New `AST.RAG` module with Drive ingestion (`txt`, `pdf`, Docs, Slides + notes).
 - RAG embedding registry with built-in providers and runtime custom provider registration.
