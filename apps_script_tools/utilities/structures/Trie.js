@@ -88,9 +88,14 @@ class Trie {
   }
 
   autocomplete(prefix) {
-    if (typeof prefix !== 'string' || prefix.length === 0) {
+    if (typeof prefix !== 'string') {
       return [];
     };
+
+    if (prefix.length === 0) {
+      return this.collectWords(this.root, "");
+    };
+
     let current = this.root;
     for (const char of prefix) {
       if (!current.children.has(char)) {

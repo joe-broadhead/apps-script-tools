@@ -187,7 +187,8 @@ test('Trie supports prefix, suffix, delete, and empty checks', () => {
       startsWithAp: trie.startsWith('ap'),
       endsWithNa: trie.endsWith('na'),
       endsWithNope: trie.endsWith('nope'),
-      auto: trie.autocomplete('app')
+      auto: trie.autocomplete('app'),
+      autoAll: trie.autocomplete('')
     };
     trie.delete('app');
     trie.delete('apple');
@@ -205,6 +206,7 @@ test('Trie supports prefix, suffix, delete, and empty checks', () => {
   assert.equal(parsed.beforeDelete.endsWithNa, true);
   assert.equal(parsed.beforeDelete.endsWithNope, false);
   assert.deepEqual(parsed.beforeDelete.auto.sort(), ['app', 'apple']);
+  assert.deepEqual(parsed.beforeDelete.autoAll.sort(), ['app', 'apple', 'banana']);
   assert.equal(parsed.afterDeleteSearch, false);
   assert.equal(parsed.empty, true);
 });
