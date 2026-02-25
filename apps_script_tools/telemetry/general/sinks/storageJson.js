@@ -1,5 +1,11 @@
 const AST_TELEMETRY_STORAGE_SINK_BUFFERS = {};
 
+function astTelemetryResetStorageSinkBuffers() {
+  Object.keys(AST_TELEMETRY_STORAGE_SINK_BUFFERS).forEach(key => {
+    delete AST_TELEMETRY_STORAGE_SINK_BUFFERS[key];
+  });
+}
+
 function astTelemetryStorageNormalizeBaseUri(storageUri) {
   const normalized = astTelemetryNormalizeString(storageUri, null);
   if (!normalized) {
@@ -187,5 +193,7 @@ function astTelemetryFlushStorageJson(config = {}, options = {}) {
 const __astTelemetrySinkStorageRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astTelemetrySinkStorageRoot.astTelemetrySinkStorageJson = astTelemetrySinkStorageJson;
 __astTelemetrySinkStorageRoot.astTelemetryFlushStorageJson = astTelemetryFlushStorageJson;
+__astTelemetrySinkStorageRoot.astTelemetryResetStorageSinkBuffers = astTelemetryResetStorageSinkBuffers;
 this.astTelemetrySinkStorageJson = astTelemetrySinkStorageJson;
 this.astTelemetryFlushStorageJson = astTelemetryFlushStorageJson;
+this.astTelemetryResetStorageSinkBuffers = astTelemetryResetStorageSinkBuffers;

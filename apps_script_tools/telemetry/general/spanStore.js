@@ -519,6 +519,14 @@ function astTelemetryResetStore() {
   AST_TELEMETRY_TRACES = {};
   AST_TELEMETRY_TRACE_ORDER = [];
   AST_TELEMETRY_SPAN_INDEX = {};
+
+  if (typeof astTelemetryResetDriveSinkBuffers === 'function') {
+    astTelemetryResetDriveSinkBuffers();
+  }
+
+  if (typeof astTelemetryResetStorageSinkBuffers === 'function') {
+    astTelemetryResetStorageSinkBuffers();
+  }
 }
 
 function astTelemetryStartSpanSafe(name, context = {}, options = {}) {

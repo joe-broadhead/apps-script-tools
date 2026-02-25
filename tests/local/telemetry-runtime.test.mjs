@@ -274,6 +274,33 @@ test('Telemetry drive_json sink supports manual flush mode', () => {
   assert.equal(drive.filesCreated.length, 1);
 });
 
+test('Telemetry reset clears buffered drive_json records', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'drive_json',
+    driveFileName: 'telemetry-reset.ndjson',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.drive.reset', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+  assert.equal(drive.filesCreated.length, 0);
+
+  context.AST.Telemetry._reset();
+  const flushResult = context.AST.Telemetry.flush();
+
+  assert.equal(flushResult.flushed, 0);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(drive.filesCreated.length, 0);
+});
+
 test('Telemetry storage_json sink supports manual flush mode', () => {
   const writes = [];
   const context = createGasContext({
@@ -307,6 +334,39 @@ test('Telemetry storage_json sink supports manual flush mode', () => {
   assert.equal(writes.length, 1);
   assert.match(writes[0].uri, /^s3:\/\/ast-telemetry\/tests\/events\/\d{4}\/\d{2}\/\d{2}\/\d{2}\/telemetry_batch_/);
   assert.match(writes[0].payload.text, /"type":"span_end"/);
+});
+
+test('Telemetry reset clears buffered storage_json records', () => {
+  const writes = [];
+  const context = createGasContext({
+    runStorageRequest: request => {
+      writes.push(request);
+      return {
+        provider: 's3',
+        operation: 'write',
+        uri: request.uri
+      };
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'storage_json',
+    storageUri: 's3://ast-telemetry/tests',
+    flushMode: 'manual'
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.storage.reset', {});
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+  assert.equal(writes.length, 0);
+
+  context.AST.Telemetry._reset();
+  const flushResult = context.AST.Telemetry.flush();
+  assert.equal(flushResult.flushed, 0);
+  assert.equal(flushResult.pending, 0);
+  assert.equal(writes.length, 0);
 });
 
 test('Telemetry storage_json sink flushes on threshold', () => {

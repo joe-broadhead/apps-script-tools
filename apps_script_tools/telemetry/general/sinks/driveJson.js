@@ -1,5 +1,11 @@
 const AST_TELEMETRY_DRIVE_SINK_BUFFERS = {};
 
+function astTelemetryResetDriveSinkBuffers() {
+  Object.keys(AST_TELEMETRY_DRIVE_SINK_BUFFERS).forEach(key => {
+    delete AST_TELEMETRY_DRIVE_SINK_BUFFERS[key];
+  });
+}
+
 function astTelemetryGetDriveFolder(config = {}) {
   if (typeof DriveApp === 'undefined' || !DriveApp) {
     throw new AstTelemetryCapabilityError('DriveApp is required for telemetry drive_json sink');
@@ -261,5 +267,7 @@ function astTelemetryFlushDriveJson(config = {}, options = {}) {
 const __astTelemetrySinkDriveRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astTelemetrySinkDriveRoot.astTelemetrySinkDriveJson = astTelemetrySinkDriveJson;
 __astTelemetrySinkDriveRoot.astTelemetryFlushDriveJson = astTelemetryFlushDriveJson;
+__astTelemetrySinkDriveRoot.astTelemetryResetDriveSinkBuffers = astTelemetryResetDriveSinkBuffers;
 this.astTelemetrySinkDriveJson = astTelemetrySinkDriveJson;
 this.astTelemetryFlushDriveJson = astTelemetryFlushDriveJson;
+this.astTelemetryResetDriveSinkBuffers = astTelemetryResetDriveSinkBuffers;
