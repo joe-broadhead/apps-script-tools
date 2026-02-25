@@ -130,6 +130,26 @@ Create grouped workflows from `DataFrame.groupBy(keys)`.
 const grouped = df.groupBy(['region']).agg({ amount: ['sum', 'mean'] });
 ```
 
+## Global structure classes
+
+These classes are available globally when the library is loaded and are useful in downstream script logic:
+
+- `Queue`, `Deque`, `Stack`
+- `PriorityQueue`, `LinkedList`
+- `Graph`
+- `Trie`, `TernarySearchTree`, `BinarySearchTree`
+- `DisjointSet`
+- `LruCache`
+
+High-signal behavior:
+
+- `Queue` and `Deque` use non-shift internals for stable performance under high churn.
+- `PriorityQueue` uses a binary heap with stable ordering for equal priorities.
+- `Graph` de-duplicates edges and safely handles missing BFS start vertices.
+- `Trie.endsWith(...)` is value-correct for suffix checks.
+- `DisjointSet` provides union-find with path compression + union by rank.
+- `LruCache` provides deterministic least-recently-used eviction.
+
 ## `ASTX.Sql`
 
 SQL runtime surface with direct execution, prepared execution, and provider execution control.

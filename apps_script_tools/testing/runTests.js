@@ -247,6 +247,7 @@ async function runAllTests() {
     ...STRING_TO_SNAKE_CASE_TESTS,
     ...STRING_TO_TITLE_CASE_TESTS,
     ...STRING_ZFILL_TESTS,
+    ...STRUCTURES_CORE_TESTS,
 
     // database Tests
 

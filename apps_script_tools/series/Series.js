@@ -661,7 +661,10 @@ var Series = class Series {
    * const result = series.query((s, value, i) => value > 20 && i % 2 === 0);
    * console.log(result.array); // Output: [25, 35]
    * 
-   * @see Series#filter ////////// TODO: Add Time Complexity
+   * @see Series#filter
+   * @note
+   * - Time Complexity: O(n), where `n` is the length of the `Series`.
+   * - Space Complexity: O(k), where `k` is the number of matching elements.
    */
   query(condition) {
     if (typeof condition !== 'function') {

@@ -5,7 +5,7 @@ class Graph {
 
   addVertex(vertex) {
     if (!this.adjacencyList.has(vertex)) {
-      this.adjacencyList.set(vertex, []);
+      this.adjacencyList.set(vertex, new Set());
     };
   }
 
@@ -16,36 +16,46 @@ class Graph {
     if (!this.adjacencyList.has(vertex2)) {
       this.addVertex(vertex2);
     };
-    this.adjacencyList.get(vertex1).push(vertex2);
-    this.adjacencyList.get(vertex2).push(vertex1);
+    this.adjacencyList.get(vertex1).add(vertex2);
+    this.adjacencyList.get(vertex2).add(vertex1);
   }
 
   getNeighbors(vertex) {
-    return this.adjacencyList.get(vertex) || [];
+    if (!this.adjacencyList.has(vertex)) {
+      return [];
+    };
+    return Array.from(this.adjacencyList.get(vertex));
   }
 
   areConnected(vertex1, vertex2) {
-    return this.adjacencyList.get(vertex1)?.includes(vertex2) || false;
+    return this.adjacencyList.get(vertex1)?.has(vertex2) || false;
   }
 
   print() {
     for (const [vertex, neighbors] of this.adjacencyList) {
-      console.log(`${vertex} -> ${neighbors.join(", ")}`);
+      console.log(`${vertex} -> ${Array.from(neighbors).join(", ")}`);
     };
   }
 
   bfs(start) {
+    if (!this.adjacencyList.has(start)) {
+      return [];
+    };
+
     const visited = new Set();
     const queue = [start];
+    let headIndex = 0;
     const result = [];
 
-    while (queue.length > 0) {
-      const vertex = queue.shift();
+    while (headIndex < queue.length) {
+      const vertex = queue[headIndex];
+      headIndex += 1;
       if (!visited.has(vertex)) {
         visited.add(vertex);
         result.push(vertex);
 
-        for (const neighbor of this.adjacencyList.get(vertex)) {
+        const neighbors = this.adjacencyList.get(vertex) || [];
+        for (const neighbor of neighbors) {
           if (!visited.has(neighbor)) {
             queue.push(neighbor);
           };
@@ -57,7 +67,7 @@ class Graph {
 
   *[Symbol.iterator]() {
     for (const [vertex, neighbors] of this.adjacencyList.entries()) {
-      yield { vertex, neighbors };
+      yield { vertex, neighbors: Array.from(neighbors) };
     };
   }
 }

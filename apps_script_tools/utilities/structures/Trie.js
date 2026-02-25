@@ -8,6 +8,7 @@ class TrieNode {
 class Trie {
   constructor() {
     this.root = new TrieNode();
+    this.wordCount = 0;
   }
 
   *[Symbol.iterator]() {
@@ -29,11 +30,17 @@ class Trie {
         };
         current = current.children.get(char);
       };
-      current.isEndOfWord = true;
+      if (!current.isEndOfWord) {
+        current.isEndOfWord = true;
+        this.wordCount += 1;
+      };
     };
   }
 
   search(word) {
+    if (typeof word !== 'string' || word.length === 0) {
+      return false;
+    };
     let current = this.root;
     for (const char of word) {
       if (!current.children.has(char)) {
@@ -45,6 +52,9 @@ class Trie {
   }
 
   startsWith(prefix) {
+    if (typeof prefix !== 'string' || prefix.length === 0) {
+      return false;
+    };
     let current = this.root;
     for (const char of prefix) {
       if (!current.children.has(char)) {
@@ -56,8 +66,15 @@ class Trie {
   }
 
   endsWith(suffix) {
-    const reversedSuffix = suffix.split('').reverse().join('');
-    return this.startsWith(reversedSuffix, true);
+    if (typeof suffix !== 'string' || suffix.length === 0) {
+      return false;
+    };
+    for (const word of this) {
+      if (word.endsWith(suffix)) {
+        return true;
+      };
+    };
+    return false;
   }
 
   collectWords(node = this.root, prefix = "", result = []) {
@@ -71,6 +88,9 @@ class Trie {
   }
 
   autocomplete(prefix) {
+    if (typeof prefix !== 'string' || prefix.length === 0) {
+      return [];
+    };
     let current = this.root;
     for (const char of prefix) {
       if (!current.children.has(char)) {
@@ -82,9 +102,14 @@ class Trie {
   }
 
   delete(word, node = this.root, depth = 0) {
+    if (typeof word !== 'string' || word.length === 0) {
+      return false;
+    };
+
     if (depth === word.length) {
       if (!node.isEndOfWord) return false; // Word doesn't exist
       node.isEndOfWord = false;
+      this.wordCount = Math.max(0, this.wordCount - 1);
       return node.children.size === 0; // Return true if no children (can delete this node)
     }
   
@@ -97,6 +122,10 @@ class Trie {
       return node.children.size === 0 && !node.isEndOfWord;
     }
     return false;
+  }
+
+  isEmpty() {
+    return this.wordCount === 0;
   }
 
   fuzzySearch(query, maxDistance = 1, node = this.root, depth = 0, currentWord = "", result = []) {

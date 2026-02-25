@@ -2,7 +2,7 @@
 
 ## Source support
 
-Drive-only ingestion in `v0.0.4` supports:
+Drive-only ingestion supports:
 
 - plain text (`text/plain`)
 - PDF (`application/pdf`)

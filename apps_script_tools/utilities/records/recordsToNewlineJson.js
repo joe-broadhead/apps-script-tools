@@ -1,30 +1,19 @@
 /**
- * @function newlineJsonToRecords
- * @description Converts a newline-delimited JSON string into an array of JavaScript objects (records).
- *              Each line in the input string is treated as a separate JSON object. Empty lines are ignored.
- * @param {String} jsonNewLineString - The newline-delimited JSON string to be parsed.
- * @returns {Array<Object>} Returns an array of objects parsed from the input newline-delimited JSON string.
- * @throws {Error} If any line in the input string is not valid JSON.
+ * @function recordsToNewlineJson
+ * @description Converts an array of records into newline-delimited JSON (JSONL).
+ * @param {Array<Object>} records - Records to serialize.
+ * @returns {String} Newline-delimited JSON string.
  * @example
- * // Example input with valid newline-delimited JSON
- * const nlJsonString = `{"name": "John", "age": 30}\n{"name": "Jane", "age": 25}\n`;
- * const records = newlineJsonToRecords(nlJsonString);
- * console.log(records);
- * // Outputs: [{ name: "John", age: 30 }, { name: "Jane", age: 25 }]
- *
- * // Example with empty lines
- * const nlJsonWithEmptyLines = `{"name": "John", "age": 30}\n\n{"name": "Jane", "age": 25}\n`;
- * const recordsWithEmptyLines = newlineJsonToRecords(nlJsonWithEmptyLines);
- * console.log(recordsWithEmptyLines);
- * // Outputs: [{ name: "John", age: 30 }, { name: "Jane", age: 25 }]
- * @see {@link https://jsonlines.org/} - For more information on newline-delimited JSON format.
+ * const records = [{ id: 1, name: "John" }, { id: 2, name: "Jane" }];
+ * const jsonl = recordsToNewlineJson(records);
+ * // Output:
+ * // {"id":1,"name":"John"}
+ * // {"id":2,"name":"Jane"}
+ * @see {@link https://jsonlines.org/}
  * @see standardizeRecords
  * @note
- * - Behavior:
- *   - Empty lines are ignored.
- *   - Throws an error if any line cannot be parsed as valid JSON.
- * - Time Complexity: O(n), where `n` is the number of lines in the input string.
- * - Space Complexity: O(n), as an array of parsed objects is created.
+ * - Time Complexity: O(n * m), where `n` is number of records and `m` is average keys per record.
+ * - Space Complexity: O(n), proportional to serialized output size.
  */
 function recordsToNewlineJson(records) {
   const filledData = standardizeRecords(records);

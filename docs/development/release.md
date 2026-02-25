@@ -9,16 +9,8 @@
 
 - Published release: `v0.0.4`
 - Next release target on `master`: `v0.0.5` (unreleased)
-
-`v0.0.4` release closeout check:
-
-- RAG module (`AST.RAG`) shipped on `master` with docs and tests.
-- Drive-only ingestion support includes txt/pdf/Docs/Slides (+ notes).
-- Embedding provider registry supports built-ins and runtime custom providers.
-- Storage module (`AST.Storage`) ships unified CRUD for `gcs`, `s3`, and `dbfs`.
-- Chat module (`AST.Chat`) ships durable thread state contracts for app chat workflows.
-- Breaking contract is documented: internal non-`AST` top-level globals are intentionally unstable and should not be consumed directly.
-- Release-note source of truth is `CHANGELOG.md` (`v0.0.4` released section).
+- Release-note source of truth is `CHANGELOG.md`.
+- Keep README and docs home focused on current unreleased-line highlights; avoid duplicating past release bullet lists there.
 
 ## Pre-release checks
 

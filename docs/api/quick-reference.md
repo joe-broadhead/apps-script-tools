@@ -84,6 +84,24 @@ series.str.*
 series.dt.*
 ```
 
+## Global structures (utility classes)
+
+These classes are available globally once the library is loaded:
+
+```javascript
+Queue
+Deque
+Stack
+PriorityQueue
+LinkedList
+Graph
+Trie
+TernarySearchTree
+BinarySearchTree
+DisjointSet
+LruCache
+```
+
 ## SQL request contract
 
 ```javascript

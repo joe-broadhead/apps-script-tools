@@ -1,10 +1,18 @@
+class BinarySearchTreeNode {
+  constructor(value) {
+    this.value = value;
+    this.left = null;
+    this.right = null;
+  }
+}
+
 class BinarySearchTree {
   constructor() {
     this.root = null;
   }
 
   insert(value) {
-    const newNode = new Node(value);
+    const newNode = new BinarySearchTreeNode(value);
     if (this.root === null) {
       this.root = newNode;
     } else {
@@ -61,10 +69,12 @@ class BinarySearchTree {
   bfs() {
     if (this.root === null) return [];
     const queue = [this.root];
+    let headIndex = 0;
     const result = [];
 
-    while (queue.length > 0) {
-      const node = queue.shift();
+    while (headIndex < queue.length) {
+      const node = queue[headIndex];
+      headIndex += 1;
       result.push(node.value);
 
       if (node.left) queue.push(node.left);
@@ -82,5 +92,5 @@ class BinarySearchTree {
       };
     };
     yield* inOrderTraversal(this.root);
-  ;}
+  }
 }

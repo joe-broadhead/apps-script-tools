@@ -1,4 +1,4 @@
-class Node {
+class LinkedListNode {
   constructor(data) {
     this.data = data;
     this.next = null;
@@ -8,27 +8,29 @@ class Node {
 class LinkedList {
   constructor() {
     this.head = null;
+    this.tail = null;
     this.size = 0;
   }
 
   append(data) {
-    const newNode = new Node(data);
+    const newNode = new LinkedListNode(data);
     if (this.head === null) {
       this.head = newNode;
+      this.tail = newNode;
     } else {
-      let current = this.head;
-      while (current.next !== null) {
-        current = current.next;
-      };
-      current.next = newNode;
+      this.tail.next = newNode;
+      this.tail = newNode;
     };
     this.size++;
   }
 
   prepend(data) {
-    const newNode = new Node(data);
+    const newNode = new LinkedListNode(data);
     newNode.next = this.head;
     this.head = newNode;
+    if (this.tail === null) {
+      this.tail = newNode;
+    };
     this.size++;
   }
 
@@ -37,6 +39,9 @@ class LinkedList {
 
     if (this.head.data === data) {
       this.head = this.head.next;
+      if (this.head === null) {
+        this.tail = null;
+      };
       this.size--;
       return;
     };
@@ -47,6 +52,9 @@ class LinkedList {
     };
 
     if (current.next !== null) {
+      if (current.next === this.tail) {
+        this.tail = current;
+      };
       current.next = current.next.next;
       this.size--;
     };
@@ -75,6 +83,12 @@ class LinkedList {
 
   getSize() {
     return this.size;
+  }
+
+  clear() {
+    this.head = null;
+    this.tail = null;
+    this.size = 0;
   }
 
   *[Symbol.iterator]() {

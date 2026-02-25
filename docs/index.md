@@ -69,28 +69,14 @@ flowchart LR
 - Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
 - Docs: <https://joe-broadhead.github.io/apps-script-tools/>
 
-## `v0.0.4` release highlights
-
-- `AST.RAG` module for Drive-only ingestion (`txt`, `pdf`, Docs, Slides + speaker notes).
-- Embedding provider registry with built-ins and runtime custom provider registration.
-- Grounded answering with strict citation mapping and deterministic abstention behavior.
-- Drive JSON index lifecycle APIs (`buildIndex`, `syncIndex`, `inspectIndex`, `search`, `answer`).
-- `AST.Storage` unified CRUD contracts (`list`, `head`, `read`, `write`, `delete`) for `gcs`, `s3`, and `dbfs`.
-- `AST.Cache` cache contracts (`get`, `set`, `delete`, `invalidateByTag`, `stats`, `clear`) for `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/`).
-- `AST.Telemetry` observability foundation (`startSpan`, `endSpan`, `recordEvent`, `getTrace`, `flush`) with redaction and sink control.
-- `AST.Config.fromScriptProperties(...)` + `AST.Runtime.configureFromProps(...)` to bootstrap module runtime config from Script Properties.
-- `AST.TelemetryHelpers` wrappers (`withSpan`, `wrap`, safe start/end/event helpers) for non-blocking app instrumentation.
-- RAG hot-path cache controls for embedding/search/answer reuse across repeated queries.
-- `AST.Jobs` orchestration contracts (`run`, `enqueue`, `resume`, `status`, `list`, `cancel`) with script-properties checkpoint state.
-- `AST.Chat` `ThreadStore` contracts for per-user durable thread state and deterministic history bounds.
-- Breaking contract: internal non-`AST` top-level globals are intentionally not stable; consume APIs through `ASTX.*` only.
-
 ## `v0.0.5` (unreleased) highlights
 
 - `AST.DBT` namespace for dbt `manifest.json` operations.
 - Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
 - v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
 - Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.
+
+For released highlights, use `CHANGELOG.md` (for example `v0.0.4`).
 
 ## Import pattern
 
