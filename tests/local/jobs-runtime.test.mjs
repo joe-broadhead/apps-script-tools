@@ -650,6 +650,45 @@ test('AST.Jobs.list keeps legacy scan fallback active when backfill lock fails',
   assert.equal(pendingAfterSecond.prefixes.includes(prefix), false);
 });
 
+test('AST.Jobs.list non-explicit path includes pending legacy prefixes not yet in registry', () => {
+  const { context, store } = createJobsContext();
+  const prefix = `AST_JOBS_LEGACY_PENDING_${Date.now()}_`;
+  const jobId = `legacy_pending_${Date.now()}`;
+
+  store.AST_JOBS_PREFIX_REGISTRY = JSON.stringify({
+    prefixes: ['AST_JOBS_JOB_']
+  });
+  store[`${prefix}${jobId}`] = JSON.stringify(createLegacyJobRecord(jobId, 'legacy-pending', prefix));
+
+  let lockFailuresRemaining = 1;
+  context.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        if (lockFailuresRemaining > 0) {
+          lockFailuresRemaining -= 1;
+          return false;
+        }
+        return true;
+      },
+      releaseLock: () => {}
+    })
+  };
+
+  const explicit = context.AST.Jobs.list({
+    name: 'legacy-pending',
+    limit: 20
+  }, {
+    propertyPrefix: prefix
+  });
+  assert.equal(explicit.some(item => item.id === jobId), true);
+
+  const nonExplicit = context.AST.Jobs.list({
+    name: 'legacy-pending',
+    limit: 20
+  });
+  assert.equal(nonExplicit.some(item => item.id === jobId), true);
+});
+
 test('AST.Jobs.configure controls runtime defaults', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_CONFIG_${Date.now()}_`;

@@ -942,6 +942,22 @@ function astJobsResolveListPrefixes(scriptProperties, executionOptions, options 
     registry.push(executionOptions.propertyPrefix);
   }
 
+  let registryChanged = false;
+  for (let idx = 0; idx < pendingLegacyScanPrefixes.length; idx += 1) {
+    const pendingPrefix = pendingLegacyScanPrefixes[idx];
+    if (!registry.includes(pendingPrefix)) {
+      registry.push(pendingPrefix);
+      registryChanged = true;
+    }
+  }
+  if (registryChanged) {
+    try {
+      astJobsWritePrefixRegistry(scriptProperties, registry);
+    } catch (_error) {
+      // Best-effort registry enrichment.
+    }
+  }
+
   const registrySet = new Set(registry);
   const activePendingPrefixes = pendingLegacyScanPrefixes.filter(prefix => registrySet.has(prefix));
 
