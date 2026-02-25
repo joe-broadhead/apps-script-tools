@@ -59,32 +59,41 @@ function astRagSetRuntimeConfig(config = {}, options = {}) {
   }
 
   const merge = options.merge !== false;
-  const next = merge ? astRagGetRuntimeConfig() : {};
+  let next;
+  if (typeof astConfigMergeNormalizedConfig === 'function') {
+    next = astConfigMergeNormalizedConfig(
+      merge ? astRagGetRuntimeConfig() : {},
+      config,
+      { merge: true }
+    );
+  } else {
+    next = merge ? astRagGetRuntimeConfig() : {};
 
-  Object.keys(config).forEach(key => {
-    const normalizedKey = astRagNormalizeString(key, '');
-    if (!normalizedKey) {
-      return;
-    }
+    Object.keys(config).forEach(key => {
+      const normalizedKey = astRagNormalizeString(key, '');
+      if (!normalizedKey) {
+        return;
+      }
 
-    const value = config[key];
-    if (value == null || (typeof value === 'string' && value.trim().length === 0)) {
+      const value = config[key];
+      if (value == null || (typeof value === 'string' && value.trim().length === 0)) {
+        delete next[normalizedKey];
+        return;
+      }
+
+      if (typeof value === 'string') {
+        next[normalizedKey] = value.trim();
+        return;
+      }
+
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        next[normalizedKey] = String(value);
+        return;
+      }
+
       delete next[normalizedKey];
-      return;
-    }
-
-    if (typeof value === 'string') {
-      next[normalizedKey] = value.trim();
-      return;
-    }
-
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      next[normalizedKey] = String(value);
-      return;
-    }
-
-    delete next[normalizedKey];
-  });
+    });
+  }
 
   AST_RAG_RUNTIME_CONFIG = next;
   astRagInvalidateScriptPropertiesSnapshotCache();
@@ -121,10 +130,17 @@ function astRagResolveConfigString({
 }) {
   const candidates = [requestValue, authValue, runtimeConfig[scriptKey], scriptConfig[scriptKey]];
 
-  for (let idx = 0; idx < candidates.length; idx += 1) {
-    const normalized = astRagNormalizeString(candidates[idx], null);
-    if (normalized) {
-      return normalized;
+  if (typeof astConfigResolveFirstString === 'function') {
+    const resolved = astConfigResolveFirstString(candidates, null);
+    if (resolved != null) {
+      return resolved;
+    }
+  } else {
+    for (let idx = 0; idx < candidates.length; idx += 1) {
+      const normalized = astRagNormalizeString(candidates[idx], null);
+      if (normalized) {
+        return normalized;
+      }
     }
   }
 

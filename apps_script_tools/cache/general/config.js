@@ -82,22 +82,31 @@ function astCacheSetRuntimeConfig(config = {}, options = {}) {
   }
 
   const merge = options.merge !== false;
-  const next = merge ? astCacheGetRuntimeConfig() : {};
+  let next;
+  if (typeof astConfigMergeNormalizedConfig === 'function') {
+    next = astConfigMergeNormalizedConfig(
+      merge ? astCacheGetRuntimeConfig() : {},
+      config,
+      { merge: true }
+    );
+  } else {
+    next = merge ? astCacheGetRuntimeConfig() : {};
 
-  const keys = Object.keys(config);
-  for (let idx = 0; idx < keys.length; idx += 1) {
-    const key = astCacheNormalizeString(keys[idx], '');
-    if (!key) {
-      continue;
+    const keys = Object.keys(config);
+    for (let idx = 0; idx < keys.length; idx += 1) {
+      const key = astCacheNormalizeString(keys[idx], '');
+      if (!key) {
+        continue;
+      }
+
+      const normalized = astCacheNormalizeConfigValue(config[key]);
+      if (normalized == null) {
+        delete next[key];
+        continue;
+      }
+
+      next[key] = normalized;
     }
-
-    const normalized = astCacheNormalizeConfigValue(config[key]);
-    if (normalized == null) {
-      delete next[key];
-      continue;
-    }
-
-    next[key] = normalized;
   }
 
   AST_CACHE_RUNTIME_CONFIG = next;
@@ -166,6 +175,10 @@ function astCacheGetScriptPropertiesSnapshot() {
 }
 
 function astCacheResolveConfigString(candidates, fallback = '') {
+  if (typeof astConfigResolveFirstString === 'function') {
+    return astConfigResolveFirstString(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const normalized = astCacheNormalizeConfigValue(candidates[idx]);
     if (normalized != null) {
@@ -176,6 +189,14 @@ function astCacheResolveConfigString(candidates, fallback = '') {
 }
 
 function astCacheResolveConfigNumber(candidates, fallback, min, max) {
+  if (typeof astConfigResolveFirstInteger === 'function') {
+    return astConfigResolveFirstInteger(candidates, {
+      fallback,
+      min,
+      max
+    });
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const value = candidates[idx];
     if (value == null || value === '') {
@@ -192,6 +213,10 @@ function astCacheResolveConfigNumber(candidates, fallback, min, max) {
 }
 
 function astCacheResolveConfigBoolean(candidates, fallback) {
+  if (typeof astConfigResolveFirstBoolean === 'function') {
+    return astConfigResolveFirstBoolean(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const value = candidates[idx];
     if (typeof value === 'boolean') {

@@ -63,24 +63,33 @@ function astSetAiRuntimeConfig(config = {}, options = {}) {
   }
 
   const merge = options.merge !== false;
-  const nextConfig = merge ? astGetAiRuntimeConfig() : {};
+  let nextConfig;
+  if (typeof astConfigMergeNormalizedConfig === 'function') {
+    nextConfig = astConfigMergeNormalizedConfig(
+      merge ? astGetAiRuntimeConfig() : {},
+      config,
+      { merge: true }
+    );
+  } else {
+    nextConfig = merge ? astGetAiRuntimeConfig() : {};
 
-  Object.keys(config).forEach(key => {
-    const normalizedKey = String(key || '').trim();
+    Object.keys(config).forEach(key => {
+      const normalizedKey = String(key || '').trim();
 
-    if (!normalizedKey) {
-      return;
-    }
+      if (!normalizedKey) {
+        return;
+      }
 
-    const normalizedValue = astNormalizeConfigValue(config[key]);
+      const normalizedValue = astNormalizeConfigValue(config[key]);
 
-    if (normalizedValue == null) {
-      delete nextConfig[normalizedKey];
-      return;
-    }
+      if (normalizedValue == null) {
+        delete nextConfig[normalizedKey];
+        return;
+      }
 
-    nextConfig[normalizedKey] = normalizedValue;
-  });
+      nextConfig[normalizedKey] = normalizedValue;
+    });
+  }
 
   AST_AI_RUNTIME_CONFIG = nextConfig;
   astAiInvalidateScriptPropertiesSnapshotCache();
@@ -170,11 +179,18 @@ function astResolveConfigString({
     scriptProperties[scriptKey]
   ];
 
-  for (let idx = 0; idx < candidates.length; idx++) {
-    const value = candidates[idx];
+  if (typeof astConfigResolveFirstString === 'function') {
+    const resolved = astConfigResolveFirstString(candidates, null);
+    if (resolved != null) {
+      return resolved;
+    }
+  } else {
+    for (let idx = 0; idx < candidates.length; idx++) {
+      const value = candidates[idx];
 
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
     }
   }
 

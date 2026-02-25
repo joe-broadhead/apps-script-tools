@@ -1,23 +1,16 @@
 function astStorageParseJsonSafe(text) {
+  if (typeof astConfigParseJsonSafe === 'function') {
+    return astConfigParseJsonSafe(text, null);
+  }
+
   if (typeof text !== 'string' || text.length === 0) {
     return null;
   }
 
   try {
     return JSON.parse(text);
-  } catch (error) {
+  } catch (_error) {
     return null;
-  }
-}
-
-function astStorageSleep(milliseconds) {
-  const ms = Math.max(0, Math.floor(milliseconds || 0));
-  if (ms === 0) {
-    return;
-  }
-
-  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
-    Utilities.sleep(ms);
   }
 }
 
@@ -40,62 +33,48 @@ function astStorageIsTransientHttpError(statusCode) {
   return statusCode === 429 || statusCode >= 500;
 }
 
-function astStorageNormalizeTimeoutMs(value) {
-  if (typeof value === 'undefined' || value === null) {
-    return null;
+function astStorageMapHttpCoreError(error, context = {}) {
+  const details = error && error.details ? error.details : {};
+  const coreCode = error && error.code ? String(error.code) : '';
+  const provider = astStorageNormalizeString(context.provider, details.provider || 'storage');
+  const operation = astStorageNormalizeString(context.operation, details.operation || 'request');
+  const url = astStorageNormalizeString(context.url, details.url || '');
+  const timeoutMs = context.timeoutMs == null ? details.timeoutMs : context.timeoutMs;
+  const attempts = details.attempts;
+  const elapsedMs = details.elapsedMs;
+
+  if (coreCode === 'validation') {
+    return new AstStorageValidationError('Storage HTTP request requires a non-empty url');
   }
 
-  if (!isFinite(value) || value <= 0) {
-    return null;
-  }
-
-  return Math.max(1, Math.floor(value));
-}
-
-function astStorageElapsedMs(startedAtMs) {
-  return Math.max(0, Date.now() - startedAtMs);
-}
-
-function astStorageRemainingMs(startedAtMs, timeoutMs) {
-  if (!timeoutMs) {
-    return null;
-  }
-  return Math.max(0, timeoutMs - astStorageElapsedMs(startedAtMs));
-}
-
-function astStorageTimedOut(startedAtMs, timeoutMs) {
-  if (!timeoutMs) {
-    return false;
-  }
-  return astStorageElapsedMs(startedAtMs) >= timeoutMs;
-}
-
-function astStorageHttpRequest(config = {}) {
-  const url = astStorageNormalizeString(config.url, '');
-  const provider = astStorageNormalizeString(config.provider, 'storage');
-  const operation = astStorageNormalizeString(config.operation, 'request');
-
-  if (!url) {
-    throw new AstStorageValidationError('Storage HTTP request requires a non-empty url');
-  }
-
-  if (typeof UrlFetchApp === 'undefined' || !UrlFetchApp || typeof UrlFetchApp.fetch !== 'function') {
-    throw new AstStorageProviderError('UrlFetchApp.fetch is not available in this runtime', {
+  if (coreCode === 'unavailable') {
+    return new AstStorageProviderError('UrlFetchApp.fetch is not available in this runtime', {
       provider,
       operation,
       url
     });
   }
 
-  const method = astStorageNormalizeString(config.method, 'get').toLowerCase();
-  const retries = Number.isInteger(config.retries) ? Math.max(0, config.retries) : 0;
-  const timeoutMs = astStorageNormalizeTimeoutMs(config.timeoutMs);
-  const startedAtMs = Date.now();
+  if (coreCode === 'http_status') {
+    return new AstStorageProviderError(
+      `Storage provider request failed with status ${details.statusCode}`,
+      {
+        provider,
+        operation,
+        url,
+        statusCode: details.statusCode,
+        body: details.body,
+        json: details.json,
+        request: {
+          method: details.method || context.method || 'get',
+          headers: astStorageRedactHeaders(details.requestHeaders || context.headers || {})
+        }
+      },
+      error.cause || null
+    );
+  }
 
-  let attempt = 0;
-  let lastError = null;
-
-  function buildTimeoutError(cause) {
+  if (coreCode === 'timeout') {
     return new AstStorageProviderError(
       `Storage provider request exceeded timeout budget (${timeoutMs}ms)`,
       {
@@ -103,153 +82,111 @@ function astStorageHttpRequest(config = {}) {
         operation,
         url,
         timeoutMs,
-        attempts: attempt + 1,
-        elapsedMs: astStorageElapsedMs(startedAtMs)
+        attempts,
+        elapsedMs
       },
-      cause
+      error.cause || null
     );
   }
 
-  function sleepWithTimeoutBudget(backoffMs) {
-    if (!timeoutMs) {
-      astStorageSleep(backoffMs);
-      return;
-    }
-
-    const remainingMs = astStorageRemainingMs(startedAtMs, timeoutMs);
-    if (remainingMs <= 0) {
-      throw buildTimeoutError(lastError);
-    }
-
-    if (backoffMs >= remainingMs) {
-      throw buildTimeoutError(lastError);
-    }
-
-    astStorageSleep(backoffMs);
+  if (coreCode === 'failure') {
+    return new AstStorageProviderError(
+      'Storage provider request failed',
+      {
+        provider,
+        operation,
+        url,
+        attempts,
+        timeoutMs,
+        elapsedMs
+      },
+      error.cause || null
+    );
   }
 
-  while (attempt <= retries) {
-    if (astStorageTimedOut(startedAtMs, timeoutMs)) {
-      throw buildTimeoutError(lastError);
-    }
-
-    try {
-      const options = {
-        method,
-        muteHttpExceptions: true,
-        headers: astStorageIsPlainObject(config.headers) ? config.headers : {}
-      };
-
-      if (typeof config.contentType === 'string' && config.contentType.trim().length > 0) {
-        options.contentType = config.contentType.trim();
-      }
-
-      if (typeof config.payload !== 'undefined') {
-        options.payload = config.payload;
-      }
-
-      if (typeof config.followRedirects === 'boolean') {
-        options.followRedirects = config.followRedirects;
-      }
-
-      if (typeof config.validateHttpsCertificates === 'boolean') {
-        options.validateHttpsCertificates = config.validateHttpsCertificates;
-      }
-
-      const response = UrlFetchApp.fetch(url, options);
-      const statusCode = typeof response.getResponseCode === 'function'
-        ? response.getResponseCode()
-        : 200;
-      const body = typeof response.getContentText === 'function'
-        ? response.getContentText()
-        : '';
-      const json = astStorageParseJsonSafe(body);
-      const headers = typeof response.getAllHeaders === 'function'
-        ? response.getAllHeaders()
-        : {};
-
-      if (statusCode >= 200 && statusCode < 300) {
-        return {
-          statusCode,
-          body,
-          json,
-          headers,
-          response
-        };
-      }
-
-      const providerError = new AstStorageProviderError(
-        `Storage provider request failed with status ${statusCode}`,
-        {
-          provider,
-          operation,
-          url,
-          statusCode,
-          body,
-          json,
-          request: {
-            method,
-            headers: astStorageRedactHeaders(options.headers)
-          }
-        }
-      );
-
-      if (astStorageIsTransientHttpError(statusCode) && attempt < retries) {
-        lastError = providerError;
-        attempt += 1;
-        sleepWithTimeoutBudget(250 * attempt);
-        continue;
-      }
-
-      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
-        throw buildTimeoutError(providerError);
-      }
-
-      throw providerError;
-    } catch (error) {
-      if (astStorageTimedOut(startedAtMs, timeoutMs)) {
-        throw buildTimeoutError(error);
-      }
-
-      if (
-        error &&
-        error.name === 'AstStorageProviderError' &&
-        (!error.details || !astStorageIsTransientHttpError(error.details.statusCode) || attempt >= retries)
-      ) {
-        throw error;
-      }
-
-      if (attempt >= retries) {
-        throw new AstStorageProviderError(
-          'Storage provider request failed',
-          {
-            provider,
-            operation,
-            url,
-            attempts: attempt + 1,
-            timeoutMs,
-            elapsedMs: astStorageElapsedMs(startedAtMs)
-          },
-          error
-        );
-      }
-
-      lastError = error;
-      attempt += 1;
-      sleepWithTimeoutBudget(250 * attempt);
-    }
+  if (coreCode === 'retry_exhausted') {
+    return new AstStorageProviderError(
+      'Storage provider request failed after retries',
+      {
+        provider,
+        operation,
+        url,
+        attempts,
+        timeoutMs,
+        elapsedMs
+      },
+      error.cause || null
+    );
   }
 
-  throw new AstStorageProviderError(
-    'Storage provider request failed after retries',
+  return new AstStorageProviderError(
+    'Storage provider request failed',
     {
       provider,
       operation,
       url,
-      attempts: retries + 1,
+      attempts,
       timeoutMs,
-      elapsedMs: astStorageElapsedMs(startedAtMs)
+      elapsedMs
     },
-    lastError
+    error || null
   );
+}
+
+function astStorageHttpRequest(config = {}) {
+  const provider = astStorageNormalizeString(config.provider, 'storage');
+  const operation = astStorageNormalizeString(config.operation, 'request');
+  const url = astStorageNormalizeString(config.url, '');
+  const retries = Number.isInteger(config.retries) ? Math.max(0, config.retries) : 0;
+  const timeoutMs = (
+    typeof astConfigNormalizeTimeoutMs === 'function'
+      ? astConfigNormalizeTimeoutMs(config.timeoutMs)
+      : null
+  );
+
+  try {
+    if (typeof astConfigHttpRequestWithRetryCore !== 'function') {
+      throw new Error('astConfigHttpRequestWithRetryCore is not available');
+    }
+
+    return astConfigHttpRequestWithRetryCore({
+      url,
+      method: astStorageNormalizeString(config.method, 'get').toLowerCase(),
+      retries,
+      timeoutMs,
+      headers: astStorageIsPlainObject(config.headers) ? config.headers : {},
+      contentType: config.contentType,
+      payload: typeof config.payload !== 'undefined' ? config.payload : undefined,
+      followRedirects: config.followRedirects,
+      validateHttpsCertificates: config.validateHttpsCertificates,
+      serializeJsonPayload: false,
+      parseJson: astStorageParseJsonSafe,
+      isTransientStatus: astStorageIsTransientHttpError
+    });
+  } catch (error) {
+    if (error && error.name === 'AstConfigHttpCoreError') {
+      throw astStorageMapHttpCoreError(error, {
+        provider,
+        operation,
+        url,
+        timeoutMs,
+        method: astStorageNormalizeString(config.method, 'get').toLowerCase(),
+        headers: astStorageIsPlainObject(config.headers) ? config.headers : {}
+      });
+    }
+    if (error && (error.name === 'AstStorageValidationError' || error.name === 'AstStorageProviderError')) {
+      throw error;
+    }
+    throw new AstStorageProviderError(
+      'Storage provider request failed',
+      {
+        provider,
+        operation,
+        url,
+        attempts: retries + 1,
+        timeoutMs
+      },
+      error
+    );
+  }
 }

@@ -48,22 +48,31 @@ function astStorageSetRuntimeConfig(config = {}, options = {}) {
   }
 
   const merge = options.merge !== false;
-  const next = merge ? astStorageGetRuntimeConfig() : {};
+  let next;
+  if (typeof astConfigMergeNormalizedConfig === 'function') {
+    next = astConfigMergeNormalizedConfig(
+      merge ? astStorageGetRuntimeConfig() : {},
+      config,
+      { merge: true }
+    );
+  } else {
+    next = merge ? astStorageGetRuntimeConfig() : {};
 
-  Object.keys(config).forEach(key => {
-    const normalizedKey = astStorageNormalizeString(key, '');
-    if (!normalizedKey) {
-      return;
-    }
+    Object.keys(config).forEach(key => {
+      const normalizedKey = astStorageNormalizeString(key, '');
+      if (!normalizedKey) {
+        return;
+      }
 
-    const normalizedValue = astStorageNormalizeConfigValue(config[key]);
-    if (normalizedValue == null) {
-      delete next[normalizedKey];
-      return;
-    }
+      const normalizedValue = astStorageNormalizeConfigValue(config[key]);
+      if (normalizedValue == null) {
+        delete next[normalizedKey];
+        return;
+      }
 
-    next[normalizedKey] = normalizedValue;
-  });
+      next[normalizedKey] = normalizedValue;
+    });
+  }
 
   AST_STORAGE_RUNTIME_CONFIG = next;
   astStorageInvalidateScriptPropertiesSnapshotCache();
@@ -141,10 +150,17 @@ function astStorageResolveConfigString({
     scriptConfig[scriptKey]
   ];
 
-  for (let idx = 0; idx < candidates.length; idx += 1) {
-    const normalized = astStorageNormalizeConfigValue(candidates[idx]);
-    if (normalized) {
-      return normalized;
+  if (typeof astConfigResolveFirstString === 'function') {
+    const resolved = astConfigResolveFirstString(candidates, null);
+    if (resolved != null) {
+      return resolved;
+    }
+  } else {
+    for (let idx = 0; idx < candidates.length; idx += 1) {
+      const normalized = astStorageNormalizeConfigValue(candidates[idx]);
+      if (normalized) {
+        return normalized;
+      }
     }
   }
 
