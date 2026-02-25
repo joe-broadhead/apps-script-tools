@@ -183,3 +183,81 @@ test('persistent cache supports includeManifest=false with gzip compression', ()
 
   assert.equal(validation.valid, true);
 });
+
+test('persistent cache compact mode retains full DBT operation support on cached bundle', () => {
+  const fixture = createManifestFixture();
+  let blobReadCount = 0;
+
+  const context = createGasContext({
+    DriveApp: {
+      getFileById: fileId => ({
+        getId: () => fileId,
+        getName: () => 'manifest.json',
+        getLastUpdated: () => new Date('2026-02-25T00:00:00.000Z'),
+        getSize: () => 1024,
+        getBlob: () => {
+          blobReadCount += 1;
+          return createJsonBlobPayload(fixture);
+        }
+      })
+    }
+  });
+
+  buildInMemoryStorage(context);
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const request = {
+    fileId: 'drive-file-1',
+    options: {
+      validate: 'strict',
+      schemaVersion: 'v12',
+      buildIndex: true,
+      persistentCacheEnabled: true,
+      persistentCacheUri: 'gcs://bucket/cache/dbt-manifest-cache.json',
+      persistentCacheCompression: 'gzip',
+      persistentCacheIncludeManifest: false,
+      persistentCacheMode: 'compact'
+    }
+  };
+
+  const first = context.AST.DBT.loadManifest(request);
+  assert.equal(first.status, 'ok');
+  assert.equal(first.cache.hit, false);
+  assert.equal(blobReadCount, 1);
+
+  const second = context.AST.DBT.loadManifest(request);
+  assert.equal(second.status, 'ok');
+  assert.equal(second.cache.hit, true);
+  assert.equal(blobReadCount, 1);
+  assert.equal(second.bundle.manifest, null);
+  assert.equal(second.bundle.index.format, 'compact_v1');
+  assert.equal(typeof second.bundle.index.byUniqueId, 'object');
+
+  const search = context.AST.DBT.search({
+    bundle: second.bundle,
+    target: 'entities',
+    query: 'orders',
+    page: { limit: 5, offset: 0 },
+    include: { meta: true, columns: 'summary', stats: true }
+  });
+
+  assert.equal(search.status, 'ok');
+  assert.equal(search.page.returned > 0, true);
+
+  const entity = context.AST.DBT.getEntity({
+    bundle: second.bundle,
+    uniqueId: 'model.demo.orders',
+    include: { meta: true, columns: 'full' }
+  });
+  assert.equal(entity.status, 'ok');
+  assert.equal(entity.item.uniqueId, 'model.demo.orders');
+  assert.equal(typeof entity.item.columns.order_id, 'object');
+
+  const column = context.AST.DBT.getColumn({
+    bundle: second.bundle,
+    uniqueId: 'model.demo.orders',
+    columnName: 'order_id'
+  });
+  assert.equal(column.status, 'ok');
+  assert.equal(column.item.name, 'order_id');
+});

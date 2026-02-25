@@ -10,7 +10,8 @@ const AST_DBT_CONFIG_KEYS = Object.freeze([
   'DBT_MANIFEST_CACHE_URI',
   'DBT_MANIFEST_CACHE_REFRESH',
   'DBT_MANIFEST_CACHE_INCLUDE_MANIFEST',
-  'DBT_MANIFEST_CACHE_COMPRESSION'
+  'DBT_MANIFEST_CACHE_COMPRESSION',
+  'DBT_MANIFEST_CACHE_MODE'
 ]);
 
 let AST_DBT_RUNTIME_CONFIG = {};
@@ -265,6 +266,12 @@ function astDbtResolveLoadDefaults(request = {}) {
       runtimeConfig.DBT_MANIFEST_CACHE_COMPRESSION,
       runtimeConfig.persistentCacheCompression,
       scriptConfig.DBT_MANIFEST_CACHE_COMPRESSION
+    ], null),
+    persistentCacheMode: astDbtResolveConfigString([
+      requestOptions.persistentCacheMode,
+      runtimeConfig.DBT_MANIFEST_CACHE_MODE,
+      runtimeConfig.persistentCacheMode,
+      scriptConfig.DBT_MANIFEST_CACHE_MODE
     ], null)
   };
 }

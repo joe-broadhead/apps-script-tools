@@ -9,7 +9,8 @@ const AST_DBT_DEFAULT_LOAD_OPTIONS = Object.freeze({
   persistentCacheUri: '',
   persistentCacheRefresh: false,
   persistentCacheIncludeManifest: true,
-  persistentCacheCompression: 'gzip'
+  persistentCacheCompression: 'gzip',
+  persistentCacheMode: 'compact'
 });
 
 const AST_DBT_SEARCH_TARGETS = Object.freeze([
@@ -114,6 +115,16 @@ function astDbtNormalizePersistentCacheCompression(value) {
   return normalized;
 }
 
+function astDbtNormalizePersistentCacheMode(value) {
+  const normalized = astDbtNormalizeString(value, AST_DBT_DEFAULT_LOAD_OPTIONS.persistentCacheMode).toLowerCase();
+  if (['compact', 'full'].indexOf(normalized) === -1) {
+    throw new AstDbtValidationError('options.persistentCacheMode must be one of: compact, full', {
+      persistentCacheMode: normalized
+    });
+  }
+  return normalized;
+}
+
 function astDbtNormalizeLoadOptions(options = {}, defaults = {}) {
   if (!astDbtIsPlainObject(options)) {
     throw new AstDbtValidationError('options must be an object when provided');
@@ -173,6 +184,11 @@ function astDbtNormalizeLoadOptions(options = {}, defaults = {}) {
       options.persistentCacheCompression != null
         ? options.persistentCacheCompression
         : defaults.persistentCacheCompression
+    ),
+    persistentCacheMode: astDbtNormalizePersistentCacheMode(
+      options.persistentCacheMode != null
+        ? options.persistentCacheMode
+        : defaults.persistentCacheMode
     )
   };
 }

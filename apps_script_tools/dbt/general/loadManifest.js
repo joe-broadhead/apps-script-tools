@@ -297,7 +297,211 @@ function astDbtNormalizePersistentCacheConfig(options = {}) {
     includeManifest: options.persistentCacheIncludeManifest !== false,
     compression: astDbtNormalizeString(options.persistentCacheCompression, 'gzip').toLowerCase() === 'none'
       ? 'none'
-      : 'gzip'
+      : 'gzip',
+    mode: astDbtNormalizeString(options.persistentCacheMode, 'compact').toLowerCase() === 'full'
+      ? 'full'
+      : 'compact'
+  };
+}
+
+function astDbtAppendEntityMapValue(map, key, entity) {
+  if (!key) {
+    return;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(map, key)) {
+    map[key] = [];
+  }
+  map[key].push(entity);
+}
+
+function astDbtHydrateIndexMaps(index = {}) {
+  if (!astDbtIsPlainObject(index)) {
+    return index;
+  }
+
+  const entities = Array.isArray(index.entities) ? index.entities : [];
+  const requiresHydration = !(
+    astDbtIsPlainObject(index.byUniqueId) &&
+    astDbtIsPlainObject(index.bySection) &&
+    astDbtIsPlainObject(index.byResourceType) &&
+    astDbtIsPlainObject(index.byPackage) &&
+    astDbtIsPlainObject(index.byTag)
+  );
+
+  if (!requiresHydration) {
+    return index;
+  }
+
+  const byUniqueId = {};
+  const bySection = {};
+  const byResourceType = {};
+  const byPackage = {};
+  const byTag = {};
+
+  entities.forEach(entity => {
+    if (!astDbtIsPlainObject(entity)) {
+      return;
+    }
+
+    const uniqueId = astDbtNormalizeString(entity.uniqueId, '');
+    const uniqueIdLower = astDbtNormalizeString(entity.uniqueIdLower, uniqueId.toLowerCase()).toLowerCase();
+    const section = astDbtNormalizeString(entity.section, '');
+    const resourceType = astDbtNormalizeString(entity.resourceType, '').toLowerCase();
+    const packageName = astDbtNormalizeString(entity.packageName, '');
+    const tags = Array.isArray(entity.tags) ? entity.tags : [];
+
+    entity.uniqueId = uniqueId || uniqueIdLower;
+    entity.uniqueIdLower = uniqueIdLower || entity.uniqueId.toLowerCase();
+    entity.section = section;
+    entity.resourceType = resourceType;
+    entity.packageName = packageName;
+    entity.path = astDbtNormalizeString(entity.path, '');
+    entity.originalFilePath = astDbtNormalizeString(entity.originalFilePath, '');
+    entity.description = astDbtNormalizeString(entity.description, '');
+    entity.dependsOnNodes = Array.isArray(entity.dependsOnNodes) ? entity.dependsOnNodes : [];
+    entity.meta = astDbtIsPlainObject(entity.meta) ? entity.meta : {};
+    entity.searchText = astDbtNormalizeString(entity.searchText, '');
+    entity.disabled = entity.disabled === true;
+    entity.tags = tags
+      .map(tag => astDbtNormalizeString(tag, '').toLowerCase())
+      .filter(Boolean);
+
+    astDbtAppendEntityMapValue(byUniqueId, entity.uniqueIdLower, entity);
+    astDbtAppendEntityMapValue(bySection, section, entity);
+    astDbtAppendEntityMapValue(byResourceType, resourceType || 'unknown', entity);
+    astDbtAppendEntityMapValue(byPackage, packageName || 'unknown', entity);
+
+    entity.tags.forEach(tag => {
+      astDbtAppendEntityMapValue(byTag, tag, entity);
+    });
+  });
+
+  index.byUniqueId = byUniqueId;
+  index.bySection = bySection;
+  index.byResourceType = byResourceType;
+  index.byPackage = byPackage;
+  index.byTag = byTag;
+
+  return index;
+}
+
+function astDbtCompactColumnRecord(column = {}) {
+  return {
+    uniqueId: astDbtNormalizeString(column.uniqueId, ''),
+    uniqueIdLower: astDbtNormalizeString(column.uniqueIdLower, '').toLowerCase(),
+    columnName: astDbtNormalizeString(column.columnName, ''),
+    columnNameLower: astDbtNormalizeString(column.columnNameLower, '').toLowerCase(),
+    section: astDbtNormalizeString(column.section, ''),
+    resourceType: astDbtNormalizeString(column.resourceType, '').toLowerCase(),
+    packageName: astDbtNormalizeString(column.packageName, ''),
+    dataType: astDbtNormalizeString(column.dataType, ''),
+    tags: Array.isArray(column.tags)
+      ? column.tags
+        .map(tag => astDbtNormalizeString(tag, '').toLowerCase())
+        .filter(Boolean)
+      : [],
+    meta: astDbtIsPlainObject(column.meta) ? astDbtJsonClone(column.meta) : {},
+    description: astDbtNormalizeString(column.description, '')
+  };
+}
+
+function astDbtBuildCompactColumnsByUniqueId(columnsByUniqueId = {}) {
+  const output = {};
+  if (!astDbtIsPlainObject(columnsByUniqueId)) {
+    return output;
+  }
+
+  Object.keys(columnsByUniqueId).forEach(uniqueIdLower => {
+    const entry = columnsByUniqueId[uniqueIdLower];
+    if (!astDbtIsPlainObject(entry)) {
+      return;
+    }
+
+    const order = Array.isArray(entry.order) ? entry.order.slice() : [];
+    const byName = {};
+    const sourceByName = astDbtIsPlainObject(entry.byName) ? entry.byName : {};
+
+    Object.keys(sourceByName).forEach(key => {
+      const column = sourceByName[key];
+      if (!astDbtIsPlainObject(column)) {
+        return;
+      }
+
+      const compact = astDbtCompactColumnRecord(column);
+      if (!compact.columnName) {
+        compact.columnName = astDbtNormalizeString(key, '');
+      }
+      compact.columnNameLower = astDbtNormalizeString(
+        compact.columnNameLower,
+        compact.columnName.toLowerCase()
+      ).toLowerCase();
+
+      byName[compact.columnNameLower] = compact;
+      if (order.indexOf(compact.columnName) === -1) {
+        order.push(compact.columnName);
+      }
+    });
+
+    output[uniqueIdLower] = {
+      order,
+      byName
+    };
+  });
+
+  return output;
+}
+
+function astDbtBuildCompactPersistentIndex(index = {}, mode = 'compact') {
+  if (mode !== 'compact' || !astDbtIsPlainObject(index)) {
+    return index;
+  }
+
+  const entities = Array.isArray(index.entities) ? index.entities : [];
+  const compactEntities = entities.map(entity => {
+    if (!astDbtIsPlainObject(entity)) {
+      return null;
+    }
+
+    return {
+      section: astDbtNormalizeString(entity.section, ''),
+      mapKey: astDbtNormalizeString(entity.mapKey, ''),
+      uniqueId: astDbtNormalizeString(entity.uniqueId, ''),
+      uniqueIdLower: astDbtNormalizeString(entity.uniqueIdLower, '').toLowerCase(),
+      name: astDbtNormalizeString(entity.name, ''),
+      resourceType: astDbtNormalizeString(entity.resourceType, '').toLowerCase(),
+      packageName: astDbtNormalizeString(entity.packageName, ''),
+      path: astDbtNormalizeString(entity.path, ''),
+      originalFilePath: astDbtNormalizeString(entity.originalFilePath, ''),
+      tags: Array.isArray(entity.tags)
+        ? entity.tags
+          .map(tag => astDbtNormalizeString(tag, '').toLowerCase())
+          .filter(Boolean)
+        : [],
+      meta: astDbtIsPlainObject(entity.meta) ? astDbtJsonClone(entity.meta) : {},
+      description: astDbtNormalizeString(entity.description, ''),
+      dependsOnNodes: Array.isArray(entity.dependsOnNodes) ? entity.dependsOnNodes.slice() : [],
+      disabled: entity.disabled === true,
+      searchText: astDbtNormalizeString(entity.searchText, '')
+    };
+  }).filter(Boolean);
+
+  return {
+    format: 'compact_v1',
+    generatedAt: astDbtNormalizeString(index.generatedAt, new Date().toISOString()),
+    entityCount: Number(index.entityCount || compactEntities.length || 0),
+    columnCount: Number(index.columnCount || 0),
+    sectionCounts: astDbtIsPlainObject(index.sectionCounts) ? astDbtJsonClone(index.sectionCounts) : {},
+    entities: compactEntities,
+    columnsByUniqueId: astDbtBuildCompactColumnsByUniqueId(index.columnsByUniqueId),
+    tokens: astDbtIsPlainObject(index.tokens) ? astDbtJsonClone(index.tokens) : {
+      entities: {},
+      columns: {}
+    },
+    lineage: astDbtIsPlainObject(index.lineage) ? astDbtJsonClone(index.lineage) : {
+      parentMap: {},
+      childMap: {}
+    }
   };
 }
 
@@ -536,6 +740,7 @@ function astDbtBuildPersistentCacheContext(source, requestOptions = {}) {
     validate: requestOptions.validate,
     buildIndex: requestOptions.buildIndex,
     includeManifest: persistent.includeManifest,
+    mode: persistent.mode,
     sourceFingerprint: fingerprint.value
   }));
 
@@ -601,7 +806,7 @@ function astDbtWritePersistentBundleCache(cacheContext, bundle, requestOptions =
     metadata: bundle.metadata,
     counts: bundle.counts,
     validation: bundle.validation,
-    index: bundle.index
+    index: astDbtBuildCompactPersistentIndex(bundle.index, cacheContext.persistent.mode)
   };
 
   const metaArtifact = {
@@ -610,7 +815,8 @@ function astDbtWritePersistentBundleCache(cacheContext, bundle, requestOptions =
     sourceFingerprint: cacheContext.fingerprint,
     updatedAt: new Date().toISOString(),
     includeManifest: cacheContext.persistent.includeManifest,
-    compression: cacheContext.persistent.compression
+    compression: cacheContext.persistent.compression,
+    mode: cacheContext.persistent.mode
   };
 
   astDbtWritePersistentCacheObject(
@@ -838,6 +1044,7 @@ function astDbtNormalizeBundle(bundle, options = {}) {
   const index = hasIndex
     ? bundle.index
     : (normalizedOptions.buildIndex && manifest ? astDbtBuildManifestIndexes(manifest) : null);
+  const hydratedIndex = astDbtHydrateIndexMaps(index);
 
   let validation = null;
   if (manifest) {
@@ -860,13 +1067,13 @@ function astDbtNormalizeBundle(bundle, options = {}) {
     };
 
   const counts = manifest
-    ? astDbtBuildManifestCounts(manifest, index)
+    ? astDbtBuildManifestCounts(manifest, hydratedIndex)
     : {
-      entityCount: Number(bundle.counts && bundle.counts.entityCount || index && index.entityCount || 0),
-      columnCount: Number(bundle.counts && bundle.counts.columnCount || index && index.columnCount || 0),
+      entityCount: Number(bundle.counts && bundle.counts.entityCount || hydratedIndex && hydratedIndex.entityCount || 0),
+      columnCount: Number(bundle.counts && bundle.counts.columnCount || hydratedIndex && hydratedIndex.columnCount || 0),
       sectionCounts: astDbtIsPlainObject(bundle.counts && bundle.counts.sectionCounts)
         ? astDbtJsonClone(bundle.counts.sectionCounts)
-        : (astDbtIsPlainObject(index && index.sectionCounts) ? astDbtJsonClone(index.sectionCounts) : {})
+        : (astDbtIsPlainObject(hydratedIndex && hydratedIndex.sectionCounts) ? astDbtJsonClone(hydratedIndex.sectionCounts) : {})
     };
 
   return {
@@ -877,7 +1084,7 @@ function astDbtNormalizeBundle(bundle, options = {}) {
     counts,
     validation,
     manifest,
-    index
+    index: hydratedIndex
   };
 }
 
@@ -913,7 +1120,8 @@ function astDbtLoadManifestCore(request = {}) {
           enabled: true,
           hit: true,
           cacheKey: cacheContext.cacheKey,
-          uri: cacheContext.persistent.uri
+          uri: cacheContext.persistent.uri,
+          mode: cacheContext.persistent.mode
         };
 
         return {
@@ -979,7 +1187,8 @@ function astDbtLoadManifestCore(request = {}) {
         enabled: true,
         hit: false,
         cacheKey: cacheContext.cacheKey,
-        uri: cacheContext.persistent.uri
+        uri: cacheContext.persistent.uri,
+        mode: cacheContext.persistent.mode
       };
     } catch (error) {
       warnings.push({
@@ -992,6 +1201,7 @@ function astDbtLoadManifestCore(request = {}) {
         hit: false,
         cacheKey: cacheContext.cacheKey,
         uri: cacheContext.persistent.uri,
+        mode: cacheContext.persistent.mode,
         writeError: true
       };
     }
