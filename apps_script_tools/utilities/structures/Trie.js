@@ -52,8 +52,11 @@ class Trie {
   }
 
   startsWith(prefix) {
-    if (typeof prefix !== 'string' || prefix.length === 0) {
+    if (typeof prefix !== 'string') {
       return false;
+    };
+    if (prefix.length === 0) {
+      return true;
     };
     let current = this.root;
     for (const char of prefix) {

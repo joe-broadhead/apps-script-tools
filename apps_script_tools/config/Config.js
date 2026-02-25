@@ -151,6 +151,19 @@ function astConfigResolveFirstInteger(candidates = [], options = {}) {
       continue;
     }
 
+    if (typeof value === 'boolean') {
+      if (onInvalid) {
+        onInvalid(value, {
+          min,
+          max
+        });
+      }
+      if (strict) {
+        throw new Error('Expected integer configuration value');
+      }
+      continue;
+    }
+
     const numeric = Number(value);
     if (!Number.isInteger(numeric) || numeric < min || (max != null && numeric > max)) {
       if (onInvalid) {

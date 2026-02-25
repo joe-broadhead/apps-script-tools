@@ -185,6 +185,7 @@ test('Trie supports prefix, suffix, delete, and empty checks', () => {
     const beforeDelete = {
       searchApp: trie.search('app'),
       startsWithAp: trie.startsWith('ap'),
+      startsWithEmpty: trie.startsWith(''),
       endsWithNa: trie.endsWith('na'),
       endsWithNope: trie.endsWith('nope'),
       auto: trie.autocomplete('app'),
@@ -203,6 +204,7 @@ test('Trie supports prefix, suffix, delete, and empty checks', () => {
   const parsed = JSON.parse(output);
   assert.equal(parsed.beforeDelete.searchApp, true);
   assert.equal(parsed.beforeDelete.startsWithAp, true);
+  assert.equal(parsed.beforeDelete.startsWithEmpty, true);
   assert.equal(parsed.beforeDelete.endsWithNa, true);
   assert.equal(parsed.beforeDelete.endsWithNope, false);
   assert.deepEqual(parsed.beforeDelete.auto.sort(), ['app', 'apple']);

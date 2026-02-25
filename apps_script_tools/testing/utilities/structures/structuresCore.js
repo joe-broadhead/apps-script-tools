@@ -69,11 +69,14 @@ STRUCTURES_CORE_TESTS = [
     }
   },
   {
-    description: 'Trie should support suffix checks via endsWith',
+    description: 'Trie should support suffix checks and empty-prefix startsWith',
     test: () => {
       const trie = new Trie();
       trie.insert('alpha');
       trie.insert('beta');
+      if (!trie.startsWith('')) {
+        throw new Error('Expected trie.startsWith("") to be true');
+      };
       if (!trie.endsWith('ta')) {
         throw new Error('Expected trie.endsWith("ta") to be true');
       };

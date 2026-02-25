@@ -264,6 +264,25 @@ test('astConfigResolveFirstString ignores non-string candidates', () => {
   assert.equal(fallback, 'fallback-model');
 });
 
+test('astConfigResolveFirstInteger rejects boolean candidates', () => {
+  const context = createGasContext();
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const tolerant = context.astConfigResolveFirstInteger(
+    [true, '120'],
+    { fallback: 300, min: 1, max: 3600, strict: false }
+  );
+  assert.equal(tolerant, 120);
+
+  assert.throws(
+    () => context.astConfigResolveFirstInteger(
+      [false, '120'],
+      { fallback: 300, min: 1, max: 3600 }
+    ),
+    /Expected integer configuration value/
+  );
+});
+
 test('astConfigMergeNormalizedConfig preserves values for keys requiring trim normalization', () => {
   const context = createGasContext();
   loadScripts(context, ['apps_script_tools/config/Config.js']);
