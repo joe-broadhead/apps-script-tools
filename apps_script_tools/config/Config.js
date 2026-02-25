@@ -88,8 +88,12 @@ function astConfigResolveFirstString(candidates = [], fallback = null) {
   }
 
   for (let idx = 0; idx < candidates.length; idx += 1) {
-    const normalized = astConfigNormalizeValue(candidates[idx], false);
-    if (normalized != null) {
+    if (typeof candidates[idx] !== 'string') {
+      continue;
+    }
+
+    const normalized = astConfigNormalizeString(candidates[idx], '');
+    if (normalized) {
       return normalized;
     }
   }
@@ -694,13 +698,8 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
     )
   );
   const explicitCacheScopeId = astConfigNormalizeString(options.cacheScopeId, '');
-  const sharedCacheScopeId = (
-    explicitCacheScopeId
-    || !hasExplicitScriptPropertiesHandle
-    || !astConfigIsLiteralObject(options.scriptProperties)
-  )
-    ? (explicitCacheScopeId || AST_CONFIG_DEFAULT_HANDLE_CACHE_ID)
-    : '';
+  const sharedCacheScopeId = explicitCacheScopeId
+    || (hasExplicitScriptPropertiesHandle ? '' : AST_CONFIG_DEFAULT_HANDLE_CACHE_ID);
 
   if (astConfigIsPlainObject(options.properties)) {
     return astConfigBuildOutput(options.properties, Object.assign({}, options, {
