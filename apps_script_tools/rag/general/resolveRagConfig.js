@@ -335,6 +335,7 @@ function astRagResolveRetrievalDefaults() {
     topK,
     minScore,
     mode: AST_RAG_DEFAULT_RETRIEVAL.mode,
+    lexicalPrefilterTopN: AST_RAG_DEFAULT_RETRIEVAL.lexicalPrefilterTopN,
     lexicalWeight: AST_RAG_DEFAULT_RETRIEVAL.lexicalWeight,
     vectorWeight: AST_RAG_DEFAULT_RETRIEVAL.vectorWeight,
     rerank: {

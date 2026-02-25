@@ -12,7 +12,8 @@ function astRagPrepareSourceChunks(sourceDescriptor, extracted, chunking, source
       slide: chunk.slide == null ? null : chunk.slide,
       section: chunk.section || 'body',
       text: chunk.text,
-      embedding: []
+      embedding: [],
+      embeddingNorm: null
     };
     prepared.chunkHash = astRagBuildChunkFingerprint(prepared);
     return prepared;
@@ -154,6 +155,7 @@ function astRagBuildIndexCore(request = {}) {
 
     for (let idx = 0; idx < chunks.length; idx += 1) {
       chunks[idx].embedding = embeddingResult.vectors[idx];
+      chunks[idx].embeddingNorm = astRagVectorNorm(chunks[idx].embedding);
     }
 
     const document = astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, embeddingResult);

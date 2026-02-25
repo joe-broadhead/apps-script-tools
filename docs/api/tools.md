@@ -229,8 +229,10 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'vector'` (default cosine-only ranking)
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
 - `retrieval.mode = 'lexical'` (BM25-only ranking; no embedding call)
+- `retrieval.lexicalPrefilterTopN` for optional lexical shortlist before vector scoring
 - `retrieval.rerank` for optional top-N reranking
 - `retrieval.access` for source-level allow/deny constraints
+- `generation.maxContextChars` / `generation.maxContextTokensApprox` for bounded grounding context packing
 - optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)
 
 ```javascript
@@ -243,6 +245,7 @@ const answer = ASTX.RAG.answer({
     minScore: 0.2,
     vectorWeight: 0.6,
     lexicalWeight: 0.4,
+    lexicalPrefilterTopN: 100,
     rerank: { enabled: true, topN: 12 },
     access: {
       allowedFileIds: ['file_public_1', 'file_public_2'],

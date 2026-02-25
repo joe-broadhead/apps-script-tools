@@ -31,12 +31,25 @@ function astRagBuildSearchDiagnostics(normalizedRequest, cacheConfig = {}) {
       mode: normalizedRequest.retrieval.mode,
       topK: normalizedRequest.retrieval.topK,
       minScore: normalizedRequest.retrieval.minScore,
+      lexicalPrefilterTopN: normalizedRequest.retrieval.lexicalPrefilterTopN || 0,
       returned: 0,
       timedOut: false,
       timeoutMs: normalizedRequest.options && typeof normalizedRequest.options.maxRetrievalMs === 'number'
         ? normalizedRequest.options.maxRetrievalMs
         : null,
-      timeoutStage: null
+      timeoutStage: null,
+      candidateCounts: {
+        source: 0,
+        afterFilters: 0,
+        afterAccess: 0,
+        afterLexicalPrefilter: 0,
+        scored: 0,
+        aboveMinScore: 0,
+        selectedForRerank: 0,
+        returned: 0,
+        droppedByMinScore: 0,
+        droppedByLexicalPrefilter: 0
+      }
     }
   };
 }
@@ -254,7 +267,8 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
     document,
     normalizedRequest.query,
     queryVector,
-    normalizedRequest.retrieval
+    normalizedRequest.retrieval,
+    { diagnostics }
   );
   astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'retrieval', diagnostics);
   diagnostics.timings.retrievalMs = Math.max(0, new Date().getTime() - retrievalStartMs);

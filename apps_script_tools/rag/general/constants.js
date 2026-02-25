@@ -30,6 +30,7 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
   topK: 8,
   minScore: 0.2,
   mode: 'vector',
+  lexicalPrefilterTopN: 0,
   lexicalWeight: 0.35,
   vectorWeight: 0.65,
   recovery: Object.freeze({

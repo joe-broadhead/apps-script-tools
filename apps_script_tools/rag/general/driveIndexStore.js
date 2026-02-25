@@ -22,6 +22,15 @@ function astRagGetFileUpdatedAtToken(file) {
 function astRagHydrateLoadedChunk(chunk = {}) {
   const hydrated = astRagCloneObject(chunk);
   hydrated.chunkHash = astRagNormalizeString(hydrated.chunkHash, null) || astRagBuildChunkFingerprint(hydrated);
+  if (Array.isArray(hydrated.embedding) && hydrated.embedding.length > 0) {
+    hydrated.embeddingNorm = (
+      typeof hydrated.embeddingNorm === 'number' && isFinite(hydrated.embeddingNorm)
+    )
+      ? hydrated.embeddingNorm
+      : astRagVectorNorm(hydrated.embedding);
+  } else {
+    hydrated.embeddingNorm = null;
+  }
   return hydrated;
 }
 

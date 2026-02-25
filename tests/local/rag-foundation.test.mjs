@@ -809,6 +809,47 @@ test('astRagValidateSearchRequest accepts lexical retrieval mode', () => {
   assert.equal(normalized.retrieval.minScore, 0.05);
 });
 
+test('astRagValidateSearchRequest normalizes lexical prefilter topN', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_prefilter',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector',
+      lexicalPrefilterTopN: 12
+    }
+  });
+
+  assert.equal(normalized.retrieval.lexicalPrefilterTopN, 12);
+});
+
+test('astRagValidateSearchRequest defaults lexical prefilter topN to zero when omitted', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const omitted = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_prefilter_omitted',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector'
+    }
+  });
+
+  const explicit = context.astRagValidateSearchRequest({
+    indexFileId: 'idx_prefilter_explicit',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector',
+      lexicalPrefilterTopN: 0
+    }
+  });
+
+  assert.equal(omitted.retrieval.lexicalPrefilterTopN, 0);
+  assert.equal(explicit.retrieval.lexicalPrefilterTopN, 0);
+});
+
 test('astRagValidateSearchRequest rejects invalid retrieval mode and weights', () => {
   const context = createGasContext();
   loadRagScripts(context);
@@ -866,6 +907,24 @@ test('astRagValidateAnswerRequest normalizes retrieval access and enforceAccessC
   assert.equal(normalized.retrieval.access.allowedMimeTypes[0], 'text/plain');
   assert.equal(normalized.options.enforceAccessControl, true);
   assert.equal(normalized.retrieval.enforceAccessControl, true);
+});
+
+test('astRagValidateAnswerRequest normalizes generation context budget controls', () => {
+  const context = createGasContext();
+  loadRagScripts(context);
+
+  const normalized = context.astRagValidateAnswerRequest({
+    indexFileId: 'idx_budget',
+    question: 'What are project risks?',
+    generation: {
+      provider: 'openai',
+      maxContextChars: 2400,
+      maxContextTokensApprox: 600
+    }
+  });
+
+  assert.equal(normalized.generation.maxContextChars, 2400);
+  assert.equal(normalized.generation.maxContextTokensApprox, 600);
 });
 
 test('astRagValidateSearchRequest rejects overlapping allow/deny access constraints', () => {

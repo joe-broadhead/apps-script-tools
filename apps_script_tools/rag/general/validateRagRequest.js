@@ -331,6 +331,26 @@ function astRagNormalizeFiniteNumber(value, fallback, fieldPath, bounds = {}) {
   return normalized;
 }
 
+function astRagNormalizeOptionalNonNegativeInt(value, fallback, fieldPath, minValue = 0) {
+  if (typeof value === 'undefined' || value === null) {
+    return fallback;
+  }
+
+  const asNumber = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' && value.trim().length > 0 ? Number(value) : NaN);
+  if (!isFinite(asNumber)) {
+    throw new AstRagValidationError(`${fieldPath} must be a non-negative integer when provided`);
+  }
+
+  const rounded = Math.floor(asNumber);
+  if (rounded < minValue) {
+    throw new AstRagValidationError(`${fieldPath} must be >= ${minValue} when provided`);
+  }
+
+  return rounded;
+}
+
 function astRagNormalizeRecoveryConfig(recovery = {}, defaults, retrievalDefaults, fieldPath) {
   if (typeof recovery === 'undefined' || recovery === null) {
     recovery = {};
@@ -460,6 +480,12 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     topK,
     minScore,
     mode,
+    lexicalPrefilterTopN: astRagNormalizeOptionalNonNegativeInt(
+      retrieval.lexicalPrefilterTopN,
+      defaults.lexicalPrefilterTopN,
+      `${fieldPath}.lexicalPrefilterTopN`,
+      0
+    ),
     vectorWeight,
     lexicalWeight,
     rerank,
@@ -695,7 +721,19 @@ function astRagValidateAnswerRequest(request = {}) {
       options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {},
       instructions: astRagNormalizeString(generation.instructions, null),
       style: generationStyle,
-      forbiddenPhrases: generationForbiddenPhrases
+      forbiddenPhrases: generationForbiddenPhrases,
+      maxContextChars: astRagNormalizeOptionalNonNegativeInt(
+        generation.maxContextChars,
+        null,
+        'answer.generation.maxContextChars',
+        200
+      ),
+      maxContextTokensApprox: astRagNormalizeOptionalNonNegativeInt(
+        generation.maxContextTokensApprox,
+        null,
+        'answer.generation.maxContextTokensApprox',
+        50
+      )
     },
     options: normalizedOptions,
     auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},

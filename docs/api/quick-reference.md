@@ -294,6 +294,7 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `RAG.search(...)` and `RAG.answer(...)` support retrieval budgets via `options.maxRetrievalMs`.
 - `RAG.answer(...)` supports retrieval-timeout behavior via `options.onRetrievalTimeout` (`error`, `insufficient_context`, `fallback`).
 - `RAG.answer(...)` prompt controls include `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
+- `RAG.answer(...)` supports prompt context budgets via `generation.maxContextChars` and `generation.maxContextTokensApprox`.
 - `RAG.answer(...)` includes `diagnostics` only when enabled via `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
 - RAG diagnostics include cache backend metadata and lock timing/contention fields (`cache.backend`, `cache.lockScope`, `timings.lockWaitMs`, `cache.lockContention`).
 - `ASTX.Chat.ThreadStore` persists per-user thread state with lock-aware writes and deterministic thread/turn caps.
@@ -301,6 +302,7 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
+- RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
 - RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.

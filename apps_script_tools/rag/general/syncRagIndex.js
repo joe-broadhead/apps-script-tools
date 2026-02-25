@@ -13,6 +13,19 @@ function astRagGroupChunksByFileId(chunks) {
   return grouped;
 }
 
+function astRagEnsureChunkEmbeddingNorm(chunk = {}) {
+  if (!chunk || !Array.isArray(chunk.embedding) || chunk.embedding.length === 0) {
+    return chunk;
+  }
+
+  if (typeof chunk.embeddingNorm === 'number' && isFinite(chunk.embeddingNorm)) {
+    return chunk;
+  }
+
+  chunk.embeddingNorm = astRagVectorNorm(chunk.embedding);
+  return chunk;
+}
+
 function astRagBuildReusableChunkQueues(chunks) {
   const queues = {};
   const list = Array.isArray(chunks) ? chunks : [];
@@ -275,6 +288,7 @@ function astRagSyncIndexCore(request = {}) {
 
         for (let idx = 0; idx < pendingEmbedChunks.length; idx += 1) {
           pendingEmbedChunks[idx].embedding = embeddingResult.vectors[idx];
+          pendingEmbedChunks[idx].embeddingNorm = astRagVectorNorm(pendingEmbedChunks[idx].embedding);
         }
       }
     }
@@ -336,7 +350,7 @@ function astRagSyncIndexCore(request = {}) {
       current,
       normalizedRequest,
       nextSources,
-      nextChunks,
+      nextChunks.map(astRagEnsureChunkEmbeddingNorm),
       embedding,
       now,
       summary

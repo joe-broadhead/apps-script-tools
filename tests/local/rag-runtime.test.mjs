@@ -413,6 +413,56 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   assert.equal(synced.addedChunks > 0, true);
 });
 
+test('buildIndex hydrates embeddingNorm on stored chunks', () => {
+  const fileA = makeDriveFile({
+    id: 'file_embedding_norm_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha alpha alpha'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'embedding-norm-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  const chunks = loaded.chunks || [];
+  assert.equal(chunks.length > 0, true);
+  chunks.forEach(chunk => {
+    assert.equal(typeof chunk.embeddingNorm, 'number');
+    assert.equal(chunk.embeddingNorm > 0, true);
+  });
+});
+
 test('buildIndex applies maxFiles after deterministic source ordering', () => {
   const fileZ = makeDriveFile({
     id: 'z_file',
@@ -1353,6 +1403,91 @@ test('search supports lexical retrieval mode without embedding calls', () => {
   assert.equal(output.usage.totalTokens, 0);
 });
 
+test('search lexical prefilter limits vector candidate scoring', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_prefilter',
+    indexName: 'prefilter-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'lexical_only',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'lexical-only.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'project risks mitigation project risks',
+        embedding: [0, 1, 0]
+      },
+      {
+        chunkId: 'vector_best',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'vector-best.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'completely unrelated content',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'lexical_second',
+        sourceId: 's3',
+        fileId: 'f3',
+        fileName: 'lexical-second.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'project summary with one risk mention',
+        embedding: [0.9, 0.1, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_prefilter',
+    fileName: 'prefilter-index.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_prefilter',
+    query: 'project risks',
+    retrieval: {
+      mode: 'vector',
+      topK: 2,
+      minScore: -1,
+      lexicalPrefilterTopN: 1
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(output.results.length, 1);
+  assert.equal(output.results[0].chunkId, 'lexical_only');
+  assert.equal(output.diagnostics.retrieval.candidateCounts.afterAccess, 3);
+  assert.equal(output.diagnostics.retrieval.candidateCounts.afterLexicalPrefilter, 1);
+  assert.equal(output.diagnostics.retrieval.candidateCounts.droppedByLexicalPrefilter, 2);
+});
+
 test('search rerank can promote phrase-exact chunk within topN', () => {
   const indexDoc = {
     schemaVersion: '1.0',
@@ -2071,6 +2206,123 @@ test('answer diagnostics include stable retrieval and generation metadata', () =
   assert.equal(response.diagnostics.cache.lockScope, 'script');
   assert.equal(response.diagnostics.generation.status, 'ok');
   assert.equal(response.diagnostics.generation.grounded, true);
+});
+
+test('answer diagnostics include context budget stats when generation budget is configured', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const longTextA = 'A'.repeat(520);
+  const longTextB = 'B'.repeat(420);
+  const longTextC = 'C'.repeat(320);
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_context_budget',
+    fileName: 'answer-context-budget-index.json',
+    document: {
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small'
+      },
+      chunks: [
+        {
+          chunkId: 'chunk_budget_1',
+          sourceId: 'src_budget_1',
+          fileId: 'file_budget_1',
+          fileName: 'budget-a.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: longTextA,
+          embedding: [1, 0, 0]
+        },
+        {
+          chunkId: 'chunk_budget_2',
+          sourceId: 'src_budget_2',
+          fileId: 'file_budget_2',
+          fileName: 'budget-b.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: longTextB,
+          embedding: [0.95, 0, 0]
+        },
+        {
+          chunkId: 'chunk_budget_3',
+          sourceId: 'src_budget_3',
+          fileId: 'file_budget_3',
+          fileName: 'budget-c.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: longTextC,
+          embedding: [0.9, 0, 0]
+        }
+      ]
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.runAiRequest = request => {
+    const input = Array.isArray(request && request.input) ? request.input : [];
+    const userPrompt = input[input.length - 1] || {};
+    assert.equal(typeof userPrompt.content, 'string');
+    assert.equal(userPrompt.content.indexOf('Context blocks:') >= 0, true);
+
+    return {
+      finishReason: 'STOP',
+      output: {
+        json: {
+          answer: 'Budget-aware answer [S1]',
+          citations: ['S1']
+        }
+      },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 6,
+        totalTokens: 16
+      }
+    };
+  };
+
+  const response = context.AST.RAG.answer({
+    indexFileId: 'index_answer_context_budget',
+    question: 'Summarize project details with citations.',
+    retrieval: {
+      topK: 3,
+      minScore: 0
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' },
+      maxContextChars: 220,
+      maxContextTokensApprox: 50
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.citations.length, 1);
+  assert.equal(response.citations[0].citationId, 'S1');
+
+  const contextBudget = response.diagnostics.retrieval.contextBudget;
+  assert.equal(contextBudget.maxContextChars, 220);
+  assert.equal(contextBudget.maxContextTokensApprox, 50);
+  assert.equal(contextBudget.inputBlocks, 3);
+  assert.equal(contextBudget.selectedBlocks >= 1, true);
+  assert.equal(contextBudget.selectedBlocks <= contextBudget.inputBlocks, true);
+  assert.equal(contextBudget.truncatedBlocks >= 1, true);
+  assert.equal(contextBudget.usedChars <= 220, true);
+  assert.equal(contextBudget.usedTokensApprox <= 50, true);
 });
 
 test('answer maxRetrievalMs with insufficient_context policy returns deterministic abstain', () => {
