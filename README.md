@@ -42,6 +42,7 @@
 - `AST.Chat`: durable user-scoped thread state store for chat apps
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
+- `AST.DBT`: dbt `manifest.json` loading, indexing, search, and lineage helpers
 - `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 
@@ -49,6 +50,14 @@ Current release state:
 
 - Published: `v0.0.4`
 - Next release target on `master`: `v0.0.5` (unreleased)
+
+`v0.0.5` (in progress) highlights:
+
+- New `AST.DBT` module with:
+  - `loadManifest`, `inspectManifest`, `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
+  - provider loading via `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/`
+  - strict/basic/off v12 validation modes
+  - preindexed manifest bundle for fast repeated lookup/search
 
 `v0.0.4` release highlights:
 
@@ -176,6 +185,30 @@ function demoAstStorageRead() {
   });
 
   Logger.log(out.output.data.json || out.output.data.text);
+}
+```
+
+```javascript
+function demoAstDbtManifestSearch() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const loaded = ASTX.DBT.loadManifest({
+    uri: 'gcs://my-bucket/dbt-artifacts/manifest.json',
+    options: { validate: 'strict', schemaVersion: 'v12', buildIndex: true }
+  });
+
+  const search = ASTX.DBT.search({
+    bundle: loaded.bundle,
+    target: 'all',
+    query: 'orders',
+    filters: {
+      resourceTypes: ['model'],
+      column: { namesAny: ['order_id'] }
+    },
+    include: { meta: true, columns: 'summary' }
+  });
+
+  Logger.log(search.items);
 }
 ```
 

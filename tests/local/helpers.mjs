@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 
 const ROOT = process.cwd();
 
@@ -101,6 +102,30 @@ export function createGasContext(overrides = {}) {
         },
         getContentType: () => _mime || 'application/octet-stream'
       }),
+      ungzip: blob => {
+        const bytes = blob && typeof blob.getBytes === 'function'
+          ? blob.getBytes()
+          : [];
+        const normalized = bytes.map(entry => (entry < 0 ? entry + 256 : entry));
+        const output = zlib.gunzipSync(Buffer.from(normalized));
+        return {
+          getDataAsString: () => output.toString('utf8'),
+          getBytes: () => Array.from(output.values()).map(byte => (byte > 127 ? byte - 256 : byte)),
+          getContentType: () => 'application/json'
+        };
+      },
+      gzip: blob => {
+        const bytes = blob && typeof blob.getBytes === 'function'
+          ? blob.getBytes()
+          : [];
+        const normalized = bytes.map(entry => (entry < 0 ? entry + 256 : entry));
+        const output = zlib.gzipSync(Buffer.from(normalized));
+        return {
+          getDataAsString: () => output.toString('utf8'),
+          getBytes: () => Array.from(output.values()).map(byte => (byte > 127 ? byte - 256 : byte)),
+          getContentType: () => 'application/gzip'
+        };
+      },
       formatDate: date => {
         const d = new Date(date);
         return d.toISOString().slice(0, 10);

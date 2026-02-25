@@ -681,3 +681,66 @@ Examples:
 - `ASTX.Utils.toSnakeCase('Hello World')`
 
 For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.
+
+## `ASTX.DBT`
+
+`ASTX.DBT` provides dbt `manifest.json` loading, preindexing, search, deep metadata access, and lineage traversal.
+
+Primary methods:
+
+- `ASTX.DBT.run(request)`
+- `ASTX.DBT.loadManifest(request)`
+- `ASTX.DBT.inspectManifest(request)`
+- `ASTX.DBT.listEntities(request)`
+- `ASTX.DBT.search(request)`
+- `ASTX.DBT.getEntity(request)`
+- `ASTX.DBT.getColumn(request)`
+- `ASTX.DBT.lineage(request)`
+- `ASTX.DBT.providers()` / `ASTX.DBT.capabilities(provider)`
+- `ASTX.DBT.validateManifest(request)`
+- `ASTX.DBT.configure(config)` / `ASTX.DBT.getConfig()` / `ASTX.DBT.clearConfig()`
+
+Supported source locators:
+
+- `drive://file/<FILE_ID>`
+- `drive://path/<FOLDER_ID>/<FILE_NAME>`
+- `gcs://bucket/path/manifest.json`
+- `s3://bucket/path/manifest.json`
+- `dbfs:/path/manifest.json`
+
+Manifest validation modes:
+
+- `strict` (full required sections + structural checks)
+- `basic` (required sections + parse sanity)
+- `off` (skip validation)
+
+Example:
+
+```javascript
+const loaded = ASTX.DBT.loadManifest({
+  uri: 'gcs://my-bucket/dbt/manifest.json',
+  options: {
+    validate: 'strict',
+    schemaVersion: 'v12',
+    buildIndex: true
+  }
+});
+
+const search = ASTX.DBT.search({
+  bundle: loaded.bundle,
+  target: 'all',
+  query: 'orders',
+  filters: {
+    resourceTypes: ['model'],
+    column: {
+      namesAny: ['order_id']
+    }
+  },
+  include: {
+    meta: true,
+    columns: 'summary'
+  }
+});
+
+Logger.log(search.items);
+```

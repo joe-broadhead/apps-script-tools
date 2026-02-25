@@ -137,6 +137,10 @@ Object.defineProperties(AST, {
     get: () => astResolveAstBinding('AST_RAG', () => (typeof AST_RAG === 'undefined' ? undefined : AST_RAG)),
     enumerable: true
   },
+  DBT: {
+    get: () => astResolveAstBinding('AST_DBT', () => (typeof AST_DBT === 'undefined' ? undefined : AST_DBT)),
+    enumerable: true
+  },
   Cache: {
     get: () => astResolveAstBinding('AST_CACHE', () => (typeof AST_CACHE === 'undefined' ? undefined : AST_CACHE)),
     enumerable: true

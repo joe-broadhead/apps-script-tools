@@ -101,12 +101,15 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Cookbooks: getting-started/cookbooks.md
+    - dbt Manifest Quick Start: getting-started/dbt-manifest-quickstart.md
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
     - Storage Quick Start: getting-started/storage-quickstart.md
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
+    - dbt Manifest Contracts: api/dbt-manifest-contracts.md
+    - dbt Manifest Search: api/dbt-manifest-search.md
     - SQL Contracts: api/sql-contracts.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md

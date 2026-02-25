@@ -7,6 +7,10 @@
       "dataframe.merge_inner_100000": 2600,
       "dataframe.groupBy_agg_100000": 900,
       "dataframe.toRecords_100000_10": 1400,
+      "dbt.load_index_medium": 1200,
+      "dbt.search_top20": 120,
+      "dbt.getEntity_avg": 5,
+      "dbt.getColumn_avg": 5,
       "series.multiply_100000": 120,
       "utilities.removeDuplicates_records_100000": 1600,
       "utilities.joinRecords_inner_100000": 2600
@@ -17,7 +21,11 @@
       "dataframe.dropDuplicates_subset_100000": 140000000,
       "dataframe.merge_inner_100000": 220000000,
       "dataframe.groupBy_agg_100000": 120000000,
-      "dataframe.toRecords_100000_10": 180000000
+      "dataframe.toRecords_100000_10": 180000000,
+      "dbt.load_index_medium": 180000000,
+      "dbt.search_top20": 60000000,
+      "dbt.getEntity_avg": 30000000,
+      "dbt.getColumn_avg": 30000000
     },
     "maxCounters": {
       "dataframe.sort_numeric_100000": {
