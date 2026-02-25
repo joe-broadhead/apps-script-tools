@@ -3,6 +3,8 @@ let AST_CACHE_STORAGE_PENDING_STATS = {};
 const AST_CACHE_STORAGE_STATS_FLUSH_THRESHOLD = 25;
 const AST_CACHE_STORAGE_MAX_LIST_ITEMS = 50000;
 const AST_CACHE_STORAGE_MAX_LIST_PAGES = 200;
+const AST_CACHE_STORAGE_TRIM_BATCH_SIZE = 64;
+const AST_CACHE_STORAGE_HARD_MAX_LIST_ITEMS = 2000000;
 
 function astCacheStorageRequireRunner() {
   if (typeof runStorageRequest === 'function') {
@@ -240,6 +242,32 @@ function astCacheStorageBuildRequest(operation, uri, runtimeOptions, payload = n
   return request;
 }
 
+function astCacheStorageRunTagMutationWithLock(config, runtimeOptions = {}, task) {
+  if (typeof task !== 'function') {
+    throw new AstCacheCapabilityError('Cache storage_json tag mutation task must be a function');
+  }
+
+  if (typeof astCacheRunWithLock !== 'function') {
+    return task();
+  }
+
+  const requestedScope = astCacheNormalizeString(runtimeOptions.storageTagLockScope, 'script').toLowerCase();
+  const lockScope = ['script', 'user', 'none'].indexOf(requestedScope) >= 0
+    ? requestedScope
+    : 'script';
+  const lockTimeoutMs = astCacheNormalizePositiveInt(
+    runtimeOptions.storageTagLockTimeoutMs,
+    astCacheNormalizePositiveInt(config.lockTimeoutMs, 30000, 1, 300000),
+    1,
+    300000
+  );
+
+  return astCacheRunWithLock(task, {
+    lockScope,
+    lockTimeoutMs
+  });
+}
+
 function astCacheStorageBase64ToText(base64) {
   if (
     typeof Utilities === 'undefined' ||
@@ -388,14 +416,29 @@ function astCacheStorageDeleteObject(uri, runtimeOptions = {}, options = {}) {
   }
 }
 
-function astCacheStorageListObjects(prefixUri, runtimeOptions = {}) {
+function astCacheStorageListObjects(prefixUri, runtimeOptions = {}, options = {}) {
   const executeStorageRequest = astCacheStorageRequireRunner();
-  const pageSize = astCacheNormalizePositiveInt(runtimeOptions.storagePageSize, 1000, 1, 10000);
-  const maxItems = astCacheNormalizePositiveInt(
+  const requestedPageSize = typeof options.pageSizeOverride === 'undefined'
+    ? runtimeOptions.storagePageSize
+    : options.pageSizeOverride;
+  const pageSize = astCacheNormalizePositiveInt(requestedPageSize, 1000, 1, 10000);
+  const configuredMaxItems = astCacheNormalizePositiveInt(
     runtimeOptions.storageMaxItems,
     AST_CACHE_STORAGE_MAX_LIST_ITEMS,
     1,
-    AST_CACHE_STORAGE_MAX_LIST_ITEMS
+    AST_CACHE_STORAGE_HARD_MAX_LIST_ITEMS
+  );
+  const maxItems = astCacheNormalizePositiveInt(
+    options.maxItemsOverride,
+    configuredMaxItems,
+    1,
+    AST_CACHE_STORAGE_HARD_MAX_LIST_ITEMS
+  );
+  const maxPages = astCacheNormalizePositiveInt(
+    options.maxPagesOverride,
+    Math.max(AST_CACHE_STORAGE_MAX_LIST_PAGES, Math.ceil(maxItems / pageSize) + 1),
+    1,
+    5000
   );
 
   const uris = [];
@@ -404,19 +447,20 @@ function astCacheStorageListObjects(prefixUri, runtimeOptions = {}) {
   let pageCount = 0;
 
   while (uris.length < maxItems) {
-    if (pageCount >= AST_CACHE_STORAGE_MAX_LIST_PAGES) {
+    if (pageCount >= maxPages) {
       break;
     }
     pageCount += 1;
 
     let response;
     try {
+      const remaining = maxItems - uris.length;
       response = executeStorageRequest(
         astCacheStorageBuildRequest('list', prefixUri, runtimeOptions, null, {
           recursive: true,
           pageSize,
           pageToken,
-          maxItems: Math.max(pageSize, maxItems)
+          maxItems: Math.max(pageSize, remaining)
         })
       );
     } catch (error) {
@@ -658,7 +702,14 @@ function astCacheStorageWriteStatsDocument(uri, stats, runtimeOptions = {}) {
 function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options = {}) {
   const state = astCacheStoragePendingStatsState(config);
   if (astCacheStoragePendingStatsTotal(state.counters) === 0) {
-    return astCacheStorageNormalizeStatsDocument(astCacheStorageDefaultStatsDocument());
+    try {
+      return astCacheStorageReadStatsDocument(config, runtimeOptions).stats;
+    } catch (error) {
+      if (options.strict === true) {
+        throw error;
+      }
+      return astCacheStorageNormalizeStatsDocument(astCacheStorageDefaultStatsDocument());
+    }
   }
 
   try {
@@ -749,65 +800,69 @@ function astCacheStorageWriteTagDocument(uri, document, runtimeOptions = {}) {
 }
 
 function astCacheStorageSyncEntryTags(config, keyHash, previousTags = [], nextTags = [], runtimeOptions = {}) {
-  const prev = astCacheNormalizeTags(previousTags);
-  const next = astCacheNormalizeTags(nextTags);
+  return astCacheStorageRunTagMutationWithLock(config, runtimeOptions, () => {
+    const prev = astCacheNormalizeTags(previousTags);
+    const next = astCacheNormalizeTags(nextTags);
 
-  const prevSet = {};
-  for (let idx = 0; idx < prev.length; idx += 1) {
-    prevSet[prev[idx]] = true;
-  }
-
-  const nextSet = {};
-  for (let idx = 0; idx < next.length; idx += 1) {
-    nextSet[next[idx]] = true;
-  }
-
-  const removedTags = [];
-  for (let idx = 0; idx < prev.length; idx += 1) {
-    const tag = prev[idx];
-    if (!nextSet[tag]) {
-      removedTags.push(tag);
+    const prevSet = {};
+    for (let idx = 0; idx < prev.length; idx += 1) {
+      prevSet[prev[idx]] = true;
     }
-  }
 
-  const addedTags = [];
-  for (let idx = 0; idx < next.length; idx += 1) {
-    const tag = next[idx];
-    if (!prevSet[tag]) {
-      addedTags.push(tag);
+    const nextSet = {};
+    for (let idx = 0; idx < next.length; idx += 1) {
+      nextSet[next[idx]] = true;
     }
-  }
 
-  for (let idx = 0; idx < removedTags.length; idx += 1) {
-    const tag = removedTags[idx];
-    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
-    loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
-    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
-  }
-
-  for (let idx = 0; idx < addedTags.length; idx += 1) {
-    const tag = addedTags[idx];
-    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
-    if (loaded.document.keyHashes.indexOf(keyHash) === -1) {
-      loaded.document.keyHashes.push(keyHash);
+    const removedTags = [];
+    for (let idx = 0; idx < prev.length; idx += 1) {
+      const tag = prev[idx];
+      if (!nextSet[tag]) {
+        removedTags.push(tag);
+      }
     }
-    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
-  }
+
+    const addedTags = [];
+    for (let idx = 0; idx < next.length; idx += 1) {
+      const tag = next[idx];
+      if (!prevSet[tag]) {
+        addedTags.push(tag);
+      }
+    }
+
+    for (let idx = 0; idx < removedTags.length; idx += 1) {
+      const tag = removedTags[idx];
+      const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+      loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
+      astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+    }
+
+    for (let idx = 0; idx < addedTags.length; idx += 1) {
+      const tag = addedTags[idx];
+      const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+      if (loaded.document.keyHashes.indexOf(keyHash) === -1) {
+        loaded.document.keyHashes.push(keyHash);
+      }
+      astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+    }
+  });
 }
 
 function astCacheStorageDeleteEntryArtifacts(config, keyHash, tags = [], runtimeOptions = {}) {
-  const entryUri = astCacheStorageEntryUri(config, keyHash);
-  const deleted = astCacheStorageDeleteObject(entryUri, runtimeOptions, { suppressNotFound: true });
+  return astCacheStorageRunTagMutationWithLock(config, runtimeOptions, () => {
+    const entryUri = astCacheStorageEntryUri(config, keyHash);
+    const deleted = astCacheStorageDeleteObject(entryUri, runtimeOptions, { suppressNotFound: true });
 
-  const normalizedTags = astCacheNormalizeTags(tags);
-  for (let idx = 0; idx < normalizedTags.length; idx += 1) {
-    const tag = normalizedTags[idx];
-    const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
-    loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
-    astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
-  }
+    const normalizedTags = astCacheNormalizeTags(tags);
+    for (let idx = 0; idx < normalizedTags.length; idx += 1) {
+      const tag = normalizedTags[idx];
+      const loaded = astCacheStorageReadTagDocument(config, tag, runtimeOptions);
+      loaded.document.keyHashes = loaded.document.keyHashes.filter(value => value !== keyHash);
+      astCacheStorageWriteTagDocument(loaded.uri, loaded.document, runtimeOptions);
+    }
 
-  return deleted;
+    return deleted;
+  });
 }
 
 function astCacheStorageExtractKeyHashFromUri(uri) {
@@ -815,9 +870,9 @@ function astCacheStorageExtractKeyHashFromUri(uri) {
   return match ? astCacheNormalizeString(match[1], '') : '';
 }
 
-function astCacheStorageListEntryUris(config, runtimeOptions = {}) {
+function astCacheStorageListEntryUris(config, runtimeOptions = {}, options = {}) {
   const prefixUri = astCacheStorageEntriesPrefixUri(config);
-  return astCacheStorageListObjects(prefixUri, runtimeOptions)
+  return astCacheStorageListObjects(prefixUri, runtimeOptions, options)
     .filter(uri => /\/entries\/[^\/]+\.json$/.test(uri));
 }
 
@@ -833,7 +888,16 @@ function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
     return 0;
   }
 
-  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions);
+  const trimBatchSize = astCacheNormalizePositiveInt(
+    runtimeOptions.storageTrimBatchSize,
+    AST_CACHE_STORAGE_TRIM_BATCH_SIZE,
+    1,
+    10000
+  );
+  const probeLimit = maxEntries + trimBatchSize;
+  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions, {
+    maxItemsOverride: probeLimit
+  });
   if (entryUris.length <= maxEntries) {
     return 0;
   }
@@ -867,6 +931,9 @@ function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
   });
 
   const overflow = entries.length - maxEntries;
+  if (overflow <= 0) {
+    return 0;
+  }
   let removed = 0;
 
   for (let idx = 0; idx < overflow; idx += 1) {
