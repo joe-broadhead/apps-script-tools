@@ -165,8 +165,9 @@ function astRagSyncIndexCore(request = {}) {
     const normalizedRequest = astRagValidateSyncRequest(request);
     const loaded = astRagLoadIndexDocument(normalizedRequest.index.indexFileId);
     const current = loaded.document;
-    const hasShardingOverride = astRagIsPlainObject(request.index)
-      && Object.prototype.hasOwnProperty.call(request.index, 'sharding');
+    const hasShardingOverride = normalizedRequest
+      && normalizedRequest.index
+      && normalizedRequest.index.shardingProvided === true;
     if (!hasShardingOverride && astRagIsPlainObject(current.sharding)) {
       normalizedRequest.index.sharding = astRagCloneObject(current.sharding);
     }

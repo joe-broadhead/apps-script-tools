@@ -547,6 +547,7 @@ function astRagPersistIndexDocument(indexRequest, document) {
   }
 
   let rootFile = null;
+  let createdRootFile = false;
   let existingRootDoc = null;
 
   if (indexInfo.indexFileId) {
@@ -556,51 +557,59 @@ function astRagPersistIndexDocument(indexRequest, document) {
     destinationFolderId = astRagGetFilePrimaryParentFolderId(rootFile, destinationFolderId);
   } else {
     rootFile = astRagCreateIndexFile(indexInfo.indexName, {}, destinationFolderId);
+    createdRootFile = true;
   }
 
-  const sharding = astRagResolvePersistedSharding(indexInfo, document, existingRootDoc);
-  const maxChunksPerShard = astRagNormalizePositiveInt(
-    sharding.maxChunksPerShard,
-    AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
-    1
-  );
-  const chunkList = Array.isArray(document.chunks) ? document.chunks : [];
-  const shouldShard = Boolean(sharding.enabled) && chunkList.length > maxChunksPerShard;
+  try {
+    const sharding = astRagResolvePersistedSharding(indexInfo, document, existingRootDoc);
+    const maxChunksPerShard = astRagNormalizePositiveInt(
+      sharding.maxChunksPerShard,
+      AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
+      1
+    );
+    const chunkList = Array.isArray(document.chunks) ? document.chunks : [];
+    const shouldShard = Boolean(sharding.enabled) && chunkList.length > maxChunksPerShard;
 
-  const nextRootDocument = astRagCloneObject(document);
-  nextRootDocument.sharding = {
-    enabled: Boolean(sharding.enabled),
-    maxChunksPerShard
-  };
-  nextRootDocument.chunkCount = chunkList.length;
-
-  if (!shouldShard) {
-    nextRootDocument.storage = {
-      layout: 'single',
-      totalShards: 1,
+    const nextRootDocument = astRagCloneObject(document);
+    nextRootDocument.sharding = {
+      enabled: Boolean(sharding.enabled),
       maxChunksPerShard
     };
-    nextRootDocument.shards = [];
-    const file = astRagUpdateIndexFile(rootFile.getId(), nextRootDocument);
-    const existingRefs = astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards);
-    for (let idx = 0; idx < existingRefs.length; idx += 1) {
-      astRagTrashFileById(existingRefs[idx].fileId);
-    }
-    return {
-      indexFileId: file.getId(),
-      indexFileName: file.getName()
-    };
-  }
+    nextRootDocument.chunkCount = chunkList.length;
 
-  const shardPayloads = astRagBuildShardPayloads(document, maxChunksPerShard);
-  return astRagPersistShardedIndexDocument(
-    destinationFolderId,
-    rootFile,
-    nextRootDocument,
-    shardPayloads,
-    astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards),
-    maxChunksPerShard
-  );
+    if (!shouldShard) {
+      nextRootDocument.storage = {
+        layout: 'single',
+        totalShards: 1,
+        maxChunksPerShard
+      };
+      nextRootDocument.shards = [];
+      const file = astRagUpdateIndexFile(rootFile.getId(), nextRootDocument);
+      const existingRefs = astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards);
+      for (let idx = 0; idx < existingRefs.length; idx += 1) {
+        astRagTrashFileById(existingRefs[idx].fileId);
+      }
+      return {
+        indexFileId: file.getId(),
+        indexFileName: file.getName()
+      };
+    }
+
+    const shardPayloads = astRagBuildShardPayloads(document, maxChunksPerShard);
+    return astRagPersistShardedIndexDocument(
+      destinationFolderId,
+      rootFile,
+      nextRootDocument,
+      shardPayloads,
+      astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards),
+      maxChunksPerShard
+    );
+  } catch (error) {
+    if (createdRootFile && rootFile && typeof rootFile.getId === 'function') {
+      astRagTrashFileById(rootFile.getId());
+    }
+    throw error;
+  }
 }
 
 function astRagInspectIndex(indexFileId) {
