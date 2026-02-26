@@ -233,8 +233,13 @@ Notes:
 ## Development
 
 - Local checks: `npm run lint && npm run test:local`
+- Security check: `npm run test:security`
 - Docs check: `mkdocs build --strict`
 - Apps Script integration checks: `.github/workflows/integration-gas.yml`
+- Security workflows:
+  - `.github/workflows/security-codeql.yml`
+  - `.github/workflows/security-dependency-review.yml`
+  - `.github/workflows/security-secret-scan.yml`
 - Optional live AI smoke checks: `.github/workflows/integration-ai-live.yml`
 - Naming convention and contribution rules: `CONTRIBUTING.md`
 

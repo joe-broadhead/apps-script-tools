@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "node scripts/lint.mjs",
     "test:local": "node --test tests/local/*.test.mjs",
+    "test:security": "node scripts/security-scan.mjs",
     "test:perf": "node tests/perf/run-perf.mjs --mode report",
     "test:perf:check": "node tests/perf/run-perf.mjs --mode check",
     "test:perf:baseline": "node tests/perf/run-perf.mjs --mode baseline --out benchmarks/baselines/node20.json",
