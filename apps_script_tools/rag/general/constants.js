@@ -33,6 +33,10 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
   lexicalPrefilterTopN: 0,
   lexicalWeight: 0.35,
   vectorWeight: 0.65,
+  partition: Object.freeze({
+    enabled: false,
+    maxShards: 0
+  }),
   recovery: Object.freeze({
     enabled: false,
     topKBoost: 2,
@@ -57,6 +61,11 @@ const AST_RAG_DEFAULT_OPTIONS = Object.freeze({
   maxChunks: 2000,
   skipParseFailures: true,
   dryRun: false
+});
+
+const AST_RAG_DEFAULT_SHARDING = Object.freeze({
+  enabled: false,
+  maxChunksPerShard: 500
 });
 
 const AST_RAG_SCHEMA_VERSION = '1.0';

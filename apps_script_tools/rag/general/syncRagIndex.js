@@ -136,6 +136,16 @@ function astRagBuildSyncedIndexDocument(current, normalizedRequest, nextSources,
     },
     chunking: normalizedRequest.chunking,
     retrievalDefaults: normalizedRequest.retrievalDefaults,
+    sharding: astRagCloneObject(normalizedRequest.index.sharding || current.sharding || AST_RAG_DEFAULT_SHARDING),
+    storage: astRagIsPlainObject(current.storage) ? astRagCloneObject(current.storage) : {
+      layout: 'single',
+      totalShards: 1,
+      maxChunksPerShard: astRagNormalizePositiveInt(
+        normalizedRequest.index && normalizedRequest.index.sharding && normalizedRequest.index.sharding.maxChunksPerShard,
+        AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
+        1
+      )
+    },
     sourceConfig: normalizedRequest.source,
     sources: nextSources,
     chunks: nextChunks,
@@ -155,6 +165,12 @@ function astRagSyncIndexCore(request = {}) {
     const normalizedRequest = astRagValidateSyncRequest(request);
     const loaded = astRagLoadIndexDocument(normalizedRequest.index.indexFileId);
     const current = loaded.document;
+    const hasShardingOverride = normalizedRequest
+      && normalizedRequest.index
+      && normalizedRequest.index.shardingProvided === true;
+    if (!hasShardingOverride && astRagIsPlainObject(current.sharding)) {
+      normalizedRequest.index.sharding = astRagCloneObject(current.sharding);
+    }
     const dryRun = !!normalizedRequest.options.dryRun;
 
     const existingSources = Array.isArray(current.sources) ? current.sources : [];

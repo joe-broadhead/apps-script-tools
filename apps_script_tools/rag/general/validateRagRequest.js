@@ -266,10 +266,34 @@ function astRagNormalizeIndexRequest(index = {}) {
     throw new AstRagValidationError('index must be an object when provided');
   }
 
+  const shardingProvided = Object.prototype.hasOwnProperty.call(index, 'sharding')
+    && typeof index.sharding !== 'undefined';
+
   return {
     indexName: astRagNormalizeString(index.indexName, 'rag-index'),
     destinationFolderId: astRagNormalizeString(index.destinationFolderId, null),
-    indexFileId: astRagNormalizeString(index.indexFileId, null)
+    indexFileId: astRagNormalizeString(index.indexFileId, null),
+    sharding: astRagNormalizeShardingConfig(index.sharding),
+    shardingProvided
+  };
+}
+
+function astRagNormalizeShardingConfig(sharding = {}) {
+  if (typeof sharding === 'undefined' || sharding === null) {
+    sharding = {};
+  }
+
+  if (!astRagIsPlainObject(sharding)) {
+    throw new AstRagValidationError('index.sharding must be an object when provided');
+  }
+
+  return {
+    enabled: astRagNormalizeBoolean(sharding.enabled, AST_RAG_DEFAULT_SHARDING.enabled),
+    maxChunksPerShard: astRagNormalizePositiveInt(
+      sharding.maxChunksPerShard,
+      AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
+      1
+    )
   };
 }
 
@@ -434,6 +458,39 @@ function astRagNormalizeRetrievalRerank(rerank, defaults, fieldPath) {
   };
 }
 
+function astRagNormalizeRetrievalPartition(partition, defaults, fieldPath) {
+  if (typeof partition === 'undefined' || partition === null) {
+    return {
+      enabled: astRagNormalizeBoolean(defaults.enabled, AST_RAG_DEFAULT_RETRIEVAL.partition.enabled),
+      maxShards: astRagNormalizeOptionalNonNegativeInt(
+        defaults.maxShards,
+        AST_RAG_DEFAULT_RETRIEVAL.partition.maxShards,
+        `${fieldPath}.maxShards`,
+        0
+      )
+    };
+  }
+
+  if (!astRagIsPlainObject(partition)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  return {
+    enabled: astRagNormalizeBoolean(partition.enabled, astRagNormalizeBoolean(defaults.enabled, false)),
+    maxShards: astRagNormalizeOptionalNonNegativeInt(
+      partition.maxShards,
+      astRagNormalizeOptionalNonNegativeInt(
+        defaults.maxShards,
+        AST_RAG_DEFAULT_RETRIEVAL.partition.maxShards,
+        `${fieldPath}.maxShards`,
+        0
+      ),
+      `${fieldPath}.maxShards`,
+      0
+    )
+  };
+}
+
 function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
   if (!astRagIsPlainObject(retrieval)) {
     throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
@@ -471,6 +528,11 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     { minScore },
     `${fieldPath}.recovery`
   );
+  const partition = astRagNormalizeRetrievalPartition(
+    retrieval.partition,
+    defaults.partition || AST_RAG_DEFAULT_RETRIEVAL.partition,
+    `${fieldPath}.partition`
+  );
 
   if (mode === 'hybrid' && (vectorWeight + lexicalWeight) <= 0) {
     throw new AstRagValidationError(`${fieldPath} requires vectorWeight + lexicalWeight > 0 in hybrid mode`);
@@ -489,6 +551,7 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     vectorWeight,
     lexicalWeight,
     rerank,
+    partition,
     recovery
   };
 }
