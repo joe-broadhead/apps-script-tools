@@ -70,10 +70,15 @@ function astSecretsNormalizeInteger(value, fallback, min = 1, max = null) {
 }
 
 function astSecretsNormalizeOperation(value, fallback = 'get') {
-  const normalized = astSecretsNormalizeString(value, fallback).toLowerCase();
-  return AST_SECRETS_OPERATIONS.indexOf(normalized) === -1
-    ? fallback
-    : normalized;
+  if (typeof value === 'undefined' || value === null) {
+    return fallback;
+  }
+
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return fallback;
+  }
+
+  return String(value).trim().toLowerCase();
 }
 
 function astSecretsNormalizeKey(value) {
@@ -130,6 +135,7 @@ function astSecretsValidateRequest(request = {}, overrides = {}) {
   const options = astSecretsIsPlainObject(rawRequest.options)
     ? astSecretsCloneObject(rawRequest.options)
     : {};
+  const hasRequiredOption = Object.prototype.hasOwnProperty.call(options, 'required');
 
   const normalized = {
     operation,
@@ -146,7 +152,9 @@ function astSecretsValidateRequest(request = {}, overrides = {}) {
       ? astSecretsCloneObject(rawRequest.auth)
       : {},
     options: {
-      required: astSecretsNormalizeBoolean(options.required, true),
+      required: hasRequiredOption
+        ? astSecretsNormalizeBoolean(options.required, true)
+        : undefined,
       parseJson: astSecretsNormalizeBoolean(options.parseJson, false),
       includeRaw: astSecretsNormalizeBoolean(options.includeRaw, false),
       maxReferenceDepth: astSecretsNormalizeInteger(options.maxReferenceDepth, 3, 1, 20),

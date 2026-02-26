@@ -246,3 +246,47 @@ test('AST.Secrets.get parseJson option returns parsed object', () => {
   assert.equal(output.value.ok, true);
   assert.equal(output.value.source, 'props');
 });
+
+test('AST.Secrets.get honors configured required=false when request omits options.required', () => {
+  const store = createScriptPropertiesStore({});
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => store.handle
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+  context.AST.Secrets.clearConfig();
+  context.AST.Secrets.configure({
+    AST_SECRETS_REQUIRED: false
+  });
+
+  const output = context.AST.Secrets.get({
+    key: 'MISSING_KEY_WITH_CONFIG_DEFAULT'
+  });
+  assert.equal(output.value, null);
+  assert.equal(output.found, false);
+});
+
+test('AST.Secrets rejects unsupported operations instead of coercing to get', () => {
+  const store = createScriptPropertiesStore({});
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => store.handle
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.AST.Secrets.run({
+      operation: 'bogus',
+      key: 'ANY_KEY'
+    }),
+    error => {
+      assert.equal(error.name, 'AstSecretsValidationError');
+      assert.match(error.message, /Unsupported secrets operation/);
+      return true;
+    }
+  );
+});
