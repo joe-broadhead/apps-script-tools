@@ -173,7 +173,11 @@ function ensureSharedIndex_(ASTX, runtime, cfg, request, options) {
 function syncSharedIndex_(ASTX, runtime, cfg, request, options) {
   request = request || {};
   cfg = cfg || resolveAppConfig_(request);
-  request.forceRebuild = true;
+
+  // Sync should prefer incremental mutation when an index exists.
+  // Rebuild is a separate explicit action handled via forceRebuild.
+  request.forceRebuild = request.forceRebuild === true;
+
   return ensureSharedIndex_(ASTX, runtime, cfg, request, options);
 }
 
