@@ -222,11 +222,12 @@ function astRagCacheSet(cacheConfig, key, value, ttlSec, diagnosticsCollector = 
   }
 }
 
-function astRagBuildIndexDocumentCacheKey(indexFileId, versionToken) {
+function astRagBuildIndexDocumentCacheKey(indexFileId, versionToken, chunkSelector = 'all') {
   return astRagBuildCacheKey({
     kind: 'index_document',
     indexFileId,
-    versionToken
+    versionToken,
+    chunkSelector
   });
 }
 

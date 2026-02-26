@@ -3568,3 +3568,173 @@ test('Doc extraction works through DocumentApp for Google Docs sources', () => {
   assert.equal(extracted.segments[0].section, 'body');
   assert.equal(extracted.segments[0].text, 'Document body text');
 });
+
+test('buildIndex persists sharded layout and can hydrate full chunks on demand', () => {
+  const fileA = makeDriveFile({
+    id: 'file_shard_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha '.repeat(60)
+  });
+  const fileB = makeDriveFile({
+    id: 'file_shard_b',
+    name: 'b.txt',
+    mimeType: MIME_TEXT,
+    text: 'bravo '.repeat(60)
+  });
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sharded-index',
+      sharding: {
+        enabled: true,
+        maxChunksPerShard: 1
+      }
+    },
+    chunking: {
+      chunkSizeChars: 24,
+      chunkOverlapChars: 0,
+      minChunkChars: 8
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const inspected = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
+  assert.equal(inspected.storage.layout, 'sharded');
+  assert.equal(inspected.storage.totalShards > 1, true);
+  assert.equal(inspected.chunkCount > 1, true);
+
+  const manifestOnly = context.astRagLoadIndexDocument(built.indexFileId, { loadChunks: false });
+  assert.equal(Array.isArray(manifestOnly.document.shards), true);
+  assert.equal(manifestOnly.document.shards.length, inspected.storage.totalShards);
+  assert.equal(Array.isArray(manifestOnly.document.chunks), true);
+  assert.equal(manifestOnly.document.chunks.length, 0);
+
+  const full = context.astRagLoadIndexDocument(built.indexFileId);
+  assert.equal(Array.isArray(full.document.chunks), true);
+  assert.equal(full.document.chunks.length, inspected.chunkCount);
+});
+
+test('search retrieval can route to a shard partition when enabled', () => {
+  const fileA = makeDriveFile({
+    id: 'file_partition_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'customer profile metrics and lifecycle updates '.repeat(30)
+  });
+  const fileB = makeDriveFile({
+    id: 'file_partition_b',
+    name: 'b.txt',
+    mimeType: MIME_TEXT,
+    text: 'inventory movement and replenishment alerts '.repeat(30)
+  });
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'partition-index',
+      sharding: {
+        enabled: true,
+        maxChunksPerShard: 1
+      }
+    },
+    chunking: {
+      chunkSizeChars: 28,
+      chunkOverlapChars: 0,
+      minChunkChars: 8
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const fullSearch = context.AST.RAG.search({
+    indexFileId: built.indexFileId,
+    query: 'customer lifecycle',
+    retrieval: {
+      topK: 5,
+      minScore: -1,
+      partition: {
+        enabled: false
+      }
+    },
+    options: {
+      diagnostics: true
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+  const partitionedSearch = context.AST.RAG.search({
+    indexFileId: built.indexFileId,
+    query: 'customer lifecycle',
+    retrieval: {
+      topK: 5,
+      minScore: -1,
+      partition: {
+        enabled: true,
+        maxShards: 1
+      }
+    },
+    options: {
+      diagnostics: true
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  assert.equal(fullSearch.diagnostics.retrieval.partition.totalShards > 1, true);
+  assert.equal(
+    fullSearch.diagnostics.retrieval.partition.selectedShards,
+    fullSearch.diagnostics.retrieval.partition.totalShards
+  );
+
+  assert.equal(partitionedSearch.diagnostics.retrieval.partition.selectedShards, 1);
+  assert.equal(partitionedSearch.results.length > 0, true);
+});

@@ -38,6 +38,16 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
     },
     chunking: normalizedRequest.chunking,
     retrievalDefaults: normalizedRequest.retrievalDefaults,
+    sharding: astRagCloneObject(normalizedRequest.index.sharding || AST_RAG_DEFAULT_SHARDING),
+    storage: {
+      layout: 'single',
+      totalShards: 1,
+      maxChunksPerShard: astRagNormalizePositiveInt(
+        normalizedRequest.index && normalizedRequest.index.sharding && normalizedRequest.index.sharding.maxChunksPerShard,
+        AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
+        1
+      )
+    },
     sourceConfig: normalizedRequest.source,
     sources: preparedSources,
     chunks,
