@@ -401,8 +401,25 @@ function astCacheFetchPersist(context, normalizedKey, keyHash, value, tags, fetc
   astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
 }
 
-function astCacheFetchReleaseLease(context, leaseKeyHash) {
-  astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
+function astCacheFetchReleaseLease(context, leaseKeyHash, ownerId) {
+  const normalizedOwnerId = astCacheNormalizeString(ownerId, '');
+  if (!normalizedOwnerId) {
+    return false;
+  }
+
+  function attemptRelease() {
+    const currentLease = context.adapter.get(leaseKeyHash);
+    if (!currentLease || !currentLease.value || currentLease.value.ownerId !== normalizedOwnerId) {
+      return false;
+    }
+    return astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
+  }
+
+  try {
+    return astCacheFetchRunWithAtomicLeaseLock(context, attemptRelease);
+  } catch (_error) {
+    return attemptRelease();
+  }
 }
 
 function astCacheFetchRunWithAtomicLeaseLock(context, task) {
@@ -673,7 +690,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
         staleEntry
       );
     } finally {
-      astCacheFetchReleaseLease(context, leaseKeyHash);
+      astCacheFetchReleaseLease(context, leaseKeyHash, ownerId);
     }
   }
 
@@ -740,7 +757,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
         }
       );
     } finally {
-      astCacheFetchReleaseLease(context, leaseKeyHash);
+      astCacheFetchReleaseLease(context, leaseKeyHash, ownerId);
     }
   }
 

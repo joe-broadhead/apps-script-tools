@@ -545,6 +545,39 @@ test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', ()
   assert.equal(resolverStartedAtMs >= 1_050, true);
 });
 
+test('cache fetch lease release deletes only when owner matches', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_release_owner'
+  });
+
+  const normalizedKey = context.astCacheNormalizeKey('lease:owner:key');
+  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
+  const leaseKeyHash = context.astCacheHashKey(leaseInternalKey);
+  const resolved = context.astCacheBuildResolvedContext({
+    backend: 'memory',
+    namespace: 'cache_fetch_release_owner'
+  });
+
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'owner-b' }, {
+    namespace: 'cache_fetch_release_owner',
+    ttlSec: 60
+  });
+
+  context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-a');
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get(leaseInternalKey, { namespace: 'cache_fetch_release_owner' })),
+    JSON.stringify({ ownerId: 'owner-b' })
+  );
+
+  context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-b');
+  assert.equal(context.AST.Cache.get(leaseInternalKey, { namespace: 'cache_fetch_release_owner' }), null);
+});
+
 test('memory backend enforces deterministic ttl expiration', () => {
   let nowMs = 1_000;
   class FakeDate extends Date {
