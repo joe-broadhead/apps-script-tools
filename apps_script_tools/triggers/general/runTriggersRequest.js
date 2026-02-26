@@ -472,21 +472,53 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
     )
   );
 
-  let deletedExistingTrigger = false;
+  let createdTriggerUid = null;
   if (
     !normalizedRequest.options.dryRun
-    && existing
-    && existing.triggerUid
-    && (!normalizedRequest.enabled || shouldRecreateTrigger)
+    && normalizedRequest.enabled
+    && shouldRecreateTrigger
   ) {
-    deletedExistingTrigger = astTriggersDeleteProjectTriggerByUid(existing.triggerUid);
+    const created = astTriggersCreateProjectTrigger(resolvedConfig, normalizedRequest);
+    createdTriggerUid = created && created.triggerUid ? created.triggerUid : null;
+    if (!createdTriggerUid) {
+      throw new AstTriggersError(
+        'Failed to create replacement trigger',
+        { id }
+      );
+    }
+  }
+
+  let deletedExistingTrigger = false;
+  if (!normalizedRequest.options.dryRun && existing && existing.triggerUid) {
+    const shouldDeleteExisting = !normalizedRequest.enabled || shouldRecreateTrigger;
+    if (shouldDeleteExisting) {
+      try {
+        deletedExistingTrigger = astTriggersDeleteProjectTriggerByUid(existing.triggerUid);
+      } catch (error) {
+        if (createdTriggerUid) {
+          try {
+            astTriggersDeleteProjectTriggerByUid(createdTriggerUid);
+          } catch (_rollbackError) {
+            // best-effort rollback
+          }
+        }
+        throw new AstTriggersError(
+          'Failed to replace existing trigger',
+          {
+            id,
+            existingTriggerUid: existing.triggerUid,
+            replacementTriggerUid: createdTriggerUid
+          },
+          error
+        );
+      }
+    }
   }
 
   let triggerUid = null;
   if (normalizedRequest.enabled) {
     if (!normalizedRequest.options.dryRun && shouldRecreateTrigger) {
-      const created = astTriggersCreateProjectTrigger(resolvedConfig, normalizedRequest);
-      triggerUid = created.triggerUid || null;
+      triggerUid = createdTriggerUid;
     } else {
       triggerUid = existing && existing.triggerUid ? existing.triggerUid : null;
     }

@@ -167,7 +167,18 @@ function astTriggersValidateSchedule(schedule, resolvedConfig = {}) {
     );
   }
 
-  const every = astTriggersNormalizeInteger(schedule.every, 1, 1, 60);
+  const hasEvery = Object.prototype.hasOwnProperty.call(schedule, 'every');
+  const parsedEvery = astTriggersNormalizeInteger(schedule.every, null, 1, 60);
+  if (hasEvery && parsedEvery == null) {
+    throw new AstTriggersValidationError(
+      'schedule.every must be an integer between 1 and 60',
+      {
+        value: schedule.every
+      }
+    );
+  }
+
+  const every = parsedEvery == null ? 1 : parsedEvery;
   const atHour = astTriggersNormalizeInteger(schedule.atHour, null, 0, 23);
   const nearMinute = astTriggersNormalizeInteger(schedule.nearMinute, null, 0, 59);
   const weekDay = astTriggersNormalizeWeekDay(schedule.onWeekDay);

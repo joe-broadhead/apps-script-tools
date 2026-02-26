@@ -39,6 +39,7 @@ function createScriptAppMock() {
 
   const triggerStore = [];
   let sequence = 1;
+  let failNextCreateError = null;
 
   function buildTrigger(handler, schedule) {
     const triggerUid = `trigger_uid_${sequence++}`;
@@ -89,6 +90,11 @@ function createScriptAppMock() {
         return api;
       },
       create: () => {
+        if (failNextCreateError) {
+          const error = failNextCreateError;
+          failNextCreateError = null;
+          throw error;
+        }
         const trigger = buildTrigger(handler, schedule);
         triggerStore.push(trigger);
         return trigger;
@@ -112,7 +118,10 @@ function createScriptAppMock() {
       triggerStore.length = 0;
       next.forEach(item => triggerStore.push(item));
     },
-    __getTriggers: () => triggerStore.slice()
+    __getTriggers: () => triggerStore.slice(),
+    __failNextCreate: error => {
+      failNextCreateError = error || new Error('forced create failure');
+    }
   };
 }
 
@@ -265,6 +274,29 @@ test('AST.Triggers rejects reserved internal IDs', () => {
   );
 });
 
+test('AST.Triggers rejects invalid schedule.every values', () => {
+  const { context } = createTriggersContext();
+  context.invalidEveryHandler = () => true;
+
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: 'invalid_every_zero',
+      schedule: { type: 'every_minutes', every: 0 },
+      dispatch: { mode: 'direct', handler: 'invalidEveryHandler' }
+    }),
+    /schedule\.every must be an integer between 1 and 60/
+  );
+
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: 'invalid_every_large',
+      schedule: { type: 'every_days', every: 61 },
+      dispatch: { mode: 'direct', handler: 'invalidEveryHandler' }
+    }),
+    /schedule\.every must be an integer between 1 and 60/
+  );
+});
+
 test('AST.Triggers upsert recreates trigger when dispatch handler config changes', () => {
   const { context, scriptApp } = createTriggersContext();
   context.dispatchHandlerA = () => true;
@@ -300,6 +332,41 @@ test('AST.Triggers upsert recreates trigger when dispatch handler config changes
   assert.equal(scriptApp.__getTriggers().length, 1);
   assert.equal(scriptApp.__getTriggers()[0].getHandlerFunction(), 'dispatchHandlerB');
   assert.notEqual(first.triggerUid, second.triggerUid);
+});
+
+test('AST.Triggers keeps existing trigger when replacement creation fails', () => {
+  const { context, scriptApp } = createTriggersContext();
+  context.recreateSafeHandler = () => true;
+
+  const first = context.AST.Triggers.upsert({
+    id: 'recreate_safe',
+    schedule: { type: 'every_hours', every: 1 },
+    dispatch: { mode: 'direct', handler: 'recreateSafeHandler' }
+  });
+  const originalUid = first.triggerUid;
+  assert.equal(scriptApp.__getTriggers().length, 1);
+
+  scriptApp.__failNextCreate(new Error('forced create failure'));
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: 'recreate_safe',
+      schedule: { type: 'every_hours', every: 2 },
+      dispatch: { mode: 'direct', handler: 'recreateSafeHandler' }
+    }),
+    /Failed to create replacement trigger|forced create failure/
+  );
+
+  const triggersAfter = scriptApp.__getTriggers();
+  assert.equal(triggersAfter.length, 1);
+  assert.equal(triggersAfter[0].getUniqueId(), originalUid);
+
+  const listed = context.AST.Triggers.list({
+    filters: { id: 'recreate_safe' },
+    options: { includeRaw: true }
+  });
+  assert.equal(listed.page.total, 1);
+  assert.equal(listed.items[0].triggerUid, originalUid);
+  assert.equal(listed.items[0].definition.schedule.every, 1);
 });
 
 test('AST.Triggers runNow supports jobs dispatch integration', () => {
