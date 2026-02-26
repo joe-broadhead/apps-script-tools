@@ -392,8 +392,12 @@ function astRagLoadShardChunks(indexFileId, shardRefs = [], options = {}) {
 
 function astRagLoadIndexChunks(indexFileId, indexDocument = {}, options = {}) {
   if (!astRagIsShardedIndexDocument(indexDocument)) {
-    const inlineChunks = Array.isArray(indexDocument.chunks) ? indexDocument.chunks : [];
-    return inlineChunks.map(astRagHydrateLoadedChunk);
+    if (!Array.isArray(indexDocument.chunks)) {
+      throw new AstRagIndexError('Index file is missing chunks array', {
+        indexFileId
+      });
+    }
+    return indexDocument.chunks.map(astRagHydrateLoadedChunk);
   }
 
   const selectedRefs = astRagSelectShardRefs(indexDocument, options);
@@ -452,7 +456,12 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
     if (astRagIsShardedIndexDocument(json)) {
       json.chunks = [];
     } else {
-      json.chunks = (Array.isArray(json.chunks) ? json.chunks : []).map(astRagHydrateLoadedChunk);
+      if (!Array.isArray(json.chunks)) {
+        throw new AstRagIndexError('Index file is missing chunks array', {
+          indexFileId
+        });
+      }
+      json.chunks = json.chunks.map(astRagHydrateLoadedChunk);
     }
   }
 

@@ -4002,6 +4002,36 @@ test('loadIndexDocument cache hit skips root JSON parse', () => {
   }
 });
 
+test('loadIndexDocument throws when single-layout index is missing chunks array', () => {
+  const badIndex = makeDriveFile({
+    id: 'index_missing_chunks_single',
+    name: 'bad-index.json',
+    mimeType: 'application/json',
+    text: JSON.stringify({
+      schemaVersion: '1.0',
+      indexName: 'bad-index',
+      storage: {
+        layout: 'single',
+        totalShards: 1
+      },
+      sources: []
+    })
+  });
+  const drive = createDriveRuntime({
+    files: [badIndex]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.astRagLoadIndexDocument('index_missing_chunks_single'),
+    /missing chunks array/i
+  );
+});
+
 test('buildIndex preserves existing sharding when rebuilding existing indexFileId without sharding override', () => {
   const fileA = makeDriveFile({
     id: 'file_shard_preserve_a',
