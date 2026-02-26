@@ -26,9 +26,34 @@ const AST_CHAT_DEFAULTS = Object.freeze({
   })
 });
 
+const AST_CHAT_CONFIG_KEYS = Object.freeze([
+  'AST_CHAT_KEY_PREFIX',
+  'AST_CHAT_DURABLE_BACKEND',
+  'AST_CHAT_DRIVE_FOLDER_ID',
+  'AST_CHAT_DRIVE_FILE_NAME',
+  'AST_CHAT_STORAGE_URI',
+  'AST_CHAT_THREAD_MAX',
+  'AST_CHAT_TURNS_MAX',
+  'AST_CHAT_LOCK_SCOPE',
+  'AST_CHAT_LOCK_TIMEOUT_MS',
+  'AST_CHAT_ALLOW_LOCK_FALLBACK'
+]);
+
 let AST_CHAT_RUNTIME_CONFIG = {};
 
+function astChatInvalidateScriptPropertiesSnapshotCache() {
+  if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
+    astConfigInvalidateScriptPropertiesSnapshotMemoized();
+  }
+}
+
 function astChatGetScriptPropertiesSnapshot() {
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized({
+      keys: AST_CHAT_CONFIG_KEYS
+    });
+  }
+
   if (
     typeof PropertiesService === 'undefined' ||
     !PropertiesService ||
@@ -53,6 +78,10 @@ function astChatGetScriptPropertiesSnapshot() {
 }
 
 function astChatResolveConfigString(candidates, fallback = '') {
+  if (typeof astConfigResolveFirstString === 'function') {
+    return astConfigResolveFirstString(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const normalized = astChatNormalizeString(candidates[idx], '');
     if (normalized) {
@@ -63,6 +92,15 @@ function astChatResolveConfigString(candidates, fallback = '') {
 }
 
 function astChatResolveConfigNumber(candidates, fallback, min, max) {
+  if (typeof astConfigResolveFirstInteger === 'function') {
+    return astConfigResolveFirstInteger(candidates, {
+      fallback,
+      min,
+      max,
+      strict: false
+    });
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const candidate = candidates[idx];
     if (candidate == null || candidate === '') {
@@ -77,6 +115,10 @@ function astChatResolveConfigNumber(candidates, fallback, min, max) {
 }
 
 function astChatResolveConfigBoolean(candidates, fallback) {
+  if (typeof astConfigResolveFirstBoolean === 'function') {
+    return astConfigResolveFirstBoolean(candidates, fallback);
+  }
+
   for (let idx = 0; idx < candidates.length; idx += 1) {
     const candidate = candidates[idx];
     if (typeof candidate === 'boolean') {
@@ -279,6 +321,7 @@ function astChatSetRuntimeConfig(config = {}, options = {}) {
     ? astChatJsonClone(AST_CHAT_RUNTIME_CONFIG)
     : {};
 
+  astChatInvalidateScriptPropertiesSnapshotCache();
   AST_CHAT_RUNTIME_CONFIG = merge ? previousRuntime : {};
   AST_CHAT_RUNTIME_CONFIG = astChatResolveConfig(config);
   return astChatGetRuntimeConfig();
@@ -286,5 +329,6 @@ function astChatSetRuntimeConfig(config = {}, options = {}) {
 
 function astChatClearRuntimeConfig() {
   AST_CHAT_RUNTIME_CONFIG = {};
+  astChatInvalidateScriptPropertiesSnapshotCache();
   return astChatGetRuntimeConfig();
 }

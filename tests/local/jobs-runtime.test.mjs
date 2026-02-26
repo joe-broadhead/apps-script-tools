@@ -761,3 +761,17 @@ test('jobs execution options memoize script properties snapshots and invalidate 
   assert.equal(refreshed.maxRetries, 3);
   assert.equal(getPropertiesCalls, 2);
 });
+
+test('jobs execution options cap oversized request values instead of ignoring them', () => {
+  const { context } = createJobsContext();
+
+  const resolved = context.astJobsResolveExecutionOptions({
+    maxRetries: 99,
+    maxRuntimeMs: 700000,
+    leaseTtlMs: 900000
+  });
+
+  assert.equal(resolved.maxRetries, 20);
+  assert.equal(resolved.maxRuntimeMs, 600000);
+  assert.equal(resolved.leaseTtlMs, 600000);
+});
