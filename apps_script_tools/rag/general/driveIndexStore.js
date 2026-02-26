@@ -400,7 +400,19 @@ function astRagLoadIndexChunks(indexFileId, indexDocument = {}, options = {}) {
     return indexDocument.chunks.map(astRagHydrateLoadedChunk);
   }
 
+  const allRefs = astRagNormalizeShardRefs(indexDocument.shards || []);
+  if (!allRefs.length) {
+    throw new AstRagIndexError('Sharded index file is missing shard references', {
+      indexFileId
+    });
+  }
+
   const selectedRefs = astRagSelectShardRefs(indexDocument, options);
+  if (!selectedRefs.length) {
+    throw new AstRagIndexError('Sharded index file does not contain selected shard references', {
+      indexFileId
+    });
+  }
   return astRagLoadShardChunks(indexFileId, selectedRefs, options);
 }
 

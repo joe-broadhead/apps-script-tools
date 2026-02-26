@@ -4032,6 +4032,37 @@ test('loadIndexDocument throws when single-layout index is missing chunks array'
   );
 });
 
+test('loadIndexDocument throws when sharded-layout index is missing shard references', () => {
+  const badIndex = makeDriveFile({
+    id: 'index_missing_shards',
+    name: 'bad-sharded-index.json',
+    mimeType: 'application/json',
+    text: JSON.stringify({
+      schemaVersion: '1.0',
+      indexName: 'bad-sharded-index',
+      storage: {
+        layout: 'sharded',
+        totalShards: 2
+      },
+      sources: [],
+      chunks: []
+    })
+  });
+  const drive = createDriveRuntime({
+    files: [badIndex]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.astRagLoadIndexDocument('index_missing_shards'),
+    /missing shard references/i
+  );
+});
+
 test('buildIndex preserves existing sharding when rebuilding existing indexFileId without sharding override', () => {
   const fileA = makeDriveFile({
     id: 'file_shard_preserve_a',
