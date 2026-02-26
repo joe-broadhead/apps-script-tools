@@ -107,6 +107,32 @@ function astTriggersNormalizeIdentity(value, fallback = null) {
   return output.length > 120 ? output.slice(0, 120) : output;
 }
 
+function astTriggersIsReservedIdentity(value) {
+  const normalized = astTriggersNormalizeIdentity(value, null);
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized === '__index' || normalized.indexOf('__uid__') === 0;
+}
+
+function astTriggersAssertNonReservedIdentity(value, fieldName = 'id') {
+  const normalized = astTriggersNormalizeIdentity(value, null);
+  if (!normalized) {
+    return;
+  }
+
+  if (astTriggersIsReservedIdentity(normalized)) {
+    throw new AstTriggersValidationError(
+      `Trigger ${fieldName} '${normalized}' is reserved`,
+      {
+        field: fieldName,
+        id: normalized
+      }
+    );
+  }
+}
+
 function astTriggersNormalizeWeekDay(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
     if (value >= 0 && value <= 6) {
@@ -257,10 +283,12 @@ function astTriggersValidateUpsertRequest(rawRequest = {}, resolvedConfig = {}) 
   const options = astTriggersIsPlainObject(rawRequest.options)
     ? astTriggersCloneObject(rawRequest.options)
     : {};
+  const id = astTriggersNormalizeIdentity(rawRequest.id, null);
+  astTriggersAssertNonReservedIdentity(id, 'id');
 
   return {
     operation: 'upsert',
-    id: astTriggersNormalizeIdentity(rawRequest.id, null),
+    id,
     enabled: astTriggersNormalizeBoolean(rawRequest.enabled, true),
     schedule: astTriggersValidateSchedule(rawRequest.schedule, resolvedConfig),
     dispatch: astTriggersValidateDispatch(rawRequest.dispatch, rawRequest, resolvedConfig),

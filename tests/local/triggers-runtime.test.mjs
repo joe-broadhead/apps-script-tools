@@ -242,6 +242,29 @@ test('AST.Triggers rejects onWeekDay for daily schedules', () => {
   );
 });
 
+test('AST.Triggers rejects reserved internal IDs', () => {
+  const { context } = createTriggersContext();
+  context.reservedIdHandler = () => true;
+
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: '__index',
+      schedule: { type: 'every_minutes', every: 10 },
+      dispatch: { mode: 'direct', handler: 'reservedIdHandler' }
+    }),
+    /reserved/
+  );
+
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: '__uid__manual',
+      schedule: { type: 'every_minutes', every: 10 },
+      dispatch: { mode: 'direct', handler: 'reservedIdHandler' }
+    }),
+    /reserved/
+  );
+});
+
 test('AST.Triggers upsert recreates trigger when dispatch handler config changes', () => {
   const { context, scriptApp } = createTriggersContext();
   context.dispatchHandlerA = () => true;
