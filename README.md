@@ -40,6 +40,7 @@
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
 - `AST.Jobs`: script-properties checkpointed multi-step job orchestration with retry/resume semantics
+- `AST.Triggers`: declarative time-based trigger lifecycle with optional `AST.Jobs` dispatch
 - `AST.Chat`: durable user-scoped thread state store for chat apps
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
@@ -64,6 +65,10 @@ Current release state:
   - `get`, `set`, `delete`, and `resolveValue` helpers
   - providers: `script_properties` and `secret_manager`
   - optional `secret://...` config references for `AST.AI`, `AST.RAG`, and `AST.Storage`
+- New `AST.Triggers` module with:
+  - `upsert`, `list`, `delete`, and `runNow` APIs for idempotent trigger lifecycle control
+  - time-based schedule contracts (`every_minutes`, `every_hours`, `every_days`, `every_weeks`)
+  - optional dispatch routing into `AST.Jobs` (`dispatch.mode='jobs'`) for resilient queued execution
 
 Released highlights are tracked in `CHANGELOG.md` under `v0.0.4`.
 

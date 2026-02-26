@@ -398,7 +398,7 @@ Primary methods:
 
 High-signal behavior:
 
-- default target modules: `AI`, `RAG`, `Cache`, `Storage`, `Telemetry`, `Jobs`.
+- default target modules: `AI`, `RAG`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`.
 - configuration merge policy is controlled by `options.merge` (default `true`).
 - supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
 
@@ -535,6 +535,54 @@ Logger.log(resumed.status);
 See:
 
 - [Jobs Contracts](jobs-contracts.md)
+
+## `ASTX.Triggers`
+
+Declarative lifecycle for time-based Apps Script triggers with idempotent upsert behavior.
+
+Primary methods:
+
+- `ASTX.Triggers.upsert(request)` to create/update a trigger definition and backing ScriptApp trigger.
+- `ASTX.Triggers.list(request)` to enumerate registered definitions.
+- `ASTX.Triggers.delete(request)` to remove one or all definitions and backing triggers.
+- `ASTX.Triggers.runNow(request)` to execute a definition immediately (manual dispatch path).
+- `ASTX.Triggers.run(request)` for explicit operation routing.
+- `ASTX.Triggers.configure(config, options)` / `ASTX.Triggers.getConfig()` / `ASTX.Triggers.clearConfig()`.
+
+High-signal behavior:
+
+- idempotent `upsert`: unchanged schedule + dispatch does not recreate trigger state.
+- supports time-based schedules:
+  - `every_minutes`
+  - `every_hours`
+  - `every_days`
+  - `every_weeks`
+- dispatch modes:
+  - `direct`: call a named global handler synchronously.
+  - `jobs`: enqueue into `ASTX.Jobs` (optionally auto-resume).
+- `options.dryRun=true` supports planning/validation without creating or deleting project triggers.
+- trigger dispatch handler defaults to `astTriggersDispatch`, which resolves definitions by `event.triggerUid`.
+
+```javascript
+ASTX.Triggers.upsert({
+  id: 'daily_sync',
+  schedule: {
+    type: 'every_days',
+    every: 1,
+    atHour: 5
+  },
+  dispatch: {
+    mode: 'jobs',
+    autoResumeJobs: true,
+    job: {
+      name: 'daily-sync-job',
+      steps: [
+        { id: 'step_one', handler: 'runDailySyncStep' }
+      ]
+    }
+  }
+});
+```
 
 ## `ASTX.Chat`
 

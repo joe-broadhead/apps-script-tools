@@ -121,6 +121,7 @@ nav:
     - Storage Providers: api/storage-providers.md
     - Chat Contracts: api/chat-contracts.md
     - Jobs Contracts: api/jobs-contracts.md
+    - Triggers Contracts: api/triggers-contracts.md
     - Telemetry Contracts: api/telemetry-contracts.md
     - DataFrame Patterns: api/dataframe-patterns.md
   - Performance:

@@ -20,6 +20,7 @@ async function runAllTests() {
     ...DBT_MANIFEST_BASICS_TESTS,
     ...TELEMETRY_NAMESPACE_TESTS,
     ...JOBS_NAMESPACE_TESTS,
+    ...TRIGGERS_NAMESPACE_TESTS,
     ...CHAT_NAMESPACE_TESTS,
 
     // dataFrame/DataFrame Tests

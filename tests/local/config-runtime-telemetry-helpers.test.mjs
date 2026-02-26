@@ -23,6 +23,7 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   assert.equal(typeof context.AST.TelemetryHelpers.withSpan, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.startSpanSafe, 'function');
   assert.equal(context.AST.Runtime.modules().includes('Secrets'), true);
+  assert.equal(context.AST.Runtime.modules().includes('Triggers'), true);
 });
 
 test('AST.Config.fromScriptProperties supports key/prefix normalization', () => {

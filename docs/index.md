@@ -28,6 +28,7 @@
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
 - `AST.TelemetryHelpers`: safe wrappers for span lifecycle orchestration.
 - `AST.Jobs`: script-properties checkpointed multi-step job runner with retry/resume and status controls.
+- `AST.Triggers`: declarative time-based trigger upsert/list/delete with optional Jobs dispatch.
 - `AST.Chat`: durable user-scoped thread persistence and bounded history assembly.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
@@ -50,6 +51,7 @@ flowchart LR
     B --> O[AST.Telemetry]
     B --> V[AST.TelemetryHelpers]
     B --> T[AST.Jobs]
+    B --> AC[AST.Triggers]
     B --> W[AST.Chat]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
@@ -61,6 +63,7 @@ flowchart LR
     Q --> R["Memory / Drive JSON / Script Properties / Storage JSON"]
     O --> P[Logger / Drive NDJSON / Storage NDJSON]
     T --> U["Script Properties Checkpoints"]
+    AC --> AD["ScriptApp Time Triggers"]
     W --> X["Durable Thread Store"]
     C --> H[Records / Arrays / Sheets]
 ```
@@ -79,6 +82,7 @@ flowchart LR
 - v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
 - Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.
 - `AST.Secrets` namespace for typed secret resolution (`script_properties`, `secret_manager`).
+- `AST.Triggers` namespace for idempotent schedule management and trigger-to-jobs dispatch.
 
 For released highlights, use `CHANGELOG.md` (for example `v0.0.4`).
 

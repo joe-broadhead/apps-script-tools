@@ -45,13 +45,25 @@
   - `AstSecretsParseError`
 - New docs:
   - `api/secrets-contracts.md`
+- New `AST.Triggers` namespace with:
+  - `run`, `upsert`, `list`, `delete`, `runNow`
+  - `configure`, `getConfig`, `clearConfig`
+- Trigger orchestration contracts:
+  - idempotent upsert identity over schedule + dispatch definition
+  - time-based schedules (`every_minutes`, `every_hours`, `every_days`, `every_weeks`)
+  - dispatcher path to direct handlers or `AST.Jobs` enqueue/resume
+  - `dryRun` planning mode for non-mutating validation
+- New docs:
+  - `api/triggers-contracts.md`
 
 ### Changed
 
 - `AST` namespace now exposes `AST.DBT`.
 - `AST` namespace now exposes `AST.Secrets`.
+- `AST` namespace now exposes `AST.Triggers`.
 - `AST.Runtime.configureFromProps(...)` now supports module `DBT`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
+- `AST.Runtime.configureFromProps(...)` now supports module `Triggers`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 
