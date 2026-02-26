@@ -21,6 +21,7 @@
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.DBT`: dbt `manifest.json` loading, preindexing, search, deep metadata lookup, and lineage traversal.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
+- `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key ops + invalidation/stats).
 - `AST.Config`: script-properties snapshot helpers for configuration bootstrap.
 - `AST.Runtime`: runtime configuration hydration across AST namespaces.
@@ -43,6 +44,7 @@ flowchart LR
     B --> K[AST.RAG]
     B --> Y[AST.DBT]
     B --> M[AST.Storage]
+    B --> AA[AST.Secrets]
     B --> Q[AST.Cache]
     B --> S[AST.Config / AST.Runtime]
     B --> O[AST.Telemetry]
@@ -55,6 +57,7 @@ flowchart LR
     K --> L[Drive JSON Index + Cosine Retrieval]
     Y --> Z[dbt manifest v12 search/index/lineage]
     M --> N[GCS / S3 / DBFS APIs]
+    AA --> AB["Script Properties / Secret Manager"]
     Q --> R["Memory / Drive JSON / Script Properties / Storage JSON"]
     O --> P[Logger / Drive NDJSON / Storage NDJSON]
     T --> U["Script Properties Checkpoints"]
@@ -75,6 +78,7 @@ flowchart LR
 - Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
 - v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
 - Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.
+- `AST.Secrets` namespace for typed secret resolution (`script_properties`, `secret_manager`).
 
 For released highlights, use `CHANGELOG.md` (for example `v0.0.4`).
 

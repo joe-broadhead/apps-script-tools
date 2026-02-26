@@ -31,12 +31,29 @@
   - `getting-started/dbt-manifest-quickstart.md`
   - `api/dbt-manifest-contracts.md`
   - `api/dbt-manifest-search.md`
+- New `AST.Secrets` namespace with:
+  - `run`, `get`, `set`, `delete`
+  - `providers`, `capabilities`
+  - `configure`, `getConfig`, `clearConfig`
+  - `resolveValue` for `secret://...` references
+- Secret providers:
+  - `script_properties` (`get/set/delete`)
+  - `secret_manager` (`get`)
+- New typed secrets errors:
+  - `AstSecretsError`, `AstSecretsValidationError`, `AstSecretsAuthError`
+  - `AstSecretsCapabilityError`, `AstSecretsProviderError`, `AstSecretsNotFoundError`
+  - `AstSecretsParseError`
+- New docs:
+  - `api/secrets-contracts.md`
 
 ### Changed
 
 - `AST` namespace now exposes `AST.DBT`.
+- `AST` namespace now exposes `AST.Secrets`.
 - `AST.Runtime.configureFromProps(...)` now supports module `DBT`.
+- `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.
+- `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 
 ## v0.0.4 - 2026-02-25
 

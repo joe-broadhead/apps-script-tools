@@ -57,6 +57,33 @@ AST_UTILS_TESTS = [
     }
   },
   {
+    description: 'AST namespace should expose Secrets helper surface',
+    test: () => {
+      if (!AST || !AST.Secrets) {
+        throw new Error('AST.Secrets is not available');
+      }
+
+      const requiredMethods = [
+        'run',
+        'get',
+        'set',
+        'delete',
+        'providers',
+        'capabilities',
+        'configure',
+        'getConfig',
+        'clearConfig',
+        'resolveValue'
+      ];
+
+      requiredMethods.forEach(method => {
+        if (typeof AST.Secrets[method] !== 'function') {
+          throw new Error(`AST.Secrets.${method} is not available`);
+        }
+      });
+    }
+  },
+  {
     description: 'AST namespace should expose DBT helper surface',
     test: () => {
       if (!AST || !AST.DBT) {

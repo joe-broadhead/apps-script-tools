@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createGasContext, loadScripts, listScriptFiles } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 import { loadTelemetryScripts } from './telemetry-helpers.mjs';
+import { loadSecretsScripts } from './secrets-helpers.mjs';
 
 test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () => {
   const context = createGasContext();
@@ -21,6 +22,7 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   assert.equal(typeof context.AST.Runtime.modules, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.withSpan, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.startSpanSafe, 'function');
+  assert.equal(context.AST.Runtime.modules().includes('Secrets'), true);
 });
 
 test('AST.Config.fromScriptProperties supports key/prefix normalization', () => {
@@ -337,6 +339,44 @@ test('AST.Runtime.configureFromProps configures selected modules from script pro
     JSON.stringify({
       OPENAI_API_KEY: 'runtime-key',
       OPENAI_MODEL: 'runtime-model'
+    })
+  );
+});
+
+test('AST.Runtime.configureFromProps configures Secrets module from script properties', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_SECRETS_PROVIDER: 'secret_manager',
+          SECRET_MANAGER_PROJECT_ID: 'project-runtime'
+        })
+      })
+    }
+  });
+
+  loadSecretsScripts(context);
+  loadScripts(context, [
+    'apps_script_tools/config/Config.js',
+    'apps_script_tools/runtime/Runtime.js',
+    'apps_script_tools/AST.js'
+  ]);
+
+  context.AST.Secrets.clearConfig();
+
+  const summary = context.AST.Runtime.configureFromProps({
+    modules: ['Secrets'],
+    keys: ['AST_SECRETS_PROVIDER', 'SECRET_MANAGER_PROJECT_ID']
+  });
+
+  assert.equal(JSON.stringify(summary.modulesRequested), JSON.stringify(['Secrets']));
+  assert.equal(JSON.stringify(summary.configuredModules), JSON.stringify(['Secrets']));
+  assert.equal(summary.failedModules.length, 0);
+  assert.equal(
+    JSON.stringify(context.AST.Secrets.getConfig()),
+    JSON.stringify({
+      AST_SECRETS_PROVIDER: 'secret_manager',
+      SECRET_MANAGER_PROJECT_ID: 'project-runtime'
     })
   );
 });

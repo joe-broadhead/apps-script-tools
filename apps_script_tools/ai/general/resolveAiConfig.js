@@ -182,14 +182,14 @@ function astResolveConfigString({
   if (typeof astConfigResolveFirstString === 'function') {
     const resolved = astConfigResolveFirstString(candidates, null);
     if (resolved != null) {
-      return resolved;
+      return astAiMaybeResolveSecretReference(resolved, field, scriptKey);
     }
   } else {
     for (let idx = 0; idx < candidates.length; idx++) {
       const value = candidates[idx];
 
       if (typeof value === 'string' && value.trim().length > 0) {
-        return value.trim();
+        return astAiMaybeResolveSecretReference(value.trim(), field, scriptKey);
       }
     }
   }
@@ -202,6 +202,53 @@ function astResolveConfigString({
   }
 
   return null;
+}
+
+function astAiMaybeResolveSecretReference(value, field, scriptKey) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (!value.startsWith('secret://')) {
+    return value;
+  }
+
+  if (typeof astSecretsResolveValue !== 'function') {
+    throw new AstAiAuthError(
+      `AI configuration field '${field}' references AST.Secrets, but AST.Secrets is unavailable`,
+      {
+        field,
+        scriptKey
+      }
+    );
+  }
+
+  try {
+    const resolved = astSecretsResolveValue(value, { required: true });
+    if (typeof resolved !== 'string' || resolved.trim().length === 0) {
+      throw new AstAiAuthError(
+        `AI configuration field '${field}' resolved to an empty secret`,
+        {
+          field,
+          scriptKey
+        }
+      );
+    }
+    return resolved.trim();
+  } catch (error) {
+    if (error instanceof AstAiAuthError) {
+      throw error;
+    }
+
+    throw new AstAiAuthError(
+      `Failed to resolve AI configuration field '${field}' via AST.Secrets`,
+      {
+        field,
+        scriptKey
+      },
+      error
+    );
+  }
 }
 
 function astResolveAiConfig(request) {

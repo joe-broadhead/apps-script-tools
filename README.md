@@ -33,6 +33,7 @@
 - `AST.GroupBy`: grouped aggregation/apply workflows
 - `AST.Sheets` + `AST.Drive`: workspace helpers
 - `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
+- `AST.Secrets`: secure secret resolution across script properties and Google Secret Manager
 - `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single-key ops, tag invalidation, and stats
 - `AST.Config`: script-properties snapshot helpers for runtime bootstrap
 - `AST.Runtime`: one-shot runtime config hydration across namespaces
@@ -59,6 +60,10 @@ Current release state:
   - provider loading via `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/`
   - strict/basic/off v12 validation modes
   - preindexed manifest bundle for fast repeated lookup/search
+- New `AST.Secrets` module with:
+  - `get`, `set`, `delete`, and `resolveValue` helpers
+  - providers: `script_properties` and `secret_manager`
+  - optional `secret://...` config references for `AST.AI`, `AST.RAG`, and `AST.Storage`
 
 Released highlights are tracked in `CHANGELOG.md` under `v0.0.4`.
 

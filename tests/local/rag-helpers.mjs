@@ -5,11 +5,17 @@ export function loadRagScripts(
   {
     includeAst = false,
     includeAi = true,
-    includeUtilities = true
+    includeUtilities = true,
+    includeSecrets = false
   } = {}
 ) {
   const paths = [];
   paths.push('apps_script_tools/config/Config.js');
+
+  if (includeSecrets) {
+    paths.push(...listScriptFiles('apps_script_tools/secrets/general'));
+    paths.push('apps_script_tools/secrets/Secrets.js');
+  }
 
   if (includeUtilities) {
     paths.push(...listScriptFiles('apps_script_tools/utilities'));
