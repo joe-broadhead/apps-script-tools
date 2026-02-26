@@ -27,8 +27,8 @@ const SECRET_RULES = Object.freeze([
   },
   {
     id: 'github_pat',
-    description: 'GitHub personal access token',
-    regex: /\bgh[pousr]_[A-Za-z0-9_]{30,}\b/g
+    description: 'GitHub personal access token (classic/fine-grained)',
+    regex: /\b(?:gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/g
   },
   {
     id: 'gcp_api_key',

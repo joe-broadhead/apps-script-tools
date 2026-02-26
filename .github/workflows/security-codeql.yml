@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '**/*.js'
+      - '**/*.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/**'
