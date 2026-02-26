@@ -49,7 +49,21 @@ function astTriggersBuildDefinitionSignature(normalizedRequest) {
     astTriggersStableSerialize({
       enabled: normalizedRequest.enabled,
       schedule: normalizedRequest.schedule,
-      dispatch: normalizedRequest.dispatch
+      dispatch: normalizedRequest.dispatch,
+      metadata: normalizedRequest.metadata
+    })
+  );
+}
+
+function astTriggersBuildBindingSignature(config) {
+  const normalized = config || {};
+  return astTriggersHashString(
+    astTriggersStableSerialize({
+      enabled: Boolean(normalized.enabled),
+      schedule: normalized.schedule || {},
+      dispatchHandler: normalized.dispatchHandler
+        ? String(normalized.dispatchHandler)
+        : null
     })
   );
 }
@@ -406,18 +420,28 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
   const nextDispatchHandler = resolvedConfig && resolvedConfig.dispatchHandler
     ? String(resolvedConfig.dispatchHandler)
     : null;
+  const existingBindingSignature = astTriggersBuildBindingSignature({
+    enabled: existing ? existing.enabled : false,
+    schedule: existing ? existing.schedule : null,
+    dispatchHandler: existingDispatchHandler
+  });
+  const nextBindingSignature = astTriggersBuildBindingSignature({
+    enabled: normalizedRequest.enabled,
+    schedule: normalizedRequest.schedule,
+    dispatchHandler: nextDispatchHandler
+  });
   const existingTrigger = existing && existing.triggerUid
     ? astTriggersFindProjectTriggerByUid(existing.triggerUid)
     : null;
+  const existingTriggerHealthy = Boolean(existing && existing.triggerUid && existingTrigger);
 
   const noop = Boolean(
     existing
     && existing.signature === nextSignature
-    && existingDispatchHandler === nextDispatchHandler
-    && existing.enabled === normalizedRequest.enabled
+    && existingBindingSignature === nextBindingSignature
     && (
       normalizedRequest.enabled === false
-      || (existing.triggerUid && existingTrigger)
+      || existingTriggerHealthy
     )
   );
 
@@ -440,14 +464,27 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
     ids.sort();
   }
 
+  const shouldRecreateTrigger = Boolean(
+    normalizedRequest.enabled
+    && (
+      existingBindingSignature !== nextBindingSignature
+      || !existingTriggerHealthy
+    )
+  );
+
   let deletedExistingTrigger = false;
-  if (!normalizedRequest.options.dryRun && existing && existing.triggerUid) {
+  if (
+    !normalizedRequest.options.dryRun
+    && existing
+    && existing.triggerUid
+    && (!normalizedRequest.enabled || shouldRecreateTrigger)
+  ) {
     deletedExistingTrigger = astTriggersDeleteProjectTriggerByUid(existing.triggerUid);
   }
 
   let triggerUid = null;
   if (normalizedRequest.enabled) {
-    if (!normalizedRequest.options.dryRun) {
+    if (!normalizedRequest.options.dryRun && shouldRecreateTrigger) {
       const created = astTriggersCreateProjectTrigger(resolvedConfig, normalizedRequest);
       triggerUid = created.triggerUid || null;
     } else {
@@ -486,7 +523,7 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
     dryRun: normalizedRequest.options.dryRun,
     actions: {
       deletedExistingTrigger,
-      createdTrigger: normalizedRequest.enabled
+      createdTrigger: Boolean(normalizedRequest.enabled && shouldRecreateTrigger)
     }
   };
 

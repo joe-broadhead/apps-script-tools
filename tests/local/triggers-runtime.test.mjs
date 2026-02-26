@@ -228,6 +228,20 @@ test('AST.Triggers upsert replaces existing trigger when schedule changes', () =
   assert.notEqual(first.triggerUid, second.triggerUid);
 });
 
+test('AST.Triggers rejects onWeekDay for daily schedules', () => {
+  const { context } = createTriggersContext();
+  context.invalidDailyHandler = () => true;
+
+  assert.throws(
+    () => context.AST.Triggers.upsert({
+      id: 'invalid_daily_weekday',
+      schedule: { type: 'every_days', every: 1, onWeekDay: 'MONDAY' },
+      dispatch: { mode: 'direct', handler: 'invalidDailyHandler' }
+    }),
+    /schedule\.onWeekDay is only supported for every_weeks/
+  );
+});
+
 test('AST.Triggers upsert recreates trigger when dispatch handler config changes', () => {
   const { context, scriptApp } = createTriggersContext();
   context.dispatchHandlerA = () => true;
@@ -359,6 +373,40 @@ test('AST.Triggers list includeOrphans ignores list filters for managed trigger 
   assert.equal(filtered.page.returned, 1);
   assert.equal(Array.isArray(filtered.orphans), true);
   assert.equal(filtered.orphans.length, 0);
+});
+
+test('AST.Triggers metadata-only upsert updates definition without trigger recreation', () => {
+  const { context, scriptApp } = createTriggersContext();
+  context.metadataHandler = input => input.metadata;
+
+  const first = context.AST.Triggers.upsert({
+    id: 'metadata_update',
+    schedule: { type: 'every_minutes', every: 10 },
+    dispatch: { mode: 'direct', handler: 'metadataHandler' },
+    metadata: { version: 1, owner: 'ops' }
+  });
+  assert.equal(first.created, true);
+  assert.equal(scriptApp.__getTriggers().length, 1);
+
+  const second = context.AST.Triggers.upsert({
+    id: 'metadata_update',
+    schedule: { type: 'every_minutes', every: 10 },
+    dispatch: { mode: 'direct', handler: 'metadataHandler' },
+    metadata: { version: 2, owner: 'ops' }
+  });
+
+  assert.equal(second.updated, true);
+  assert.equal(second.noop, false);
+  assert.equal(second.triggerUid, first.triggerUid);
+  assert.equal(scriptApp.__getTriggers().length, 1);
+  assert.equal(second.actions.createdTrigger, false);
+
+  const listed = context.AST.Triggers.list({
+    filters: { id: 'metadata_update' },
+    options: { includeRaw: true }
+  });
+  assert.equal(listed.page.total, 1);
+  assert.equal(listed.items[0].definition.metadata.version, 2);
 });
 
 test('AST.Runtime.configureFromProps can configure Triggers defaults', () => {

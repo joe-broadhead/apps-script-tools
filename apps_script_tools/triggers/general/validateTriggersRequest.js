@@ -167,7 +167,7 @@ function astTriggersValidateSchedule(schedule, resolvedConfig = {}) {
     );
   }
 
-  if ((type === 'every_minutes' || type === 'every_hours') && weekDay) {
+  if (type !== 'every_weeks' && weekDay) {
     throw new AstTriggersValidationError(
       'schedule.onWeekDay is only supported for every_weeks',
       { type }
