@@ -408,7 +408,7 @@ function astCacheFetchReleaseLease(context, leaseKeyHash, ownerId) {
   }
 
   function attemptRelease() {
-    const currentLease = context.adapter.get(leaseKeyHash);
+    const currentLease = astCacheFetchReadEntry(context, leaseKeyHash, true);
     if (!currentLease || !currentLease.value || currentLease.value.ownerId !== normalizedOwnerId) {
       return false;
     }
@@ -430,9 +430,36 @@ function astCacheFetchRunWithAtomicLeaseLock(context, task) {
   return astCacheRunWithLock(task, lockConfig);
 }
 
+function astCacheFetchGetReadAdapter(context) {
+  if (context && context.__cacheFetchReadAdapter) {
+    return context.__cacheFetchReadAdapter;
+  }
+
+  if (!context || context.config.updateStatsOnGet === false) {
+    context.__cacheFetchReadAdapter = context.adapter;
+    return context.adapter;
+  }
+
+  const readConfig = Object.assign({}, context.config, {
+    updateStatsOnGet: false
+  });
+  const readAdapter = astCacheSelectBackendAdapter(readConfig, context.options);
+  context.__cacheFetchReadAdapter = readAdapter;
+  return readAdapter;
+}
+
+function astCacheFetchReadEntry(context, keyHash, readOnly) {
+  if (!readOnly) {
+    return context.adapter.get(keyHash);
+  }
+
+  const adapter = astCacheFetchGetReadAdapter(context);
+  return adapter.get(keyHash);
+}
+
 function astCacheFetchTryAcquireLease(context, normalizedKey, leaseKeyHash, ownerId, fetchOptions) {
   function attemptLeaseWrite() {
-    const existingLease = context.adapter.get(leaseKeyHash);
+    const existingLease = astCacheFetchReadEntry(context, leaseKeyHash, true);
     if (existingLease && existingLease.value && existingLease.value.ownerId) {
       return false;
     }
@@ -451,7 +478,7 @@ function astCacheFetchTryAcquireLease(context, normalizedKey, leaseKeyHash, owne
     });
 
     context.adapter.set(leaseEntry);
-    const confirmed = context.adapter.get(leaseKeyHash);
+    const confirmed = astCacheFetchReadEntry(context, leaseKeyHash, true);
     return Boolean(
       confirmed &&
       confirmed.value &&
@@ -486,7 +513,7 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
 
   while (true) {
     iterations += 1;
-    const freshEntry = context.adapter.get(keyHash);
+    const freshEntry = astCacheFetchReadEntry(context, keyHash, true);
     if (freshEntry) {
       return {
         entry: freshEntry,
@@ -495,7 +522,7 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
       };
     }
 
-    const leaseEntry = context.adapter.get(leaseKeyHash);
+    const leaseEntry = astCacheFetchReadEntry(context, leaseKeyHash, true);
     if (!leaseEntry) {
       return {
         entry: null,
@@ -761,18 +788,49 @@ function astCacheFetchValue(key, resolver, options = {}) {
     }
   }
 
-  return astCacheFetchResolveAndPersist(
+  astCacheRecordFetchStat(context.config, 'coalescedWaits', 1);
+  const followUpWaitResult = astCacheFetchWaitForLeader(
     context,
-    normalizedKey,
     keyHash,
-    resolver,
-    fetchOptions,
-    staleEntry,
-    {
-      coalesced: true,
-      waitMs: waitResult.waitedMs
-    }
+    leaseKeyHash,
+    fetchOptions.coalesceWaitMs,
+    fetchOptions.pollMs
   );
+  const totalWaitMs = waitResult.waitedMs + followUpWaitResult.waitedMs;
+
+  if (followUpWaitResult.entry) {
+    astCacheRecordFetchStat(context.config, 'freshHits', 1);
+    return astCacheBuildFetchResult(context, keyHash, followUpWaitResult.entry.value, {
+      cacheHit: true,
+      stale: false,
+      source: 'fresh',
+      refreshed: false,
+      coalesced: true,
+      waitMs: totalWaitMs
+    });
+  }
+
+  if (followUpWaitResult.timedOut) {
+    astCacheRecordFetchStat(context.config, 'coalescedTimeouts', 1);
+  }
+
+  if (staleEntry && fetchOptions.allowStaleWhileRevalidate) {
+    astCacheRecordFetchStat(context.config, 'staleHits', 1);
+    return astCacheBuildFetchResult(context, keyHash, staleEntry.value, {
+      cacheHit: true,
+      stale: true,
+      source: 'stale',
+      refreshed: false,
+      coalesced: true,
+      waitMs: totalWaitMs
+    });
+  }
+
+  throw new AstCacheError('Cache fetch coalescing lease unavailable after wait', {
+    keyHash,
+    coalesceWaitMs: fetchOptions.coalesceWaitMs,
+    waitMs: totalWaitMs
+  });
 }
 
 function astCacheInvalidateTag(tag, options = {}) {

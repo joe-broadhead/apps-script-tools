@@ -528,7 +528,7 @@ test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', ()
 
   const normalizedKey = context.astCacheNormalizeKey('wait:key');
   const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 1 });
 
   let resolverStartedAtMs = 0;
   context.AST.Cache.fetch('wait:key', () => {
@@ -538,11 +538,11 @@ test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', ()
     ttlSec: 30,
     staleTtlSec: 0,
     coalesce: true,
-    coalesceWaitMs: 50,
+    coalesceWaitMs: 1_200,
     pollMs: 1
   });
 
-  assert.equal(resolverStartedAtMs >= 1_050, true);
+  assert.equal(resolverStartedAtMs >= 2_000, true);
 });
 
 test('cache fetch lease release deletes only when owner matches', () => {
@@ -576,6 +576,101 @@ test('cache fetch lease release deletes only when owner matches', () => {
 
   context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-b');
   assert.equal(context.AST.Cache.get(leaseInternalKey, { namespace: 'cache_fetch_release_owner' }), null);
+});
+
+test('cache fetch coalesced follower does not run resolver without lease ownership', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_no_lease_fallback'
+  });
+
+  const normalizedKey = context.astCacheNormalizeKey('blocked:key');
+  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+
+  let resolverRuns = 0;
+  assert.throws(() => {
+    context.AST.Cache.fetch('blocked:key', () => {
+      resolverRuns += 1;
+      return { source: 'resolver' };
+    }, {
+      ttlSec: 30,
+      staleTtlSec: 0,
+      coalesce: true,
+      coalesceWaitMs: 0,
+      pollMs: 0
+    });
+  }, /coalescing lease unavailable after wait/);
+
+  assert.equal(resolverRuns, 0);
+});
+
+test('cache fetch wait polling avoids repeated backend writes when stats-on-get is enabled', () => {
+  const propertiesState = {};
+  let propertyWriteCount = 0;
+
+  const scriptProperties = {
+    getProperty: key => (Object.prototype.hasOwnProperty.call(propertiesState, key) ? propertiesState[key] : null),
+    getProperties: () => ({ ...propertiesState }),
+    setProperty: (key, value) => {
+      propertiesState[String(key)] = String(value);
+      propertyWriteCount += 1;
+    }
+  };
+
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => scriptProperties
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'script_properties',
+    namespace: 'cache_fetch_poll_read_only',
+    updateStatsOnGet: true
+  });
+
+  const normalizedKey = context.astCacheNormalizeKey('polling:key');
+  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+
+  const writesBeforeFetch = propertyWriteCount;
+  assert.throws(() => {
+    context.AST.Cache.fetch('polling:key', () => ({ source: 'resolver' }), {
+      backend: 'script_properties',
+      namespace: 'cache_fetch_poll_read_only',
+      updateStatsOnGet: true,
+      ttlSec: 30,
+      staleTtlSec: 0,
+      coalesce: true,
+      coalesceWaitMs: 40,
+      pollMs: 5
+    });
+  }, /coalescing lease unavailable after wait/);
+
+  const writesDuringFetch = propertyWriteCount - writesBeforeFetch;
+  assert.equal(writesDuringFetch <= 2, true);
 });
 
 test('memory backend enforces deterministic ttl expiration', () => {
