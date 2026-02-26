@@ -462,9 +462,12 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
 
   const startedAtMs = astCacheNowMs();
   let iterations = 0;
-  const maxIterations = Math.max(1, Math.ceil(safeWaitMs / Math.max(safePollMs, 10)) + 5);
+  const hardMaxIterations = Math.max(
+    100,
+    Math.ceil((safeWaitMs + 1000) / Math.max(safePollMs, 1)) * 4
+  );
 
-  while (iterations < maxIterations) {
+  while (true) {
     iterations += 1;
     const freshEntry = context.adapter.get(keyHash);
     if (freshEntry) {
@@ -486,6 +489,9 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
 
     const elapsedMs = Math.max(0, astCacheNowMs() - startedAtMs);
     if (elapsedMs >= safeWaitMs) {
+      break;
+    }
+    if (iterations >= hardMaxIterations) {
       break;
     }
 

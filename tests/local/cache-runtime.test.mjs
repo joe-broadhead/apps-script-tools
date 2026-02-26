@@ -501,6 +501,50 @@ test('cache fetch coalescing attempts atomic lease acquisition with script lock'
   assert.equal(scriptLockCalls > 0, true);
 });
 
+test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...createGasContext().Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_lt_10'
+  });
+
+  const normalizedKey = context.astCacheNormalizeKey('wait:key');
+  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+
+  let resolverStartedAtMs = 0;
+  context.AST.Cache.fetch('wait:key', () => {
+    resolverStartedAtMs = nowMs;
+    return { ok: true };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 0,
+    coalesce: true,
+    coalesceWaitMs: 50,
+    pollMs: 1
+  });
+
+  assert.equal(resolverStartedAtMs >= 1_050, true);
+});
+
 test('memory backend enforces deterministic ttl expiration', () => {
   let nowMs = 1_000;
   class FakeDate extends Date {
