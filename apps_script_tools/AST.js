@@ -173,6 +173,10 @@ Object.defineProperties(AST, {
     get: () => astResolveAstBinding('AST_JOBS', () => (typeof AST_JOBS === 'undefined' ? undefined : AST_JOBS)),
     enumerable: true
   },
+  Triggers: {
+    get: () => astResolveAstBinding('AST_TRIGGERS', () => (typeof AST_TRIGGERS === 'undefined' ? undefined : AST_TRIGGERS)),
+    enumerable: true
+  },
   Chat: {
     get: () => astResolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
     enumerable: true

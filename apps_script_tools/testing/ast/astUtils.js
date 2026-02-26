@@ -191,5 +191,30 @@ AST_UTILS_TESTS = [
         throw new Error('AST.Chat.ThreadStore.create is not available');
       }
     }
+  },
+  {
+    description: 'AST namespace should expose Triggers helper surface',
+    test: () => {
+      if (!AST || !AST.Triggers) {
+        throw new Error('AST.Triggers is not available');
+      }
+
+      const requiredMethods = [
+        'run',
+        'upsert',
+        'list',
+        'delete',
+        'runNow',
+        'configure',
+        'getConfig',
+        'clearConfig'
+      ];
+
+      requiredMethods.forEach(method => {
+        if (typeof AST.Triggers[method] !== 'function') {
+          throw new Error(`AST.Triggers.${method} is not available`);
+        }
+      });
+    }
   }
 ];

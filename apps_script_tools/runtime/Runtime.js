@@ -6,7 +6,8 @@ const AST_RUNTIME_MODULE_DEFINITIONS = Object.freeze([
   { name: 'Storage', globalName: 'AST_STORAGE' },
   { name: 'Secrets', globalName: 'AST_SECRETS' },
   { name: 'Telemetry', globalName: 'AST_TELEMETRY' },
-  { name: 'Jobs', globalName: 'AST_JOBS' }
+  { name: 'Jobs', globalName: 'AST_JOBS' },
+  { name: 'Triggers', globalName: 'AST_TRIGGERS' }
 ]);
 
 const AST_RUNTIME_MODULE_ALIAS_MAP = Object.freeze({
@@ -25,7 +26,9 @@ const AST_RUNTIME_MODULE_ALIAS_MAP = Object.freeze({
   TELEMETRY: 'Telemetry',
   ASTTELEMETRY: 'Telemetry',
   JOBS: 'Jobs',
-  ASTJOBS: 'Jobs'
+  ASTJOBS: 'Jobs',
+  TRIGGERS: 'Triggers',
+  ASTTRIGGERS: 'Triggers'
 });
 
 function astRuntimeIsPlainObject(value) {

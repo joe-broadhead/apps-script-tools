@@ -28,6 +28,7 @@ ASTX.Runtime
 ASTX.Telemetry
 ASTX.TelemetryHelpers
 ASTX.Jobs
+ASTX.Triggers
 ASTX.Chat
 ASTX.Sql
 ASTX.Utils
@@ -300,6 +301,19 @@ ASTX.Jobs.cancel(jobId, options)
 ASTX.Jobs.configure(config, options)
 ASTX.Jobs.getConfig()
 ASTX.Jobs.clearConfig()
+```
+
+## `Triggers` essentials
+
+```javascript
+ASTX.Triggers.run(request)
+ASTX.Triggers.upsert(request)
+ASTX.Triggers.list(request)
+ASTX.Triggers.delete(request)
+ASTX.Triggers.runNow(request)
+ASTX.Triggers.configure(config, options)
+ASTX.Triggers.getConfig()
+ASTX.Triggers.clearConfig()
 ```
 
 ## `Chat` essentials
