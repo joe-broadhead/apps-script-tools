@@ -5,39 +5,49 @@ const AST_DBT_PROVIDERS = Object.freeze([
   'dbfs'
 ]);
 
+const AST_DBT_ARTIFACT_TYPES = Object.freeze([
+  'catalog',
+  'run_results',
+  'sources'
+]);
+
 const AST_DBT_RUN_OPERATIONS = Object.freeze([
   'load_manifest',
+  'load_artifact',
   'inspect_manifest',
+  'inspect_artifact',
   'list_entities',
   'search',
   'get_entity',
   'get_column',
   'lineage',
-  'validate_manifest'
+  'validate_manifest',
+  'diff_entities',
+  'impact'
 ]);
 
 const AST_DBT_PROVIDER_CAPABILITIES = Object.freeze({
   drive: Object.freeze({
     provider: 'drive',
     uriSchemes: ['drive://file/<id>', 'drive://path/<folderId>/<fileName>'],
-    operations: ['read_manifest']
+    operations: ['read_manifest', 'read_artifact']
   }),
   gcs: Object.freeze({
     provider: 'gcs',
     uriSchemes: ['gcs://bucket/path/to/manifest.json'],
-    operations: ['read_manifest'],
+    operations: ['read_manifest', 'read_artifact'],
     auth: ['oauth', 'service_account']
   }),
   s3: Object.freeze({
     provider: 's3',
     uriSchemes: ['s3://bucket/path/to/manifest.json'],
-    operations: ['read_manifest'],
+    operations: ['read_manifest', 'read_artifact'],
     auth: ['sigv4']
   }),
   dbfs: Object.freeze({
     provider: 'dbfs',
     uriSchemes: ['dbfs:/path/to/manifest.json'],
-    operations: ['read_manifest'],
+    operations: ['read_manifest', 'read_artifact'],
     auth: ['databricks_pat']
   })
 });

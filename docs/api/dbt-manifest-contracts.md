@@ -5,12 +5,16 @@
 ```javascript
 ASTX.DBT.run(request)
 ASTX.DBT.loadManifest(request)
+ASTX.DBT.loadArtifact(request)
 ASTX.DBT.inspectManifest(request)
+ASTX.DBT.inspectArtifact(request)
 ASTX.DBT.listEntities(request)
 ASTX.DBT.search(request)
 ASTX.DBT.getEntity(request)
 ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
+ASTX.DBT.diffEntities(request)
+ASTX.DBT.impact(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -49,11 +53,7 @@ ASTX.DBT.clearConfig()
 ```javascript
 {
   status: 'ok',
-  source: {
-    provider,
-    uri,
-    location
-  },
+  source: { provider, uri, location },
   metadata: {
     dbtSchemaVersion,
     dbtVersion,
@@ -79,65 +79,108 @@ ASTX.DBT.clearConfig()
 }
 ```
 
-`bundle` is the reusable object for downstream calls (`search`, `getEntity`, `getColumn`, `lineage`).
+`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, and `impact`.
 
-## `inspectManifest(...)`
-
-Returns manifest-level summary from any input (`bundle`, `manifest`, or source input).
-
-## `listEntities(...)`
-
-Equivalent to `search` with `target='entities'` and structured filters.
-
-## `getEntity(...)`
+## `loadArtifact(...)` request
 
 ```javascript
 {
-  bundle,
-  uniqueId: 'model.pkg.name',
-  include: {
-    meta: true,
-    columns: 'none|summary|full'
+  artifactType: 'catalog|run_results|sources',
+  artifact: { ... }, // optional inline payload
+  // OR source locator contract (uri/fileId/provider/location)
+  options: {
+    validate: 'strict|basic|off',
+    maxBytes: 52428800,
+    allowGzip: true,
+    includeRaw: false
   }
 }
 ```
 
-## `getColumn(...)`
+## `loadArtifact(...)` response
 
 ```javascript
 {
+  status: 'ok|invalid',
+  artifactType,
+  source,
+  metadata,
+  summary,
+  validation,
   bundle,
-  uniqueId: 'model.pkg.name',
-  columnName: 'column_name'
+  warnings
 }
 ```
 
-## `lineage(...)`
+## `inspectManifest(...)` and `inspectArtifact(...)`
+
+Both return summary metadata from either a preloaded bundle or a source/input payload.
+
+## `diffEntities(...)`
 
 ```javascript
 {
-  bundle,
-  uniqueId: 'model.pkg.name',
-  direction: 'upstream|downstream|both',
-  depth: 2,
-  includeDisabled: false
+  leftBundle | leftManifest | leftSource,
+  rightBundle | rightManifest | rightSource,
+  includeUnchanged: false,
+  changeTypes: ['added', 'removed', 'modified'],
+  include: {
+    columns: true,
+    meta: true,
+    stats: true
+  },
+  page: {
+    limit: 50,
+    offset: 0
+  }
 }
 ```
 
-Lineage uses `parent_map`/`child_map` when present and falls back to `depends_on.nodes` when needed.
+Response is deterministic and pagination-safe:
 
-## `validateManifest(...)`
+```javascript
+{
+  status: 'ok',
+  summary: {
+    leftEntityCount,
+    rightEntityCount,
+    added,
+    removed,
+    modified,
+    unchanged
+  },
+  page: { limit, offset, returned, total, hasMore },
+  items: [
+    {
+      uniqueId,
+      changeType: 'added|removed|modified|unchanged',
+      left,
+      right,
+      diff // present for modified
+    }
+  ],
+  stats
+}
+```
+
+## `impact(...)`
 
 ```javascript
 {
   bundle | manifest | source,
-  options: {
-    validate: 'strict|basic|off',
-    schemaVersion: 'v12'
-  },
-  throwOnInvalid: false
+  uniqueId: 'model.pkg.name',
+  direction: 'upstream|downstream|both',
+  depth: 2,
+  includeDisabled: false,
+  artifacts: {
+    run_results: { bundle | artifact | uri | provider+location },
+    catalog: { bundle | artifact | uri | provider+location },
+    sources: { bundle | artifact | uri | provider+location }
+  }
 }
 ```
+
+`impact(...)` returns lineage plus optional artifact overlays per node (`runResults`, `catalog`, `sources`).
 
 ## Typed errors
 

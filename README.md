@@ -44,7 +44,7 @@
 - `AST.Chat`: durable user-scoped thread state store for chat apps
 - `AST.AI`: unified AI providers, structured outputs, tools, and image flows
 - `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
-- `AST.DBT`: dbt `manifest.json` loading, indexing, search, and lineage helpers
+- `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`), search, lineage, diff, and impact helpers
 - `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
 - `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
 - Global utility structures: `Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`
@@ -57,7 +57,9 @@ Current release state:
 `v0.0.5` (in progress) highlights:
 
 - New `AST.DBT` module with:
-  - `loadManifest`, `inspectManifest`, `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
+  - `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
+  - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
+  - `diffEntities` and `impact` helpers for deterministic snapshot comparison and lineage overlays
   - provider loading via `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/`
   - strict/basic/off v12 validation modes
   - preindexed manifest bundle for fast repeated lookup/search
@@ -188,6 +190,35 @@ function demoAstDbtManifestSearch() {
   });
 
   Logger.log(search.items);
+}
+```
+
+```javascript
+function demoAstDbtImpact() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const manifest = ASTX.DBT.loadManifest({
+    uri: 'gcs://my-bucket/dbt-artifacts/manifest.json',
+    options: { validate: 'strict', schemaVersion: 'v12', buildIndex: true }
+  });
+
+  const runResults = ASTX.DBT.loadArtifact({
+    artifactType: 'run_results',
+    uri: 'gcs://my-bucket/dbt-artifacts/run_results.json',
+    options: { validate: 'strict' }
+  });
+
+  const impact = ASTX.DBT.impact({
+    bundle: manifest.bundle,
+    uniqueId: 'model.analytics.orders',
+    direction: 'downstream',
+    depth: 2,
+    artifacts: {
+      run_results: { bundle: runResults.bundle }
+    }
+  });
+
+  Logger.log(impact.nodes);
 }
 ```
 

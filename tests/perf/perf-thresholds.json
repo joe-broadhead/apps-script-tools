@@ -10,6 +10,7 @@
       "dbt.load_index_medium": 1200,
       "dbt.search_top20": 120,
       "dbt.getEntity_avg": 5,
+      "dbt.diff_entities_medium": 650,
       "dbt.getColumn_avg": 5,
       "series.multiply_100000": 120,
       "utilities.removeDuplicates_records_100000": 1600,
@@ -25,6 +26,7 @@
       "dbt.load_index_medium": 180000000,
       "dbt.search_top20": 60000000,
       "dbt.getEntity_avg": 30000000,
+      "dbt.diff_entities_medium": 100000000,
       "dbt.getColumn_avg": 30000000
     },
     "maxCounters": {

@@ -76,6 +76,84 @@ function __astBuildDbtManifestTestFixture() {
   };
 }
 
+function __astBuildDbtRunResultsTestFixture() {
+  return {
+    metadata: {
+      dbt_schema_version: 'https://schemas.getdbt.com/dbt/run-results/v5.json',
+      dbt_version: '1.10.8',
+      generated_at: '2026-02-25T00:00:00.000Z'
+    },
+    elapsed_time: 5.4,
+    results: [
+      {
+        unique_id: 'model.demo.orders',
+        status: 'success',
+        execution_time: 2.1,
+        thread_id: 'Thread-1',
+        message: ''
+      }
+    ]
+  };
+}
+
+function __astBuildDbtCatalogTestFixture() {
+  return {
+    metadata: {
+      dbt_schema_version: 'https://schemas.getdbt.com/dbt/catalog/v1.json',
+      dbt_version: '1.10.8',
+      generated_at: '2026-02-25T00:00:00.000Z'
+    },
+    nodes: {
+      'model.demo.orders': {
+        unique_id: 'model.demo.orders',
+        resource_type: 'model',
+        package_name: 'demo',
+        name: 'orders',
+        original_file_path: 'models/marts/orders.sql',
+        database: 'analytics',
+        schema: 'marts',
+        alias: 'orders',
+        relation_name: 'analytics.marts.orders',
+        columns: {
+          order_id: {
+            name: 'order_id',
+            type: 'STRING'
+          }
+        }
+      }
+    },
+    sources: {}
+  };
+}
+
+function __astBuildDbtManifestVariantFixture() {
+  const next = __astBuildDbtManifestTestFixture();
+  delete next.nodes['model.demo.customers'];
+  next.nodes['model.demo.orders'].description = 'Orders model v2';
+  next.nodes['model.demo.payments'] = {
+    unique_id: 'model.demo.payments',
+    name: 'payments',
+    resource_type: 'model',
+    package_name: 'demo',
+    path: 'models/marts/payments.sql',
+    original_file_path: 'models/marts/payments.sql',
+    tags: ['finance'],
+    meta: { owner: { team: 'revops' } },
+    description: 'Payments model',
+    depends_on: { nodes: ['model.demo.orders'] },
+    columns: {}
+  };
+  next.parent_map = {
+    'model.demo.orders': [],
+    'model.demo.payments': ['model.demo.orders']
+  };
+  next.child_map = {
+    'model.demo.orders': ['model.demo.payments'],
+    'model.demo.payments': []
+  };
+  return next;
+}
+
 DBT_MANIFEST_BASICS_TESTS = [
   {
     description: 'AST.DBT.loadManifest should build index from inline manifest',
@@ -176,6 +254,64 @@ DBT_MANIFEST_BASICS_TESTS = [
       const upstreamFound = lineageOut.nodes.some(node => node.uniqueId === 'model.demo.customers');
       if (!upstreamFound) {
         throw new Error('Expected lineage to include model.demo.customers');
+      }
+    }
+  },
+  {
+    description: 'AST.DBT.loadArtifact/inspectArtifact should support run_results summary',
+    test: () => {
+      const runResults = __astBuildDbtRunResultsTestFixture();
+      const loaded = AST.DBT.loadArtifact({
+        artifactType: 'run_results',
+        artifact: runResults,
+        options: {
+          validate: 'strict'
+        }
+      });
+
+      if (loaded.status !== 'ok') {
+        throw new Error('Expected loadArtifact status=ok for run_results');
+      }
+
+      const inspected = AST.DBT.inspectArtifact({
+        bundle: loaded.bundle
+      });
+
+      if (inspected.artifactType !== 'run_results') {
+        throw new Error('Expected inspectArtifact artifactType=run_results');
+      }
+    }
+  },
+  {
+    description: 'AST.DBT.diffEntities/impact should return deterministic outputs',
+    test: () => {
+      const leftManifest = __astBuildDbtManifestTestFixture();
+      const rightManifest = __astBuildDbtManifestVariantFixture();
+
+      const diff = AST.DBT.diffEntities({
+        leftManifest,
+        rightManifest
+      });
+
+      if (diff.status !== 'ok' || !Array.isArray(diff.items)) {
+        throw new Error('Expected diffEntities to return items');
+      }
+
+      const impact = AST.DBT.impact({
+        manifest: leftManifest,
+        uniqueId: 'model.demo.orders',
+        artifacts: {
+          run_results: {
+            artifact: __astBuildDbtRunResultsTestFixture()
+          },
+          catalog: {
+            artifact: __astBuildDbtCatalogTestFixture()
+          }
+        }
+      });
+
+      if (impact.status !== 'ok' || !Array.isArray(impact.nodes)) {
+        throw new Error('Expected impact to return nodes');
       }
     }
   }

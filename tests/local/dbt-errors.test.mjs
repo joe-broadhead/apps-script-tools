@@ -25,6 +25,19 @@ test('AST.DBT.loadManifest rejects unsupported providers and invalid URIs', () =
   );
 });
 
+test('AST.DBT.loadArtifact rejects unsupported artifactType', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  assert.throws(
+    () => context.AST.DBT.loadArtifact({
+      artifactType: 'manifest',
+      artifact: {}
+    }),
+    /artifactType must be one of/
+  );
+});
+
 test('AST.DBT.getEntity/getColumn throws typed not-found errors', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });

@@ -19,7 +19,7 @@
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
-- `AST.DBT`: dbt `manifest.json` loading, preindexing, search, deep metadata lookup, and lineage traversal.
+- `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`) with search, lineage, diff, and impact overlays.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key ops + invalidation/stats).
@@ -57,7 +57,7 @@ flowchart LR
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
     K --> L[Drive JSON Index + Cosine Retrieval]
-    Y --> Z[dbt manifest v12 search/index/lineage]
+    Y --> Z[dbt manifest + artifacts + diff/impact]
     M --> N[GCS / S3 / DBFS APIs]
     AA --> AB["Script Properties / Secret Manager"]
     Q --> R["Memory / Drive JSON / Script Properties / Storage JSON"]
@@ -77,7 +77,7 @@ flowchart LR
 
 ## `v0.0.5` (unreleased) highlights
 
-- `AST.DBT` namespace for dbt `manifest.json` operations.
+- `AST.DBT` namespace now includes artifact loaders (`catalog`, `run_results`, `sources`) plus `diffEntities` and `impact`.
 - Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
 - v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
 - Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.

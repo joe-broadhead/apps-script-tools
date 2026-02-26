@@ -872,11 +872,11 @@ function astDbtEstimatePayloadBytes(readEnvelope = {}) {
   return astDbtTextToBytes(text).length;
 }
 
-function astDbtParseManifestJsonText(text, context = {}) {
+function astDbtParseJsonObjectText(text, context = {}, label = 'JSON payload') {
   try {
     const parsed = JSON.parse(text);
     if (!astDbtIsPlainObject(parsed)) {
-      throw new AstDbtParseError('Manifest JSON must parse to an object', context);
+      throw new AstDbtParseError(`${label} must parse to an object`, context);
     }
     return parsed;
   } catch (error) {
@@ -884,14 +884,14 @@ function astDbtParseManifestJsonText(text, context = {}) {
       throw error;
     }
 
-    throw new AstDbtParseError('Failed to parse manifest JSON text', context, error);
+    throw new AstDbtParseError(`Failed to parse ${label}`, context, error);
   }
 }
 
-function astDbtExtractManifestFromReadEnvelope(readEnvelope = {}, source, options = {}) {
+function astDbtExtractJsonObjectFromReadEnvelope(readEnvelope = {}, source, options = {}, label = 'JSON payload') {
   if (astDbtIsPlainObject(readEnvelope.json)) {
     return {
-      manifest: readEnvelope.json,
+      payload: readEnvelope.json,
       rawText: null
     };
   }
@@ -899,11 +899,11 @@ function astDbtExtractManifestFromReadEnvelope(readEnvelope = {}, source, option
   const ungzippedText = astDbtMaybeUngzipText(readEnvelope, source, options);
   if (typeof ungzippedText === 'string' && ungzippedText.length > 0) {
     return {
-      manifest: astDbtParseManifestJsonText(ungzippedText, {
+      payload: astDbtParseJsonObjectText(ungzippedText, {
         provider: source.provider,
         uri: source.uri,
         compression: 'gzip'
-      }),
+      }, label),
       rawText: ungzippedText
     };
   }
@@ -911,17 +911,17 @@ function astDbtExtractManifestFromReadEnvelope(readEnvelope = {}, source, option
   const text = astDbtNormalizeString(readEnvelope.text, '');
   if (text) {
     return {
-      manifest: astDbtParseManifestJsonText(text, {
+      payload: astDbtParseJsonObjectText(text, {
         provider: source.provider,
         uri: source.uri
-      }),
+      }, label),
       rawText: text
     };
   }
 
   const base64 = astDbtNormalizeString(readEnvelope.base64, '');
   if (!base64) {
-    throw new AstDbtParseError('Manifest payload does not include json, text, or base64 data', {
+    throw new AstDbtParseError(`${label} payload does not include json, text, or base64 data`, {
       provider: source.provider,
       uri: source.uri
     });
@@ -931,18 +931,31 @@ function astDbtExtractManifestFromReadEnvelope(readEnvelope = {}, source, option
   try {
     decodedText = astDbtBytesToText(astDbtBase64ToBytes(base64));
   } catch (error) {
-    throw new AstDbtParseError('Failed to decode base64 manifest payload', {
+    throw new AstDbtParseError(`Failed to decode base64 ${label} payload`, {
       provider: source.provider,
       uri: source.uri
     }, error);
   }
 
   return {
-    manifest: astDbtParseManifestJsonText(decodedText, {
+    payload: astDbtParseJsonObjectText(decodedText, {
       provider: source.provider,
       uri: source.uri
-    }),
+    }, label),
     rawText: decodedText
   };
 }
 
+function astDbtExtractManifestFromReadEnvelope(readEnvelope = {}, source, options = {}) {
+  const extracted = astDbtExtractJsonObjectFromReadEnvelope(
+    readEnvelope,
+    source,
+    options,
+    'manifest JSON text'
+  );
+
+  return {
+    manifest: extracted.payload,
+    rawText: extracted.rawText
+  };
+}

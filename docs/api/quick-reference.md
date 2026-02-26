@@ -161,12 +161,16 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 ```javascript
 ASTX.DBT.run(request)
 ASTX.DBT.loadManifest(request)
+ASTX.DBT.loadArtifact(request)
 ASTX.DBT.inspectManifest(request)
+ASTX.DBT.inspectArtifact(request)
 ASTX.DBT.listEntities(request)
 ASTX.DBT.search(request)
 ASTX.DBT.getEntity(request)
 ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
+ASTX.DBT.diffEntities(request)
+ASTX.DBT.impact(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -370,9 +374,12 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `ASTX.AI.structured(...)` includes a bounded reliability layer (`options.reliability`) for schema retries and optional repair (`json_repair`/`llm_repair`).
 - RAG answer generation is grounded against retrieved chunks with citation IDs (`S1..Sn`).
 - `ASTX.DBT.loadManifest(...)` supports `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/` sources.
+- `ASTX.DBT.loadArtifact(...)` supports `catalog`, `run_results`, and `sources` payloads from inline objects or any DBT source URI.
 - `ASTX.DBT.search(...)` uses structured filters over entities/columns (tags/meta/depends_on/resourceType/section) with deterministic pagination/sorting.
 - `ASTX.DBT.getEntity(...)` and `ASTX.DBT.getColumn(...)` provide deep model/column metadata retrieval from preindexed bundles.
 - `ASTX.DBT.lineage(...)` traverses `parent_map`/`child_map` with `depends_on.nodes` fallback when lineage maps are missing.
+- `ASTX.DBT.diffEntities(...)` compares two manifest snapshots deterministically with stable pagination and change typing (`added|removed|modified|unchanged`).
+- `ASTX.DBT.impact(...)` overlays lineage nodes with `run_results`, `catalog`, and `sources` artifact status when bundles/artifacts are supplied.
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
 - RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
