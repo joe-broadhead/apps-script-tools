@@ -17,6 +17,7 @@ function astRagBuildSearchDiagnostics(normalizedRequest, cacheConfig = {}) {
       validationMs: 0,
       indexLoadMs: 0,
       embeddingMs: 0,
+      retrievalLoadMs: 0,
       retrievalMs: 0,
       rerankMs: 0,
       generationMs: 0,
@@ -326,15 +327,18 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
     diagnostics.retrieval.partition.selectedShardIds = selectedShardRefs.map(ref => ref.shardId);
   }
 
+  const retrievalStartMs = new Date().getTime();
+  astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'retrieval_load', diagnostics);
   const retrievalChunks = astRagLoadIndexChunks(normalizedRequest.indexFileId, document, {
     shardIds: selectedShardRefs.map(ref => ref.shardId),
     cache: cacheConfig,
     cacheDiagnostics: operationMeta => astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta)
   });
+  astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'retrieval_load', diagnostics);
+  diagnostics.timings.retrievalLoadMs = Math.max(0, new Date().getTime() - retrievalStartMs);
   const retrievalDocument = astRagCloneObject(document);
   retrievalDocument.chunks = retrievalChunks;
 
-  const retrievalStartMs = new Date().getTime();
   astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'retrieval', diagnostics);
   const ranked = astRagRetrieveRankedChunks(
     retrievalDocument,

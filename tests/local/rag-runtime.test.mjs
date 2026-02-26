@@ -1184,6 +1184,7 @@ test('search diagnostics include phase timings and cache-hit metadata when enabl
   assert.equal(first.diagnostics.cache.searchHit, false);
   assert.equal(typeof first.diagnostics.timings.indexLoadMs, 'number');
   assert.equal(typeof first.diagnostics.timings.embeddingMs, 'number');
+  assert.equal(typeof first.diagnostics.timings.retrievalLoadMs, 'number');
   assert.equal(typeof first.diagnostics.timings.retrievalMs, 'number');
   assert.equal(typeof first.diagnostics.timings.cacheGetMs, 'number');
   assert.equal(typeof first.diagnostics.timings.cacheSetMs, 'number');
@@ -1199,6 +1200,98 @@ test('search diagnostics include phase timings and cache-hit metadata when enabl
   assert.equal(second.diagnostics.cache.searchHit, true);
   assert.equal(second.diagnostics.cache.embeddingHit, true);
   assert.equal(second.diagnostics.cache.hitPath, 'search');
+});
+
+test('search diagnostics retrievalMs includes shard chunk load time', () => {
+  let nowMs = 0;
+  class FakeDate extends Date {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(FakeDate.now());
+        return;
+      }
+      super(...args);
+    }
+    static now() {
+      nowMs += 10;
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({ Date: FakeDate });
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_diag_sharded',
+    fileName: 'diag-sharded-index.json',
+    versionToken: '2026-02-01T00:00:00.000Z',
+    cacheHit: true,
+    document: {
+      schemaVersion: '1.0',
+      indexId: 'idx_diag_sharded',
+      indexName: 'diag-sharded-index',
+      embedding: {
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 3
+      },
+      storage: {
+        layout: 'sharded',
+        totalShards: 1,
+        maxChunksPerShard: 1
+      },
+      shards: [{
+        shardId: 'shard_0001',
+        fileId: 'shard_file_1',
+        chunkCount: 1
+      }],
+      sources: [],
+      chunks: []
+    }
+  });
+
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 2, totalTokens: 2 }
+  });
+
+  context.astRagLoadIndexChunks = () => {
+    // Simulate measurable shard-hydration time in diagnostics timeline.
+    for (let idx = 0; idx < 8; idx += 1) {
+      Date.now();
+    }
+    return [{
+      chunkId: 'diag_shard_chunk_1',
+      sourceId: 'diag_src_1',
+      fileId: 'diag_file_1',
+      fileName: 'diag.txt',
+      mimeType: MIME_TEXT,
+      section: 'body',
+      text: 'Diagnostics sharded retrieval content',
+      embedding: [1, 0, 0]
+    }];
+  };
+
+  const response = context.AST.RAG.search({
+    indexFileId: 'index_diag_sharded',
+    query: 'diagnostics sharded',
+    retrieval: {
+      topK: 3,
+      minScore: 0,
+      partition: {
+        enabled: true,
+        maxShards: 1
+      }
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(typeof response.diagnostics.timings.retrievalLoadMs, 'number');
+  assert.equal(response.diagnostics.timings.retrievalLoadMs > 0, true);
+  assert.equal(response.diagnostics.timings.retrievalMs >= response.diagnostics.timings.retrievalLoadMs, true);
+  assert.equal(response.diagnostics.timings.searchMs >= response.diagnostics.timings.retrievalMs, true);
 });
 
 test('search maxRetrievalMs throws typed timeout errors', () => {
@@ -3755,6 +3848,7 @@ test('buildIndex preserves existing sharding when rebuilding existing indexFileI
   const before = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
   assert.equal(before.storage.layout, 'sharded');
   assert.equal(before.storage.totalShards > 1, true);
+  assert.equal(before.storage.maxChunksPerShard, 1);
 
   context.AST.RAG.buildIndex({
     source: {
@@ -3785,6 +3879,7 @@ test('buildIndex preserves existing sharding when rebuilding existing indexFileI
   const after = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
   assert.equal(after.storage.layout, 'sharded');
   assert.equal(after.storage.totalShards > 1, true);
+  assert.equal(after.storage.maxChunksPerShard, 1);
 
   const afterDocument = context.astRagLoadIndexDocument(built.indexFileId, { loadChunks: false }).document;
   assert.equal(afterDocument.sharding.enabled, true);

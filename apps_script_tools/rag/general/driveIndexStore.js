@@ -476,7 +476,7 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
   };
 }
 
-function astRagPersistShardedIndexDocument(indexInfo, destinationFolderId, rootFile, rootDocument, shardPayloads, existingRefs = []) {
+function astRagPersistShardedIndexDocument(destinationFolderId, rootFile, rootDocument, shardPayloads, existingRefs = [], maxChunksPerShard = AST_RAG_DEFAULT_SHARDING.maxChunksPerShard) {
   const refs = [];
   const previousRefs = Array.isArray(existingRefs) ? existingRefs : [];
 
@@ -514,11 +514,7 @@ function astRagPersistShardedIndexDocument(indexInfo, destinationFolderId, rootF
   rootDocument.storage = {
     layout: 'sharded',
     totalShards: refs.length,
-    maxChunksPerShard: astRagNormalizePositiveInt(
-      indexInfo.sharding && indexInfo.sharding.maxChunksPerShard,
-      AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
-      1
-    )
+    maxChunksPerShard: astRagNormalizePositiveInt(maxChunksPerShard, AST_RAG_DEFAULT_SHARDING.maxChunksPerShard, 1)
   };
 
   const updatedRoot = astRagUpdateIndexFile(rootFile.getId(), rootDocument);
@@ -589,12 +585,12 @@ function astRagPersistIndexDocument(indexRequest, document) {
 
   const shardPayloads = astRagBuildShardPayloads(document, maxChunksPerShard);
   return astRagPersistShardedIndexDocument(
-    indexInfo,
     destinationFolderId,
     rootFile,
     nextRootDocument,
     shardPayloads,
-    astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards)
+    astRagNormalizeShardRefs(existingRootDoc && existingRootDoc.shards),
+    maxChunksPerShard
   );
 }
 
