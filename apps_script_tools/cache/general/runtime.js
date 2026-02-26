@@ -373,6 +373,8 @@ function astCacheBuildFetchResult(context, keyHash, value, details = {}) {
 
 function astCacheFetchPersist(context, normalizedKey, keyHash, value, tags, fetchOptions) {
   const nowMs = astCacheNowMs();
+  const staleNormalizedKey = astCacheBuildInternalKey(normalizedKey, 'stale');
+  const staleKeyHash = astCacheHashKey(staleNormalizedKey);
   const primaryEntry = astCacheBuildEntry({
     normalizedKey,
     keyHash,
@@ -384,9 +386,8 @@ function astCacheFetchPersist(context, normalizedKey, keyHash, value, tags, fetc
   context.adapter.set(primaryEntry);
 
   if (fetchOptions.staleTtlSec > 0) {
-    const staleKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'stale'));
     const staleEntry = astCacheBuildEntry({
-      normalizedKey: astCacheBuildInternalKey(normalizedKey, 'stale'),
+      normalizedKey: staleNormalizedKey,
       keyHash: staleKeyHash,
       value,
       tags,
@@ -394,39 +395,58 @@ function astCacheFetchPersist(context, normalizedKey, keyHash, value, tags, fetc
       nowMs
     });
     context.adapter.set(staleEntry);
+    return;
   }
+
+  astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
 }
 
 function astCacheFetchReleaseLease(context, leaseKeyHash) {
   astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
 }
 
+function astCacheFetchRunWithAtomicLeaseLock(context, task) {
+  const lockConfig = Object.assign({}, context.config);
+  if (lockConfig.lockScope === 'none') {
+    lockConfig.lockScope = 'script';
+  }
+  return astCacheRunWithLock(task, lockConfig);
+}
+
 function astCacheFetchTryAcquireLease(context, normalizedKey, leaseKeyHash, ownerId, fetchOptions) {
-  const existingLease = context.adapter.get(leaseKeyHash);
-  if (existingLease && existingLease.value && existingLease.value.ownerId) {
-    return false;
+  function attemptLeaseWrite() {
+    const existingLease = context.adapter.get(leaseKeyHash);
+    if (existingLease && existingLease.value && existingLease.value.ownerId) {
+      return false;
+    }
+
+    const nowMs = astCacheNowMs();
+    const leaseEntry = astCacheBuildEntry({
+      normalizedKey: astCacheBuildInternalKey(normalizedKey, 'lease'),
+      keyHash: leaseKeyHash,
+      value: {
+        ownerId,
+        acquiredAtMs: nowMs
+      },
+      tags: [],
+      ttlSec: Math.max(1, Math.ceil(fetchOptions.coalesceLeaseMs / 1000)),
+      nowMs
+    });
+
+    context.adapter.set(leaseEntry);
+    const confirmed = context.adapter.get(leaseKeyHash);
+    return Boolean(
+      confirmed &&
+      confirmed.value &&
+      confirmed.value.ownerId === ownerId
+    );
   }
 
-  const nowMs = astCacheNowMs();
-  const leaseEntry = astCacheBuildEntry({
-    normalizedKey: astCacheBuildInternalKey(normalizedKey, 'lease'),
-    keyHash: leaseKeyHash,
-    value: {
-      ownerId,
-      acquiredAtMs: nowMs
-    },
-    tags: [],
-    ttlSec: Math.max(1, Math.ceil(fetchOptions.coalesceLeaseMs / 1000)),
-    nowMs
-  });
-
-  context.adapter.set(leaseEntry);
-  const confirmed = context.adapter.get(leaseKeyHash);
-  return Boolean(
-    confirmed &&
-    confirmed.value &&
-    confirmed.value.ownerId === ownerId
-  );
+  try {
+    return astCacheFetchRunWithAtomicLeaseLock(context, attemptLeaseWrite);
+  } catch (_error) {
+    return attemptLeaseWrite();
+  }
 }
 
 function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, pollMs) {

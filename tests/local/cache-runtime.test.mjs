@@ -397,12 +397,36 @@ test('cache fetch supports stale-while-revalidate and stale fallback on resolver
   assert.equal(JSON.stringify(staleFallback.value), JSON.stringify({ version: 1 }));
   assert.equal(resolverRuns, 2);
 
+  const refreshedNoStale = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 2 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 0
+  });
+  assert.equal(refreshedNoStale.cacheHit, false);
+  assert.equal(refreshedNoStale.source, 'resolver');
+  assert.equal(JSON.stringify(refreshedNoStale.value), JSON.stringify({ version: 2 }));
+
+  nowMs = 6_000;
+  assert.throws(() => {
+    context.AST.Cache.fetch('swr:key', () => {
+      resolverRuns += 1;
+      throw new Error('resolver failed after no-stale refresh');
+    }, {
+      ttlSec: 2,
+      staleTtlSec: 0,
+      serveStaleOnError: true
+    });
+  }, /resolver failed after no-stale refresh/);
+  assert.equal(context.AST.Cache.get('swr:key'), null);
+
   const stats = context.AST.Cache.stats();
   assert.equal(typeof stats.fetch, 'object');
   assert.equal(stats.fetch.freshHits >= 1, true);
   assert.equal(stats.fetch.staleHits >= 1, true);
-  assert.equal(stats.fetch.resolverRuns, 2);
-  assert.equal(stats.fetch.resolverErrors, 1);
+  assert.equal(stats.fetch.resolverRuns, 4);
+  assert.equal(stats.fetch.resolverErrors, 2);
   assert.equal(stats.fetch.staleServedOnError, 1);
 });
 
@@ -443,6 +467,38 @@ test('cache fetch coalesces follower reads to stale when a refresh lease is acti
 
   const stats = context.AST.Cache.stats();
   assert.equal(stats.fetch.coalescedFollowers >= 1, true);
+});
+
+test('cache fetch coalescing attempts atomic lease acquisition with script lock', () => {
+  let scriptLockCalls = 0;
+  const context = createGasContext({
+    LockService: {
+      getScriptLock: () => {
+        scriptLockCalls += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_atomic_lease'
+  });
+
+  const result = context.AST.Cache.fetch('atomic:key', () => ({ ok: true }), {
+    ttlSec: 30,
+    staleTtlSec: 30,
+    coalesce: true
+  });
+
+  assert.equal(result.cacheHit, false);
+  assert.equal(result.source, 'resolver');
+  assert.equal(scriptLockCalls > 0, true);
 });
 
 test('memory backend enforces deterministic ttl expiration', () => {
