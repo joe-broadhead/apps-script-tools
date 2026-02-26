@@ -203,6 +203,7 @@ Primary methods:
 
 - `ASTX.Cache.get(key, options)`
 - `ASTX.Cache.set(key, value, options)`
+- `ASTX.Cache.fetch(key, resolver, options)`
 - `ASTX.Cache.delete(key, options)`
 - `ASTX.Cache.invalidateByTag(tag, options)`
 - `ASTX.Cache.stats(options)`

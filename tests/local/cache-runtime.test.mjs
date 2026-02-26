@@ -266,6 +266,38 @@ function createStorageRunnerMock() {
   };
 }
 
+function setInternalCacheEntry(context, {
+  backend = 'memory',
+  namespace,
+  baseKey,
+  suffix,
+  value,
+  ttlSec = 60
+}) {
+  const normalizedBaseKey = context.astCacheNormalizeKey(baseKey);
+  const normalizedInternalKey = context.astCacheBuildInternalKey(normalizedBaseKey, suffix);
+  const keyHash = context.astCacheHashKey(normalizedInternalKey);
+  const resolved = context.astCacheBuildResolvedContext({
+    backend,
+    namespace
+  });
+  const nowMs = context.astCacheNowMs();
+  const entry = context.astCacheBuildEntry({
+    normalizedKey: normalizedInternalKey,
+    keyHash,
+    value,
+    tags: [],
+    ttlSec,
+    nowMs
+  });
+  resolved.adapter.set(entry);
+  return {
+    normalizedInternalKey,
+    keyHash,
+    resolved
+  };
+}
+
 test('AST exposes Cache surface and backend helpers', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });
@@ -273,6 +305,7 @@ test('AST exposes Cache surface and backend helpers', () => {
   const methods = [
     'get',
     'set',
+    'fetch',
     'delete',
     'invalidateByTag',
     'stats',
@@ -332,6 +365,431 @@ test('memory backend supports set/get/delete/tag invalidation and stats', () => 
   assert.equal(stats.backend, 'memory');
   assert.equal(typeof stats.stats.hits, 'number');
   assert.equal(typeof stats.stats.misses, 'number');
+});
+
+test('cache fetch supports stale-while-revalidate and stale fallback on resolver errors', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_swr'
+  });
+
+  let resolverRuns = 0;
+  const first = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 1 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10,
+    tags: ['rag']
+  });
+
+  assert.equal(first.cacheHit, false);
+  assert.equal(first.source, 'resolver');
+  assert.equal(first.stale, false);
+  assert.equal(JSON.stringify(first.value), JSON.stringify({ version: 1 }));
+  assert.equal(resolverRuns, 1);
+
+  const freshHit = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 2 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10
+  });
+  assert.equal(freshHit.cacheHit, true);
+  assert.equal(freshHit.source, 'fresh');
+  assert.equal(resolverRuns, 1);
+
+  nowMs = 3_500;
+  const staleFallback = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    throw new Error('resolver failed');
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10,
+    serveStaleOnError: true
+  });
+
+  assert.equal(staleFallback.cacheHit, true);
+  assert.equal(staleFallback.stale, true);
+  assert.equal(staleFallback.source, 'stale');
+  assert.equal(JSON.stringify(staleFallback.value), JSON.stringify({ version: 1 }));
+  assert.equal(resolverRuns, 2);
+
+  const refreshedNoStale = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 2 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 0
+  });
+  assert.equal(refreshedNoStale.cacheHit, false);
+  assert.equal(refreshedNoStale.source, 'resolver');
+  assert.equal(JSON.stringify(refreshedNoStale.value), JSON.stringify({ version: 2 }));
+
+  nowMs = 6_000;
+  assert.throws(() => {
+    context.AST.Cache.fetch('swr:key', () => {
+      resolverRuns += 1;
+      throw new Error('resolver failed after no-stale refresh');
+    }, {
+      ttlSec: 2,
+      staleTtlSec: 0,
+      serveStaleOnError: true
+    });
+  }, /resolver failed after no-stale refresh/);
+  assert.equal(context.AST.Cache.get('swr:key'), null);
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(typeof stats.fetch, 'object');
+  assert.equal(stats.fetch.freshHits >= 1, true);
+  assert.equal(stats.fetch.staleHits >= 1, true);
+  assert.equal(stats.fetch.resolverRuns, 4);
+  assert.equal(stats.fetch.resolverErrors, 2);
+  assert.equal(stats.fetch.staleServedOnError, 1);
+});
+
+test('cache fetch coalesces follower reads to stale when a refresh lease is active', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce',
+    baseKey: 'coalesce:key',
+    suffix: 'stale',
+    value: { source: 'stale' },
+    ttlSec: 60
+  });
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce',
+    baseKey: 'coalesce:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
+
+  let resolverRuns = 0;
+  const result = context.AST.Cache.fetch('coalesce:key', () => {
+    resolverRuns += 1;
+    return { source: 'resolver' };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 60,
+    coalesce: true,
+    coalesceWaitMs: 0
+  });
+
+  assert.equal(resolverRuns, 0);
+  assert.equal(result.cacheHit, true);
+  assert.equal(result.stale, true);
+  assert.equal(result.coalesced, true);
+  assert.equal(result.source, 'stale');
+  assert.equal(JSON.stringify(result.value), JSON.stringify({ source: 'stale' }));
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.fetch.coalescedFollowers >= 1, true);
+});
+
+test('cache fetch coalescing attempts atomic lease acquisition with script lock', () => {
+  let scriptLockCalls = 0;
+  const context = createGasContext({
+    LockService: {
+      getScriptLock: () => {
+        scriptLockCalls += 1;
+        return {
+          tryLock: () => true,
+          releaseLock: () => {}
+        };
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_atomic_lease'
+  });
+
+  const result = context.AST.Cache.fetch('atomic:key', () => ({ ok: true }), {
+    ttlSec: 30,
+    staleTtlSec: 30,
+    coalesce: true
+  });
+
+  assert.equal(result.cacheHit, false);
+  assert.equal(result.source, 'resolver');
+  assert.equal(scriptLockCalls > 0, true);
+});
+
+test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...createGasContext().Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_lt_10'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_lt_10',
+    baseKey: 'wait:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 1
+  });
+
+  let resolverStartedAtMs = 0;
+  context.AST.Cache.fetch('wait:key', () => {
+    resolverStartedAtMs = nowMs;
+    return { ok: true };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 0,
+    coalesce: true,
+    coalesceWaitMs: 1_200,
+    pollMs: 1
+  });
+
+  assert.equal(resolverStartedAtMs >= 2_000, true);
+});
+
+test('cache fetch lease release deletes only when owner matches', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_release_owner'
+  });
+
+  const seeded = setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_release_owner',
+    baseKey: 'lease:owner:key',
+    suffix: 'lease',
+    value: { ownerId: 'owner-b' },
+    ttlSec: 60
+  });
+  const leaseKeyHash = seeded.keyHash;
+  const resolved = seeded.resolved;
+
+  context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-a');
+  assert.equal(JSON.stringify(resolved.adapter.get(leaseKeyHash).value), JSON.stringify({ ownerId: 'owner-b' }));
+
+  context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-b');
+  assert.equal(resolved.adapter.get(leaseKeyHash), null);
+});
+
+test('cache fetch coalesced follower does not run resolver without lease ownership', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_no_lease_fallback'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_no_lease_fallback',
+    baseKey: 'blocked:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
+
+  let resolverRuns = 0;
+  assert.throws(() => {
+    context.AST.Cache.fetch('blocked:key', () => {
+      resolverRuns += 1;
+      return { source: 'resolver' };
+    }, {
+      ttlSec: 30,
+      staleTtlSec: 0,
+      coalesce: true,
+      coalesceWaitMs: 0,
+      pollMs: 0
+    });
+  }, /coalescing lease unavailable after wait/);
+
+  assert.equal(resolverRuns, 0);
+});
+
+test('cache keys reject reserved internal namespace suffixes', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_reserved_key_suffix'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.set('orders::__ast_cache_internal__:stale', { value: 1 });
+  }, /reserved internal namespace suffix/);
+
+  assert.throws(() => {
+    context.AST.Cache.fetch('orders::__ast_cache_internal__:lease', () => ({ value: 1 }));
+  }, /reserved internal namespace suffix/);
+});
+
+test('cache fetch wait loop honors coalesceWaitMs when pollMs is zero', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...createGasContext().Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_zero'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_zero',
+    baseKey: 'wait:poll-zero:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 1
+  });
+
+  let resolverStartedAtMs = 0;
+  context.AST.Cache.fetch('wait:poll-zero:key', () => {
+    resolverStartedAtMs = nowMs;
+    return { ok: true };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 0,
+    coalesce: true,
+    coalesceWaitMs: 1_200,
+    pollMs: 0
+  });
+
+  assert.equal(resolverStartedAtMs >= 2_000, true);
+});
+
+test('cache fetch wait polling avoids repeated backend writes when stats-on-get is enabled', () => {
+  const propertiesState = {};
+  let propertyWriteCount = 0;
+
+  const scriptProperties = {
+    getProperty: key => (Object.prototype.hasOwnProperty.call(propertiesState, key) ? propertiesState[key] : null),
+    getProperties: () => ({ ...propertiesState }),
+    setProperty: (key, value) => {
+      propertiesState[String(key)] = String(value);
+      propertyWriteCount += 1;
+    }
+  };
+
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const baseContext = createGasContext();
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...baseContext.Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => scriptProperties
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'script_properties',
+    namespace: 'cache_fetch_poll_read_only',
+    updateStatsOnGet: true
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'script_properties',
+    namespace: 'cache_fetch_poll_read_only',
+    baseKey: 'polling:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
+
+  const writesBeforeFetch = propertyWriteCount;
+  assert.throws(() => {
+    context.AST.Cache.fetch('polling:key', () => ({ source: 'resolver' }), {
+      backend: 'script_properties',
+      namespace: 'cache_fetch_poll_read_only',
+      updateStatsOnGet: true,
+      ttlSec: 30,
+      staleTtlSec: 0,
+      coalesce: true,
+      coalesceWaitMs: 40,
+      pollMs: 5
+    });
+  }, /coalescing lease unavailable after wait/);
+
+  const writesDuringFetch = propertyWriteCount - writesBeforeFetch;
+  assert.equal(writesDuringFetch <= 2, true);
 });
 
 test('memory backend enforces deterministic ttl expiration', () => {

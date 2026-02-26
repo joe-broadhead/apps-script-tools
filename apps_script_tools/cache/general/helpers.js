@@ -1,3 +1,5 @@
+const AST_CACHE_RESERVED_KEY_SUFFIX_PATTERN = /::__ast_cache_internal__:(stale|lease)$/;
+
 function astCacheIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -72,25 +74,32 @@ function astCacheStableStringify(value) {
 }
 
 function astCacheNormalizeKey(key) {
+  let normalized = '';
   if (typeof key === 'string') {
-    const normalized = key.trim();
+    normalized = key.trim();
     if (!normalized) {
       throw new AstCacheValidationError('Cache key must not be empty');
     }
-    return normalized;
-  }
-
-  if (
+  } else if (
     typeof key === 'number' ||
     typeof key === 'boolean' ||
     key === null ||
     Array.isArray(key) ||
     astCacheIsPlainObject(key)
   ) {
-    return astCacheStableStringify(key);
+    normalized = astCacheStableStringify(key);
+  } else {
+    throw new AstCacheValidationError('Cache key must be a string, number, boolean, null, array, or object');
   }
 
-  throw new AstCacheValidationError('Cache key must be a string, number, boolean, null, array, or object');
+  if (AST_CACHE_RESERVED_KEY_SUFFIX_PATTERN.test(normalized)) {
+    throw new AstCacheValidationError(
+      'Cache key uses a reserved internal namespace suffix',
+      { key: normalized }
+    );
+  }
+
+  return normalized;
 }
 
 function astCacheNormalizeTags(tags) {
