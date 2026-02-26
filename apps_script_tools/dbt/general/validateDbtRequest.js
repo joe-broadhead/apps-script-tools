@@ -652,7 +652,7 @@ function astDbtValidateLoadArtifactRequest(request = {}) {
     throw new AstDbtValidationError('loadArtifact request must be an object');
   }
 
-  const defaults = astDbtResolveLoadDefaults(request);
+  const defaults = astDbtResolveArtifactDefaults(request);
   const options = astDbtNormalizeLoadOptions(request.options || {}, defaults);
   const artifactType = astDbtNormalizeArtifactType(request.artifactType || request.type, '');
   if (!artifactType) {
@@ -687,7 +687,7 @@ function astDbtValidateInspectArtifactRequest(request = {}) {
   }
 
   const artifactType = astDbtNormalizeArtifactType(request.artifactType || request.type, '');
-  const defaults = astDbtResolveLoadDefaults(request);
+  const defaults = astDbtResolveArtifactDefaults(request);
 
   return {
     operation: 'inspect_artifact',
@@ -703,6 +703,14 @@ function astDbtValidateInspectArtifactRequest(request = {}) {
     providerOptions: request.providerOptions || null,
     options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
   };
+}
+
+function astDbtResolveArtifactDefaults(request = {}) {
+  const defaults = astDbtResolveLoadDefaults(request);
+  // Artifact operations should not inherit manifest source defaults.
+  defaults.uri = null;
+  defaults.fileId = null;
+  return defaults;
 }
 
 function astDbtValidateDiffEntitiesRequest(request = {}) {

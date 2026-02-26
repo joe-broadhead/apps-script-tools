@@ -68,6 +68,44 @@ test('AST.DBT.loadArtifact reads catalog from storage URI', () => {
   assert.equal(loaded.summary.counts.columnCount, 3);
 });
 
+test('AST.DBT.loadArtifact ignores manifest source defaults when provider+location is supplied', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  context.AST.DBT.configure({
+    DBT_MANIFEST_URI: 'gcs://bucket/dbt/manifest.json',
+    DBT_MANIFEST_DRIVE_FILE_ID: 'drive-manifest-file-id'
+  });
+
+  let requestedUri = '';
+  context.astStorageRead = request => {
+    requestedUri = request.uri;
+    return {
+      output: {
+        data: {
+          json: createCatalogFixture(),
+          mimeType: 'application/json'
+        }
+      }
+    };
+  };
+
+  const loaded = context.AST.DBT.loadArtifact({
+    artifactType: 'catalog',
+    provider: 'gcs',
+    location: {
+      bucket: 'bucket',
+      key: 'dbt/catalog.json'
+    },
+    options: {
+      validate: 'strict'
+    }
+  });
+
+  assert.equal(requestedUri, 'gcs://bucket/dbt/catalog.json');
+  assert.equal(loaded.source.uri, 'gcs://bucket/dbt/catalog.json');
+});
+
 test('AST.DBT.diffEntities returns deterministic added/removed/modified changes', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });
