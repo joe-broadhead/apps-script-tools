@@ -56,6 +56,11 @@ Allowlisted test fixtures are declared in:
 
 Keep this allowlist minimal and scoped to non-production fixture values only.
 
+Dependency review behavior:
+
+- Uses GitHub dependency review when Dependency Graph is enabled.
+- Falls back to deterministic `npm audit --audit-level=high` when Dependency Graph is disabled.
+
 ## OAuth scopes
 
 The library currently declares scopes for:
