@@ -178,11 +178,16 @@ function syncSharedIndex_(ASTX, runtime, cfg, request, options) {
 }
 
 function runIndexMutationNow_(ASTX, runtime, cfg, settings, request) {
+  request = request || {};
   var mutation = buildIndexMutationRequest_(runtime, settings, request);
   var out;
   var mode;
 
-  if (settings.indexFileId) {
+  // Rebuild should perform a clean build, even when an indexFileId already exists.
+  if (request.forceRebuild) {
+    mode = 'rebuild';
+    out = ASTX.RAG.buildIndex(mutation.buildRequest);
+  } else if (settings.indexFileId) {
     mode = 'sync';
     out = ASTX.RAG.syncIndex(mutation.syncRequest);
   } else {
@@ -380,6 +385,8 @@ function getCurrentIndexJobState_(ASTX, cfg) {
 }
 
 function enqueueIndexMutationJob_(ASTX, runtime, cfg, settings, request) {
+  request = request || {};
+
   var current = getCurrentIndexJobState_(ASTX, cfg);
   if (current && (current.status === 'queued' || current.status === 'running' || current.status === 'paused')) {
     return ASTX.Jobs.status(current.id, {
@@ -389,11 +396,19 @@ function enqueueIndexMutationJob_(ASTX, runtime, cfg, settings, request) {
 
   var jobOptions = resolveIndexJobOptions_(cfg);
   var mutation = buildIndexMutationRequest_(runtime, settings, request);
-  var method = settings.indexFileId ? 'syncIndex' : 'buildIndex';
-  var methodRequest = settings.indexFileId ? mutation.syncRequest : mutation.buildRequest;
+
+  // forceRebuild should do a clean build even when an indexFileId already exists.
+  var shouldBuild = Boolean(request.forceRebuild) || !settings.indexFileId;
+  var method = shouldBuild ? 'buildIndex' : 'syncIndex';
+  var methodRequest = shouldBuild ? mutation.buildRequest : mutation.syncRequest;
+
+  // Avoid persisting short-lived auth tokens inside job payload. Resolve auth at execution time.
+  if (methodRequest && typeof methodRequest === 'object' && Object.prototype.hasOwnProperty.call(methodRequest, 'auth')) {
+    delete methodRequest.auth;
+  }
 
   var queued = ASTX.Jobs.enqueue({
-    name: 'rag_chat_index_' + (settings.indexFileId ? 'sync' : 'build'),
+    name: 'rag_chat_index_' + (shouldBuild ? 'build' : 'sync'),
     options: {
       maxRuntimeMs: jobOptions.maxRuntimeMs,
       maxRetries: jobOptions.maxRetries,
@@ -451,6 +466,12 @@ function ragChatIndexJobRunMutationStep_(stepContext) {
   var ASTX = getAst_();
   if (!ASTX || !ASTX.RAG || typeof ASTX.RAG[method] !== 'function') {
     throw new Error('Invalid RAG job method: ' + method);
+  }
+
+  // Resolve auth at step execution time (queued jobs should not serialize short-lived tokens).
+  if (!request.auth) {
+    var runtime = resolveRuntime_({});
+    request.auth = runtime && runtime.embeddingAuth ? runtime.embeddingAuth : {};
   }
 
   var result = ASTX.RAG[method](request);
