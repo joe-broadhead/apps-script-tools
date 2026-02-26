@@ -320,6 +320,46 @@ const out = ASTX.Storage.read({
 Logger.log(out.output.data.json || out.output.data.text);
 ```
 
+## `ASTX.Secrets`
+
+Secrets surface for secure runtime secret resolution.
+
+Providers:
+
+- `script_properties` (`get/set/delete`)
+- `secret_manager` (`get`)
+
+Primary methods:
+
+- `ASTX.Secrets.get(request)`
+- `ASTX.Secrets.set(request)`
+- `ASTX.Secrets.delete(request)`
+- `ASTX.Secrets.resolveValue(value, options)` for `secret://...` references
+- `ASTX.Secrets.providers()` / `ASTX.Secrets.capabilities(provider)`
+- `ASTX.Secrets.configure(config)` / `ASTX.Secrets.getConfig()` / `ASTX.Secrets.clearConfig()`
+
+High-signal behavior:
+
+- deterministic config precedence: request > runtime configure > script properties.
+- `secret_manager` uses OAuth token (`request.auth.oauthToken` or `ScriptApp.getOAuthToken()`).
+- typed not-found/auth/provider errors.
+- no secret values emitted in telemetry events.
+
+```javascript
+ASTX.Secrets.configure({
+  AST_SECRETS_PROVIDER: 'script_properties',
+  SECRET_MANAGER_PROJECT_ID: 'my-project-id'
+});
+
+const apiKey = ASTX.Secrets.resolveValue('secret://script_properties/OPENAI_API_KEY_RAW');
+
+const token = ASTX.Secrets.get({
+  provider: 'secret_manager',
+  key: 'my-api-token',
+  auth: { projectId: 'my-project-id' }
+});
+```
+
 See:
 
 - [Storage Contracts](storage-contracts.md)

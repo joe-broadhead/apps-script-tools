@@ -116,6 +116,7 @@ nav:
     - AI Tool Calling: api/ai-tool-calling.md
     - RAG Contracts: api/rag-contracts.md
     - RAG Embedding Providers: api/rag-embedding-providers.md
+    - Secrets Contracts: api/secrets-contracts.md
     - Storage Contracts: api/storage-contracts.md
     - Storage Providers: api/storage-providers.md
     - Chat Contracts: api/chat-contracts.md

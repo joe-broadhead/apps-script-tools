@@ -153,13 +153,13 @@ function astStorageResolveConfigString({
   if (typeof astConfigResolveFirstString === 'function') {
     const resolved = astConfigResolveFirstString(candidates, null);
     if (resolved != null) {
-      return resolved;
+      return astStorageMaybeResolveSecretReference(resolved, field, scriptKey);
     }
   } else {
     for (let idx = 0; idx < candidates.length; idx += 1) {
       const normalized = astStorageNormalizeConfigValue(candidates[idx]);
       if (normalized) {
-        return normalized;
+        return astStorageMaybeResolveSecretReference(normalized, field, scriptKey);
       }
     }
   }
@@ -172,6 +172,53 @@ function astStorageResolveConfigString({
   }
 
   return null;
+}
+
+function astStorageMaybeResolveSecretReference(value, field, scriptKey) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (!value.startsWith('secret://')) {
+    return value;
+  }
+
+  if (typeof astSecretsResolveValue !== 'function') {
+    throw new AstStorageAuthError(
+      `Storage configuration field '${field}' references AST.Secrets, but AST.Secrets is unavailable`,
+      {
+        field,
+        scriptKey
+      }
+    );
+  }
+
+  try {
+    const resolved = astSecretsResolveValue(value, { required: true });
+    if (typeof resolved !== 'string' || resolved.trim().length === 0) {
+      throw new AstStorageAuthError(
+        `Storage configuration field '${field}' resolved to an empty secret`,
+        {
+          field,
+          scriptKey
+        }
+      );
+    }
+    return resolved.trim();
+  } catch (error) {
+    if (error instanceof AstStorageAuthError) {
+      throw error;
+    }
+
+    throw new AstStorageAuthError(
+      `Failed to resolve storage configuration field '${field}' via AST.Secrets`,
+      {
+        field,
+        scriptKey
+      },
+      error
+    );
+  }
 }
 
 function astStorageResolveProviderAuth(auth = {}, provider) {

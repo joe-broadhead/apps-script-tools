@@ -149,6 +149,10 @@ Object.defineProperties(AST, {
     get: () => astResolveAstBinding('AST_STORAGE', () => (typeof AST_STORAGE === 'undefined' ? undefined : AST_STORAGE)),
     enumerable: true
   },
+  Secrets: {
+    get: () => astResolveAstBinding('AST_SECRETS', () => (typeof AST_SECRETS === 'undefined' ? undefined : AST_SECRETS)),
+    enumerable: true
+  },
   Config: {
     get: () => astResolveAstBinding('AST_CONFIG', () => (typeof AST_CONFIG === 'undefined' ? undefined : AST_CONFIG)),
     enumerable: true

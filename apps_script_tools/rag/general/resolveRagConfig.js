@@ -133,13 +133,13 @@ function astRagResolveConfigString({
   if (typeof astConfigResolveFirstString === 'function') {
     const resolved = astConfigResolveFirstString(candidates, null);
     if (resolved != null) {
-      return resolved;
+      return astRagMaybeResolveSecretReference(resolved, field, scriptKey);
     }
   } else {
     for (let idx = 0; idx < candidates.length; idx += 1) {
       const normalized = astRagNormalizeString(candidates[idx], null);
       if (normalized) {
-        return normalized;
+        return astRagMaybeResolveSecretReference(normalized, field, scriptKey);
       }
     }
   }
@@ -152,6 +152,53 @@ function astRagResolveConfigString({
   }
 
   return null;
+}
+
+function astRagMaybeResolveSecretReference(value, field, scriptKey) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (!value.startsWith('secret://')) {
+    return value;
+  }
+
+  if (typeof astSecretsResolveValue !== 'function') {
+    throw new AstRagAuthError(
+      `RAG configuration field '${field}' references AST.Secrets, but AST.Secrets is unavailable`,
+      {
+        field,
+        scriptKey
+      }
+    );
+  }
+
+  try {
+    const resolved = astSecretsResolveValue(value, { required: true });
+    if (typeof resolved !== 'string' || resolved.trim().length === 0) {
+      throw new AstRagAuthError(
+        `RAG configuration field '${field}' resolved to an empty secret`,
+        {
+          field,
+          scriptKey
+        }
+      );
+    }
+    return resolved.trim();
+  } catch (error) {
+    if (error instanceof AstRagAuthError) {
+      throw error;
+    }
+
+    throw new AstRagAuthError(
+      `Failed to resolve RAG configuration field '${field}' via AST.Secrets`,
+      {
+        field,
+        scriptKey
+      },
+      error
+    );
+  }
 }
 
 function astRagResolveConfigSnapshot(options = {}) {

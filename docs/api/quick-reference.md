@@ -22,6 +22,7 @@ ASTX.RAG
 ASTX.DBT
 ASTX.Cache
 ASTX.Storage
+ASTX.Secrets
 ASTX.Config
 ASTX.Runtime
 ASTX.Telemetry
@@ -218,6 +219,21 @@ ASTX.Storage.capabilities(provider)
 ASTX.Storage.configure(config, options)
 ASTX.Storage.getConfig()
 ASTX.Storage.clearConfig()
+```
+
+## `Secrets` essentials
+
+```javascript
+ASTX.Secrets.run(request)
+ASTX.Secrets.get(request)
+ASTX.Secrets.set(request)
+ASTX.Secrets.delete(request)
+ASTX.Secrets.providers()
+ASTX.Secrets.capabilities(provider)
+ASTX.Secrets.configure(config, options)
+ASTX.Secrets.getConfig()
+ASTX.Secrets.clearConfig()
+ASTX.Secrets.resolveValue(value, options)
 ```
 
 ## `Cache` essentials
