@@ -228,6 +228,43 @@ test('AST.Triggers upsert replaces existing trigger when schedule changes', () =
   assert.notEqual(first.triggerUid, second.triggerUid);
 });
 
+test('AST.Triggers upsert recreates trigger when dispatch handler config changes', () => {
+  const { context, scriptApp } = createTriggersContext();
+  context.dispatchHandlerA = () => true;
+  context.dispatchHandlerB = () => true;
+
+  context.AST.Triggers.configure({
+    AST_TRIGGERS_DISPATCH_HANDLER: 'dispatchHandlerA'
+  });
+
+  const first = context.AST.Triggers.upsert({
+    id: 'handler_rotation',
+    schedule: { type: 'every_minutes', every: 15 },
+    dispatch: { mode: 'direct', handler: 'dispatchHandlerA' }
+  });
+
+  assert.equal(first.created, true);
+  assert.equal(first.noop, false);
+  assert.equal(scriptApp.__getTriggers().length, 1);
+  assert.equal(scriptApp.__getTriggers()[0].getHandlerFunction(), 'dispatchHandlerA');
+
+  context.AST.Triggers.configure({
+    AST_TRIGGERS_DISPATCH_HANDLER: 'dispatchHandlerB'
+  });
+
+  const second = context.AST.Triggers.upsert({
+    id: 'handler_rotation',
+    schedule: { type: 'every_minutes', every: 15 },
+    dispatch: { mode: 'direct', handler: 'dispatchHandlerA' }
+  });
+
+  assert.equal(second.updated, true);
+  assert.equal(second.noop, false);
+  assert.equal(scriptApp.__getTriggers().length, 1);
+  assert.equal(scriptApp.__getTriggers()[0].getHandlerFunction(), 'dispatchHandlerB');
+  assert.notEqual(first.triggerUid, second.triggerUid);
+});
+
 test('AST.Triggers runNow supports jobs dispatch integration', () => {
   const { context } = createTriggersContext({ includeJobs: true });
   context.jobsTriggerStep = ({ payload }) => payload.value + 5;
@@ -297,6 +334,31 @@ test('AST.Triggers list/delete support pagination and full cleanup', () => {
 
   const listed = context.AST.Triggers.list({});
   assert.equal(listed.page.total, 0);
+});
+
+test('AST.Triggers list includeOrphans ignores list filters for managed trigger UIDs', () => {
+  const { context } = createTriggersContext();
+  context.orphanFilterHandler = () => true;
+
+  context.AST.Triggers.upsert({
+    id: 'orphan_filter_a',
+    schedule: { type: 'every_minutes', every: 5 },
+    dispatch: { mode: 'direct', handler: 'orphanFilterHandler' }
+  });
+  context.AST.Triggers.upsert({
+    id: 'orphan_filter_b',
+    schedule: { type: 'every_minutes', every: 6 },
+    dispatch: { mode: 'direct', handler: 'orphanFilterHandler' }
+  });
+
+  const filtered = context.AST.Triggers.list({
+    filters: { id: 'orphan_filter_a' },
+    options: { includeOrphans: true }
+  });
+
+  assert.equal(filtered.page.returned, 1);
+  assert.equal(Array.isArray(filtered.orphans), true);
+  assert.equal(filtered.orphans.length, 0);
 });
 
 test('AST.Runtime.configureFromProps can configure Triggers defaults', () => {

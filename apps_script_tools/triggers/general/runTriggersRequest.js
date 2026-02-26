@@ -400,6 +400,12 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
   const id = astTriggersResolveIdentity(normalizedRequest);
   const existing = astTriggersReadDefinition(resolvedConfig, id);
   const nextSignature = astTriggersBuildDefinitionSignature(normalizedRequest);
+  const existingDispatchHandler = existing && existing.dispatchHandler
+    ? String(existing.dispatchHandler)
+    : null;
+  const nextDispatchHandler = resolvedConfig && resolvedConfig.dispatchHandler
+    ? String(resolvedConfig.dispatchHandler)
+    : null;
   const existingTrigger = existing && existing.triggerUid
     ? astTriggersFindProjectTriggerByUid(existing.triggerUid)
     : null;
@@ -407,6 +413,7 @@ function astTriggersUpsert(normalizedRequest, resolvedConfig) {
   const noop = Boolean(
     existing
     && existing.signature === nextSignature
+    && existingDispatchHandler === nextDispatchHandler
     && existing.enabled === normalizedRequest.enabled
     && (
       normalizedRequest.enabled === false
@@ -502,9 +509,10 @@ function astTriggersList(normalizedRequest, resolvedConfig) {
     projectTriggerByUid[trigger.getUniqueId()] = trigger;
   });
 
-  let definitions = ids
+  const allDefinitions = ids
     .map(id => astTriggersReadDefinition(resolvedConfig, id))
     .filter(Boolean);
+  let definitions = allDefinitions.slice();
 
   if (normalizedRequest.filters.id) {
     definitions = definitions.filter(definition => definition.id === normalizedRequest.filters.id);
@@ -567,7 +575,7 @@ function astTriggersList(normalizedRequest, resolvedConfig) {
 
   if (normalizedRequest.options.includeOrphans) {
     const knownUids = {};
-    definitions.forEach(definition => {
+    allDefinitions.forEach(definition => {
       if (definition && definition.triggerUid) {
         knownUids[definition.triggerUid] = true;
       }
