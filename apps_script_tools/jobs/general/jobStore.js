@@ -219,12 +219,15 @@ function astJobsResolveExecutionOptions(options = {}) {
     const candidates = resolveCandidates(requestKey, canonicalKey);
 
     if (typeof astConfigResolveFirstInteger === 'function') {
-      return astConfigResolveFirstInteger(candidates, {
+      const resolved = astConfigResolveFirstInteger(candidates, {
         fallback,
         min,
-        max,
         strict: false
       });
+
+      if (resolved != null) {
+        return Math.min(max, resolved);
+      }
     }
 
     for (let idx = 0; idx < candidates.length; idx += 1) {

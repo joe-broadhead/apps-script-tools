@@ -98,6 +98,18 @@ test('AST.Chat.configure supports merge=false reset semantics', () => {
   assert.notEqual(reset.durable.namespace, 'first_namespace');
 });
 
+test('AST.Chat.configure merge=false re-reads script properties after memoized snapshot', () => {
+  const { context, store } = createChatContext();
+
+  store.AST_CHAT_THREAD_MAX = '7';
+  const first = context.AST.Chat.clearConfig();
+  assert.equal(first.limits.threadMax, 7);
+
+  store.AST_CHAT_THREAD_MAX = '11';
+  const refreshed = context.AST.Chat.configure({}, { merge: false });
+  assert.equal(refreshed.limits.threadMax, 11);
+});
+
 test('chat runtime config snapshot memoization invalidates after clearConfig', () => {
   const { context, store, counters } = createChatContext();
 

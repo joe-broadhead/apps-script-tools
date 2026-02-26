@@ -321,9 +321,9 @@ function astChatSetRuntimeConfig(config = {}, options = {}) {
     ? astChatJsonClone(AST_CHAT_RUNTIME_CONFIG)
     : {};
 
+  astChatInvalidateScriptPropertiesSnapshotCache();
   AST_CHAT_RUNTIME_CONFIG = merge ? previousRuntime : {};
   AST_CHAT_RUNTIME_CONFIG = astChatResolveConfig(config);
-  astChatInvalidateScriptPropertiesSnapshotCache();
   return astChatGetRuntimeConfig();
 }
 
