@@ -4,6 +4,14 @@
 
 ### Added
 
+- CI security workflows:
+  - `Security - CodeQL` (`.github/workflows/security-codeql.yml`)
+  - `Security - Dependency Review` (`.github/workflows/security-dependency-review.yml`)
+  - `Security - Secret Scan` (`.github/workflows/security-secret-scan.yml`)
+- Deterministic local secret scanning command:
+  - `npm run test:security` via `scripts/security-scan.mjs`
+- Repo-scoped secret-scan allowlist for non-production fixtures:
+  - `.security/secret-scan-allowlist.json`
 - New `AST.DBT` namespace with:
   - `run`, `loadManifest`, `inspectManifest`, `listEntities`, `search`
   - `getEntity`, `getColumn`, `lineage`

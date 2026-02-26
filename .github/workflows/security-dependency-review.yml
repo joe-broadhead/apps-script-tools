@@ -1,0 +1,42 @@
+name: Security - Dependency Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect dependency graph support
+        id: depgraph
+        run: |
+          status="$(curl -sSfL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}" \
+            | python -c "import json,sys; data=json.load(sys.stdin); print(((data.get('security_and_analysis') or {}).get('dependency_graph') or {}).get('status','disabled'))")"
+          if [ "$status" = "enabled" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "dependency_graph_status=$status"
+
+      - name: Dependency review (GitHub advisory diff)
+        if: steps.depgraph.outputs.enabled == 'true'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      - name: Fallback dependency audit (npm)
+        if: steps.depgraph.outputs.enabled != 'true'
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit --audit-level=high --package-lock-only

@@ -36,6 +36,31 @@ For storage workflows, use script properties/runtime config instead of inline se
 - `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_SESSION_TOKEN`
 - `DATABRICKS_TOKEN`
 
+## CI security gates
+
+The repository runs three dedicated security workflows:
+
+- `Security - CodeQL` (`.github/workflows/security-codeql.yml`)
+- `Security - Dependency Review` (`.github/workflows/security-dependency-review.yml`)
+- `Security - Secret Scan` (`.github/workflows/security-secret-scan.yml`)
+
+Local equivalent for deterministic secret scanning:
+
+```bash
+npm run test:security
+```
+
+Allowlisted test fixtures are declared in:
+
+- `.security/secret-scan-allowlist.json`
+
+Keep this allowlist minimal and scoped to non-production fixture values only.
+
+Dependency review behavior:
+
+- Uses GitHub dependency review when Dependency Graph is enabled.
+- Falls back to deterministic `npm audit --audit-level=high` when Dependency Graph is disabled.
+
 ## OAuth scopes
 
 The library currently declares scopes for:

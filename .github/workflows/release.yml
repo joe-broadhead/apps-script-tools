@@ -30,6 +30,7 @@ jobs:
         run: |
           npm run lint
           npm run test:local
+          npm run test:security
           npm run test:perf:check
 
       - name: Setup Python

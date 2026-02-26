@@ -41,6 +41,20 @@ npm run test:perf:baseline
 mkdocs build --strict
 ```
 
+## Security checks
+
+Deterministic repo secret scan:
+
+```bash
+npm run test:security
+```
+
+Security CI workflows:
+
+- `.github/workflows/security-codeql.yml`
+- `.github/workflows/security-dependency-review.yml`
+- `.github/workflows/security-secret-scan.yml`
+
 ## Apps Script integration checks
 
 Run via reusable workflow:
@@ -103,6 +117,10 @@ Pull requests should pass:
   - `perf-gate` (`npm run test:perf:check`)
   - `docs-build`
   - `gas-functional` (Apps Script runtime functional suite for internal PRs, when clasp secrets are available)
+- Security workflow checks:
+  - `codeql-analyze`
+  - `dependency-review`
+  - `secret-scan` (`npm run test:security`)
 
 `perf-report` remains informational and publishes benchmark artifacts.
 
@@ -110,5 +128,6 @@ Release validation requires:
 
 - lint
 - local tests
+- deterministic secret scan (`npm run test:security`)
 - performance threshold check (`npm run test:perf:check`)
 - docs strict build
