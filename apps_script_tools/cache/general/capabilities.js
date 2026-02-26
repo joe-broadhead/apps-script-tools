@@ -4,6 +4,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
   memory: Object.freeze({
     get: true,
     set: true,
+    fetch: true,
     delete: true,
     invalidateByTag: true,
     stats: true,
@@ -18,6 +19,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
   drive_json: Object.freeze({
     get: true,
     set: true,
+    fetch: true,
     delete: true,
     invalidateByTag: true,
     stats: true,
@@ -33,6 +35,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
   script_properties: Object.freeze({
     get: true,
     set: true,
+    fetch: true,
     delete: true,
     invalidateByTag: true,
     stats: true,
@@ -48,6 +51,7 @@ const AST_CACHE_CAPABILITY_MATRIX = Object.freeze({
   storage_json: Object.freeze({
     get: true,
     set: true,
+    fetch: true,
     delete: true,
     invalidateByTag: true,
     stats: true,

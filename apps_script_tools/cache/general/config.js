@@ -2,13 +2,19 @@ const AST_CACHE_DEFAULT_CONFIG = Object.freeze({
   backend: 'memory',
   namespace: 'ast_cache',
   defaultTtlSec: 300,
+  defaultStaleTtlSec: 300,
   maxMemoryEntries: 2000,
   driveFolderId: '',
   driveFileName: 'ast-cache.json',
   storageUri: '',
   lockTimeoutMs: 30000,
   lockScope: 'script',
-  updateStatsOnGet: true
+  updateStatsOnGet: true,
+  fetchCoalesce: true,
+  fetchCoalesceLeaseMs: 30000,
+  fetchCoalesceWaitMs: 4000,
+  fetchPollMs: 75,
+  fetchServeStaleOnError: true
 });
 
 const AST_CACHE_BACKEND_DEFAULTS = Object.freeze({
@@ -34,13 +40,19 @@ const AST_CACHE_CONFIG_KEYS = Object.freeze([
   'CACHE_BACKEND',
   'CACHE_NAMESPACE',
   'CACHE_DEFAULT_TTL_SEC',
+  'CACHE_DEFAULT_STALE_TTL_SEC',
   'CACHE_MAX_MEMORY_ENTRIES',
   'CACHE_DRIVE_FOLDER_ID',
   'CACHE_DRIVE_FILE_NAME',
   'CACHE_STORAGE_URI',
   'CACHE_LOCK_TIMEOUT_MS',
   'CACHE_LOCK_SCOPE',
-  'CACHE_UPDATE_STATS_ON_GET'
+  'CACHE_UPDATE_STATS_ON_GET',
+  'CACHE_FETCH_COALESCE',
+  'CACHE_FETCH_COALESCE_LEASE_MS',
+  'CACHE_FETCH_COALESCE_WAIT_MS',
+  'CACHE_FETCH_POLL_MS',
+  'CACHE_FETCH_SERVE_STALE_ON_ERROR'
 ]);
 
 let AST_CACHE_RUNTIME_CONFIG = {};
@@ -270,6 +282,13 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_DEFAULT_TTL_SEC
   ], AST_CACHE_DEFAULT_CONFIG.defaultTtlSec, 0, 86400 * 365);
 
+  const defaultStaleTtlSec = astCacheResolveConfigNumber([
+    overrides.defaultStaleTtlSec,
+    runtimeConfig.CACHE_DEFAULT_STALE_TTL_SEC,
+    runtimeConfig.defaultStaleTtlSec,
+    scriptConfig.CACHE_DEFAULT_STALE_TTL_SEC
+  ], AST_CACHE_DEFAULT_CONFIG.defaultStaleTtlSec, 0, 86400 * 365);
+
   const maxMemoryEntries = astCacheResolveConfigNumber([
     overrides.maxMemoryEntries,
     runtimeConfig.CACHE_MAX_MEMORY_ENTRIES,
@@ -327,6 +346,41 @@ function astCacheResolveConfig(overrides = {}) {
     ? backendDefaults.updateStatsOnGet
     : AST_CACHE_DEFAULT_CONFIG.updateStatsOnGet);
 
+  const fetchCoalesce = astCacheResolveConfigBoolean([
+    overrides.fetchCoalesce,
+    runtimeConfig.CACHE_FETCH_COALESCE,
+    runtimeConfig.fetchCoalesce,
+    scriptConfig.CACHE_FETCH_COALESCE
+  ], AST_CACHE_DEFAULT_CONFIG.fetchCoalesce);
+
+  const fetchCoalesceLeaseMs = astCacheResolveConfigNumber([
+    overrides.fetchCoalesceLeaseMs,
+    runtimeConfig.CACHE_FETCH_COALESCE_LEASE_MS,
+    runtimeConfig.fetchCoalesceLeaseMs,
+    scriptConfig.CACHE_FETCH_COALESCE_LEASE_MS
+  ], AST_CACHE_DEFAULT_CONFIG.fetchCoalesceLeaseMs, 250, 300000);
+
+  const fetchCoalesceWaitMs = astCacheResolveConfigNumber([
+    overrides.fetchCoalesceWaitMs,
+    runtimeConfig.CACHE_FETCH_COALESCE_WAIT_MS,
+    runtimeConfig.fetchCoalesceWaitMs,
+    scriptConfig.CACHE_FETCH_COALESCE_WAIT_MS
+  ], AST_CACHE_DEFAULT_CONFIG.fetchCoalesceWaitMs, 0, 300000);
+
+  const fetchPollMs = astCacheResolveConfigNumber([
+    overrides.fetchPollMs,
+    runtimeConfig.CACHE_FETCH_POLL_MS,
+    runtimeConfig.fetchPollMs,
+    scriptConfig.CACHE_FETCH_POLL_MS
+  ], AST_CACHE_DEFAULT_CONFIG.fetchPollMs, 0, 10000);
+
+  const fetchServeStaleOnError = astCacheResolveConfigBoolean([
+    overrides.fetchServeStaleOnError,
+    runtimeConfig.CACHE_FETCH_SERVE_STALE_ON_ERROR,
+    runtimeConfig.fetchServeStaleOnError,
+    scriptConfig.CACHE_FETCH_SERVE_STALE_ON_ERROR
+  ], AST_CACHE_DEFAULT_CONFIG.fetchServeStaleOnError);
+
   const traceCollector = typeof overrides.traceCollector === 'function'
     ? overrides.traceCollector
     : null;
@@ -338,6 +392,7 @@ function astCacheResolveConfig(overrides = {}) {
     backend,
     namespace,
     defaultTtlSec,
+    defaultStaleTtlSec,
     maxMemoryEntries,
     driveFolderId,
     driveFileName,
@@ -345,6 +400,11 @@ function astCacheResolveConfig(overrides = {}) {
     lockTimeoutMs,
     lockScope,
     updateStatsOnGet,
+    fetchCoalesce,
+    fetchCoalesceLeaseMs,
+    fetchCoalesceWaitMs,
+    fetchPollMs,
+    fetchServeStaleOnError,
     traceCollector,
     traceContext
   };

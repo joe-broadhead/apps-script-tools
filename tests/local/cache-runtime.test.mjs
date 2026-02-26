@@ -273,6 +273,7 @@ test('AST exposes Cache surface and backend helpers', () => {
   const methods = [
     'get',
     'set',
+    'fetch',
     'delete',
     'invalidateByTag',
     'stats',
@@ -332,6 +333,116 @@ test('memory backend supports set/get/delete/tag invalidation and stats', () => 
   assert.equal(stats.backend, 'memory');
   assert.equal(typeof stats.stats.hits, 'number');
   assert.equal(typeof stats.stats.misses, 'number');
+});
+
+test('cache fetch supports stale-while-revalidate and stale fallback on resolver errors', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_swr'
+  });
+
+  let resolverRuns = 0;
+  const first = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 1 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10,
+    tags: ['rag']
+  });
+
+  assert.equal(first.cacheHit, false);
+  assert.equal(first.source, 'resolver');
+  assert.equal(first.stale, false);
+  assert.equal(JSON.stringify(first.value), JSON.stringify({ version: 1 }));
+  assert.equal(resolverRuns, 1);
+
+  const freshHit = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    return { version: 2 };
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10
+  });
+  assert.equal(freshHit.cacheHit, true);
+  assert.equal(freshHit.source, 'fresh');
+  assert.equal(resolverRuns, 1);
+
+  nowMs = 3_500;
+  const staleFallback = context.AST.Cache.fetch('swr:key', () => {
+    resolverRuns += 1;
+    throw new Error('resolver failed');
+  }, {
+    ttlSec: 2,
+    staleTtlSec: 10,
+    serveStaleOnError: true
+  });
+
+  assert.equal(staleFallback.cacheHit, true);
+  assert.equal(staleFallback.stale, true);
+  assert.equal(staleFallback.source, 'stale');
+  assert.equal(JSON.stringify(staleFallback.value), JSON.stringify({ version: 1 }));
+  assert.equal(resolverRuns, 2);
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(typeof stats.fetch, 'object');
+  assert.equal(stats.fetch.freshHits >= 1, true);
+  assert.equal(stats.fetch.staleHits >= 1, true);
+  assert.equal(stats.fetch.resolverRuns, 2);
+  assert.equal(stats.fetch.resolverErrors, 1);
+  assert.equal(stats.fetch.staleServedOnError, 1);
+});
+
+test('cache fetch coalesces follower reads to stale when a refresh lease is active', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce'
+  });
+
+  const normalizedKey = context.astCacheNormalizeKey('coalesce:key');
+  const staleInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'stale');
+  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
+
+  context.AST.Cache.set(staleInternalKey, { source: 'stale' }, { ttlSec: 60 });
+  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+
+  let resolverRuns = 0;
+  const result = context.AST.Cache.fetch('coalesce:key', () => {
+    resolverRuns += 1;
+    return { source: 'resolver' };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 60,
+    coalesce: true,
+    coalesceWaitMs: 0
+  });
+
+  assert.equal(resolverRuns, 0);
+  assert.equal(result.cacheHit, true);
+  assert.equal(result.stale, true);
+  assert.equal(result.coalesced, true);
+  assert.equal(result.source, 'stale');
+  assert.equal(JSON.stringify(result.value), JSON.stringify({ source: 'stale' }));
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.fetch.coalescedFollowers >= 1, true);
 });
 
 test('memory backend enforces deterministic ttl expiration', () => {

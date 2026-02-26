@@ -6,6 +6,10 @@ function astCacheApiSet(key, value, options = {}) {
   return astCacheSetValue(key, value, options);
 }
 
+function astCacheApiFetch(key, resolver, options = {}) {
+  return astCacheFetchValue(key, resolver, options);
+}
+
 function astCacheApiDelete(key, options = {}) {
   return astCacheDeleteValue(key, options);
 }
@@ -37,6 +41,7 @@ function astCacheApiClear(options = {}) {
 const AST_CACHE = Object.freeze({
   get: astCacheApiGet,
   set: astCacheApiSet,
+  fetch: astCacheApiFetch,
   delete: astCacheApiDelete,
   invalidateByTag: astCacheApiInvalidateByTag,
   stats: astCacheApiStats,
