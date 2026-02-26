@@ -792,18 +792,22 @@ For release stability, call through `ASTX.Utils` rather than relying on global u
 
 ## `ASTX.DBT`
 
-`ASTX.DBT` provides dbt `manifest.json` loading, preindexing, search, deep metadata access, and lineage traversal.
+`ASTX.DBT` provides dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`), preindexing, search, deep metadata access, deterministic diffing, and lineage impact overlays.
 
 Primary methods:
 
 - `ASTX.DBT.run(request)`
 - `ASTX.DBT.loadManifest(request)`
+- `ASTX.DBT.loadArtifact(request)`
 - `ASTX.DBT.inspectManifest(request)`
+- `ASTX.DBT.inspectArtifact(request)`
 - `ASTX.DBT.listEntities(request)`
 - `ASTX.DBT.search(request)`
 - `ASTX.DBT.getEntity(request)`
 - `ASTX.DBT.getColumn(request)`
 - `ASTX.DBT.lineage(request)`
+- `ASTX.DBT.diffEntities(request)`
+- `ASTX.DBT.impact(request)`
 - `ASTX.DBT.providers()` / `ASTX.DBT.capabilities(provider)`
 - `ASTX.DBT.validateManifest(request)`
 - `ASTX.DBT.configure(config)` / `ASTX.DBT.getConfig()` / `ASTX.DBT.clearConfig()`
@@ -851,4 +855,33 @@ const search = ASTX.DBT.search({
 });
 
 Logger.log(search.items);
+```
+
+Artifact and impact example:
+
+```javascript
+const runResults = ASTX.DBT.loadArtifact({
+  artifactType: 'run_results',
+  uri: 'gcs://my-bucket/dbt/run_results.json',
+  options: { validate: 'strict' }
+});
+
+const catalog = ASTX.DBT.loadArtifact({
+  artifactType: 'catalog',
+  uri: 'gcs://my-bucket/dbt/catalog.json',
+  options: { validate: 'strict' }
+});
+
+const impact = ASTX.DBT.impact({
+  bundle: loaded.bundle,
+  uniqueId: 'model.analytics.orders',
+  direction: 'downstream',
+  depth: 2,
+  artifacts: {
+    run_results: { bundle: runResults.bundle },
+    catalog: { bundle: catalog.bundle }
+  }
+});
+
+Logger.log(impact.nodes);
 ```

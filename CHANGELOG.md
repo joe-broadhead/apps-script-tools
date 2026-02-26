@@ -13,8 +13,9 @@
 - Repo-scoped secret-scan allowlist for non-production fixtures:
   - `.security/secret-scan-allowlist.json`
 - New `AST.DBT` namespace with:
-  - `run`, `loadManifest`, `inspectManifest`, `listEntities`, `search`
-  - `getEntity`, `getColumn`, `lineage`
+  - `run`, `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
+  - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
+  - `diffEntities`, `impact`
   - `providers`, `capabilities`
   - `validateManifest`, `configure`, `getConfig`, `clearConfig`
 - dbt manifest source loading support for:
@@ -31,6 +32,7 @@
   - `getting-started/dbt-manifest-quickstart.md`
   - `api/dbt-manifest-contracts.md`
   - `api/dbt-manifest-search.md`
+  - `api/dbt-artifacts-impact.md`
 - New `AST.Secrets` namespace with:
   - `run`, `get`, `set`, `delete`
   - `providers`, `capabilities`
@@ -65,6 +67,7 @@
 - `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Triggers`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.
+- Local/perf test suites now include DBT artifact/diff/impact coverage and deterministic diff benchmark thresholds.
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 
 ## v0.0.4 - 2026-02-25

@@ -27,6 +27,13 @@ const AST_DBT_META_FILTER_OPS = Object.freeze([
   'exists'
 ]);
 
+const AST_DBT_DIFF_CHANGE_TYPES = Object.freeze([
+  'added',
+  'removed',
+  'modified',
+  'unchanged'
+]);
+
 function astDbtNormalizeBoolean(value, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -102,6 +109,22 @@ function astDbtNormalizeSchemaVersion(schemaVersion) {
       schemaVersion: normalized
     });
   }
+  return normalized;
+}
+
+function astDbtNormalizeArtifactType(artifactType, fallback = '') {
+  const normalized = astDbtNormalizeString(artifactType, fallback).toLowerCase().replace(/-/g, '_');
+  if (!normalized) {
+    return '';
+  }
+
+  if (AST_DBT_ARTIFACT_TYPES.indexOf(normalized) === -1) {
+    throw new AstDbtValidationError(
+      `artifactType must be one of: ${AST_DBT_ARTIFACT_TYPES.join(', ')}`,
+      { artifactType: normalized }
+    );
+  }
+
   return normalized;
 }
 
@@ -390,6 +413,72 @@ function astDbtNormalizeSearchInclude(include = {}) {
   };
 }
 
+function astDbtNormalizeDiffChangeTypes(changeTypes) {
+  if (typeof changeTypes === 'undefined' || changeTypes == null) {
+    return ['added', 'removed', 'modified'];
+  }
+
+  if (!Array.isArray(changeTypes)) {
+    throw new AstDbtValidationError('diff changeTypes must be an array when provided');
+  }
+
+  const output = [];
+  const seen = {};
+  changeTypes.forEach(value => {
+    const normalized = astDbtNormalizeString(value, '').toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    if (AST_DBT_DIFF_CHANGE_TYPES.indexOf(normalized) === -1) {
+      throw new AstDbtValidationError(
+        `diff changeTypes must be one of: ${AST_DBT_DIFF_CHANGE_TYPES.join(', ')}`,
+        { changeType: normalized }
+      );
+    }
+    if (seen[normalized]) {
+      return;
+    }
+    seen[normalized] = true;
+    output.push(normalized);
+  });
+
+  return output;
+}
+
+function astDbtNormalizeImpactArtifactRef(descriptor = {}, artifactType, defaults = {}) {
+  if (!astDbtIsPlainObject(descriptor)) {
+    throw new AstDbtValidationError(`impact artifacts.${artifactType} must be an object when provided`);
+  }
+
+  const bundle = astDbtIsPlainObject(descriptor.bundle) ? descriptor.bundle : null;
+  const artifact = astDbtIsPlainObject(descriptor.artifact) ? descriptor.artifact : null;
+
+  const source = (bundle || artifact)
+    ? null
+    : astDbtNormalizeSourceObject({
+      uri: descriptor.uri,
+      fileId: descriptor.fileId,
+      provider: descriptor.provider,
+      location: descriptor.location,
+      auth: descriptor.auth,
+      providerOptions: descriptor.providerOptions
+    }, defaults);
+
+  if (!bundle && !artifact && !source) {
+    throw new AstDbtValidationError(
+      `impact artifacts.${artifactType} requires one of: bundle, artifact, or source locator`
+    );
+  }
+
+  return {
+    artifactType,
+    bundle,
+    artifact,
+    source,
+    options: astDbtNormalizeLoadOptions(descriptor.options || {}, defaults)
+  };
+}
+
 function astDbtValidateLoadManifestRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('loadManifest request must be an object');
@@ -558,6 +647,142 @@ function astDbtValidateValidateManifestRequest(request = {}) {
   };
 }
 
+function astDbtValidateLoadArtifactRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('loadArtifact request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+  const options = astDbtNormalizeLoadOptions(request.options || {}, defaults);
+  const artifactType = astDbtNormalizeArtifactType(request.artifactType || request.type, '');
+  if (!artifactType) {
+    throw new AstDbtValidationError('loadArtifact requires artifactType');
+  }
+
+  const artifact = typeof request.artifact !== 'undefined' ? request.artifact : null;
+  if (artifact != null && !astDbtIsPlainObject(artifact)) {
+    throw new AstDbtValidationError('artifact must be an object when provided');
+  }
+
+  const source = artifact
+    ? null
+    : astDbtNormalizeSourceObject(request, defaults);
+
+  if (!artifact && !source) {
+    throw new AstDbtValidationError('loadArtifact requires source input when artifact is not provided inline');
+  }
+
+  return {
+    operation: 'load_artifact',
+    artifactType,
+    source,
+    artifact,
+    options
+  };
+}
+
+function astDbtValidateInspectArtifactRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('inspectArtifact request must be an object');
+  }
+
+  const artifactType = astDbtNormalizeArtifactType(request.artifactType || request.type, '');
+  const defaults = astDbtResolveLoadDefaults(request);
+
+  return {
+    operation: 'inspect_artifact',
+    artifactType,
+    bundle: astDbtIsPlainObject(request.bundle) ? request.bundle : null,
+    artifact: astDbtIsPlainObject(request.artifact) ? request.artifact : null,
+    source: request.source || null,
+    uri: request.uri || null,
+    fileId: request.fileId || null,
+    provider: request.provider || null,
+    location: request.location || null,
+    auth: request.auth || null,
+    providerOptions: request.providerOptions || null,
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
+function astDbtValidateDiffEntitiesRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('diffEntities request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+  const options = astDbtNormalizeLoadOptions(request.options || {}, defaults);
+
+  return {
+    operation: 'diff_entities',
+    leftBundle: astDbtIsPlainObject(request.leftBundle || request.bundleA) ? (request.leftBundle || request.bundleA) : null,
+    rightBundle: astDbtIsPlainObject(request.rightBundle || request.bundleB) ? (request.rightBundle || request.bundleB) : null,
+    leftManifest: astDbtIsPlainObject(request.leftManifest || request.manifestA) ? (request.leftManifest || request.manifestA) : null,
+    rightManifest: astDbtIsPlainObject(request.rightManifest || request.manifestB) ? (request.rightManifest || request.manifestB) : null,
+    leftSource: astDbtIsPlainObject(request.leftSource) ? request.leftSource : null,
+    rightSource: astDbtIsPlainObject(request.rightSource) ? request.rightSource : null,
+    includeUnchanged: astDbtNormalizeBoolean(request.includeUnchanged, false),
+    changeTypes: astDbtNormalizeDiffChangeTypes(request.changeTypes),
+    include: {
+      columns: astDbtNormalizeBoolean(request.include && request.include.columns, true),
+      meta: astDbtNormalizeBoolean(request.include && request.include.meta, true),
+      stats: astDbtNormalizeBoolean(request.include && request.include.stats, true)
+    },
+    page: astDbtNormalizeSearchPage(request.page || {}),
+    options
+  };
+}
+
+function astDbtValidateImpactRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('impact request must be an object');
+  }
+
+  const uniqueId = astDbtNormalizeString(request.uniqueId, '');
+  if (!uniqueId) {
+    throw new AstDbtValidationError('impact requires uniqueId');
+  }
+
+  const direction = astDbtNormalizeString(request.direction, 'both').toLowerCase();
+  if (['upstream', 'downstream', 'both'].indexOf(direction) === -1) {
+    throw new AstDbtValidationError('impact.direction must be one of: upstream, downstream, both', {
+      direction
+    });
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+  const artifactInput = astDbtIsPlainObject(request.artifacts) ? request.artifacts : {};
+  const artifacts = {};
+
+  ['catalog', 'run_results', 'sources'].forEach(artifactType => {
+    if (!astDbtIsPlainObject(artifactInput[artifactType])) {
+      return;
+    }
+    artifacts[artifactType] = astDbtNormalizeImpactArtifactRef(
+      artifactInput[artifactType],
+      artifactType,
+      defaults
+    );
+  });
+
+  return {
+    operation: 'impact',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    uniqueId,
+    direction,
+    depth: astDbtNormalizePositiveInt(request.depth, 1, 1, 20),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    include: {
+      artifactStatus: astDbtNormalizeBoolean(request.include && request.include.artifactStatus, true),
+      stats: astDbtNormalizeBoolean(request.include && request.include.stats, true)
+    },
+    artifacts,
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
 function astDbtValidateRunRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('DBT run request must be an object');
@@ -568,8 +793,12 @@ function astDbtValidateRunRequest(request = {}) {
   switch (operation) {
     case 'load_manifest':
       return astDbtValidateLoadManifestRequest(request);
+    case 'load_artifact':
+      return astDbtValidateLoadArtifactRequest(request);
     case 'inspect_manifest':
       return astDbtValidateInspectManifestRequest(request);
+    case 'inspect_artifact':
+      return astDbtValidateInspectArtifactRequest(request);
     case 'list_entities':
       return astDbtValidateListEntitiesRequest(request);
     case 'search':
@@ -582,6 +811,10 @@ function astDbtValidateRunRequest(request = {}) {
       return astDbtValidateLineageRequest(request);
     case 'validate_manifest':
       return astDbtValidateValidateManifestRequest(request);
+    case 'diff_entities':
+      return astDbtValidateDiffEntitiesRequest(request);
+    case 'impact':
+      return astDbtValidateImpactRequest(request);
     default:
       throw new AstDbtValidationError(`Unsupported operation '${operation}'`);
   }

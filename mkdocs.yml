@@ -110,6 +110,7 @@ nav:
     - Tools: api/tools.md
     - dbt Manifest Contracts: api/dbt-manifest-contracts.md
     - dbt Manifest Search: api/dbt-manifest-search.md
+    - dbt Artifacts and Impact: api/dbt-artifacts-impact.md
     - SQL Contracts: api/sql-contracts.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md

@@ -4,8 +4,12 @@ function astDbtRun(request = {}) {
   switch (normalized.operation) {
     case 'load_manifest':
       return astDbtLoadManifestCore(normalized);
+    case 'load_artifact':
+      return astDbtLoadArtifactCore(normalized);
     case 'inspect_manifest':
       return astDbtInspectManifestCore(normalized);
+    case 'inspect_artifact':
+      return astDbtInspectArtifactCore(normalized);
     case 'list_entities':
       return astDbtListEntitiesCore(normalized);
     case 'search':
@@ -18,6 +22,10 @@ function astDbtRun(request = {}) {
       return astDbtLineageCore(normalized);
     case 'validate_manifest':
       return astDbtValidateManifestCore(normalized);
+    case 'diff_entities':
+      return astDbtDiffEntitiesCore(normalized);
+    case 'impact':
+      return astDbtImpactCore(normalized);
     default:
       throw new AstDbtValidationError(`Unsupported DBT operation '${normalized.operation}'`);
   }
@@ -29,6 +37,14 @@ function astDbtLoadManifest(request = {}) {
 
 function astDbtInspectManifest(request = {}) {
   return astDbtInspectManifestCore(request);
+}
+
+function astDbtLoadArtifact(request = {}) {
+  return astDbtLoadArtifactCore(request);
+}
+
+function astDbtInspectArtifact(request = {}) {
+  return astDbtInspectArtifactCore(request);
 }
 
 function astDbtListEntities(request = {}) {
@@ -49,6 +65,14 @@ function astDbtGetColumn(request = {}) {
 
 function astDbtLineage(request = {}) {
   return astDbtLineageCore(request);
+}
+
+function astDbtDiffEntities(request = {}) {
+  return astDbtDiffEntitiesCore(request);
+}
+
+function astDbtImpact(request = {}) {
+  return astDbtImpactCore(request);
 }
 
 function astDbtValidateManifestCore(request = {}) {
@@ -121,12 +145,16 @@ function astDbtClearConfig() {
 const AST_DBT = Object.freeze({
   run: astDbtRun,
   loadManifest: astDbtLoadManifest,
+  loadArtifact: astDbtLoadArtifact,
   inspectManifest: astDbtInspectManifest,
+  inspectArtifact: astDbtInspectArtifact,
   listEntities: astDbtListEntities,
   search: astDbtSearch,
   getEntity: astDbtGetEntity,
   getColumn: astDbtGetColumn,
   lineage: astDbtLineage,
+  diffEntities: astDbtDiffEntities,
+  impact: astDbtImpact,
   providers: astDbtListProviders,
   capabilities: astDbtGetProviderCapabilities,
   validateManifest: astDbtValidateManifest,

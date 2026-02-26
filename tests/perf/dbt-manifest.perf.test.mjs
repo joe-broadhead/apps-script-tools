@@ -80,6 +80,49 @@ function astPerfCreateManifestFixture(entityCount = 600, columnsPerEntity = 5) {
   };
 }
 
+function astPerfCreateManifestVariantFixture(entityCount = 600, columnsPerEntity = 5) {
+  const fixture = astPerfCreateManifestFixture(entityCount, columnsPerEntity);
+  const clone = JSON.parse(JSON.stringify(fixture));
+
+  const removedUniqueId = 'model.perf.model_10';
+  const addedUniqueId = `model.perf.model_${entityCount + 1}`;
+
+  delete clone.nodes[removedUniqueId];
+
+  clone.nodes[addedUniqueId] = {
+    unique_id: addedUniqueId,
+    name: `model_${entityCount + 1}`,
+    resource_type: 'model',
+    package_name: 'perf',
+    path: `models/perf/model_${entityCount + 1}.sql`,
+    original_file_path: `models/perf/model_${entityCount + 1}.sql`,
+    tags: ['finance'],
+    meta: {
+      owner: {
+        team: 'revops'
+      }
+    },
+    description: `Performance model ${entityCount + 1}`,
+    depends_on: {
+      nodes: ['model.perf.model_0']
+    },
+    columns: {
+      col_0: {
+        name: 'col_0',
+        description: 'Primary identifier',
+        data_type: 'string',
+        tags: ['id'],
+        meta: { sensitivity: 'high' }
+      }
+    }
+  };
+
+  clone.nodes['model.perf.model_250'].description = 'Updated performance model 250';
+  clone.nodes['model.perf.model_250'].columns.col_1.description = 'Updated column description';
+
+  return clone;
+}
+
 export function runDbtManifestPerf(context, options = {}) {
   const {
     samples = 1,
@@ -156,10 +199,24 @@ export function runDbtManifestPerf(context, options = {}) {
     { samples }
   );
 
+  const diffEntities = measureBenchmark(
+    'dbt.diff_entities_medium',
+    () => astDbt.diffEntities({
+      leftManifest: manifest,
+      rightManifest: astPerfCreateManifestVariantFixture(entities, columnsPerEntity),
+      page: {
+        limit: 100,
+        offset: 0
+      }
+    }),
+    { samples }
+  );
+
   return [
     loadIndex,
     searchTop20,
     getEntityAvg,
-    getColumnAvg
+    getColumnAvg,
+    diffEntities
   ];
 }

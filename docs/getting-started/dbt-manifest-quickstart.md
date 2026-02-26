@@ -124,6 +124,28 @@ if (!validation.valid) {
 }
 ```
 
+## 6) Load artifacts and compute impact
+
+```javascript
+const runResults = ASTX.DBT.loadArtifact({
+  artifactType: 'run_results',
+  uri: 'gcs://my-bucket/dbt/run_results.json',
+  options: { validate: 'strict' }
+});
+
+const impact = ASTX.DBT.impact({
+  bundle: loaded.bundle,
+  uniqueId: 'model.analytics.orders',
+  direction: 'downstream',
+  depth: 2,
+  artifacts: {
+    run_results: { bundle: runResults.bundle }
+  }
+});
+
+Logger.log(impact.nodes);
+```
+
 ## Runtime defaults via Script Properties
 
 Supported keys:
