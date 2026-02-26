@@ -496,6 +496,9 @@ function astCacheFetchTryAcquireLease(context, normalizedKey, leaseKeyHash, owne
 function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, pollMs) {
   const safeWaitMs = astCacheNormalizePositiveInt(waitMs, 0, 0, 300000);
   const safePollMs = astCacheNormalizePositiveInt(pollMs, 50, 0, 10000);
+  const effectivePollMs = safePollMs > 0
+    ? safePollMs
+    : Math.min(50, Math.max(1, safeWaitMs));
   if (safeWaitMs <= 0) {
     return {
       entry: null,
@@ -508,7 +511,7 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
   let iterations = 0;
   const hardMaxIterations = Math.max(
     100,
-    Math.ceil((safeWaitMs + 1000) / Math.max(safePollMs, 1)) * 4
+    Math.ceil((safeWaitMs + 1000) / Math.max(effectivePollMs, 1)) * 4
   );
 
   while (true) {
@@ -539,9 +542,7 @@ function astCacheFetchWaitForLeader(context, keyHash, leaseKeyHash, waitMs, poll
       break;
     }
 
-    if (safePollMs > 0) {
-      astCacheSleepMs(Math.min(safePollMs, safeWaitMs - elapsedMs));
-    }
+    astCacheSleepMs(Math.min(effectivePollMs, safeWaitMs - elapsedMs));
   }
 
   return {

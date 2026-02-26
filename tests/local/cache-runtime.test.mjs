@@ -266,6 +266,38 @@ function createStorageRunnerMock() {
   };
 }
 
+function setInternalCacheEntry(context, {
+  backend = 'memory',
+  namespace,
+  baseKey,
+  suffix,
+  value,
+  ttlSec = 60
+}) {
+  const normalizedBaseKey = context.astCacheNormalizeKey(baseKey);
+  const normalizedInternalKey = context.astCacheBuildInternalKey(normalizedBaseKey, suffix);
+  const keyHash = context.astCacheHashKey(normalizedInternalKey);
+  const resolved = context.astCacheBuildResolvedContext({
+    backend,
+    namespace
+  });
+  const nowMs = context.astCacheNowMs();
+  const entry = context.astCacheBuildEntry({
+    normalizedKey: normalizedInternalKey,
+    keyHash,
+    value,
+    tags: [],
+    ttlSec,
+    nowMs
+  });
+  resolved.adapter.set(entry);
+  return {
+    normalizedInternalKey,
+    keyHash,
+    resolved
+  };
+}
+
 test('AST exposes Cache surface and backend helpers', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });
@@ -440,12 +472,22 @@ test('cache fetch coalesces follower reads to stale when a refresh lease is acti
     namespace: 'cache_fetch_coalesce'
   });
 
-  const normalizedKey = context.astCacheNormalizeKey('coalesce:key');
-  const staleInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'stale');
-  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-
-  context.AST.Cache.set(staleInternalKey, { source: 'stale' }, { ttlSec: 60 });
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce',
+    baseKey: 'coalesce:key',
+    suffix: 'stale',
+    value: { source: 'stale' },
+    ttlSec: 60
+  });
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_coalesce',
+    baseKey: 'coalesce:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
 
   let resolverRuns = 0;
   const result = context.AST.Cache.fetch('coalesce:key', () => {
@@ -526,9 +568,14 @@ test('cache fetch wait loop honors coalesceWaitMs even with pollMs below 10', ()
     namespace: 'cache_fetch_wait_poll_lt_10'
   });
 
-  const normalizedKey = context.astCacheNormalizeKey('wait:key');
-  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 1 });
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_lt_10',
+    baseKey: 'wait:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 1
+  });
 
   let resolverStartedAtMs = 0;
   context.AST.Cache.fetch('wait:key', () => {
@@ -555,27 +602,22 @@ test('cache fetch lease release deletes only when owner matches', () => {
     namespace: 'cache_fetch_release_owner'
   });
 
-  const normalizedKey = context.astCacheNormalizeKey('lease:owner:key');
-  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-  const leaseKeyHash = context.astCacheHashKey(leaseInternalKey);
-  const resolved = context.astCacheBuildResolvedContext({
+  const seeded = setInternalCacheEntry(context, {
     backend: 'memory',
-    namespace: 'cache_fetch_release_owner'
-  });
-
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'owner-b' }, {
     namespace: 'cache_fetch_release_owner',
+    baseKey: 'lease:owner:key',
+    suffix: 'lease',
+    value: { ownerId: 'owner-b' },
     ttlSec: 60
   });
+  const leaseKeyHash = seeded.keyHash;
+  const resolved = seeded.resolved;
 
   context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-a');
-  assert.equal(
-    JSON.stringify(context.AST.Cache.get(leaseInternalKey, { namespace: 'cache_fetch_release_owner' })),
-    JSON.stringify({ ownerId: 'owner-b' })
-  );
+  assert.equal(JSON.stringify(resolved.adapter.get(leaseKeyHash).value), JSON.stringify({ ownerId: 'owner-b' }));
 
   context.astCacheFetchReleaseLease(resolved, leaseKeyHash, 'owner-b');
-  assert.equal(context.AST.Cache.get(leaseInternalKey, { namespace: 'cache_fetch_release_owner' }), null);
+  assert.equal(resolved.adapter.get(leaseKeyHash), null);
 });
 
 test('cache fetch coalesced follower does not run resolver without lease ownership', () => {
@@ -588,9 +630,14 @@ test('cache fetch coalesced follower does not run resolver without lease ownersh
     namespace: 'cache_fetch_no_lease_fallback'
   });
 
-  const normalizedKey = context.astCacheNormalizeKey('blocked:key');
-  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_no_lease_fallback',
+    baseKey: 'blocked:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
 
   let resolverRuns = 0;
   assert.throws(() => {
@@ -607,6 +654,73 @@ test('cache fetch coalesced follower does not run resolver without lease ownersh
   }, /coalescing lease unavailable after wait/);
 
   assert.equal(resolverRuns, 0);
+});
+
+test('cache keys reject reserved internal namespace suffixes', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_reserved_key_suffix'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.set('orders::__ast_cache_internal__:stale', { value: 1 });
+  }, /reserved internal namespace suffix/);
+
+  assert.throws(() => {
+    context.AST.Cache.fetch('orders::__ast_cache_internal__:lease', () => ({ value: 1 }));
+  }, /reserved internal namespace suffix/);
+});
+
+test('cache fetch wait loop honors coalesceWaitMs when pollMs is zero', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    Utilities: {
+      ...createGasContext().Utilities,
+      sleep: ms => {
+        nowMs += Number(ms || 0);
+      }
+    }
+  });
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_zero'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_fetch_wait_poll_zero',
+    baseKey: 'wait:poll-zero:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 1
+  });
+
+  let resolverStartedAtMs = 0;
+  context.AST.Cache.fetch('wait:poll-zero:key', () => {
+    resolverStartedAtMs = nowMs;
+    return { ok: true };
+  }, {
+    ttlSec: 30,
+    staleTtlSec: 0,
+    coalesce: true,
+    coalesceWaitMs: 1_200,
+    pollMs: 0
+  });
+
+  assert.equal(resolverStartedAtMs >= 2_000, true);
 });
 
 test('cache fetch wait polling avoids repeated backend writes when stats-on-get is enabled', () => {
@@ -651,9 +765,14 @@ test('cache fetch wait polling avoids repeated backend writes when stats-on-get 
     updateStatsOnGet: true
   });
 
-  const normalizedKey = context.astCacheNormalizeKey('polling:key');
-  const leaseInternalKey = context.astCacheBuildInternalKey(normalizedKey, 'lease');
-  context.AST.Cache.set(leaseInternalKey, { ownerId: 'leader' }, { ttlSec: 60 });
+  setInternalCacheEntry(context, {
+    backend: 'script_properties',
+    namespace: 'cache_fetch_poll_read_only',
+    baseKey: 'polling:key',
+    suffix: 'lease',
+    value: { ownerId: 'leader' },
+    ttlSec: 60
+  });
 
   const writesBeforeFetch = propertyWriteCount;
   assert.throws(() => {
