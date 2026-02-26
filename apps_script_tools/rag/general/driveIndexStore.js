@@ -477,51 +477,60 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
 }
 
 function astRagPersistShardedIndexDocument(destinationFolderId, rootFile, rootDocument, shardPayloads, existingRefs = [], maxChunksPerShard = AST_RAG_DEFAULT_SHARDING.maxChunksPerShard) {
-  const refs = [];
   const previousRefs = Array.isArray(existingRefs) ? existingRefs : [];
+  const stagedRefs = [];
+  const stagedFileIds = [];
 
-  for (let idx = 0; idx < shardPayloads.length; idx += 1) {
-    const payload = shardPayloads[idx];
-    const existing = previousRefs[idx];
-    const shardFileName = astRagBuildShardFileName(rootFile.getName(), payload.shardId);
-    let shardFile;
-    if (existing && existing.fileId) {
-      shardFile = astRagUpdateIndexFile(existing.fileId, payload);
-    } else {
-      shardFile = astRagCreateNamedFile(shardFileName, payload, destinationFolderId);
+  try {
+    for (let idx = 0; idx < shardPayloads.length; idx += 1) {
+      const payload = shardPayloads[idx];
+      const shardFileName = astRagBuildShardFileName(rootFile.getName(), payload.shardId);
+      const shardFile = astRagCreateNamedFile(shardFileName, payload, destinationFolderId);
+      stagedFileIds.push(shardFile.getId());
+
+      stagedRefs.push({
+        shardId: payload.shardId,
+        fileId: shardFile.getId(),
+        fileName: shardFile.getName(),
+        chunkCount: payload.chunkCount,
+        updatedAt: astRagGetFileUpdatedAtToken(shardFile),
+        centroid: Array.isArray(payload.centroid) ? payload.centroid.slice() : [],
+        centroidNorm: typeof payload.centroidNorm === 'number' && isFinite(payload.centroidNorm)
+          ? payload.centroidNorm
+          : null
+      });
     }
-
-    refs.push({
-      shardId: payload.shardId,
-      fileId: shardFile.getId(),
-      fileName: shardFile.getName(),
-      chunkCount: payload.chunkCount,
-      updatedAt: astRagGetFileUpdatedAtToken(shardFile),
-      centroid: Array.isArray(payload.centroid) ? payload.centroid.slice() : [],
-      centroidNorm: typeof payload.centroidNorm === 'number' && isFinite(payload.centroidNorm)
-        ? payload.centroidNorm
-        : null
-    });
+  } catch (error) {
+    for (let idx = 0; idx < stagedFileIds.length; idx += 1) {
+      astRagTrashFileById(stagedFileIds[idx]);
+    }
+    throw error;
   }
 
-  for (let idx = shardPayloads.length; idx < previousRefs.length; idx += 1) {
-    astRagTrashFileById(previousRefs[idx] && previousRefs[idx].fileId);
-  }
-
-  rootDocument.shards = refs;
+  rootDocument.shards = stagedRefs;
   rootDocument.chunks = [];
   rootDocument.chunkCount = shardPayloads.reduce((total, shard) => total + Number(shard.chunkCount || 0), 0);
   rootDocument.storage = {
     layout: 'sharded',
-    totalShards: refs.length,
+    totalShards: stagedRefs.length,
     maxChunksPerShard: astRagNormalizePositiveInt(maxChunksPerShard, AST_RAG_DEFAULT_SHARDING.maxChunksPerShard, 1)
   };
 
-  const updatedRoot = astRagUpdateIndexFile(rootFile.getId(), rootDocument);
-  return {
-    indexFileId: updatedRoot.getId(),
-    indexFileName: updatedRoot.getName()
-  };
+  try {
+    const updatedRoot = astRagUpdateIndexFile(rootFile.getId(), rootDocument);
+    for (let idx = 0; idx < previousRefs.length; idx += 1) {
+      astRagTrashFileById(previousRefs[idx] && previousRefs[idx].fileId);
+    }
+    return {
+      indexFileId: updatedRoot.getId(),
+      indexFileName: updatedRoot.getName()
+    };
+  } catch (error) {
+    for (let idx = 0; idx < stagedFileIds.length; idx += 1) {
+      astRagTrashFileById(stagedFileIds[idx]);
+    }
+    throw error;
+  }
 }
 
 function astRagPersistIndexDocument(indexRequest, document) {
