@@ -215,10 +215,12 @@ export function loadCoreDataContext(context) {
   const coreFiles = [
     'apps_script_tools/series/_StringMethods.js',
     'apps_script_tools/series/_DateMethods.js',
+    'apps_script_tools/series/_SeriesInternals.js',
     'apps_script_tools/series/Series.js',
     'apps_script_tools/groupBy/GroupBy.js',
     ...dataFrameSchemaFiles,
     ...dataFrameExprFiles,
+    'apps_script_tools/dataFrame/_DataFrameInternals.js',
     'apps_script_tools/dataFrame/DataFrame.js'
   ];
 

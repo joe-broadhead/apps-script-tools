@@ -1390,10 +1390,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the resulting sums.
    */
   add(other) {
-    return this.transform(
-      values => values.reduce((a, b) => addValues(a, b)),
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryReduce(this, other, addValues);
   }
 
   /**
@@ -1422,10 +1419,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the resulting differences.
    */
   subtract(other) {
-    return this.transform(
-      values => values.reduce((a, b) => subtractValues(a, b)),
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryReduce(this, other, subtractValues);
   }
 
   /**
@@ -1454,74 +1448,12 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the resulting products.
    */
   multiply(other) {
-    const length = this.len();
-
-    if (typeof other === 'number' && this.type === 'number') {
-      const resultArray = new Array(length);
-      let hasNull = false;
-
-      if (Number.isNaN(other)) {
-        for (let idx = 0; idx < length; idx++) {
-          resultArray[idx] = null;
-        }
-        hasNull = true;
-      } else {
-        for (let idx = 0; idx < length; idx++) {
-          const leftValue = this.array[idx];
-
-          if (Number.isNaN(leftValue)) {
-            resultArray[idx] = null;
-            hasNull = true;
-            continue;
-          }
-
-          resultArray[idx] = leftValue * other;
-        }
-      }
-
-      return new Series(
-        resultArray,
-        this.name,
-        hasNull ? null : 'number',
-        null,
-        { useUTC: this.useUTC, skipTypeCoercion: true }
-      );
+    const optimizedResult = __astSeriesNumericMultiplyFastPath(this, other);
+    if (optimizedResult) {
+      return optimizedResult;
     }
 
-    if (other instanceof Series && this.type === 'number' && other.type === 'number') {
-      if (other.len() !== length) {
-        throw new Error("All elements in seriesArray must be Series of the same length as the base Series.");
-      }
-
-      const resultArray = new Array(length);
-      let hasNull = false;
-
-      for (let idx = 0; idx < length; idx++) {
-        const leftValue = this.array[idx];
-        const rightValue = other.array[idx];
-
-        if (Number.isNaN(leftValue) || Number.isNaN(rightValue)) {
-          resultArray[idx] = null;
-          hasNull = true;
-          continue;
-        }
-
-        resultArray[idx] = leftValue * rightValue;
-      }
-
-      return new Series(
-        resultArray,
-        this.name,
-        hasNull ? null : 'number',
-        null,
-        { useUTC: this.useUTC, skipTypeCoercion: true }
-      );
-    }
-
-    return this.transform(
-      values => values.reduce((a, b) => multiplyValues(a, b)),
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryReduce(this, other, multiplyValues);
   }
 
   /**
@@ -1556,10 +1488,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the resulting quotients.
    */
   divide(other) {
-    return this.transform(
-      values => values.reduce((a, b) => divideValues(a, b)),
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryReduce(this, other, divideValues);
   }
 
   /**
@@ -1589,10 +1518,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the concatenated results.
    */
   concat(other, separator = ' ') {
-    return this.transform(
-      values => values.reduce((a, b) => concatValues(a, b, separator)),
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryReduce(this, other, (left, right) => concatValues(left, right, separator));
   }
 
   /**
@@ -1620,10 +1546,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   greaterThan(other) {
-    return this.transform(
-      ([value, comparison]) => value > comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value > comparison);
   }
 
   /**
@@ -1651,10 +1574,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   lessThan(other) {
-    return this.transform(
-      ([value, comparison]) => value < comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value < comparison);
   }
 
   /**
@@ -1683,10 +1603,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   equalTo(other) {
-    return this.transform(
-      ([value, comparison]) => value === comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value === comparison);
   }
 
   /**
@@ -1715,10 +1632,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   notEqualTo(other) {
-    return this.transform(
-      ([value, comparison]) => value !== comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value !== comparison);
   }
 
   /**
@@ -1747,10 +1661,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   greaterThanOrEqual(other) {
-    return this.transform(
-      ([value, comparison]) => value >= comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value >= comparison);
   }
 
   /**
@@ -1779,10 +1690,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   lessThanOrEqual(other) {
-    return this.transform(
-      ([value, comparison]) => value <= comparison,
-      [other instanceof Series ? other : Series.fromValue(other, this.len(), this.name)]
-    );
+    return __astSeriesBinaryCompare(this, other, (value, comparison) => value <= comparison);
   }
 
   /**
