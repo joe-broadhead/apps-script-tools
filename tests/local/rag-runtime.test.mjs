@@ -3590,7 +3590,7 @@ test('buildIndex persists sharded layout and can hydrate full chunks on demand',
     DriveApp: drive.DriveApp,
     UrlFetchApp: createEmbeddingFetchMock()
   });
-  loadRagScripts(context, { includeAst: true });
+  loadRagWithCacheScripts(context, { includeAst: true });
 
   const built = context.AST.RAG.buildIndex({
     source: {
@@ -3635,6 +3635,161 @@ test('buildIndex persists sharded layout and can hydrate full chunks on demand',
   const full = context.astRagLoadIndexDocument(built.indexFileId);
   assert.equal(Array.isArray(full.document.chunks), true);
   assert.equal(full.document.chunks.length, inspected.chunkCount);
+});
+
+test('loadIndexDocument cache hit skips root JSON parse', () => {
+  const fileA = makeDriveFile({
+    id: 'file_cache_hit_a',
+    name: 'cache-hit-a.txt',
+    mimeType: MIME_TEXT,
+    text: 'cache test content'
+  });
+  const drive = createDriveRuntime({
+    files: [fileA]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+  loadRagWithCacheScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'cache-hit-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const cacheOptions = {
+    cache: {
+      enabled: true,
+      backend: 'memory',
+      namespace: 'rag-test-cache-hit',
+      searchTtlSec: 120
+    }
+  };
+
+  const first = context.astRagLoadIndexDocument(built.indexFileId, cacheOptions);
+  assert.equal(first.cacheHit, false);
+
+  const parseOriginal = context.astRagParseFileJson;
+  context.astRagParseFileJson = () => {
+    throw new Error('parse should not run on index-doc cache hit');
+  };
+
+  try {
+    const second = context.astRagLoadIndexDocument(built.indexFileId, cacheOptions);
+    assert.equal(second.cacheHit, true);
+    assert.equal(second.document.chunkCount > 0, true);
+  } finally {
+    context.astRagParseFileJson = parseOriginal;
+  }
+});
+
+test('buildIndex preserves existing sharding when rebuilding existing indexFileId without sharding override', () => {
+  const fileA = makeDriveFile({
+    id: 'file_shard_preserve_a',
+    name: 'a.txt',
+    mimeType: MIME_TEXT,
+    text: 'alpha '.repeat(70)
+  });
+  const fileB = makeDriveFile({
+    id: 'file_shard_preserve_b',
+    name: 'b.txt',
+    mimeType: MIME_TEXT,
+    text: 'bravo '.repeat(70)
+  });
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock()
+  });
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sharding-preserve-index',
+      sharding: {
+        enabled: true,
+        maxChunksPerShard: 1
+      }
+    },
+    chunking: {
+      chunkSizeChars: 24,
+      chunkOverlapChars: 0,
+      minChunkChars: 8
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const before = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
+  assert.equal(before.storage.layout, 'sharded');
+  assert.equal(before.storage.totalShards > 1, true);
+
+  context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sharding-preserve-index',
+      indexFileId: built.indexFileId
+    },
+    chunking: {
+      chunkSizeChars: 24,
+      chunkOverlapChars: 0,
+      minChunkChars: 8
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      openai: {
+        apiKey: 'test-openai-key'
+      }
+    }
+  });
+
+  const after = context.AST.RAG.inspectIndex({ indexFileId: built.indexFileId });
+  assert.equal(after.storage.layout, 'sharded');
+  assert.equal(after.storage.totalShards > 1, true);
+
+  const afterDocument = context.astRagLoadIndexDocument(built.indexFileId, { loadChunks: false }).document;
+  assert.equal(afterDocument.sharding.enabled, true);
+  assert.equal(Array.isArray(afterDocument.shards), true);
+  assert.equal(afterDocument.shards.length > 1, true);
 });
 
 test('search retrieval can route to a shard partition when enabled', () => {

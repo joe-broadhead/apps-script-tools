@@ -266,11 +266,15 @@ function astRagNormalizeIndexRequest(index = {}) {
     throw new AstRagValidationError('index must be an object when provided');
   }
 
+  const shardingProvided = Object.prototype.hasOwnProperty.call(index, 'sharding')
+    && typeof index.sharding !== 'undefined';
+
   return {
     indexName: astRagNormalizeString(index.indexName, 'rag-index'),
     destinationFolderId: astRagNormalizeString(index.destinationFolderId, null),
     indexFileId: astRagNormalizeString(index.indexFileId, null),
-    sharding: astRagNormalizeShardingConfig(index.sharding)
+    sharding: astRagNormalizeShardingConfig(index.sharding),
+    shardingProvided
   };
 }
 

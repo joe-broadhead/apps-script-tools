@@ -257,18 +257,59 @@ function astRagBuildShardPayloads(document, maxChunksPerShard) {
   return payloads;
 }
 
-function astRagReadIndexRootDocument(indexFileId) {
+function astRagReadIndexRootMetadata(indexFileId) {
   astRagEnsureDriveAvailable();
   const file = DriveApp.getFileById(indexFileId);
   const fileName = file.getName();
   const versionToken = astRagGetFileUpdatedAtToken(file) || 'unknown';
-  const root = astRagParseFileJson(file, { indexFileId });
   return {
     file,
     fileName,
-    versionToken,
+    versionToken
+  };
+}
+
+function astRagReadIndexRootDocument(indexFileId) {
+  const metadata = astRagReadIndexRootMetadata(indexFileId);
+  const root = astRagParseFileJson(metadata.file, { indexFileId });
+  return {
+    file: metadata.file,
+    fileName: metadata.fileName,
+    versionToken: metadata.versionToken,
     root
   };
+}
+
+function astRagResolvePersistedSharding(indexInfo = {}, document = {}, existingRootDoc = null) {
+  const hasRequestOverride = indexInfo.shardingProvided === true && astRagIsPlainObject(indexInfo.sharding);
+  if (hasRequestOverride) {
+    return indexInfo.sharding;
+  }
+  if (astRagIsPlainObject(existingRootDoc && existingRootDoc.sharding)) {
+    return existingRootDoc.sharding;
+  }
+  if (astRagIsPlainObject(document.sharding)) {
+    return document.sharding;
+  }
+  return AST_RAG_DEFAULT_SHARDING;
+}
+
+function astRagLoadAndHydrateRootDocument(indexFileId, file) {
+  const root = astRagParseFileJson(file, { indexFileId });
+  if (!Array.isArray(root.sources)) {
+    throw new AstRagIndexError('Index document is missing sources array', {
+      indexFileId
+    });
+  }
+
+  root.sources = root.sources.map(astRagHydrateLoadedSource);
+  root.shards = astRagNormalizeShardRefs(root.shards || []);
+  root.chunkCount = astRagNormalizePositiveInt(
+    root.chunkCount,
+    Array.isArray(root.chunks) ? root.chunks.length : 0,
+    0
+  );
+  return root;
 }
 
 function astRagSelectShardRefs(indexDocument = {}, options = {}) {
@@ -362,9 +403,9 @@ function astRagLoadIndexChunks(indexFileId, indexDocument = {}, options = {}) {
 function astRagLoadIndexDocument(indexFileId, options = {}) {
   astRagEnsureDriveAvailable();
 
-  const rootLoaded = astRagReadIndexRootDocument(indexFileId);
-  const fileName = rootLoaded.fileName;
-  const versionToken = rootLoaded.versionToken;
+  const rootMetadata = astRagReadIndexRootMetadata(indexFileId);
+  const fileName = rootMetadata.fileName;
+  const versionToken = rootMetadata.versionToken;
   const loadChunks = options.loadChunks !== false;
   const selectedShardIds = Array.isArray(options.shardIds) ? options.shardIds : [];
   const chunkSelector = loadChunks
@@ -399,20 +440,7 @@ function astRagLoadIndexDocument(indexFileId, options = {}) {
     };
   }
 
-  const json = rootLoaded.root;
-  if (!Array.isArray(json.sources)) {
-    throw new AstRagIndexError('Index document is missing sources array', {
-      indexFileId
-    });
-  }
-
-  json.sources = json.sources.map(astRagHydrateLoadedSource);
-  json.shards = astRagNormalizeShardRefs(json.shards || []);
-  json.chunkCount = astRagNormalizePositiveInt(
-    json.chunkCount,
-    Array.isArray(json.chunks) ? json.chunks.length : 0,
-    0
-  );
+  const json = astRagLoadAndHydrateRootDocument(indexFileId, rootMetadata.file);
 
   if (loadChunks) {
     json.chunks = astRagLoadIndexChunks(indexFileId, json, {
@@ -525,9 +553,7 @@ function astRagPersistIndexDocument(indexRequest, document) {
     rootFile = astRagCreateIndexFile(indexInfo.indexName, {}, destinationFolderId);
   }
 
-  const sharding = astRagIsPlainObject(indexInfo.sharding)
-    ? indexInfo.sharding
-    : (astRagIsPlainObject(document.sharding) ? document.sharding : AST_RAG_DEFAULT_SHARDING);
+  const sharding = astRagResolvePersistedSharding(indexInfo, document, existingRootDoc);
   const maxChunksPerShard = astRagNormalizePositiveInt(
     sharding.maxChunksPerShard,
     AST_RAG_DEFAULT_SHARDING.maxChunksPerShard,
