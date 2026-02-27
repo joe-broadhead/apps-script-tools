@@ -117,6 +117,7 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
   const ref = astGitHubNormalizeString(request.ref || request.sha, null);
   const tag = astGitHubNormalizeString(request.tag, null);
   const query = astGitHubNormalizeString(request.query, null);
+  const organization = astGitHubNormalizeString(request.organization, null);
   const operationName = astGitHubNormalizeString(request.operationName, null);
 
   const issueNumber = astGitHubNormalizeInteger(request.issueNumber, 'issueNumber', null, 1);
@@ -159,6 +160,7 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     branch,
     ref,
     tag,
+    organization,
     query,
     operationName,
     body: astGitHubCloneObject(body),

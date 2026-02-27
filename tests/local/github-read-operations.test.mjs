@@ -89,6 +89,30 @@ test('listIssues uses pagination and parses link headers', () => {
   assert.equal(response.page.hasMore, true);
 });
 
+test('listCommits honors top-level ref as sha query filter', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, [{ sha: 'abc' }]);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  context.AST.GitHub.listCommits({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'feature/main'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /sha=feature%2Fmain/);
+});
+
 test('getPullRequestDiff sends diff accept header', () => {
   const calls = [];
   const context = createGasContext({

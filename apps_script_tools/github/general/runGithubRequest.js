@@ -93,13 +93,17 @@ function astGitHubBuildOperationQuery(request, spec, pagination) {
 
   switch (request.operation) {
     case 'list_commits':
-      return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, [
-        'sha',
-        'path',
-        'author',
-        'since',
-        'until'
-      ]));
+      return astGitHubMergeQuery(base, astGitHubMergeQuery(
+        astGitHubExtractAllowedQueryFields(body, [
+          'path',
+          'author',
+          'since',
+          'until'
+        ]),
+        {
+          sha: request.ref || body.sha || body.ref || null
+        }
+      ));
     case 'get_file_contents':
       return astGitHubMergeQuery(base, {
         ref: request.ref || request.branch || body.ref || body.branch || null
@@ -442,11 +446,17 @@ function astGitHubExecuteCreateBranch(request, config) {
   const branch = astGitHubRunNormalizeString(request.branch || body.branch, '');
   astGitHubValidateRequiredField(branch, 'branch');
 
+  const isDryRun = Boolean(request.options && request.options.dryRun === true);
   let sha = astGitHubRunNormalizeString(request.ref || body.sha, '');
   let sourceBranch = astGitHubRunNormalizeString(
     body.fromBranch || body.from_branch || body.baseBranch || body.base_branch,
     ''
   );
+
+  if (isDryRun && !sha) {
+    const inferredSourceBranch = sourceBranch || 'default_branch';
+    sha = `AUTO_RESOLVE_SHA_FROM_${inferredSourceBranch}`;
+  }
 
   if (!sha) {
     if (!sourceBranch) {

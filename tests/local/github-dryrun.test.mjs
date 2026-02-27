@@ -105,3 +105,32 @@ test('read operations execute even when dryRun is set', () => {
   assert.equal(response.dryRun.enabled, false);
   assert.equal(response.data.login, 'octocat');
 });
+
+test('createBranch dryRun without sha does not perform lookup network calls', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not call fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.createBranch({
+    owner: 'octocat',
+    repo: 'hello-world',
+    branch: 'feature/test',
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.dryRun.enabled, true);
+  assert.equal(response.dryRun.plannedRequest.operation, 'create_branch');
+  assert.equal(response.dryRun.plannedRequest.source.path, '/repos/octocat/hello-world/git/refs');
+});

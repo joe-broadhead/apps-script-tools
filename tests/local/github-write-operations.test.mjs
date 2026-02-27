@@ -53,6 +53,32 @@ test('createIssue maps method/path/body correctly', () => {
   assert.equal(response.data.number, 42);
 });
 
+test('createRepository uses org route when top-level organization is provided', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(201, { id: 10, name: 'repo' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.createRepository({
+    organization: 'my-org',
+    body: {
+      name: 'repo'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/orgs\/my-org\/repos$/);
+  assert.equal(response.data.id, 10);
+});
+
 test('pushFiles uses default message and executes file updates', () => {
   const calls = [];
   const context = createGasContext({
