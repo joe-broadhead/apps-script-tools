@@ -136,3 +136,27 @@ test('searchPullRequests appends is:pr qualifier when missing', () => {
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /is%3Apr/);
 });
+
+test('searchPullRequests appends is:pr when query contains overlapping qualifier text', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { total_count: 0, items: [] });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  context.AST.GitHub.searchPullRequests({
+    query: 'repo:octocat/hello-world is:private label:bug'
+  });
+
+  assert.equal(calls.length, 1);
+  const decodedUrl = decodeURIComponent(calls[0].url);
+  assert.match(decodedUrl, /is:private/);
+  assert.match(decodedUrl, /is:pr/);
+});

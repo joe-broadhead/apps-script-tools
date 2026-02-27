@@ -181,3 +181,59 @@ test('cache serves stale response on provider error when enabled', () => {
   assert.equal(second.data.source, 'cached');
   assert.equal(second.warnings.length > 0, true);
 });
+
+test('graphql mutation invalidates cached read tags', () => {
+  const cache = createCacheMock();
+  let repoCalls = 0;
+  let graphqlCalls = 0;
+
+  const context = createGasContext({
+    AST_CACHE: cache,
+    UrlFetchApp: {
+      fetch: url => {
+        if (String(url).indexOf('/graphql') !== -1) {
+          graphqlCalls += 1;
+          return createResponse(200, { data: { updateIssue: { issue: { id: 'I_1' } } } });
+        }
+
+        repoCalls += 1;
+        if (repoCalls === 1) {
+          return createResponse(200, { id: 1, name: 'first' }, { etag: '"v1"' });
+        }
+        return createResponse(200, { id: 2, name: 'second' }, { etag: '"v2"' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_CACHE_ENABLED: true,
+    GITHUB_CACHE_BACKEND: 'memory',
+    GITHUB_CACHE_NAMESPACE: 'gh_cache_graphql_invalidate',
+    GITHUB_CACHE_TTL_SEC: 120,
+    GITHUB_CACHE_STALE_TTL_SEC: 600,
+    GITHUB_CACHE_ETAG_TTL_SEC: 3600
+  });
+
+  const firstRead = context.AST.GitHub.getRepository({
+    owner: 'octocat',
+    repo: 'hello-world'
+  });
+  assert.equal(firstRead.cache.hit, false);
+
+  context.AST.GitHub.graphql({
+    query: 'mutation { updateIssue(input:{id:\"I_1\",title:\"x\"}) { issue { id } } }',
+    variables: { owner: 'octocat', repo: 'hello-world' }
+  });
+
+  const secondRead = context.AST.GitHub.getRepository({
+    owner: 'octocat',
+    repo: 'hello-world'
+  });
+
+  assert.equal(graphqlCalls, 1);
+  assert.equal(repoCalls, 2);
+  assert.equal(secondRead.cache.hit, false);
+  assert.equal(secondRead.data.id, 2);
+});

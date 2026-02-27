@@ -66,14 +66,25 @@ function astGitHubEnsureSearchQuery(request, forceQualifier = null) {
     });
   }
 
-  if (forceQualifier) {
-    const lowered = query.toLowerCase();
-    if (!lowered.includes(forceQualifier.toLowerCase())) {
-      query = `${query} ${forceQualifier}`.trim();
-    }
+  if (forceQualifier && !astGitHubSearchHasQualifierToken(query, forceQualifier)) {
+    query = `${query} ${forceQualifier}`.trim();
   }
 
   return query;
+}
+
+function astGitHubSearchHasQualifierToken(query, qualifier) {
+  const normalizedQuery = astGitHubRunNormalizeString(query, '');
+  const normalizedQualifier = astGitHubRunNormalizeString(qualifier, '').toLowerCase();
+
+  if (!normalizedQuery || !normalizedQualifier) {
+    return false;
+  }
+
+  const escapedQualifier = normalizedQualifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^|[\\s(])${escapedQualifier}(?![A-Za-z0-9_-])`, 'i');
+
+  return pattern.test(normalizedQuery);
 }
 
 function astGitHubBuildOperationQuery(request, spec, pagination) {

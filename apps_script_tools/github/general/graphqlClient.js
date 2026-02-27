@@ -191,6 +191,10 @@ function astGitHubRunGraphqlRequest(request, config) {
     astGitHubWriteCacheEntry(cacheKey, envelope, cacheConfig, ['github:graphql']);
   }
 
+  if (isMutation) {
+    astGitHubInvalidateCacheTags(astGitHubBuildGraphqlMutationTags(request), cacheConfig);
+  }
+
   return astGitHubNormalizeResponse({
     operation: 'graphql',
     operationSpec: { read: !isMutation, mutation: isMutation, paginated: false },
@@ -207,4 +211,26 @@ function astGitHubRunGraphqlRequest(request, config) {
       key: cacheKey
     }
   });
+}
+
+function astGitHubBuildGraphqlMutationTags(request) {
+  const tags = ['github:all', 'github:graphql'];
+  const variables = astGitHubCacheIsPlainObject(request && request.variables)
+    ? request.variables
+    : {};
+
+  const owner = astGitHubNormalizeString(
+    request && request.owner ? request.owner : (variables.owner || variables.repoOwner),
+    ''
+  );
+  const repo = astGitHubNormalizeString(
+    request && request.repo ? request.repo : variables.repo,
+    ''
+  );
+
+  if (owner && repo) {
+    tags.push(`github:repo:${owner}/${repo}`);
+  }
+
+  return tags;
 }
