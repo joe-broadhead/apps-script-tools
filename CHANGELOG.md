@@ -67,6 +67,7 @@
 - `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Triggers`.
 - `DataFrame` now rejects column names that collide with reserved DataFrame members (for example `sort`, `len`, `columns`, `data`, `index`) to prevent method/property shadowing on instances.
+- `GroupBy.agg(...)` and `GroupBy.apply(...)` now return deterministic empty `DataFrame` results for zero-row inputs instead of throwing via `DataFrame.concat([])`.
 - `AST.Config.fromScriptProperties(...)` now defaults implicit ScriptProperties reads to fresh snapshots (avoids stale shared memoized defaults in warm GAS web-app runtimes); optional `cacheDefaultHandle=true` re-enables implicit-handle memoization.
 - `AST.Runtime.configureFromProps(...)` now forwards explicit ScriptProperties handle and config snapshot controls (`scriptProperties`, `disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.

@@ -101,7 +101,21 @@ var GroupBy = class GroupBy {
   
         results.push(groupKeys.assign(output));
       }
-  
+
+      if (results.length === 0) {
+        const emptyColumns = {};
+        const emptyOutputColumns = this.keys.concat(outputPlans.map(plan => plan.outputName));
+
+        for (let idx = 0; idx < emptyOutputColumns.length; idx++) {
+          const columnName = emptyOutputColumns[idx];
+          if (!Object.prototype.hasOwnProperty.call(emptyColumns, columnName)) {
+            emptyColumns[columnName] = Series.fromArray([], columnName);
+          }
+        }
+
+        return new DataFrame(emptyColumns);
+      }
+
       return DataFrame.concat(results);
     }
 
@@ -117,6 +131,17 @@ var GroupBy = class GroupBy {
         
         results.push(transformedGroup);
       }
+
+      if (results.length === 0) {
+        const emptyColumns = {};
+        for (let idx = 0; idx < this.df.columns.length; idx++) {
+          const columnName = this.df.columns[idx];
+          const seriesName = this.df.data[columnName].name;
+          emptyColumns[columnName] = Series.fromArray([], seriesName);
+        }
+        return new DataFrame(emptyColumns);
+      }
+
       return DataFrame.concat(results);
     }
 
