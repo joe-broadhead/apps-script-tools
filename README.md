@@ -258,6 +258,13 @@ function demoAstStructures() {
 Project docs are built with MkDocs and published to GitHub Pages:
 
 - Site: <https://joe-broadhead.github.io/apps-script-tools/>
+- Getting started guides:
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/secrets-quickstart/>
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/cache-quickstart/>
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/jobs-quickstart/>
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/triggers-quickstart/>
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
+  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
 - Config: `mkdocs.yml`
 - Content: `docs/`
 

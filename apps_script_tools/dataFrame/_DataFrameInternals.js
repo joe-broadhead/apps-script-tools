@@ -1,3 +1,7 @@
+/**
+ * Internal DataFrame helper layer.
+ * These functions are intentionally private and support public `DataFrame` APIs.
+ */
 const __astDataFramePerfCounters = {
   fromRecords: 0,
   fromColumns: 0,
@@ -17,6 +21,12 @@ function __astResolveCoercibleDataFrameType(type) {
   return __astDataFrameCoercibleTypes.has(type) ? type : null;
 }
 
+/**
+ * Normalize surrogate-key column input into a validated string array.
+ *
+ * @param {string|string[]} columns
+ * @returns {string[]}
+ */
 function __astNormalizeSurrogateColumns(columns) {
   const normalizedColumns = Array.isArray(columns) ? [...columns] : [columns];
 
@@ -34,6 +44,13 @@ function __astNormalizeSurrogateColumns(columns) {
   return normalizedColumns;
 }
 
+/**
+ * Validate and normalize a column name used by internal expression/window helpers.
+ *
+ * @param {*} columnName
+ * @param {string} contextName
+ * @returns {string}
+ */
 function __astValidateColumnName(columnName, contextName) {
   if (typeof columnName !== 'string' || columnName.trim().length === 0) {
     throw new Error(`${contextName} must be a non-empty string`);
@@ -42,6 +59,13 @@ function __astValidateColumnName(columnName, contextName) {
   return columnName.trim();
 }
 
+/**
+ * Count top-level parameters in a function parameter source string.
+ * Handles nested delimiters and quoted/template string content.
+ *
+ * @param {string} paramsSource
+ * @returns {number}
+ */
 function __astCountTopLevelParams(paramsSource) {
   if (paramsSource.trim().length === 0) {
     return 0;
@@ -115,6 +139,12 @@ function __astCountTopLevelParams(paramsSource) {
   return count;
 }
 
+/**
+ * Determine declared parameter count for function/arrow source.
+ *
+ * @param {Function} fn
+ * @returns {number|null}
+ */
 function __astGetDeclaredFunctionParamCount(fn) {
   const source = String(fn).trim();
 
@@ -153,6 +183,12 @@ function __astGetDeclaredFunctionParamCount(fn) {
   return null;
 }
 
+/**
+ * Select `selectExpr` projector mode (`row` or `columns`) by callback signature.
+ *
+ * @param {Function} expression
+ * @returns {'row'|'columns'}
+ */
 function __astResolveSelectExprProjectorMode(expression) {
   const declaredParamCount = __astGetDeclaredFunctionParamCount(expression);
   return declaredParamCount != null && declaredParamCount >= 2
@@ -175,6 +211,13 @@ function __astNormalizeWindowColumnList(value, optionName) {
   return normalizedList;
 }
 
+/**
+ * Normalize and validate window function spec shape and referenced columns.
+ *
+ * @param {DataFrame} df
+ * @param {Object} [spec={}]
+ * @returns {Object}
+ */
 function __astNormalizeWindowSpec(df, spec = {}) {
   if (spec == null || typeof spec !== 'object' || Array.isArray(spec)) {
     throw new Error('window requires a spec object');
@@ -771,4 +814,3 @@ var AstDataFrameWindow = class AstDataFrameWindow {
     });
   }
 };
-

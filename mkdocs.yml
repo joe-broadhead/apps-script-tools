@@ -101,6 +101,12 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Cookbooks: getting-started/cookbooks.md
+    - Secrets Quick Start: getting-started/secrets-quickstart.md
+    - Cache Quick Start: getting-started/cache-quickstart.md
+    - Jobs Quick Start: getting-started/jobs-quickstart.md
+    - Triggers Quick Start: getting-started/triggers-quickstart.md
+    - Chat Quick Start: getting-started/chat-quickstart.md
+    - Telemetry Quick Start: getting-started/telemetry-quickstart.md
     - dbt Manifest Quick Start: getting-started/dbt-manifest-quickstart.md
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
