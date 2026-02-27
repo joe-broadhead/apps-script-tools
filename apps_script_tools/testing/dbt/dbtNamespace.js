@@ -1,10 +1,8 @@
 DBT_NAMESPACE_TESTS = [
   {
     description: 'AST.DBT should expose public helper methods',
-    test: () => {
-      if (!AST || !AST.DBT) {
-        throw new Error('AST.DBT is not available');
-      }
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.DBT, 'AST.DBT is not available');
 
       const requiredMethods = [
         'run',
@@ -28,23 +26,19 @@ DBT_NAMESPACE_TESTS = [
       ];
 
       requiredMethods.forEach(method => {
-        if (typeof AST.DBT[method] !== 'function') {
-          throw new Error(`AST.DBT.${method} is not available`);
-        }
+        t.equal(typeof AST.DBT[method], 'function', `AST.DBT.${method} is not available`);
       });
-    }
+    })
   },
   {
     description: 'AST.DBT.providers should include drive and storage providers',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const providers = AST.DBT.providers();
       const expected = ['drive', 'gcs', 's3', 'dbfs'];
 
       expected.forEach(provider => {
-        if (providers.indexOf(provider) === -1) {
-          throw new Error(`Expected provider '${provider}' in AST.DBT.providers()`);
-        }
+        t.ok(providers.indexOf(provider) !== -1, `Expected provider '${provider}' in AST.DBT.providers()`);
       });
-    }
+    })
   }
 ];

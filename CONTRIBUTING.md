@@ -10,7 +10,7 @@
 Before opening a PR:
 
 1. `npm run lint`
-2. `npm run test:local`
+2. `npm run test:local:coverage`
 3. `mkdocs build --strict` (for docs changes)
 
 ## Code Standards

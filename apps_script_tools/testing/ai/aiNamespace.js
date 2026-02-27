@@ -1,10 +1,8 @@
 AI_NAMESPACE_TESTS = [
   {
     description: 'AST.AI should expose public helper methods',
-    test: () => {
-      if (!AST || !AST.AI) {
-        throw new Error('AST.AI is not available');
-      }
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.AI, 'AST.AI is not available');
 
       const requiredMethods = [
         'run',
@@ -20,35 +18,28 @@ AI_NAMESPACE_TESTS = [
         'clearConfig'
       ];
       requiredMethods.forEach(method => {
-        if (typeof AST.AI[method] !== 'function') {
-          throw new Error(`AST.AI.${method} is not available`);
-        }
+        t.equal(typeof AST.AI[method], 'function', `AST.AI.${method} is not available`);
       });
 
-      if (!AST.AI.OutputRepair || typeof AST.AI.OutputRepair.continueIfTruncated !== 'function') {
-        throw new Error('AST.AI.OutputRepair.continueIfTruncated is not available');
-      }
-    }
+      t.ok(
+        AST.AI.OutputRepair && typeof AST.AI.OutputRepair.continueIfTruncated === 'function',
+        'AST.AI.OutputRepair.continueIfTruncated is not available'
+      );
+    })
   },
   {
     description: 'AST.AI.providers() should list all supported providers',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const providers = AST.AI.providers();
       const expected = ['openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'];
-
-      if (JSON.stringify(providers) !== JSON.stringify(expected)) {
-        throw new Error(`Expected providers ${JSON.stringify(expected)}, but got ${JSON.stringify(providers)}`);
-      }
-    }
+      t.deepEqual(providers, expected, `Expected providers ${JSON.stringify(expected)}, but got ${JSON.stringify(providers)}`);
+    })
   },
   {
     description: 'AST.AI.capabilities(vertex_gemini) should report imageGeneration=false',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const capabilities = AST.AI.capabilities('vertex_gemini');
-
-      if (capabilities.imageGeneration !== false) {
-        throw new Error(`Expected imageGeneration=false, but got ${JSON.stringify(capabilities)}`);
-      }
-    }
+      t.equal(capabilities.imageGeneration, false, `Expected imageGeneration=false, but got ${JSON.stringify(capabilities)}`);
+    })
   }
 ];

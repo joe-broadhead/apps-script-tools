@@ -16,11 +16,9 @@ class TestingFramework {
     for (const { description, testFn, group } of this.tests) {
       const result = { description, group, status: "fail", error: null };
       try {
-        // Handle async and sync tests
-        if (testFn.constructor.name === "AsyncFunction") {
-          await testFn();
-        } else {
-          testFn();
+        const output = testFn();
+        if (output && typeof output.then === "function") {
+          await output;
         }
         result.status = "pass";
         passed++;

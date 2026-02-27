@@ -1,10 +1,8 @@
 GITHUB_NAMESPACE_TESTS = [
   {
     description: 'AST.GitHub should expose public helper methods',
-    test: () => {
-      if (!AST || !AST.GitHub) {
-        throw new Error('AST.GitHub is not available');
-      }
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.GitHub, 'AST.GitHub is not available');
 
       const requiredMethods = [
         'run',
@@ -64,32 +62,24 @@ GITHUB_NAMESPACE_TESTS = [
       ];
 
       requiredMethods.forEach(method => {
-        if (typeof AST.GitHub[method] !== 'function') {
-          throw new Error(`AST.GitHub.${method} is not available`);
-        }
+        t.equal(typeof AST.GitHub[method], 'function', `AST.GitHub.${method} is not available`);
       });
-    }
+    })
   },
   {
     description: 'AST.GitHub.operations() should expose graphql + registry operations',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const operations = AST.GitHub.operations();
-      if (operations.indexOf('get_repository') === -1) {
-        throw new Error('Missing get_repository operation');
-      }
-      if (operations.indexOf('graphql') === -1) {
-        throw new Error('Missing graphql operation');
-      }
-    }
+      t.ok(operations.indexOf('get_repository') !== -1, 'Missing get_repository operation');
+      t.ok(operations.indexOf('graphql') !== -1, 'Missing graphql operation');
+    })
   },
   {
     description: 'AST.GitHub.providers() should return github transport',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const providers = AST.GitHub.providers();
       const expected = ['github'];
-      if (JSON.stringify(providers) !== JSON.stringify(expected)) {
-        throw new Error(`Expected providers ${JSON.stringify(expected)}, got ${JSON.stringify(providers)}`);
-      }
-    }
+      t.deepEqual(providers, expected, `Expected providers ${JSON.stringify(expected)}, got ${JSON.stringify(providers)}`);
+    })
   }
 ];

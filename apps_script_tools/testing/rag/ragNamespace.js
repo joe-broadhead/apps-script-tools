@@ -1,10 +1,8 @@
 RAG_NAMESPACE_TESTS = [
   {
     description: 'AST.RAG should expose public helper methods',
-    test: () => {
-      if (!AST || !AST.RAG) {
-        throw new Error('AST.RAG is not available');
-      }
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.RAG, 'AST.RAG is not available');
 
       const requiredMethods = [
         'configure',
@@ -27,38 +25,34 @@ RAG_NAMESPACE_TESTS = [
       ];
 
       requiredMethods.forEach(method => {
-        if (typeof AST.RAG[method] !== 'function') {
-          throw new Error(`AST.RAG.${method} is not available`);
-        }
+        t.equal(typeof AST.RAG[method], 'function', `AST.RAG.${method} is not available`);
       });
 
-      if (!AST.RAG.IndexManager || typeof AST.RAG.IndexManager.create !== 'function') {
-        throw new Error('AST.RAG.IndexManager.create is not available');
-      }
-
-      if (!AST.RAG.Citations || typeof AST.RAG.Citations.normalizeInline !== 'function') {
-        throw new Error('AST.RAG.Citations.normalizeInline is not available');
-      }
-
-      if (!AST.RAG.Fallback || typeof AST.RAG.Fallback.fromCitations !== 'function') {
-        throw new Error('AST.RAG.Fallback.fromCitations is not available');
-      }
-    }
+      t.ok(
+        AST.RAG.IndexManager && typeof AST.RAG.IndexManager.create === 'function',
+        'AST.RAG.IndexManager.create is not available'
+      );
+      t.ok(
+        AST.RAG.Citations && typeof AST.RAG.Citations.normalizeInline === 'function',
+        'AST.RAG.Citations.normalizeInline is not available'
+      );
+      t.ok(
+        AST.RAG.Fallback && typeof AST.RAG.Fallback.fromCitations === 'function',
+        'AST.RAG.Fallback.fromCitations is not available'
+      );
+    })
   },
   {
     description: 'AST.RAG.embeddingProviders() should include built-in providers',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       const providers = AST.RAG.embeddingProviders();
       const expected = ['gemini', 'openai', 'openrouter', 'perplexity', 'vertex_gemini'];
-
-      if (JSON.stringify(providers) !== JSON.stringify(expected)) {
-        throw new Error(`Expected providers ${JSON.stringify(expected)}, got ${JSON.stringify(providers)}`);
-      }
-    }
+      t.deepEqual(providers, expected, `Expected providers ${JSON.stringify(expected)}, got ${JSON.stringify(providers)}`);
+    })
   },
   {
     description: 'AST.RAG should allow custom embedding provider registration',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       AST.RAG.registerEmbeddingProvider('test_embed_provider', {
         capabilities: () => ({
           batch: true,
@@ -77,9 +71,7 @@ RAG_NAMESPACE_TESTS = [
       });
 
       const providers = AST.RAG.embeddingProviders();
-      if (providers.indexOf('test_embed_provider') === -1) {
-        throw new Error('Custom provider was not registered');
-      }
+      t.ok(providers.indexOf('test_embed_provider') !== -1, 'Custom provider was not registered');
 
       const out = astRagEmbedTexts({
         provider: 'test_embed_provider',
@@ -88,11 +80,9 @@ RAG_NAMESPACE_TESTS = [
         auth: {}
       });
 
-      if (!out || !Array.isArray(out.vectors) || out.vectors.length !== 2) {
-        throw new Error('Custom embedding provider did not return expected vectors');
-      }
+      t.ok(out && Array.isArray(out.vectors) && out.vectors.length === 2, 'Custom embedding provider did not return expected vectors');
 
       AST.RAG.unregisterEmbeddingProvider('test_embed_provider');
-    }
+    })
   }
 ];
