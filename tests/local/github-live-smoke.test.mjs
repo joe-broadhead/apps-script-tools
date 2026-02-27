@@ -102,3 +102,32 @@ test('runGitHubLiveSmokeForRepo uses script property token and repository target
   assert.equal(calls.getRepository[0].repo, 'hello-world');
   assert.equal(calls.getRepository[0].auth.token, 'ghp_scriptTokenValue1234567890');
 });
+
+test('seedGitHubLiveSmokeToken stores token in script properties', () => {
+  const writes = [];
+  const context = createContextForLiveSmoke({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        setProperty: (key, value) => {
+          writes.push({ key, value });
+        },
+        getProperty: () => ''
+      })
+    }
+  });
+
+  const response = context.seedGitHubLiveSmokeToken('ghp_seedTokenValue1234567890');
+  assert.equal(response.status, 'ok');
+  assert.equal(response.key, 'GITHUB_TOKEN');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].key, 'GITHUB_TOKEN');
+  assert.equal(writes[0].value, 'ghp_seedTokenValue1234567890');
+});
+
+test('seedGitHubLiveSmokeToken rejects empty token', () => {
+  const context = createContextForLiveSmoke();
+  assert.throws(
+    () => context.seedGitHubLiveSmokeToken(''),
+    /requires a non-empty token/
+  );
+});

@@ -97,3 +97,33 @@ function runGitHubLiveSmokeForRepo(owner, repo) {
     repo: astNormalizeGitHubLiveSmokeArg_(repo)
   });
 }
+
+function seedGitHubLiveSmokeToken(token) {
+  const normalized = astNormalizeGitHubLiveSmokeArg_(token);
+  if (!normalized) {
+    throw new Error("seedGitHubLiveSmokeToken requires a non-empty token argument");
+  }
+
+  if (
+    typeof PropertiesService === 'undefined' ||
+    !PropertiesService ||
+    typeof PropertiesService.getScriptProperties !== 'function'
+  ) {
+    throw new Error('seedGitHubLiveSmokeToken requires PropertiesService.getScriptProperties');
+  }
+
+  const scriptProperties = PropertiesService.getScriptProperties();
+  if (!scriptProperties || typeof scriptProperties.setProperty !== 'function') {
+    throw new Error('seedGitHubLiveSmokeToken could not access script property store');
+  }
+
+  scriptProperties.setProperty('GITHUB_TOKEN', normalized);
+
+  const response = {
+    status: 'ok',
+    key: 'GITHUB_TOKEN',
+    updatedAt: new Date().toISOString()
+  };
+  Logger.log(JSON.stringify(response, null, 2));
+  return response;
+}
