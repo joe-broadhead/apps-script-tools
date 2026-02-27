@@ -73,3 +73,18 @@ test('GroupBy.agg validates reducer names even when input is empty', () => {
     /Invalid aggregation function 'notAFunction' for column 'value'/
   );
 });
+
+test('GroupBy.apply validates callback type even when input is empty', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromColumns({
+    grp: [],
+    value: []
+  });
+
+  assert.throws(
+    () => {
+      df.groupBy(['grp']).apply(123);
+    },
+    /The applied function must be a function/
+  );
+});

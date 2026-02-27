@@ -135,6 +135,10 @@ var GroupBy = class GroupBy {
     }
 
     apply(func) {
+      if (typeof func !== 'function') {
+        throw new Error('The applied function must be a function');
+      }
+
       const results = [];
       
       for (const group of Object.values(this.groups)) {
