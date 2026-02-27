@@ -15,6 +15,12 @@ npm run lint
 npm run test:local
 ```
 
+Local coverage report (uses Node test coverage, writes artifacts to `coverage/`):
+
+```bash
+npm run test:local:coverage
+```
+
 ## Local performance checks
 
 Report run:
@@ -88,6 +94,17 @@ Optional live-provider smoke workflow:
 - `.github/workflows/integration-ai-live.yml` (manual dispatch only)
 - executes `runAiLiveSmoke(provider, prompt, model)` against configured provider credentials (runtime config or script properties)
 
+## GAS assertion helper
+
+Namespace contract suites can use `astTestRunWithAssertions(...)` from `/apps_script_tools/testing/TestAssertions.js` to enforce at least one assertion per test:
+
+```javascript
+test: () => astTestRunWithAssertions(t => {
+  t.ok(AST && AST.AI, 'AST.AI is not available');
+  t.equal(typeof AST.AI.run, 'function', 'AST.AI.run is not available');
+})
+```
+
 ## Production backend posture
 
 For app workloads with concurrent users:
@@ -119,6 +136,8 @@ Pull requests should pass:
 
 - `CI` workflow checks:
   - `lint-and-local-tests`
+    - includes `npm run test:local:coverage`
+    - uploads `local-coverage` artifact with raw output + JSON/Markdown summary
   - `perf-gate` (`npm run test:perf:check`)
   - `docs-build`
   - `gas-functional` (Apps Script runtime functional suite for internal PRs, when clasp secrets are available)

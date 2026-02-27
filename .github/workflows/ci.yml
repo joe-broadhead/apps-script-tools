@@ -29,10 +29,28 @@ jobs:
             npm install --ignore-scripts --no-audit --no-fund
           fi
 
-      - name: Lint and Local Tests
+      - name: Lint
         run: |
           npm run lint
-          npm run test:local
+
+      - name: Local tests with coverage report
+        run: npm run test:local:coverage
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/local-coverage-summary.md ]; then
+            cat coverage/local-coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage summary file missing." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload local coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-coverage
+          path: coverage/
 
   perf-gate:
     runs-on: ubuntu-latest

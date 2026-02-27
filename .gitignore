@@ -17,3 +17,4 @@ client_secret.json
 node_modules/
 site/
 benchmarks/latest/
+coverage/

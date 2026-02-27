@@ -1,10 +1,8 @@
 CACHE_NAMESPACE_TESTS = [
   {
     description: 'AST.Cache should expose public helper methods',
-    test: () => {
-      if (!AST || !AST.Cache) {
-        throw new Error('AST.Cache is not available');
-      }
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.Cache, 'AST.Cache is not available');
 
       const requiredMethods = [
         'get',
@@ -21,15 +19,13 @@ CACHE_NAMESPACE_TESTS = [
       ];
 
       requiredMethods.forEach(method => {
-        if (typeof AST.Cache[method] !== 'function') {
-          throw new Error(`AST.Cache.${method} is not available`);
-        }
+        t.equal(typeof AST.Cache[method], 'function', `AST.Cache.${method} is not available`);
       });
-    }
+    })
   },
   {
     description: 'AST.Cache.set/get/delete should work for memory backend',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       AST.Cache.clearConfig();
       AST.Cache.configure({
         CACHE_BACKEND: 'memory',
@@ -39,24 +35,18 @@ CACHE_NAMESPACE_TESTS = [
 
       AST.Cache.set('example:key', { ok: true }, { tags: ['gas', 'cache'] });
       const cached = AST.Cache.get('example:key');
-      if (!cached || cached.ok !== true) {
-        throw new Error(`Expected cached object {ok:true}, got ${JSON.stringify(cached)}`);
-      }
+      t.ok(cached && cached.ok === true, `Expected cached object {ok:true}, got ${JSON.stringify(cached)}`);
 
       const deleted = AST.Cache.delete('example:key');
-      if (deleted !== true) {
-        throw new Error('Expected delete to return true');
-      }
+      t.equal(deleted, true, 'Expected delete to return true');
 
       const afterDelete = AST.Cache.get('example:key');
-      if (afterDelete !== null) {
-        throw new Error(`Expected null after delete, got ${JSON.stringify(afterDelete)}`);
-      }
-    }
+      t.equal(afterDelete, null, `Expected null after delete, got ${JSON.stringify(afterDelete)}`);
+    })
   },
   {
     description: 'AST.Cache should enforce deterministic ttlSec expiration',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       AST.Cache.clearConfig();
       AST.Cache.configure({
         CACHE_BACKEND: 'memory',
@@ -67,14 +57,12 @@ CACHE_NAMESPACE_TESTS = [
       AST.Cache.set('ttl:key', { value: 1 }, { ttlSec: 0 });
       const expired = AST.Cache.get('ttl:key');
 
-      if (expired !== null) {
-        throw new Error(`Expected null for ttlSec=0 expired entry, got ${JSON.stringify(expired)}`);
-      }
-    }
+      t.equal(expired, null, `Expected null for ttlSec=0 expired entry, got ${JSON.stringify(expired)}`);
+    })
   },
   {
     description: 'AST.Cache.invalidateByTag should remove tagged entries',
-    test: () => {
+    test: () => astTestRunWithAssertions(t => {
       AST.Cache.clearConfig();
       AST.Cache.configure({
         CACHE_BACKEND: 'memory',
@@ -86,22 +74,14 @@ CACHE_NAMESPACE_TESTS = [
       AST.Cache.set('tag:c', { id: 'c' }, { tags: ['other'] });
 
       const removed = AST.Cache.invalidateByTag('rag');
-      if (removed !== 2) {
-        throw new Error(`Expected invalidation count 2, got ${removed}`);
-      }
+      t.equal(removed, 2, `Expected invalidation count 2, got ${removed}`);
 
-      if (AST.Cache.get('tag:a') !== null) {
-        throw new Error('Expected tag:a to be removed');
-      }
+      t.equal(AST.Cache.get('tag:a'), null, 'Expected tag:a to be removed');
 
-      if (AST.Cache.get('tag:b') !== null) {
-        throw new Error('Expected tag:b to be removed');
-      }
+      t.equal(AST.Cache.get('tag:b'), null, 'Expected tag:b to be removed');
 
       const remaining = AST.Cache.get('tag:c');
-      if (!remaining || remaining.id !== 'c') {
-        throw new Error(`Expected tag:c to remain, got ${JSON.stringify(remaining)}`);
-      }
-    }
+      t.ok(remaining && remaining.id === 'c', `Expected tag:c to remain, got ${JSON.stringify(remaining)}`);
+    })
   }
 ];

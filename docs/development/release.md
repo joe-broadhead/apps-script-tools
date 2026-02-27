@@ -16,7 +16,7 @@
 
 ```bash
 npm run lint
-npm run test:local
+npm run test:local:coverage
 npm run test:perf:check
 mkdocs build --strict
 ```
