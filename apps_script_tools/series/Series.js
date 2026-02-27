@@ -59,7 +59,7 @@ var Series = class Series {
     this.str = new StringMethods(this);
 
     this.useUTC = useUTC;
-    this.dt = new DateMethods(this, useUTC);
+    this.dt = new DateMethods(this);
   }
 
   /**
