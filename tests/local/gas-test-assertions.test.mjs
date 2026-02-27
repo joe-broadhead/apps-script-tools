@@ -57,6 +57,42 @@ test('astTestRunWithAssertions deepEqual treats NaN as equal', () => {
   });
 });
 
+test('astTestRunWithAssertions deepEqual treats Set values as order-insensitive', () => {
+  const context = loadAssertionContext();
+
+  context.astTestRunWithAssertions(t => {
+    t.deepEqual(
+      new Set([3, 1, 2]),
+      new Set([1, 2, 3])
+    );
+  });
+});
+
+test('astTestRunWithAssertions deepEqual treats Map entries as order-insensitive', () => {
+  const context = loadAssertionContext();
+
+  context.astTestRunWithAssertions(t => {
+    t.deepEqual(
+      new Map([['a', 1], ['b', 2]]),
+      new Map([['b', 2], ['a', 1]])
+    );
+  });
+});
+
+test('astTestRunWithAssertions deepEqual compares DataView bytes', () => {
+  const context = loadAssertionContext();
+
+  const left = new DataView(new Uint8Array([1, 2, 3]).buffer);
+  const right = new DataView(new Uint8Array([1, 2, 4]).buffer);
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.deepEqual(left, right);
+    }),
+    /Expected/
+  );
+});
+
 test('astTestRunWithAssertions supports async test callbacks', async () => {
   const context = loadAssertionContext();
 

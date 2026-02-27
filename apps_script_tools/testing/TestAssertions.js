@@ -95,8 +95,21 @@ function astTestDeepEqual_(left, right, seenLeft, seenRight) {
       }
       const leftValues = Array.from(left.values());
       const rightValues = Array.from(right.values());
-      for (let index = 0; index < leftValues.length; index += 1) {
-        if (!astTestDeepEqual_(leftValues[index], rightValues[index], seenLeft, seenRight)) {
+      const matchedRight = rightValues.map(() => false);
+
+      for (let leftIndex = 0; leftIndex < leftValues.length; leftIndex += 1) {
+        let matched = false;
+        for (let rightIndex = 0; rightIndex < rightValues.length; rightIndex += 1) {
+          if (matchedRight[rightIndex]) {
+            continue;
+          }
+          if (astTestDeepEqual_(leftValues[leftIndex], rightValues[rightIndex], seenLeft, seenRight)) {
+            matchedRight[rightIndex] = true;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
           return false;
         }
       }
@@ -109,13 +122,28 @@ function astTestDeepEqual_(left, right, seenLeft, seenRight) {
       }
       const leftEntries = Array.from(left.entries());
       const rightEntries = Array.from(right.entries());
-      for (let index = 0; index < leftEntries.length; index += 1) {
-        const leftEntry = leftEntries[index];
-        const rightEntry = rightEntries[index];
-        if (
-          !astTestDeepEqual_(leftEntry[0], rightEntry[0], seenLeft, seenRight)
-          || !astTestDeepEqual_(leftEntry[1], rightEntry[1], seenLeft, seenRight)
-        ) {
+      const matchedRight = rightEntries.map(() => false);
+
+      for (let leftIndex = 0; leftIndex < leftEntries.length; leftIndex += 1) {
+        const leftEntry = leftEntries[leftIndex];
+        let matched = false;
+
+        for (let rightIndex = 0; rightIndex < rightEntries.length; rightIndex += 1) {
+          if (matchedRight[rightIndex]) {
+            continue;
+          }
+          const rightEntry = rightEntries[rightIndex];
+          if (
+            astTestDeepEqual_(leftEntry[0], rightEntry[0], seenLeft, seenRight)
+            && astTestDeepEqual_(leftEntry[1], rightEntry[1], seenLeft, seenRight)
+          ) {
+            matchedRight[rightIndex] = true;
+            matched = true;
+            break;
+          }
+        }
+
+        if (!matched) {
           return false;
         }
       }
@@ -123,7 +151,23 @@ function astTestDeepEqual_(left, right, seenLeft, seenRight) {
     }
 
     if (ArrayBuffer.isView(left)) {
-      if (left.constructor !== right.constructor || left.length !== right.length) {
+      if (left.constructor !== right.constructor) {
+        return false;
+      }
+
+      if (leftTag === '[object DataView]') {
+        if (left.byteLength !== right.byteLength) {
+          return false;
+        }
+        for (let index = 0; index < left.byteLength; index += 1) {
+          if (left.getUint8(index) !== right.getUint8(index)) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      if (left.length !== right.length) {
         return false;
       }
       for (let index = 0; index < left.length; index += 1) {
