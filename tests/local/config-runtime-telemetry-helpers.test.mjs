@@ -24,6 +24,44 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   assert.equal(typeof context.AST.TelemetryHelpers.startSpanSafe, 'function');
   assert.equal(context.AST.Runtime.modules().includes('Secrets'), true);
   assert.equal(context.AST.Runtime.modules().includes('Triggers'), true);
+  assert.equal(context.AST.Runtime.modules().includes('GitHub'), true);
+});
+
+test('AST.Runtime.configureFromProps can target GitHub module', () => {
+  let configureCall = null;
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          GITHUB_TOKEN: 'token-123',
+          GITHUB_OWNER: 'octo'
+        })
+      })
+    },
+    AST_GITHUB: {
+      configure: (config, options) => {
+        configureCall = { config, options };
+        return {};
+      },
+      clearConfig: () => ({})
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/runtime/Runtime.js',
+    'apps_script_tools/AST.js'
+  ]);
+
+  const summary = context.AST.Runtime.configureFromProps({
+    modules: ['GitHub']
+  });
+
+  assert.equal(summary.configuredModules.includes('GitHub'), true);
+  assert.equal(summary.failedModules.length, 0);
+  assert.equal(summary.skippedModules.length, 0);
+  assert.equal(configureCall.config.GITHUB_TOKEN, 'token-123');
+  assert.equal(configureCall.config.GITHUB_OWNER, 'octo');
+  assert.equal(configureCall.options.merge, true);
 });
 
 test('AST.Config.fromScriptProperties supports key/prefix normalization', () => {

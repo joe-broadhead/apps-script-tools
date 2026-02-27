@@ -458,7 +458,7 @@ ASTX.GitHub.clearConfig()
 - Storage `copy/move` require same-provider source and destination in this release.
 - Telemetry records redact secrets by default and can emit to `logger`, Drive partitioned NDJSON batches (`drive_json`), or storage NDJSON batches (`storage_json`).
 - `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
-- `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `Cache`, `Storage`, `Telemetry`, `Jobs`).
+- `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`).
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.

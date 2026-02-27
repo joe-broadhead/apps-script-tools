@@ -399,7 +399,7 @@ Primary methods:
 
 High-signal behavior:
 
-- default target modules: `AI`, `RAG`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`.
+- default target modules: `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`.
 - configuration merge policy is controlled by `options.merge` (default `true`).
 - supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
 
