@@ -49,9 +49,30 @@ DATAFRAME_CONCAT_TESTS = [
                 DataFrame.concat([df1, df2]);
                 throw new Error('Expected concat to reject mismatched columns');
             } catch (error) {
-                if (!String(error.message).includes('identical columns')) {
-                    throw new Error(`Expected identical-columns error, got: ${error.message}`);
+                if (!String(error.message).includes('identical column names')) {
+                    throw new Error(`Expected identical-column-names error, got: ${error.message}`);
                 }
+            }
+        }
+    },
+
+    {
+        description: 'DataFrame.concat() should align DataFrames with matching columns in different order',
+        test: () => {
+            const df1 = DataFrame.fromRecords([
+                { id: 1, name: 'Alice' }
+            ]);
+            const df2 = DataFrame.fromRecords([
+                { name: 'Bob', id: 2 }
+            ]);
+
+            const result = DataFrame.concat([df1, df2]);
+            if (result.columns[0] !== 'id' || result.columns[1] !== 'name') {
+                throw new Error(`Expected result columns ['id','name'], got ${JSON.stringify(result.columns)}`);
+            }
+
+            if (result.at(1).id !== 2 || result.at(1).name !== 'Bob') {
+                throw new Error(`Expected second row to align values by column name, got ${JSON.stringify(result.at(1))}`);
             }
         }
     },
@@ -209,8 +230,8 @@ DATAFRAME_CONCAT_TESTS = [
                 DataFrame.concat([df1, df2]);
                 throw new Error('Expected concat to reject completely different columns');
             } catch (error) {
-                if (!String(error.message).includes('identical columns')) {
-                    throw new Error(`Expected identical-columns error, got: ${error.message}`);
+                if (!String(error.message).includes('identical column names')) {
+                    throw new Error(`Expected identical-column-names error, got: ${error.message}`);
                 }
             }
         }

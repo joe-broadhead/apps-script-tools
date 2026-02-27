@@ -21,8 +21,20 @@ test('DataFrame.concat rejects mismatched schemas when column names differ', () 
     () => {
       context.DataFrame.concat([left, right]);
     },
-    /identical columns/
+    /identical column names/
   );
+});
+
+test('DataFrame.concat aligns same-name columns even when order differs', () => {
+  const context = createDataFrameContext();
+  const left = context.DataFrame.fromRecords([{ id: 1, name: 'Alice' }]);
+  const right = context.DataFrame.fromRecords([{ name: 'Bob', id: 2 }]);
+
+  const result = context.DataFrame.concat([left, right]);
+
+  assert.equal(JSON.stringify(result.columns), JSON.stringify(['id', 'name']));
+  assert.equal(result.at(1).id, 2);
+  assert.equal(result.at(1).name, 'Bob');
 });
 
 test('DataFrame.rename evaluates explicit mappings even when destination is falsy', () => {

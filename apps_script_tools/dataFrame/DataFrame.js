@@ -191,21 +191,27 @@ var DataFrame = class DataFrame {
     }
 
     const baseColumns = dataFrames[0].columns;
+    const baseColumnSet = new Set(baseColumns);
+    const alignedFrames = [dataFrames[0]];
 
     for (let idx = 1; idx < dataFrames.length; idx++) {
-      const candidateColumns = dataFrames[idx].columns;
+      const candidate = dataFrames[idx];
+      const candidateColumns = candidate.columns;
       if (candidateColumns.length !== baseColumns.length) {
-        throw new Error('All DataFrames must have identical columns in the same order');
+        throw new Error('All DataFrames must have identical column names');
       }
 
-      for (let columnIdx = 0; columnIdx < baseColumns.length; columnIdx++) {
-        if (candidateColumns[columnIdx] !== baseColumns[columnIdx]) {
-          throw new Error('All DataFrames must have identical columns in the same order');
+      for (let columnIdx = 0; columnIdx < candidateColumns.length; columnIdx++) {
+        if (!baseColumnSet.has(candidateColumns[columnIdx])) {
+          throw new Error('All DataFrames must have identical column names');
         }
       }
+
+      const inSameOrder = candidateColumns.every((columnName, columnIdx) => columnName === baseColumns[columnIdx]);
+      alignedFrames.push(inSameOrder ? candidate : candidate.select(baseColumns));
     }
 
-    return dataFrames.reduce((acc, df) => acc.union(df, distinct));
+    return alignedFrames.reduce((acc, df) => acc.union(df, distinct));
   }
 
   static generateSurrogateKey(dataframe, columns, delimiter = '-') {
