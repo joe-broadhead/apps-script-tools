@@ -37,6 +37,8 @@ ASTX.Utils
 
 ## `DataFrame` essentials
 
+Note: column names cannot collide with reserved `DataFrame` members (for example `sort`, `len`, `columns`, `data`, `index`).
+
 ```javascript
 ASTX.DataFrame.fromRecords(records)
 ASTX.DataFrame.fromColumns(columns, options)
