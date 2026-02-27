@@ -6,36 +6,132 @@ function astGitHubGraphqlNormalizeDocument(query) {
   return source.replace(/^\s*(#.*\n)*/g, '').trim();
 }
 
+function astGitHubGraphqlCollectOperations(query) {
+  const source = astGitHubGraphqlNormalizeDocument(query);
+  if (!source) {
+    return [];
+  }
+
+  const operations = [];
+  const length = source.length;
+  let depth = 0;
+  let idx = 0;
+
+  function isIdentifierStart(char) {
+    return /[A-Za-z_]/.test(char);
+  }
+
+  function isIdentifierPart(char) {
+    return /[0-9A-Za-z_]/.test(char);
+  }
+
+  while (idx < length) {
+    const char = source[idx];
+
+    if (char === '#') {
+      while (idx < length && source[idx] !== '\n') {
+        idx += 1;
+      }
+      continue;
+    }
+
+    if (char === '{') {
+      depth += 1;
+      idx += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth = Math.max(0, depth - 1);
+      idx += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      const isBlockString = source.slice(idx, idx + 3) === '"""';
+      idx += isBlockString ? 3 : 1;
+
+      while (idx < length) {
+        if (isBlockString && source.slice(idx, idx + 3) === '"""') {
+          idx += 3;
+          break;
+        }
+
+        const inner = source[idx];
+        if (!isBlockString && inner === '\\') {
+          idx += 2;
+          continue;
+        }
+        if (!isBlockString && inner === '"') {
+          idx += 1;
+          break;
+        }
+        idx += 1;
+      }
+      continue;
+    }
+
+    if (depth === 0 && isIdentifierStart(char)) {
+      const tokenStart = idx;
+      idx += 1;
+      while (idx < length && isIdentifierPart(source[idx])) {
+        idx += 1;
+      }
+      const token = source.slice(tokenStart, idx).toLowerCase();
+      if (token === 'query' || token === 'mutation' || token === 'subscription') {
+        while (idx < length && /\s/.test(source[idx])) {
+          idx += 1;
+        }
+
+        let name = null;
+        if (idx < length && isIdentifierStart(source[idx])) {
+          const nameStart = idx;
+          idx += 1;
+          while (idx < length && isIdentifierPart(source[idx])) {
+            idx += 1;
+          }
+          name = source.slice(nameStart, idx);
+        }
+
+        operations.push({
+          type: token,
+          name
+        });
+      }
+      continue;
+    }
+
+    idx += 1;
+  }
+
+  return operations;
+}
+
 function astGitHubGraphqlDetectOperationType(query, operationName = null) {
   const cleaned = astGitHubGraphqlNormalizeDocument(query);
   if (!cleaned) {
     return null;
   }
 
+  const operations = astGitHubGraphqlCollectOperations(cleaned);
   const normalizedOperationName = astGitHubNormalizeString(operationName, '');
   if (normalizedOperationName) {
-    const pattern = /\b(query|mutation|subscription)\b\s+([_A-Za-z][_0-9A-Za-z]*)/gi;
-    let match = pattern.exec(cleaned);
-    while (match) {
-      const type = astGitHubNormalizeString(match[1], '').toLowerCase();
-      const name = astGitHubNormalizeString(match[2], '');
-      if (name === normalizedOperationName) {
-        return type || null;
+    for (let idx = 0; idx < operations.length; idx += 1) {
+      const operation = operations[idx];
+      if (astGitHubNormalizeString(operation.name, '') === normalizedOperationName) {
+        return operation.type || null;
       }
-      match = pattern.exec(cleaned);
     }
   }
 
-  const normalized = cleaned.toLowerCase();
-  if (normalized.startsWith('mutation')) {
-    return 'mutation';
+  if (operations.length > 0) {
+    return operations[0].type || null;
   }
-  if (normalized.startsWith('query')) {
+
+  if (cleaned.startsWith('{')) {
     return 'query';
   }
-  if (normalized.startsWith('subscription')) {
-    return 'subscription';
-  }
+
   return null;
 }
 

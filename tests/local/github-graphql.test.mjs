@@ -94,3 +94,32 @@ test('graphql dryRun detects mutation selected by operationName in multi-operati
   assert.equal(response.dryRun.enabled, true);
   assert.equal(response.dryRun.plannedRequest.operation, 'graphql');
 });
+
+test('graphql dryRun detects mutation when fragment definitions precede operation', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not call fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.graphql({
+    query: `
+      fragment IssueFields on Issue { id title }
+      mutation UpdateIssue { updateIssue(input: { id: "I_1", title: "y" }) { issue { ...IssueFields } } }
+    `,
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.dryRun.enabled, true);
+  assert.equal(response.dryRun.plannedRequest.operation, 'graphql');
+});
