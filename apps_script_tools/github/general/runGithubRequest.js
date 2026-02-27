@@ -431,6 +431,9 @@ function astGitHubExecuteStandardOperation(request, config, spec, overrides = {}
     request,
     config,
     httpResult,
+    responseShape: {
+      accept: requestHeaders.Accept || null
+    },
     cacheMeta: {
       enabled: useCache,
       hit: false,
@@ -626,18 +629,23 @@ function astGitHubExecutePushFiles(request, config) {
   const results = [];
   for (let idx = 0; idx < normalizedFiles.length; idx += 1) {
     const file = normalizedFiles[idx];
+    const subBody = {
+      message: file.message,
+      content: file.content
+    };
+    if (file.branch) {
+      subBody.branch = file.branch;
+    }
+    if (file.sha) {
+      subBody.sha = file.sha;
+    }
 
     const subRequest = {
       operation: 'create_or_update_file',
       owner: request.owner,
       repo: request.repo,
       path: file.path,
-      body: {
-        message: file.message,
-        content: file.content,
-        branch: file.branch,
-        sha: file.sha
-      },
+      body: subBody,
       options: Object.assign({}, request.options, { dryRun: false })
     };
 

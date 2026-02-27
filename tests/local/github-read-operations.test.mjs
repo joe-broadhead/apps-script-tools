@@ -139,6 +139,35 @@ test('getPullRequestDiff sends diff accept header', () => {
   assert.match(response.data, /diff --git/);
 });
 
+test('getPullRequestDiff respects accept override and returns JSON payload', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { id: 22, title: 'PR' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.getPullRequestDiff({
+    owner: 'octocat',
+    repo: 'hello-world',
+    pullNumber: 22,
+    providerOptions: {
+      accept: 'application/vnd.github+json'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.headers.Accept, 'application/vnd.github+json');
+  assert.equal(response.data.id, 22);
+  assert.equal(typeof response.data, 'object');
+});
+
 test('searchPullRequests appends is:pr qualifier when missing', () => {
   const calls = [];
   const context = createGasContext({

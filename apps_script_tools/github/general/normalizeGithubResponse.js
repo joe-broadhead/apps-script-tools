@@ -10,12 +10,17 @@ function astGitHubNormalizeStringValue(value, fallback = null) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-function astGitHubExtractDataBody(operationSpec, httpResult) {
+function astGitHubExtractDataBody(operationSpec, httpResult, responseShape = {}) {
   if (!httpResult) {
     return null;
   }
 
-  const preferText = operationSpec && operationSpec.accept === 'application/vnd.github.v3.diff';
+  const shape = astGitHubNormalizeIsPlainObject(responseShape) ? responseShape : {};
+  const effectiveAccept = astGitHubNormalizeStringValue(
+    shape.accept,
+    operationSpec && operationSpec.accept ? operationSpec.accept : null
+  );
+  const preferText = effectiveAccept === 'application/vnd.github.v3.diff';
   if (preferText) {
     return astGitHubNormalizeStringValue(httpResult.bodyText, '');
   }
@@ -69,13 +74,14 @@ function astGitHubNormalizeResponse(args = {}) {
   const cached = astGitHubNormalizeIsPlainObject(args.cached) ? args.cached : null;
   const cacheMeta = astGitHubNormalizeIsPlainObject(args.cacheMeta) ? args.cacheMeta : {};
   const dryRunPlan = astGitHubNormalizeIsPlainObject(args.dryRunPlan) ? args.dryRunPlan : null;
+  const responseShape = astGitHubNormalizeIsPlainObject(args.responseShape) ? args.responseShape : {};
 
   const headers = httpResult && astGitHubNormalizeIsPlainObject(httpResult.headers)
     ? httpResult.headers
     : (cached && astGitHubNormalizeIsPlainObject(cached.headers) ? cached.headers : {});
 
   const data = httpResult
-    ? astGitHubExtractDataBody(operationSpec, httpResult)
+    ? astGitHubExtractDataBody(operationSpec, httpResult, responseShape)
     : (cached && typeof cached.data !== 'undefined' ? cached.data : null);
 
   const paginationInput = {

@@ -127,6 +127,43 @@ test('pushFiles uses default message and executes file updates', () => {
   assert.equal(response.data.results.length, 2);
 });
 
+test('pushFiles omits null optional fields in create_or_update_file payload', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, {
+          content: { sha: 'new-sha' },
+          commit: { sha: 'commit-sha' }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      files: [
+        {
+          path: 'README.md',
+          content: 'IyBIZWxsbwo=',
+          message: 'update readme'
+        }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  const payload = parsePayload(calls[0].options);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'branch'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'sha'), false);
+});
+
 test('createBranch resolves default branch when sha not provided', () => {
   const calls = [];
   const context = createGasContext({
