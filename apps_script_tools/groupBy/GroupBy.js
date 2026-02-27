@@ -86,6 +86,21 @@ var GroupBy = class GroupBy {
         });
       }
 
+      for (let idx = 0; idx < outputPlans.length; idx++) {
+        const plan = outputPlans[idx];
+
+        if (!this.df.columns.includes(plan.colName)) {
+          throw new Error(`Column '${plan.colName}' not found in DataFrame`);
+        }
+
+        if (!plan.isCustomFunc) {
+          const series = this.df[plan.colName];
+          if (!series || typeof series[plan.aggFunc] !== 'function') {
+            throw new Error(`Invalid aggregation function '${plan.aggFunc}' for column '${plan.colName}'`);
+          }
+        }
+      }
+
       const results = [];
   
       for (const group of Object.values(this.groups)) {
