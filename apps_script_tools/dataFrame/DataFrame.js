@@ -662,7 +662,15 @@ var DataFrame = class DataFrame {
 
   pivot(indexCol, pivotCol, aggMapping = {}) {
     const records = this.toRecords();
-    const buildGroupKey = (indexValue, pivotValue) => astBuildValuesKey([indexValue, pivotValue]);
+    const buildGroupKeyPart = value => {
+      if (value === undefined) {
+        return { kind: 'undefined' };
+      }
+      return { kind: 'value', key: astStableKey(value) };
+    };
+    const buildGroupKey = (indexValue, pivotValue) => {
+      return JSON.stringify([buildGroupKeyPart(indexValue), buildGroupKeyPart(pivotValue)]);
+    };
 
     const groupedData = new Map();
     const indexValues = new Set();

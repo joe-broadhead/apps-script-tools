@@ -71,3 +71,27 @@ test('DataFrame.pivot uses collision-safe grouping keys', () => {
   assert.equal(secondRow.c_metric, null);
   assert.equal(secondRow['b||c_metric'], 2);
 });
+
+test('DataFrame.pivot keeps null and undefined groups distinct', () => {
+  const context = createDataFrameContext();
+  const df = context.DataFrame.fromColumns({
+    idx: [null, undefined],
+    piv: ['x', 'x'],
+    metric: [10, 20]
+  });
+
+  const pivoted = df.pivot('idx', 'piv', {
+    metric: values => values.reduce((sum, value) => sum + value, 0)
+  });
+
+  assert.equal(pivoted.len(), 2);
+
+  const rows = [pivoted.at(0), pivoted.at(1)];
+  const nullRow = rows.find(row => row.idx === null);
+  const undefinedRow = rows.find(row => row.idx === undefined);
+
+  assert.ok(nullRow);
+  assert.ok(undefinedRow);
+  assert.equal(nullRow.x_metric, 10);
+  assert.equal(undefinedRow.x_metric, 20);
+});
