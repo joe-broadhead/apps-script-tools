@@ -7,6 +7,7 @@ export function loadDbtScripts(context, { includeAst = false, includeStorage = t
   }
 
   const paths = [
+    ...listScriptFiles('apps_script_tools/config/general'),
     'apps_script_tools/config/Config.js',
     'apps_script_tools/dbt/schema/manifest_v12_schema.js'
   ];

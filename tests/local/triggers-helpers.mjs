@@ -2,6 +2,7 @@ import { listScriptFiles, loadScripts } from './helpers.mjs';
 
 export function loadTriggersScripts(context, { includeAst = false, includeJobs = false } = {}) {
   const paths = [
+    ...listScriptFiles('apps_script_tools/config/general'),
     'apps_script_tools/config/Config.js'
   ];
 

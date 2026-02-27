@@ -6,11 +6,20 @@ import { loadAiScripts } from './ai-helpers.mjs';
 import { loadTelemetryScripts } from './telemetry-helpers.mjs';
 import { loadSecretsScripts } from './secrets-helpers.mjs';
 
+const CONFIG_SCRIPTS = [
+  ...listScriptFiles('apps_script_tools/config/general'),
+  'apps_script_tools/config/Config.js'
+];
+const RUNTIME_SCRIPTS = [
+  ...listScriptFiles('apps_script_tools/runtime/general'),
+  'apps_script_tools/runtime/Runtime.js'
+];
+
 test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () => {
   const context = createGasContext();
   loadScripts(context, [
-    'apps_script_tools/config/Config.js',
-    'apps_script_tools/runtime/Runtime.js',
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
     ...listScriptFiles('apps_script_tools/telemetry/general'),
     'apps_script_tools/telemetry/Telemetry.js',
     'apps_script_tools/telemetry/TelemetryHelpers.js',
@@ -48,7 +57,8 @@ test('AST.Runtime.configureFromProps can target GitHub module', () => {
   });
 
   loadScripts(context, [
-    'apps_script_tools/runtime/Runtime.js',
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
     'apps_script_tools/AST.js'
   ]);
 
@@ -62,6 +72,60 @@ test('AST.Runtime.configureFromProps can target GitHub module', () => {
   assert.equal(configureCall.config.GITHUB_TOKEN, 'token-123');
   assert.equal(configureCall.config.GITHUB_OWNER, 'octo');
   assert.equal(configureCall.options.merge, true);
+});
+
+test('AST.Runtime.configureFromProps throws typed validation error for invalid options', () => {
+  const context = createGasContext();
+  loadScripts(context, [
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS
+  ]);
+
+  assert.throws(
+    () => context.AST_RUNTIME.configureFromProps('nope'),
+    error => error && error.name === 'AstRuntimeValidationError'
+  );
+});
+
+test('AST.Runtime.configureFromProps requires Config helpers and throws typed error when missing', () => {
+  const context = createGasContext({
+    AST_GITHUB: {
+      configure: () => ({})
+    }
+  });
+  loadScripts(context, RUNTIME_SCRIPTS);
+
+  assert.throws(
+    () => context.AST_RUNTIME.configureFromProps({ modules: ['GitHub'] }),
+    error => error && error.name === 'AstRuntimeError'
+  );
+});
+
+test('AST.Runtime.configureFromProps wraps module failures in typed runtime error', () => {
+  const context = createGasContext({
+    AST_GITHUB: {
+      configure: () => {
+        const err = new Error('downstream fail');
+        err.name = 'DownstreamError';
+        throw err;
+      }
+    }
+  });
+  loadScripts(context, [
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS
+  ]);
+
+  assert.throws(
+    () => context.AST_RUNTIME.configureFromProps({ modules: ['GitHub'] }),
+    error => (
+      error
+      && error.name === 'AstRuntimeError'
+      && /downstream fail/.test(error.message)
+      && error.details
+      && error.details.module === 'GitHub'
+    )
+  );
 });
 
 test('AST.Config.fromScriptProperties supports key/prefix normalization', () => {
@@ -79,7 +143,7 @@ test('AST.Config.fromScriptProperties supports key/prefix normalization', () => 
   });
 
   loadScripts(context, [
-    'apps_script_tools/config/Config.js',
+    ...CONFIG_SCRIPTS,
     'apps_script_tools/AST.js'
   ]);
 
@@ -126,7 +190,7 @@ test('AST.Config memoized keyed reads still honor getProperty fallback after bro
   };
 
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const broad = context.astConfigFromScriptProperties({
     scriptProperties: scriptHandle
@@ -150,7 +214,7 @@ test('AST.Config keeps empty-key snapshot cache isolated from wildcard snapshots
   };
 
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const empty = context.astConfigFromScriptProperties({
     scriptProperties: scriptHandle,
@@ -185,7 +249,7 @@ test('AST.Config memoization is scoped per scriptProperties handle', () => {
   };
 
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const fromA = context.astConfigFromScriptProperties({
     scriptProperties: handleA,
@@ -222,7 +286,7 @@ test('AST.Config memoization is isolated across equivalent script property wrapp
   };
 
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const first = context.astConfigFromScriptProperties({
     scriptProperties: new ScriptPropertiesWrapper(store),
@@ -262,7 +326,7 @@ test('AST.Config memoization can be shared across equivalent wrappers with cache
   };
 
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const first = context.astConfigFromScriptProperties({
     scriptProperties: new ScriptPropertiesWrapper(store),
@@ -310,7 +374,7 @@ test('AST.Config implicit script-properties handle reads fresh snapshots by defa
       getScriptProperties: () => scriptPropertiesHandle
     }
   });
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const first = context.astConfigFromScriptProperties({
     keys: ['OPENAI_API_KEY']
@@ -345,7 +409,7 @@ test('AST.Config implicit script-properties handle can opt into memoization', ()
       getScriptProperties: () => scriptPropertiesHandle
     }
   });
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const first = context.astConfigFromScriptProperties({
     keys: ['OPENAI_API_KEY'],
@@ -365,7 +429,7 @@ test('AST.Config implicit script-properties handle can opt into memoization', ()
 
 test('astConfigResolveFirstString ignores non-string candidates', () => {
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const resolved = context.astConfigResolveFirstString(
     [false, 0, { model: 'x' }, '  model-v1  '],
@@ -379,7 +443,7 @@ test('astConfigResolveFirstString ignores non-string candidates', () => {
 
 test('astConfigResolveFirstInteger rejects boolean candidates', () => {
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const tolerant = context.astConfigResolveFirstInteger(
     [true, '120'],
@@ -392,13 +456,13 @@ test('astConfigResolveFirstInteger rejects boolean candidates', () => {
       [false, '120'],
       { fallback: 300, min: 1, max: 3600 }
     ),
-    /Expected integer configuration value/
+    error => error && error.name === 'AstConfigValidationError'
   );
 });
 
 test('astConfigMergeNormalizedConfig preserves values for keys requiring trim normalization', () => {
   const context = createGasContext();
-  loadScripts(context, ['apps_script_tools/config/Config.js']);
+  loadScripts(context, CONFIG_SCRIPTS);
 
   const merged = context.astConfigMergeNormalizedConfig(
     {},
@@ -429,8 +493,8 @@ test('AST.Runtime.configureFromProps configures selected modules from script pro
 
   loadAiScripts(context);
   loadScripts(context, [
-    'apps_script_tools/config/Config.js',
-    'apps_script_tools/runtime/Runtime.js',
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
     'apps_script_tools/AST.js'
   ]);
 
@@ -482,8 +546,8 @@ test('AST.Runtime.configureFromProps forwards explicit scriptProperties handle',
 
   loadAiScripts(context);
   loadScripts(context, [
-    'apps_script_tools/config/Config.js',
-    'apps_script_tools/runtime/Runtime.js',
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
     'apps_script_tools/AST.js'
   ]);
 
@@ -521,8 +585,8 @@ test('AST.Runtime.configureFromProps configures Secrets module from script prope
 
   loadSecretsScripts(context);
   loadScripts(context, [
-    'apps_script_tools/config/Config.js',
-    'apps_script_tools/runtime/Runtime.js',
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
     'apps_script_tools/AST.js'
   ]);
 

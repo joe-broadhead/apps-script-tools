@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createGasContext, loadScripts } from './helpers.mjs';
+import { createGasContext, loadScripts, listScriptFiles } from './helpers.mjs';
 import { loadTriggersScripts } from './triggers-helpers.mjs';
 
 function createScriptPropertiesStore(seed = {}) {
@@ -142,7 +142,10 @@ function createTriggersContext({
 
   loadTriggersScripts(context, { includeAst, includeJobs });
   if (includeAst) {
-    loadScripts(context, ['apps_script_tools/runtime/Runtime.js']);
+    loadScripts(context, [
+      ...listScriptFiles('apps_script_tools/runtime/general'),
+      'apps_script_tools/runtime/Runtime.js'
+    ]);
   }
 
   return {
