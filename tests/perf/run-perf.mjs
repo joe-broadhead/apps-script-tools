@@ -5,6 +5,7 @@ import { createGasContext, loadCoreDataContext } from '../local/helpers.mjs';
 import { loadDbtScripts } from '../local/dbt-helpers.mjs';
 import { runDataFramePerf } from './dataframe.perf.test.mjs';
 import { runDbtManifestPerf } from './dbt-manifest.perf.test.mjs';
+import { runGithubPerf } from './github-cache.perf.test.mjs';
 import { runSeriesPerf } from './series.perf.test.mjs';
 import { runUtilitiesPerf } from './utilities.perf.test.mjs';
 
@@ -182,8 +183,9 @@ function runAllBenchmarks(options) {
   const dbtResults = runDbtManifestPerf(context, { samples: options.samples });
   const seriesResults = runSeriesPerf(context, { rows: options.rows, samples: options.samples });
   const utilityResults = runUtilitiesPerf(context, { rows: options.rows, samples: options.samples });
+  const githubResults = runGithubPerf(context, { rows: options.rows, samples: options.samples });
 
-  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults];
+  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults, ...githubResults];
 }
 
 function main() {

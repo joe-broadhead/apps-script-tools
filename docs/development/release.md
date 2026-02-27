@@ -29,6 +29,7 @@ clasp push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
 clasp run runAiLiveSmoke --params '[\"openai\",\"Reply with OK\",\"\"]' # optional
+clasp run runGitHubLiveSmoke --params '[\"YOUR_GITHUB_PAT\",\"octocat\",\"hello-world\"]' # optional
 ```
 
 Core library vs cookbook projects:
