@@ -240,7 +240,11 @@ function astRuntimeResolveProperties(options = {}) {
     keys: options.keys,
     prefix: options.prefix,
     stripPrefix: options.stripPrefix,
-    includeEmpty: options.includeEmpty
+    includeEmpty: options.includeEmpty,
+    cacheScopeId: options.cacheScopeId,
+    disableCache: options.disableCache,
+    forceRefresh: options.forceRefresh,
+    cacheDefaultHandle: options.cacheDefaultHandle
   });
 
   if (!astRuntimeIsPlainObject(rawProperties)) {

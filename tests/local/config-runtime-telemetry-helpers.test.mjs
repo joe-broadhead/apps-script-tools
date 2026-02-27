@@ -291,6 +291,78 @@ test('AST.Config memoization can be shared across equivalent wrappers with cache
   assert.equal(getPropertiesCalls, 2);
 });
 
+test('AST.Config implicit script-properties handle reads fresh snapshots by default', () => {
+  let getPropertiesCalls = 0;
+  const store = {
+    OPENAI_API_KEY: 'key-v1'
+  };
+
+  const scriptPropertiesHandle = {
+    getProperties: () => {
+      getPropertiesCalls += 1;
+      return Object.assign({}, store);
+    },
+    getProperty: key => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null)
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => scriptPropertiesHandle
+    }
+  });
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const first = context.astConfigFromScriptProperties({
+    keys: ['OPENAI_API_KEY']
+  });
+  assert.equal(first.OPENAI_API_KEY, 'key-v1');
+
+  store.OPENAI_API_KEY = 'key-v2';
+
+  const second = context.astConfigFromScriptProperties({
+    keys: ['OPENAI_API_KEY']
+  });
+  assert.equal(second.OPENAI_API_KEY, 'key-v2');
+  assert.equal(getPropertiesCalls, 2);
+});
+
+test('AST.Config implicit script-properties handle can opt into memoization', () => {
+  let getPropertiesCalls = 0;
+  const store = {
+    OPENAI_API_KEY: 'key-v1'
+  };
+
+  const scriptPropertiesHandle = {
+    getProperties: () => {
+      getPropertiesCalls += 1;
+      return Object.assign({}, store);
+    },
+    getProperty: key => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null)
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => scriptPropertiesHandle
+    }
+  });
+  loadScripts(context, ['apps_script_tools/config/Config.js']);
+
+  const first = context.astConfigFromScriptProperties({
+    keys: ['OPENAI_API_KEY'],
+    cacheDefaultHandle: true
+  });
+  assert.equal(first.OPENAI_API_KEY, 'key-v1');
+
+  store.OPENAI_API_KEY = 'key-v2';
+
+  const second = context.astConfigFromScriptProperties({
+    keys: ['OPENAI_API_KEY'],
+    cacheDefaultHandle: true
+  });
+  assert.equal(second.OPENAI_API_KEY, 'key-v1');
+  assert.equal(getPropertiesCalls, 1);
+});
+
 test('astConfigResolveFirstString ignores non-string candidates', () => {
   const context = createGasContext();
   loadScripts(context, ['apps_script_tools/config/Config.js']);
@@ -378,6 +450,59 @@ test('AST.Runtime.configureFromProps configures selected modules from script pro
     JSON.stringify({
       OPENAI_API_KEY: 'runtime-key',
       OPENAI_MODEL: 'runtime-model'
+    })
+  );
+});
+
+test('AST.Runtime.configureFromProps forwards explicit scriptProperties handle', () => {
+  const explicitHandle = {
+    getProperties: () => ({
+      OPENAI_API_KEY: 'explicit-key',
+      OPENAI_MODEL: 'explicit-model'
+    }),
+    getProperty: key => {
+      const map = {
+        OPENAI_API_KEY: 'explicit-key',
+        OPENAI_MODEL: 'explicit-model'
+      };
+      return map[key] || null;
+    }
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          OPENAI_API_KEY: 'default-key',
+          OPENAI_MODEL: 'default-model'
+        })
+      })
+    }
+  });
+
+  loadAiScripts(context);
+  loadScripts(context, [
+    'apps_script_tools/config/Config.js',
+    'apps_script_tools/runtime/Runtime.js',
+    'apps_script_tools/AST.js'
+  ]);
+
+  context.AST.AI.clearConfig();
+
+  const summary = context.AST.Runtime.configureFromProps({
+    modules: ['AI'],
+    keys: ['OPENAI_API_KEY', 'OPENAI_MODEL'],
+    scriptProperties: explicitHandle
+  });
+
+  assert.equal(JSON.stringify(summary.modulesRequested), JSON.stringify(['AI']));
+  assert.equal(JSON.stringify(summary.configuredModules), JSON.stringify(['AI']));
+  assert.equal(summary.failedModules.length, 0);
+  assert.equal(
+    JSON.stringify(context.AST.AI.getConfig()),
+    JSON.stringify({
+      OPENAI_API_KEY: 'explicit-key',
+      OPENAI_MODEL: 'explicit-model'
     })
   );
 });

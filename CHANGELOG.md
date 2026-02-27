@@ -66,6 +66,8 @@
 - `AST.Runtime.configureFromProps(...)` now supports module `DBT`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Triggers`.
+- `AST.Config.fromScriptProperties(...)` now defaults implicit ScriptProperties reads to fresh snapshots (avoids stale shared memoized defaults in warm GAS web-app runtimes); optional `cacheDefaultHandle=true` re-enables implicit-handle memoization.
+- `AST.Runtime.configureFromProps(...)` now forwards explicit ScriptProperties handle and config snapshot controls (`scriptProperties`, `disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.
 - Local/perf test suites now include DBT artifact/diff/impact coverage and deterministic diff benchmark thresholds.
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.

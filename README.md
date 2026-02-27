@@ -117,7 +117,8 @@ function demoAstLibrary() {
 function demoAstAi() {
   const ASTX = ASTLib.AST || ASTLib;
   ASTX.Runtime.configureFromProps({
-    modules: ['AI']
+    modules: ['AI'],
+    scriptProperties: PropertiesService.getScriptProperties()
   });
 
   const response = ASTX.AI.stream({

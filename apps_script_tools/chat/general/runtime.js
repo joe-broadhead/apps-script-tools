@@ -50,7 +50,8 @@ function astChatInvalidateScriptPropertiesSnapshotCache() {
 function astChatGetScriptPropertiesSnapshot() {
   if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
     return astConfigGetScriptPropertiesSnapshotMemoized({
-      keys: AST_CHAT_CONFIG_KEYS
+      keys: AST_CHAT_CONFIG_KEYS,
+      cacheDefaultHandle: true
     });
   }
 

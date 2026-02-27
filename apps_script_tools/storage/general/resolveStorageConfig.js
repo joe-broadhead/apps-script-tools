@@ -88,7 +88,8 @@ function astStorageClearRuntimeConfig() {
 function astStorageGetScriptPropertiesSnapshot() {
   if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
     return astConfigGetScriptPropertiesSnapshotMemoized({
-      keys: AST_STORAGE_CONFIG_KEYS
+      keys: AST_STORAGE_CONFIG_KEYS,
+      cacheDefaultHandle: true
     });
   }
 
