@@ -22,21 +22,14 @@ function astGetGitHubLiveSmokeToken_(explicitToken) {
   return '';
 }
 
-function runGitHubLiveSmoke(tokenOrOwner, ownerOrRepo, repoOrToken) {
-  const usingLegacyTokenSignature = typeof repoOrToken !== 'undefined';
-  let owner = '';
-  let repo = '';
-  let token = '';
+function astNormalizeGitHubLiveSmokeArg_(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
-  if (usingLegacyTokenSignature) {
-    token = typeof tokenOrOwner === 'string' ? tokenOrOwner.trim() : '';
-    owner = typeof ownerOrRepo === 'string' ? ownerOrRepo.trim() : '';
-    repo = typeof repoOrToken === 'string' ? repoOrToken.trim() : '';
-  } else {
-    owner = typeof tokenOrOwner === 'string' ? tokenOrOwner.trim() : '';
-    repo = typeof ownerOrRepo === 'string' ? ownerOrRepo.trim() : '';
-  }
-
+function astRunGitHubLiveSmoke_(args = {}) {
+  const token = astNormalizeGitHubLiveSmokeArg_(args.token);
+  const owner = astNormalizeGitHubLiveSmokeArg_(args.owner);
+  const repo = astNormalizeGitHubLiveSmokeArg_(args.repo);
   const authToken = astGetGitHubLiveSmokeToken_(token);
   if (!authToken) {
     throw new Error('runGitHubLiveSmoke requires GITHUB_TOKEN script property or explicit token parameter');
@@ -87,4 +80,20 @@ function runGitHubLiveSmoke(tokenOrOwner, ownerOrRepo, repoOrToken) {
   response.finishedAt = new Date().toISOString();
   Logger.log(JSON.stringify(response, null, 2));
   return response;
+}
+
+function runGitHubLiveSmoke(token, owner, repo) {
+  return astRunGitHubLiveSmoke_({
+    token: astNormalizeGitHubLiveSmokeArg_(token),
+    owner: astNormalizeGitHubLiveSmokeArg_(owner),
+    repo: astNormalizeGitHubLiveSmokeArg_(repo)
+  });
+}
+
+function runGitHubLiveSmokeForRepo(owner, repo) {
+  return astRunGitHubLiveSmoke_({
+    token: '',
+    owner: astNormalizeGitHubLiveSmokeArg_(owner),
+    repo: astNormalizeGitHubLiveSmokeArg_(repo)
+  });
 }

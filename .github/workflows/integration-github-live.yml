@@ -55,4 +55,4 @@ jobs:
         run: |
           clasp status
           clasp push
-          clasp run runGitHubLiveSmoke --params "[\"${{ inputs.owner }}\",\"${{ inputs.repo }}\"]"
+          clasp run runGitHubLiveSmokeForRepo --params "[\"${{ inputs.owner }}\",\"${{ inputs.repo }}\"]"
