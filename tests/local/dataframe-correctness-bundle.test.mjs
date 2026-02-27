@@ -95,3 +95,22 @@ test('DataFrame.pivot keeps null and undefined groups distinct', () => {
   assert.equal(nullRow.x_metric, 10);
   assert.equal(undefinedRow.x_metric, 20);
 });
+
+test('DataFrame.pivot handles cyclic object values without crashing', () => {
+  const context = createDataFrameContext();
+  const cyclic = { label: 'root' };
+  cyclic.self = cyclic;
+
+  const df = context.DataFrame.fromColumns({
+    idx: [cyclic],
+    piv: ['x'],
+    metric: [7]
+  });
+
+  const pivoted = df.pivot('idx', 'piv', {
+    metric: values => values.reduce((sum, value) => sum + value, 0)
+  });
+
+  assert.equal(pivoted.len(), 1);
+  assert.equal(pivoted.at(0).x_metric, 7);
+});

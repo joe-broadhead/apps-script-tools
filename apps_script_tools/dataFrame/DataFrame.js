@@ -666,7 +666,11 @@ var DataFrame = class DataFrame {
       if (value === undefined) {
         return { kind: 'undefined' };
       }
-      return { kind: 'value', key: astStableKey(value) };
+      try {
+        return { kind: 'value', key: astStableKey(value) };
+      } catch (_) {
+        return { kind: 'value_fallback', key: String(value) };
+      }
     };
     const buildGroupKey = (indexValue, pivotValue) => {
       return JSON.stringify([buildGroupKeyPart(indexValue), buildGroupKeyPart(pivotValue)]);
