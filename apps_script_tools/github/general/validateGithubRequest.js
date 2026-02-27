@@ -16,6 +16,57 @@ function astGitHubNormalizeString(value, fallback = null) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function astGitHubValidateSlugField(value, fieldName) {
+  if (!value) {
+    return;
+  }
+
+  if (/[\u0000-\u001F]/.test(value) || value.includes('/') || value.includes('\\') || value.includes('..')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains disallowed path characters`, {
+      field: fieldName,
+      value
+    });
+  }
+
+  if (!/^[A-Za-z0-9_.-]+$/.test(value)) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains unsupported characters`, {
+      field: fieldName,
+      value
+    });
+  }
+}
+
+function astGitHubValidatePathField(pathValue, fieldName = 'path') {
+  if (!pathValue) {
+    return;
+  }
+
+  if (/[\u0000-\u001F]/.test(pathValue) || pathValue.includes('\\')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains disallowed path characters`, {
+      field: fieldName,
+      value: pathValue
+    });
+  }
+
+  const segments = String(pathValue)
+    .split('/')
+    .filter(Boolean);
+
+  if (segments.length === 0) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' must include at least one path segment`, {
+      field: fieldName,
+      value: pathValue
+    });
+  }
+
+  if (segments.some(segment => segment === '.' || segment === '..')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' must not include '.' or '..' segments`, {
+      field: fieldName,
+      value: pathValue
+    });
+  }
+}
+
 function astGitHubNormalizeInteger(value, field, fallback = null, min = 1) {
   if (typeof value === 'undefined' || value === null || value === '') {
     return fallback;
@@ -132,6 +183,23 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     throw new AstGitHubValidationError('GitHub request body must be an object when provided');
   }
 
+  if (Array.isArray(body.files)) {
+    body.files.forEach((entry, index) => {
+      if (!astGitHubValidateIsPlainObject(entry)) {
+        throw new AstGitHubValidationError('GitHub request body.files entries must be objects', {
+          field: `body.files[${index}]`
+        });
+      }
+      const filePath = astGitHubNormalizeString(entry.path, null);
+      if (!filePath) {
+        throw new AstGitHubValidationError('GitHub request body.files entries require path', {
+          field: `body.files[${index}].path`
+        });
+      }
+      astGitHubValidatePathField(filePath, `body.files[${index}].path`);
+    });
+  }
+
   const auth = typeof request.auth === 'undefined'
     ? {}
     : request.auth;
@@ -147,6 +215,11 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
   }
 
   const options = astGitHubNormalizeOptions(request.options || {});
+
+  astGitHubValidateSlugField(owner, 'owner');
+  astGitHubValidateSlugField(repo, 'repo');
+  astGitHubValidateSlugField(organization, 'organization');
+  astGitHubValidatePathField(path, 'path');
 
   const normalized = {
     operation: loweredOperation,

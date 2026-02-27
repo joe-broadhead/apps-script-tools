@@ -459,7 +459,7 @@ test('astAiHttpRequest does not retry deterministic 4xx provider errors', () => 
 
   assert.throws(
     () => context.astAiHttpRequest({
-      url: 'https://api.example.com/v1/test',
+      url: 'https://api.example.com/v1/test?api_key=super-secret&mode=chat',
       method: 'post',
       payload: { ok: false },
       retries: 3
@@ -467,6 +467,10 @@ test('astAiHttpRequest does not retry deterministic 4xx provider errors', () => 
     error => {
       assert.equal(error.name, 'AstAiProviderError');
       assert.equal(error.details.statusCode, 400);
+      assert.equal(
+        error.details.url,
+        'https://api.example.com/v1/test?api_key=[redacted]&mode=chat'
+      );
       return true;
     }
   );

@@ -19,7 +19,18 @@ function astStorageRedactHeaders(headers = {}) {
 
   Object.keys(headers || {}).forEach(key => {
     const normalizedKey = String(key || '').toLowerCase();
-    if (normalizedKey === 'authorization' || normalizedKey === 'x-amz-security-token') {
+    if (
+      normalizedKey === 'authorization' ||
+      normalizedKey === 'cookie' ||
+      normalizedKey === 'set-cookie' ||
+      normalizedKey === 'x-amz-security-token' ||
+      normalizedKey === 'x-amz-credential' ||
+      normalizedKey === 'x-amz-signature' ||
+      normalizedKey === 'x-api-key' ||
+      normalizedKey.includes('token') ||
+      normalizedKey.includes('secret') ||
+      normalizedKey.includes('password')
+    ) {
       output[key] = '[redacted]';
     } else {
       output[key] = headers[key];
@@ -27,6 +38,54 @@ function astStorageRedactHeaders(headers = {}) {
   });
 
   return output;
+}
+
+function astStorageRedactUrl(url) {
+  if (typeof astConfigRedactUrl === 'function') {
+    return astConfigRedactUrl(url);
+  }
+
+  const raw = astStorageNormalizeString(url, '');
+  if (!raw) {
+    return raw;
+  }
+
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex < 0) {
+    return raw;
+  }
+
+  const fragmentIndex = raw.indexOf('#', queryIndex);
+  const base = raw.slice(0, queryIndex);
+  const query = fragmentIndex >= 0
+    ? raw.slice(queryIndex + 1, fragmentIndex)
+    : raw.slice(queryIndex + 1);
+  const fragment = fragmentIndex >= 0 ? raw.slice(fragmentIndex) : '';
+  const redacted = query
+    .split('&')
+    .map(part => {
+      if (!part) {
+        return part;
+      }
+
+      const eqIndex = part.indexOf('=');
+      const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+      const key = rawKey.toLowerCase();
+      if (
+        key.includes('token') ||
+        key.includes('key') ||
+        key.includes('secret') ||
+        key.includes('password') ||
+        key.includes('signature')
+      ) {
+        return `${rawKey}=[redacted]`;
+      }
+
+      return part;
+    })
+    .join('&');
+
+  return `${base}?${redacted}${fragment}`;
 }
 
 function astStorageIsTransientHttpError(statusCode) {
@@ -38,7 +97,7 @@ function astStorageMapHttpCoreError(error, context = {}) {
   const coreCode = error && error.code ? String(error.code) : '';
   const provider = astStorageNormalizeString(context.provider, details.provider || 'storage');
   const operation = astStorageNormalizeString(context.operation, details.operation || 'request');
-  const url = astStorageNormalizeString(context.url, details.url || '');
+  const url = astStorageRedactUrl(astStorageNormalizeString(context.url, details.url || ''));
   const timeoutMs = context.timeoutMs == null ? details.timeoutMs : context.timeoutMs;
   const attempts = details.attempts;
   const elapsedMs = details.elapsedMs;
@@ -137,6 +196,7 @@ function astStorageHttpRequest(config = {}) {
   const provider = astStorageNormalizeString(config.provider, 'storage');
   const operation = astStorageNormalizeString(config.operation, 'request');
   const url = astStorageNormalizeString(config.url, '');
+  const redactedUrl = astStorageRedactUrl(url);
   const retries = Number.isInteger(config.retries) ? Math.max(0, config.retries) : 0;
   const timeoutMs = (
     typeof astConfigNormalizeTimeoutMs === 'function'
@@ -168,7 +228,7 @@ function astStorageHttpRequest(config = {}) {
       throw astStorageMapHttpCoreError(error, {
         provider,
         operation,
-        url,
+        url: redactedUrl,
         timeoutMs,
         method: astStorageNormalizeString(config.method, 'get').toLowerCase(),
         headers: astStorageIsPlainObject(config.headers) ? config.headers : {}
@@ -182,7 +242,7 @@ function astStorageHttpRequest(config = {}) {
       {
         provider,
         operation,
-        url,
+        url: redactedUrl,
         attempts: retries + 1,
         timeoutMs
       },

@@ -1,7 +1,45 @@
-function runGitHubLiveSmoke(token, owner, repo) {
-  const authToken = typeof token === 'string' ? token.trim() : '';
+function astGetGitHubLiveSmokeToken_(explicitToken) {
+  const direct = typeof explicitToken === 'string' ? explicitToken.trim() : '';
+  if (direct) {
+    return direct;
+  }
+
+  if (
+    typeof PropertiesService !== 'undefined' &&
+    PropertiesService &&
+    typeof PropertiesService.getScriptProperties === 'function'
+  ) {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    if (scriptProperties && typeof scriptProperties.getProperty === 'function') {
+      const fromScriptProps = scriptProperties.getProperty('GITHUB_TOKEN');
+      const normalized = typeof fromScriptProps === 'string' ? fromScriptProps.trim() : '';
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  return '';
+}
+
+function runGitHubLiveSmoke(tokenOrOwner, ownerOrRepo, repoOrToken) {
+  const usingLegacyTokenSignature = typeof repoOrToken !== 'undefined';
+  let owner = '';
+  let repo = '';
+  let token = '';
+
+  if (usingLegacyTokenSignature) {
+    token = typeof tokenOrOwner === 'string' ? tokenOrOwner.trim() : '';
+    owner = typeof ownerOrRepo === 'string' ? ownerOrRepo.trim() : '';
+    repo = typeof repoOrToken === 'string' ? repoOrToken.trim() : '';
+  } else {
+    owner = typeof tokenOrOwner === 'string' ? tokenOrOwner.trim() : '';
+    repo = typeof ownerOrRepo === 'string' ? ownerOrRepo.trim() : '';
+  }
+
+  const authToken = astGetGitHubLiveSmokeToken_(token);
   if (!authToken) {
-    throw new Error('runGitHubLiveSmoke requires a non-empty token parameter');
+    throw new Error('runGitHubLiveSmoke requires GITHUB_TOKEN script property or explicit token parameter');
   }
 
   const response = {
@@ -22,8 +60,8 @@ function runGitHubLiveSmoke(token, owner, repo) {
   response.viewer = me && me.data ? me.data.login : null;
   response.rateLimit = me ? me.rateLimit : null;
 
-  const normalizedOwner = typeof owner === 'string' ? owner.trim() : '';
-  const normalizedRepo = typeof repo === 'string' ? repo.trim() : '';
+  const normalizedOwner = owner;
+  const normalizedRepo = repo;
 
   if (normalizedOwner && normalizedRepo) {
     const repository = AST.GitHub.getRepository({

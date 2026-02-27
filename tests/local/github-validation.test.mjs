@@ -29,6 +29,39 @@ test('validate request rejects invalid pagination fields', () => {
   );
 });
 
+test('validate request rejects traversal-like owner/repo/path fields', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'get_repository',
+      owner: '../owner',
+      repo: 'repo'
+    }),
+    /contains disallowed path characters/
+  );
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'get_repository',
+      owner: 'octocat',
+      repo: 'repo/name'
+    }),
+    /contains disallowed path characters/
+  );
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'get_file_contents',
+      owner: 'octocat',
+      repo: 'hello-world',
+      path: 'src/../secrets.env'
+    }),
+    /must not include/
+  );
+});
+
 test('validate request enforces graphql query', () => {
   const context = createGasContext();
   loadGitHubScripts(context);

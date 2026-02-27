@@ -740,7 +740,7 @@ test('astRagHttpRequest does not retry deterministic 4xx and preserves status de
 
   assert.throws(
     () => context.astRagHttpRequest({
-      url: 'https://example.com/rag',
+      url: 'https://example.com/rag?token=secret-token&mode=vector',
       method: 'post',
       payload: { ok: false },
       retries: 2
@@ -748,6 +748,10 @@ test('astRagHttpRequest does not retry deterministic 4xx and preserves status de
     error => {
       assert.equal(error.name, 'AstRagError');
       assert.equal(error.details.statusCode, 400);
+      assert.equal(
+        error.details.url,
+        'https://example.com/rag?token=[redacted]&mode=vector'
+      );
       return true;
     }
   );

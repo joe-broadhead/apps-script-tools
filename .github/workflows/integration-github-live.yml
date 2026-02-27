@@ -25,7 +25,6 @@ jobs:
       CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
       CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
       CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,10 +42,6 @@ jobs:
             npm install --ignore-scripts --no-audit --no-fund
           fi
 
-      - name: Validate GitHub token
-        run: |
-          test -n "$GITHUB_TOKEN"
-
       - name: Setup clasp auth and binding
         uses: ./.github/actions/setup-clasp
         with:
@@ -60,4 +55,4 @@ jobs:
         run: |
           clasp status
           clasp push
-          clasp run runGitHubLiveSmoke --params "[\"${GITHUB_TOKEN}\",\"${{ inputs.owner }}\",\"${{ inputs.repo }}\"]"
+          clasp run runGitHubLiveSmoke --params "[\"${{ inputs.owner }}\",\"${{ inputs.repo }}\"]"

@@ -17,6 +17,13 @@ function astGitHubEncodePathSegment(value, fieldName = 'value') {
       field: fieldName
     });
   }
+
+  if (/[\u0000-\u001F]/.test(normalized) || normalized.includes('/') || normalized.includes('\\') || normalized.includes('..')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains disallowed path characters`, {
+      field: fieldName,
+      value: normalized
+    });
+  }
   return encodeURIComponent(normalized);
 }
 
@@ -79,7 +86,21 @@ function astGitHubBuildFileContentsPath(request = {}) {
   const segments = path
     .split('/')
     .filter(Boolean)
-    .map(segment => encodeURIComponent(segment));
+    .map(segment => {
+      if (segment === '.' || segment === '..') {
+        throw new AstGitHubValidationError("GitHub request field 'path' must not include '.' or '..' segments", {
+          field: 'path',
+          value: path
+        });
+      }
+      if (/[\u0000-\u001F]/.test(segment) || segment.includes('\\')) {
+        throw new AstGitHubValidationError("GitHub request field 'path' contains disallowed path characters", {
+          field: 'path',
+          value: path
+        });
+      }
+      return encodeURIComponent(segment);
+    });
 
   if (segments.length === 0) {
     throw new AstGitHubValidationError("GitHub request field 'path' must not resolve to empty", {
