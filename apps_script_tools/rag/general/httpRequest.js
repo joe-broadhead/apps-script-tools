@@ -2,10 +2,56 @@ function astRagIsTransientHttpError(statusCode) {
   return statusCode === 429 || statusCode >= 500;
 }
 
+function astRagRedactUrl(url) {
+  if (typeof astConfigRedactUrl === 'function') {
+    return astConfigRedactUrl(url);
+  }
+
+  const raw = astRagNormalizeString(url, '');
+  if (!raw) {
+    return raw;
+  }
+
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex < 0) {
+    return raw;
+  }
+
+  const fragmentIndex = raw.indexOf('#', queryIndex);
+  const base = raw.slice(0, queryIndex);
+  const query = fragmentIndex >= 0
+    ? raw.slice(queryIndex + 1, fragmentIndex)
+    : raw.slice(queryIndex + 1);
+  const fragment = fragmentIndex >= 0 ? raw.slice(fragmentIndex) : '';
+  const redacted = query
+    .split('&')
+    .map(part => {
+      if (!part) {
+        return part;
+      }
+      const eqIndex = part.indexOf('=');
+      const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+      const key = rawKey.toLowerCase();
+      if (
+        key.includes('token') ||
+        key.includes('key') ||
+        key.includes('secret') ||
+        key.includes('password') ||
+        key.includes('signature')
+      ) {
+        return `${rawKey}=[redacted]`;
+      }
+      return part;
+    })
+    .join('&');
+
+  return `${base}?${redacted}${fragment}`;
+}
+
 function astRagMapHttpCoreError(error, context = {}) {
   const details = error && error.details ? error.details : {};
   const coreCode = error && error.code ? String(error.code) : '';
-  const url = astRagNormalizeString(context.url, details.url || null);
+  const url = astRagRedactUrl(astRagNormalizeString(context.url, details.url || null));
   const timeoutMs = context.timeoutMs == null ? details.timeoutMs : context.timeoutMs;
   const attempts = details.attempts;
   const elapsedMs = details.elapsedMs;
@@ -114,7 +160,7 @@ function astRagHttpRequest(config = {}) {
     throw new AstRagError(
       'RAG provider request failed',
       {
-        url,
+        url: astRagRedactUrl(url),
         attempts: astRagNormalizePositiveInt(config.retries, 0, 0) + 1
       },
       error

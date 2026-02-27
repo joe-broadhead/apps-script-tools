@@ -78,6 +78,7 @@ function astStorageNormalizeDbfsPath(pathValue) {
   }
 
   if (raw.startsWith('dbfs:/')) {
+    astStorageValidatePathLikeValue(raw, 'path');
     return raw;
   }
 
@@ -87,14 +88,20 @@ function astStorageNormalizeDbfsPath(pathValue) {
       throw new AstStorageValidationError('dbfs uri/path must include a non-empty path segment');
     }
     const normalizedBody = body.startsWith('/') ? body : `/${body}`;
-    return `dbfs:${normalizedBody}`;
+    const normalized = `dbfs:${normalizedBody}`;
+    astStorageValidatePathLikeValue(normalized, 'path');
+    return normalized;
   }
 
   if (raw.startsWith('/')) {
-    return `dbfs:${raw}`;
+    const normalized = `dbfs:${raw}`;
+    astStorageValidatePathLikeValue(normalized, 'path');
+    return normalized;
   }
 
-  return `dbfs:/${raw}`;
+  const normalized = `dbfs:/${raw}`;
+  astStorageValidatePathLikeValue(normalized, 'path');
+  return normalized;
 }
 
 function astStorageNormalizeBucket(bucket) {
@@ -102,12 +109,41 @@ function astStorageNormalizeBucket(bucket) {
   if (!normalized) {
     throw new AstStorageValidationError('bucket must be a non-empty string for gcs/s3 operations');
   }
+  if (/[\u0000-\u001F]/.test(normalized) || /[\\/\s]/.test(normalized) || normalized.includes('..')) {
+    throw new AstStorageValidationError('bucket contains unsupported characters', {
+      bucket: normalized
+    });
+  }
   return normalized;
 }
 
 function astStorageNormalizeKey(key) {
   const normalized = typeof key === 'string' ? key.replace(/^\/+/, '') : '';
+  astStorageValidatePathLikeValue(normalized, 'key');
   return normalized;
+}
+
+function astStorageValidatePathLikeValue(value, fieldName) {
+  const normalized = astStorageNormalizeString(value, '');
+  if (!normalized) {
+    return;
+  }
+
+  if (/[\u0000-\u001F]/.test(normalized) || normalized.includes('\\')) {
+    throw new AstStorageValidationError(`${fieldName} contains disallowed path characters`, {
+      field: fieldName,
+      value: normalized
+    });
+  }
+
+  const withoutScheme = normalized.replace(/^dbfs:\/*/i, '');
+  const segments = withoutScheme.split('/').filter(Boolean);
+  if (segments.some(segment => segment === '.' || segment === '..')) {
+    throw new AstStorageValidationError(`${fieldName} must not include '.' or '..' path segments`, {
+      field: fieldName,
+      value: normalized
+    });
+  }
 }
 
 function astStorageComposeUri(provider, location = {}) {

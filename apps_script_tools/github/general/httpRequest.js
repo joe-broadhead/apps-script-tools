@@ -38,7 +38,17 @@ function astGitHubRedactHeaders(headers = {}) {
 
   Object.keys(headers || {}).forEach(key => {
     const normalizedKey = String(key || '').toLowerCase();
-    if (normalizedKey === 'authorization' || normalizedKey.includes('token')) {
+    if (
+      normalizedKey === 'authorization' ||
+      normalizedKey === 'cookie' ||
+      normalizedKey === 'set-cookie' ||
+      normalizedKey === 'proxy-authorization' ||
+      normalizedKey === 'x-api-key' ||
+      normalizedKey === 'x-goog-api-key' ||
+      normalizedKey.includes('token') ||
+      normalizedKey.includes('secret') ||
+      normalizedKey.includes('password')
+    ) {
       output[key] = '[redacted]';
       return;
     }
@@ -47,6 +57,51 @@ function astGitHubRedactHeaders(headers = {}) {
   });
 
   return output;
+}
+
+function astGitHubRedactUrl(url) {
+  const raw = astGitHubHttpNormalizeString(url, '');
+  if (!raw) {
+    return raw;
+  }
+
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex < 0) {
+    return raw;
+  }
+
+  const fragmentIndex = raw.indexOf('#', queryIndex);
+  const base = raw.slice(0, queryIndex);
+  const query = fragmentIndex >= 0
+    ? raw.slice(queryIndex + 1, fragmentIndex)
+    : raw.slice(queryIndex + 1);
+  const fragment = fragmentIndex >= 0 ? raw.slice(fragmentIndex) : '';
+
+  const redactedQuery = query
+    .split('&')
+    .map(part => {
+      if (!part) {
+        return part;
+      }
+
+      const eqIndex = part.indexOf('=');
+      const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+      const normalizedKey = rawKey.toLowerCase();
+      if (
+        normalizedKey.includes('token') ||
+        normalizedKey.includes('key') ||
+        normalizedKey.includes('secret') ||
+        normalizedKey.includes('password') ||
+        normalizedKey.includes('signature')
+      ) {
+        return `${rawKey}=[redacted]`;
+      }
+
+      return part;
+    })
+    .join('&');
+
+  return `${base}?${redactedQuery}${fragment}`;
 }
 
 function astGitHubNormalizeTimeoutMs(value) {
@@ -174,17 +229,18 @@ function astGitHubExtractRateLimit(headers = {}, bodyJson = null) {
 
 function astGitHubBuildHttpError(statusCode, context, bodyText, bodyJson, headers, cause = null) {
   const retryable = astGitHubShouldRetry(statusCode, bodyText, bodyJson);
+  const redactedUrl = astGitHubRedactUrl(context.url);
   const details = {
     operation: context.operation,
     method: context.method,
-    url: context.url,
+    url: redactedUrl,
     statusCode,
     retryable,
     request: {
       headers: astGitHubRedactHeaders(context.headers || {})
     },
     response: {
-      headers,
+      headers: astGitHubRedactHeaders(headers || {}),
       body: bodyText,
       json: bodyJson
     },
@@ -243,13 +299,14 @@ function astGitHubHttpIsRetriableProviderError(error) {
 
 function astGitHubHttpRequest(config = {}) {
   const url = astGitHubNormalizeString(config.url, '');
+  const redactedUrl = astGitHubRedactUrl(url);
   if (!url) {
     throw new AstGitHubValidationError('GitHub HTTP request requires non-empty url');
   }
 
   if (typeof UrlFetchApp === 'undefined' || !UrlFetchApp || typeof UrlFetchApp.fetch !== 'function') {
     throw new AstGitHubProviderError('UrlFetchApp.fetch is not available in this runtime', {
-      url
+      url: redactedUrl
     });
   }
 
@@ -261,7 +318,7 @@ function astGitHubHttpRequest(config = {}) {
   const context = {
     operation: astGitHubNormalizeString(config.operation, null),
     method,
-    url,
+    url: redactedUrl,
     headers: astGitHubNormalizeHeaders(config.headers)
   };
 
@@ -274,7 +331,7 @@ function astGitHubHttpRequest(config = {}) {
       {
         operation: context.operation,
         method,
-        url,
+        url: redactedUrl,
         timeoutMs,
         attempts: attempt + 1,
         elapsedMs: astGitHubElapsedMs(startedAtMs)
@@ -398,7 +455,7 @@ function astGitHubHttpRequest(config = {}) {
           {
             operation: context.operation,
             method,
-            url,
+            url: redactedUrl,
             timeoutMs,
             attempts: attempt + 1,
             elapsedMs: astGitHubElapsedMs(startedAtMs)
@@ -416,7 +473,7 @@ function astGitHubHttpRequest(config = {}) {
   throw new AstGitHubProviderError('GitHub request failed after retries', {
     operation: context.operation,
     method,
-    url,
+    url: redactedUrl,
     timeoutMs,
     attempts: retries + 1,
     elapsedMs: astGitHubElapsedMs(startedAtMs)

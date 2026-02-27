@@ -11,6 +11,140 @@ const AST_CONFIG_HTTP_CORE_ERROR_CLASS = typeof AstConfigHttpCoreError === 'func
     }
   };
 
+const AST_CONFIG_HTTP_SENSITIVE_QUERY_KEYS = Object.freeze([
+  'access_token',
+  'api_key',
+  'apikey',
+  'auth',
+  'authorization',
+  'client_secret',
+  'key',
+  'password',
+  'refresh_token',
+  'secret',
+  'sig',
+  'signature',
+  'token',
+  'x_amz_credential',
+  'x_amz_security_token',
+  'x_amz_signature',
+  'x_goog_api_key',
+  'x_goog_credential',
+  'x_goog_signature'
+]);
+
+function astConfigIsSensitiveHeaderName(name) {
+  const normalized = astConfigNormalizeString(name, '').toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    normalized === 'authorization' ||
+    normalized === 'cookie' ||
+    normalized === 'set-cookie' ||
+    normalized === 'proxy-authorization' ||
+    normalized === 'x-api-key' ||
+    normalized === 'x-goog-api-key' ||
+    normalized.includes('token') ||
+    normalized.includes('secret') ||
+    normalized.includes('password')
+  );
+}
+
+function astConfigTryDecodeURIComponent(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  try {
+    return decodeURIComponent(value);
+  } catch (_error) {
+    return value;
+  }
+}
+
+function astConfigNormalizeSensitiveToken(value) {
+  return astConfigNormalizeString(value, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_');
+}
+
+function astConfigIsSensitiveQueryKey(key) {
+  const decoded = astConfigTryDecodeURIComponent(String(key || ''));
+  const normalized = astConfigNormalizeSensitiveToken(decoded);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (AST_CONFIG_HTTP_SENSITIVE_QUERY_KEYS.includes(normalized)) {
+    return true;
+  }
+
+  return (
+    normalized.includes('token') ||
+    normalized.includes('secret') ||
+    normalized.includes('password') ||
+    normalized.includes('signature')
+  );
+}
+
+function astConfigRedactUrl(url) {
+  const raw = astConfigNormalizeString(url, '');
+  if (!raw) {
+    return raw;
+  }
+
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex < 0) {
+    return raw;
+  }
+
+  const fragmentIndex = raw.indexOf('#', queryIndex);
+  const base = raw.slice(0, queryIndex);
+  const query = fragmentIndex >= 0
+    ? raw.slice(queryIndex + 1, fragmentIndex)
+    : raw.slice(queryIndex + 1);
+  const fragment = fragmentIndex >= 0 ? raw.slice(fragmentIndex) : '';
+
+  if (!query) {
+    return raw;
+  }
+
+  const redactedQuery = query
+    .split('&')
+    .map(part => {
+      if (!part) {
+        return part;
+      }
+
+      const eqIndex = part.indexOf('=');
+      const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+      if (!astConfigIsSensitiveQueryKey(rawKey)) {
+        return part;
+      }
+
+      return `${rawKey}=[redacted]`;
+    })
+    .join('&');
+
+  return `${base}?${redactedQuery}${fragment}`;
+}
+
+function astConfigRedactHeaders(headers = {}) {
+  const input = astConfigIsPlainObject(headers) ? headers : {};
+  const output = {};
+
+  Object.keys(input).forEach(key => {
+    output[key] = astConfigIsSensitiveHeaderName(key)
+      ? '[redacted]'
+      : input[key];
+  });
+
+  return output;
+}
+
 function astConfigBuildHttpCoreError(code, message, details = {}, cause = null) {
   const error = new AST_CONFIG_HTTP_CORE_ERROR_CLASS(message, astConfigIsPlainObject(details) ? details : {}, cause);
   error.code = code;
@@ -26,10 +160,11 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
   if (!url) {
     throw astConfigBuildHttpCoreError('validation', 'HTTP request requires a non-empty url');
   }
+  const redactedUrl = astConfigRedactUrl(url);
 
   if (typeof UrlFetchApp === 'undefined' || !UrlFetchApp || typeof UrlFetchApp.fetch !== 'function') {
     throw astConfigBuildHttpCoreError('unavailable', 'UrlFetchApp.fetch is not available in this runtime', {
-      url
+      url: redactedUrl
     });
   }
 
@@ -53,7 +188,7 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
       'timeout',
       `HTTP request exceeded timeout budget (${timeoutMs}ms)`,
       {
-        url,
+        url: redactedUrl,
         timeoutMs,
         attempts: attempt + 1,
         elapsedMs: astConfigElapsedMs(startedAtMs)
@@ -132,7 +267,7 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
             'late_success',
             'HTTP request exceeded timeout budget before successful response',
             {
-              url,
+              url: redactedUrl,
               statusCode,
               timeoutMs,
               elapsedMs: astConfigElapsedMs(startedAtMs)
@@ -155,12 +290,12 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
         'http_status',
         `HTTP request failed with status ${statusCode}`,
         {
-          url,
+          url: redactedUrl,
           statusCode,
           body,
           json,
           method,
-          requestHeaders,
+          requestHeaders: astConfigRedactHeaders(requestHeaders),
           timeoutMs,
           elapsedMs: astConfigElapsedMs(startedAtMs)
         }
@@ -199,7 +334,7 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
           'failure',
           'HTTP request failed',
           {
-            url,
+            url: redactedUrl,
             attempts: attempt + 1,
             timeoutMs,
             elapsedMs: astConfigElapsedMs(startedAtMs)
@@ -218,7 +353,7 @@ function astConfigHttpRequestWithRetryCore(config = {}) {
     'retry_exhausted',
     'HTTP request failed after retries',
     {
-      url,
+      url: redactedUrl,
       attempts: retries + 1,
       timeoutMs,
       elapsedMs: astConfigElapsedMs(startedAtMs)

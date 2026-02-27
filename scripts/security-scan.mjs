@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = process.cwd();
 const DEFAULT_ALLOWLIST_PATH = path.join(ROOT, '.security', 'secret-scan-allowlist.json');
@@ -14,7 +15,7 @@ const BINARY_EXTENSIONS = new Set([
   '.xlsx', '.xls', '.doc', '.docx', '.ppt', '.pptx'
 ]);
 
-const SECRET_RULES = Object.freeze([
+export const SECRET_RULES = Object.freeze([
   {
     id: 'private_key_block',
     description: 'Private key material',
@@ -49,6 +50,26 @@ const SECRET_RULES = Object.freeze([
     id: 'databricks_pat',
     description: 'Databricks PAT',
     regex: /\bdapi[0-9a-f]{32}\b/gi
+  },
+  {
+    id: 'stripe_secret_key',
+    description: 'Stripe secret/restricted API key',
+    regex: /\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}\b/g
+  },
+  {
+    id: 'twilio_auth_token',
+    description: 'Twilio auth token in assignment-like context',
+    regex: /\bTWILIO_AUTH_TOKEN\b\s*[:=]\s*['\"]?[0-9a-fA-F]{32}\b/g
+  },
+  {
+    id: 'sendgrid_api_key',
+    description: 'SendGrid API key',
+    regex: /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b/g
+  },
+  {
+    id: 'jwt_token',
+    description: 'JWT bearer token',
+    regex: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
   }
 ]);
 
@@ -61,10 +82,11 @@ const PLACEHOLDER_HINTS = [
   'TEST_',
   '<YOUR_',
   'YOUR_API_KEY',
-  'YOUR_TOKEN'
+  'YOUR_TOKEN',
+  'REDACTED'
 ];
 
-function parseAllowlist(filePath) {
+export function parseAllowlist(filePath) {
   if (!fs.existsSync(filePath)) {
     return [];
   }
@@ -114,7 +136,7 @@ function appearsToBePlaceholder(value) {
   return PLACEHOLDER_HINTS.some(hint => upperValue.includes(hint));
 }
 
-function matchIsAllowlisted(match, allowlistRules) {
+export function matchIsAllowlisted(match, allowlistRules) {
   for (const rule of allowlistRules) {
     const idMatches = rule.id === '*' || rule.id === match.ruleId;
     const pathMatches = !rule.path || rule.path.test(match.file);
@@ -139,6 +161,34 @@ function toLineNumber(content, index) {
   return line;
 }
 
+export function scanContentForSecrets(content, filePath = 'inline', allowlistRules = []) {
+  const text = typeof content === 'string' ? content : '';
+  const matches = [];
+
+  for (const rule of SECRET_RULES) {
+    const regex = new RegExp(rule.regex.source, rule.regex.flags);
+    let match = regex.exec(text);
+    while (match) {
+      const value = match[0];
+      const finding = {
+        file: filePath,
+        ruleId: rule.id,
+        description: rule.description,
+        value,
+        line: toLineNumber(text, match.index)
+      };
+
+      if (!appearsToBePlaceholder(value) && !matchIsAllowlisted(finding, allowlistRules)) {
+        matches.push(finding);
+      }
+
+      match = regex.exec(text);
+    }
+  }
+
+  return matches;
+}
+
 function collectMatches(filePath, allowlistRules) {
   const absolutePath = path.join(ROOT, filePath);
   const stat = fs.statSync(absolutePath);
@@ -147,34 +197,11 @@ function collectMatches(filePath, allowlistRules) {
   }
 
   const content = fs.readFileSync(absolutePath, 'utf8');
-  const matches = [];
-
-  for (const rule of SECRET_RULES) {
-    const regex = new RegExp(rule.regex.source, rule.regex.flags);
-    let match = regex.exec(content);
-    while (match) {
-      const value = match[0];
-      const finding = {
-        file: filePath,
-        ruleId: rule.id,
-        description: rule.description,
-        value,
-        line: toLineNumber(content, match.index)
-      };
-
-      if (!appearsToBePlaceholder(value) && !matchIsAllowlisted(finding, allowlistRules)) {
-        matches.push(finding);
-      }
-
-      match = regex.exec(content);
-    }
-  }
-
-  return matches;
+  return scanContentForSecrets(content, filePath, allowlistRules);
 }
 
-function main() {
-  const allowlistRules = parseAllowlist(DEFAULT_ALLOWLIST_PATH);
+export function runSecurityScan({ allowlistPath = DEFAULT_ALLOWLIST_PATH } = {}) {
+  const allowlistRules = parseAllowlist(allowlistPath);
   const trackedFiles = listTrackedFiles();
   const findings = [];
 
@@ -185,6 +212,12 @@ function main() {
 
     findings.push(...collectMatches(file, allowlistRules));
   }
+
+  return findings;
+}
+
+function main() {
+  const findings = runSecurityScan();
 
   if (findings.length === 0) {
     console.log('Security secret scan passed: no high-confidence secrets found.');
@@ -201,4 +234,13 @@ function main() {
   process.exitCode = 1;
 }
 
-main();
+const isDirectRun = (() => {
+  if (!process.argv[1]) {
+    return false;
+  }
+  return import.meta.url === pathToFileURL(process.argv[1]).href;
+})();
+
+if (isDirectRun) {
+  main();
+}

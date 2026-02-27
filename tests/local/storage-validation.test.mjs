@@ -44,6 +44,34 @@ test('astValidateStorageRequest normalizes URI provider and location', () => {
   assert.equal(request.uri, 'gcs://bucket-a/path/to/file.json');
 });
 
+test('astValidateStorageRequest rejects traversal-like storage location inputs', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astValidateStorageRequest({
+      provider: 's3',
+      operation: 'read',
+      location: {
+        bucket: 'safe-bucket',
+        key: '../secrets.txt'
+      }
+    }),
+    /must not include/
+  );
+
+  assert.throws(
+    () => context.astValidateStorageRequest({
+      provider: 'dbfs',
+      operation: 'read',
+      location: {
+        path: 'dbfs:/mnt/../secret'
+      }
+    }),
+    /must not include/
+  );
+});
+
 test('astValidateStorageRequest normalizes write payload from text/json to base64', () => {
   const context = createGasContext();
   loadStorageScripts(context);
@@ -257,6 +285,45 @@ test('astStorageHttpRequest reports timeout classification on final-attempt tran
       assert.equal(error.name, 'AstStorageProviderError');
       assert.match(error.message, /timeout budget/);
       assert.equal(error.details.timeoutMs, 60);
+      return true;
+    }
+  );
+});
+
+test('astStorageHttpRequest redacts sensitive headers and query values in errors', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => createResponse({
+        status: 403,
+        body: JSON.stringify({ message: 'denied' })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  assert.throws(
+    () => context.astStorageHttpRequest({
+      provider: 'gcs',
+      operation: 'read',
+      url: 'https://storage.googleapis.com/storage/v1/b/demo/o/file?access_token=abc123&alt=media',
+      method: 'get',
+      retries: 0,
+      headers: {
+        Authorization: 'Bearer top-secret',
+        'x-amz-security-token': 'session-secret',
+        'x-custom': 'keep'
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.equal(
+        error.details.url,
+        'https://storage.googleapis.com/storage/v1/b/demo/o/file?access_token=[redacted]&alt=media'
+      );
+      assert.equal(error.details.request.headers.Authorization, '[redacted]');
+      assert.equal(error.details.request.headers['x-amz-security-token'], '[redacted]');
+      assert.equal(error.details.request.headers['x-custom'], 'keep');
       return true;
     }
   );

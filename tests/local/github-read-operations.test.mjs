@@ -113,6 +113,81 @@ test('listCommits honors top-level ref as sha query filter', () => {
   assert.match(calls[0].url, /sha=feature%2Fmain/);
 });
 
+test('getCommit supports slash-containing ref values', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { sha: 'abc' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.getCommit({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'feature/main'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/commits\/feature%2Fmain$/);
+  assert.equal(response.status, 'ok');
+});
+
+test('getReleaseByTag supports slash-containing tag names', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { id: 1, tag_name: 'release/2026.02' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.getReleaseByTag({
+    owner: 'octocat',
+    repo: 'hello-world',
+    tag: 'release/2026.02'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/releases\/tags\/release%2F2026\.02$/);
+  assert.equal(response.status, 'ok');
+});
+
+test('getCommit rejects invalid slash placement in ref values', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return createResponse(200, {});
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  assert.throws(
+    () => context.AST.GitHub.getCommit({
+      owner: 'octocat',
+      repo: 'hello-world',
+      ref: '/feature/main'
+    }),
+    /invalid slash placement|disallowed path characters/
+  );
+  assert.equal(fetchCalls, 0);
+});
+
 test('getPullRequestDiff sends diff accept header', () => {
   const calls = [];
   const context = createGasContext({

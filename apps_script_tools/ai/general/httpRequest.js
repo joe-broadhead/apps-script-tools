@@ -2,10 +2,61 @@ function astAiIsTransientHttpError(statusCode) {
   return statusCode === 429 || statusCode >= 500;
 }
 
+function astAiRedactUrl(url) {
+  if (typeof astConfigRedactUrl === 'function') {
+    return astConfigRedactUrl(url);
+  }
+
+  if (typeof url !== 'string') {
+    return '';
+  }
+
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const queryIndex = trimmed.indexOf('?');
+  if (queryIndex < 0) {
+    return trimmed;
+  }
+
+  const fragmentIndex = trimmed.indexOf('#', queryIndex);
+  const base = trimmed.slice(0, queryIndex);
+  const query = fragmentIndex >= 0
+    ? trimmed.slice(queryIndex + 1, fragmentIndex)
+    : trimmed.slice(queryIndex + 1);
+  const fragment = fragmentIndex >= 0 ? trimmed.slice(fragmentIndex) : '';
+
+  const redacted = query
+    .split('&')
+    .map(part => {
+      if (!part) {
+        return part;
+      }
+      const eqIndex = part.indexOf('=');
+      const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+      const key = rawKey.toLowerCase();
+      if (
+        key.includes('token') ||
+        key.includes('key') ||
+        key.includes('secret') ||
+        key.includes('password') ||
+        key.includes('signature')
+      ) {
+        return `${rawKey}=[redacted]`;
+      }
+      return part;
+    })
+    .join('&');
+
+  return `${base}?${redacted}${fragment}`;
+}
+
 function astAiMapHttpCoreError(error, context = {}) {
   const coreCode = error && error.code ? String(error.code) : '';
   const details = error && error.details ? error.details : {};
-  const url = typeof context.url === 'string' ? context.url : details.url;
+  const url = astAiRedactUrl(typeof context.url === 'string' ? context.url : details.url);
   const timeoutMs = context.timeoutMs == null ? details.timeoutMs : context.timeoutMs;
   const elapsedMs = details.elapsedMs;
   const attempts = details.attempts;
@@ -126,7 +177,7 @@ function astAiHttpRequest(config = {}) {
     throw new AstAiProviderError(
       'AI provider request failed',
       {
-        url,
+        url: astAiRedactUrl(url),
         timeoutMs
       },
       error
