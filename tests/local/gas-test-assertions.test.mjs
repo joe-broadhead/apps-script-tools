@@ -38,6 +38,25 @@ test('astTestRunWithAssertions supports deepEqual with stable object key orderin
   });
 });
 
+test('astTestRunWithAssertions deepEqual distinguishes missing vs undefined keys', () => {
+  const context = loadAssertionContext();
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.deepEqual({ a: undefined }, {});
+    }),
+    /Expected/
+  );
+});
+
+test('astTestRunWithAssertions deepEqual treats NaN as equal', () => {
+  const context = loadAssertionContext();
+
+  context.astTestRunWithAssertions(t => {
+    t.deepEqual({ value: Number.NaN }, { value: Number.NaN });
+  });
+});
+
 test('astTestRunWithAssertions supports async test callbacks', async () => {
   const context = loadAssertionContext();
 
