@@ -64,3 +64,32 @@ test('transient 503 retries and eventually succeeds', () => {
   assert.equal(calls, 3);
   assert.equal(response.data.login, 'octocat');
 });
+
+test('non-retriable provider 501 fails fast without exhausting retries', () => {
+  let calls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        calls += 1;
+        return createResponse(501, { message: 'not implemented' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_RETRIES: 3
+  });
+
+  assert.throws(
+    () => context.AST.GitHub.getMe(),
+    error => {
+      assert.equal(error.name, 'AstGitHubProviderError');
+      assert.equal(error.details.statusCode, 501);
+      return true;
+    }
+  );
+
+  assert.equal(calls, 1);
+});

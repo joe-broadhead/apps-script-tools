@@ -151,7 +151,7 @@ function astGitHubRunGraphqlRequest(request, config) {
 
   if (httpResult.statusCode === 304 && cachedState.hasValue) {
     const refreshedEnvelope = astGitHubBuildCachedEnvelope(cached.data, httpResult.headers, cacheConfig, cached.etag, Date.now());
-    astGitHubWriteCacheEntry(cacheKey, refreshedEnvelope, cacheConfig, ['github:graphql']);
+    astGitHubWriteCacheEntry(cacheKey, refreshedEnvelope, cacheConfig, astGitHubBuildGraphqlCacheTags(request));
 
     return astGitHubNormalizeResponse({
       operation: 'graphql',
@@ -188,11 +188,11 @@ function astGitHubRunGraphqlRequest(request, config) {
       etag,
       Date.now()
     );
-    astGitHubWriteCacheEntry(cacheKey, envelope, cacheConfig, ['github:graphql']);
+    astGitHubWriteCacheEntry(cacheKey, envelope, cacheConfig, astGitHubBuildGraphqlCacheTags(request));
   }
 
   if (isMutation) {
-    astGitHubInvalidateCacheTags(astGitHubBuildGraphqlMutationTags(request), cacheConfig);
+    astGitHubInvalidateCacheTags(astGitHubBuildGraphqlCacheTags(request), cacheConfig);
   }
 
   return astGitHubNormalizeResponse({
@@ -213,7 +213,7 @@ function astGitHubRunGraphqlRequest(request, config) {
   });
 }
 
-function astGitHubBuildGraphqlMutationTags(request) {
+function astGitHubBuildGraphqlCacheTags(request) {
   const tags = ['github:all', 'github:graphql'];
   const variables = astGitHubCacheIsPlainObject(request && request.variables)
     ? request.variables

@@ -171,11 +171,13 @@ function astGitHubExtractRateLimit(headers = {}, bodyJson = null) {
 }
 
 function astGitHubBuildHttpError(statusCode, context, bodyText, bodyJson, headers, cause = null) {
+  const retryable = astGitHubShouldRetry(statusCode, bodyText, bodyJson);
   const details = {
     operation: context.operation,
     method: context.method,
     url: context.url,
     statusCode,
+    retryable,
     request: {
       headers: astGitHubRedactHeaders(context.headers || {})
     },
@@ -216,6 +218,23 @@ function astGitHubBuildHttpError(statusCode, context, bodyText, bodyJson, header
   }
 
   return new AstGitHubProviderError(`GitHub request failed with status ${statusCode}`, details, cause);
+}
+
+function astGitHubHttpIsRetriableProviderError(error) {
+  if (!error || error.name !== 'AstGitHubProviderError') {
+    return false;
+  }
+
+  const details = astGitHubHttpIsPlainObject(error.details) ? error.details : {};
+  if (typeof details.retryable === 'boolean') {
+    return details.retryable;
+  }
+
+  if (isFinite(Number(details.statusCode))) {
+    return astGitHubShouldRetry(Number(details.statusCode), '', null);
+  }
+
+  return false;
 }
 
 function astGitHubHttpRequest(config = {}) {
@@ -356,7 +375,11 @@ function astGitHubHttpRequest(config = {}) {
          error.name === 'AstGitHubParseError' ||
          error.name === 'AstGitHubError')
       ) {
-        if (attempt >= retries || error.name !== 'AstGitHubProviderError') {
+        if (
+          attempt >= retries ||
+          error.name !== 'AstGitHubProviderError' ||
+          astGitHubHttpIsRetriableProviderError(error) !== true
+        ) {
           throw error;
         }
       }

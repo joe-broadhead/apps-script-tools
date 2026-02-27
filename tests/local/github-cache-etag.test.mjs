@@ -237,3 +237,64 @@ test('graphql mutation invalidates cached read tags', () => {
   assert.equal(secondRead.cache.hit, false);
   assert.equal(secondRead.data.id, 2);
 });
+
+test('rest mutation invalidates cached graphql read entries via github:all tag', () => {
+  const cache = createCacheMock();
+  let graphqlCalls = 0;
+  let restMutationCalls = 0;
+
+  const context = createGasContext({
+    AST_CACHE: cache,
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        const normalizedUrl = String(url || '');
+        const method = String(options.method || 'get').toLowerCase();
+
+        if (normalizedUrl.indexOf('/graphql') !== -1) {
+          graphqlCalls += 1;
+          const login = graphqlCalls === 1 ? 'first' : 'second';
+          return createResponse(200, { data: { viewer: { login } } });
+        }
+
+        if (normalizedUrl.indexOf('/issues') !== -1 && method === 'post') {
+          restMutationCalls += 1;
+          return createResponse(201, { id: 101, number: 5 });
+        }
+
+        return createResponse(200, {});
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_CACHE_ENABLED: true,
+    GITHUB_CACHE_BACKEND: 'memory',
+    GITHUB_CACHE_NAMESPACE: 'gh_cache_rest_mutation_invalidate_graphql',
+    GITHUB_CACHE_TTL_SEC: 120,
+    GITHUB_CACHE_STALE_TTL_SEC: 600,
+    GITHUB_CACHE_ETAG_TTL_SEC: 3600
+  });
+
+  const firstGraphql = context.AST.GitHub.graphql({
+    query: 'query { viewer { login } }'
+  });
+  assert.equal(firstGraphql.cache.hit, false);
+  assert.equal(firstGraphql.data.data.viewer.login, 'first');
+
+  context.AST.GitHub.createIssue({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: { title: 'invalidate graphql cache' }
+  });
+
+  const secondGraphql = context.AST.GitHub.graphql({
+    query: 'query { viewer { login } }'
+  });
+
+  assert.equal(restMutationCalls, 1);
+  assert.equal(graphqlCalls, 2);
+  assert.equal(secondGraphql.cache.hit, false);
+  assert.equal(secondGraphql.data.data.viewer.login, 'second');
+});
