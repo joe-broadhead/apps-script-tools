@@ -12,7 +12,7 @@
 class DateMethods {
   constructor(series) {
     this.series = series;
-    this.useUTC = series.useUTC || false;
+    this.useUTC = Boolean(series && series.useUTC === true);
   }
 
   /**
@@ -578,9 +578,14 @@ class DateMethods {
    * - Space Complexity: O(n), as a new `Series` is created to store the formatted date strings.
    * 
    * @see DateMethods._applyDateOperation - Used to apply the date string formatting logic.
-   */
+  */
   toDateString() {
-    return this._applyDateOperation(date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+    return this._applyDateOperation((date, useUTC) => {
+      const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+      const month = useUTC ? date.getUTCMonth() + 1 : date.getMonth() + 1;
+      const day = useUTC ? date.getUTCDate() : date.getDate();
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    });
   }
 
 }
