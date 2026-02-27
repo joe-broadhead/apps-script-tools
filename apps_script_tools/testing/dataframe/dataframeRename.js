@@ -127,5 +127,37 @@ DATAFRAME_RENAME_TESTS = [
                 throw new Error(`Expected columns ['user_id', 'name'], but got ${JSON.stringify(renamed.columns)}`);
             }
         }
+    },
+
+    {
+        description: 'DataFrame.rename() should reject explicit empty-string destination names',
+        test: () => {
+            const df = DataFrame.fromRecords([
+                { id: 1, name: 'Alice' }
+            ]);
+
+            try {
+                df.rename({ id: '' });
+                throw new Error('Expected rename to reject empty destination name');
+            } catch (error) {
+                if (!String(error.message).includes('Invalid name')) {
+                    throw new Error(`Expected invalid-name error, got: ${error.message}`);
+                }
+            }
+        }
+    },
+
+    {
+        description: 'DataFrame.rename() should allow explicit numeric-string destination names',
+        test: () => {
+            const df = DataFrame.fromRecords([
+                { id: 1, name: 'Alice' }
+            ]);
+
+            const renamed = df.rename({ id: '0' });
+            if (!renamed.columns.includes('0') || renamed.columns.includes('id')) {
+                throw new Error(`Expected id column to be renamed to '0', got ${JSON.stringify(renamed.columns)}`);
+            }
+        }
     }
 ];

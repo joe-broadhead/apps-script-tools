@@ -186,11 +186,32 @@ var DataFrame = class DataFrame {
       throw new Error('Concat requires a non-empty array of DataFrames');
     }
 
-    if (!dataFrames.every((dataframe, _, array) => (dataframe instanceof DataFrame) && (dataframe.columns.length === array[0].columns.length))) {
-      throw new Error('All DataFrames must have the same number of columns');
+    if (!dataFrames.every(dataframe => dataframe instanceof DataFrame)) {
+      throw new Error('All arguments must be DataFrame instances');
     }
 
-    return dataFrames.reduce((acc, df) => acc.union(df, distinct));
+    const baseColumns = dataFrames[0].columns;
+    const baseColumnSet = new Set(baseColumns);
+    const alignedFrames = [dataFrames[0]];
+
+    for (let idx = 1; idx < dataFrames.length; idx++) {
+      const candidate = dataFrames[idx];
+      const candidateColumns = candidate.columns;
+      if (candidateColumns.length !== baseColumns.length) {
+        throw new Error('All DataFrames must have identical column names');
+      }
+
+      for (let columnIdx = 0; columnIdx < candidateColumns.length; columnIdx++) {
+        if (!baseColumnSet.has(candidateColumns[columnIdx])) {
+          throw new Error('All DataFrames must have identical column names');
+        }
+      }
+
+      const inSameOrder = candidateColumns.every((columnName, columnIdx) => columnName === baseColumns[columnIdx]);
+      alignedFrames.push(inSameOrder ? candidate : candidate.select(baseColumns));
+    }
+
+    return alignedFrames.reduce((acc, df) => acc.union(df, distinct));
   }
 
   static generateSurrogateKey(dataframe, columns, delimiter = '-') {
@@ -237,7 +258,7 @@ var DataFrame = class DataFrame {
 
   rename(names) {
     const renamed = Object.entries(this.data).reduce((acc, [key, value]) => {
-      if (names[key]) {
+      if (Object.prototype.hasOwnProperty.call(names, key)) {
         const newColName = names[key];
         const renamedSeries = value.rename(newColName);
         acc[newColName] = renamedSeries;
@@ -641,6 +662,19 @@ var DataFrame = class DataFrame {
 
   pivot(indexCol, pivotCol, aggMapping = {}) {
     const records = this.toRecords();
+    const buildGroupKeyPart = value => {
+      if (value === undefined) {
+        return { kind: 'undefined' };
+      }
+      try {
+        return { kind: 'value', key: astStableKey(value) };
+      } catch (_) {
+        return { kind: 'value_fallback', key: String(value) };
+      }
+    };
+    const buildGroupKey = (indexValue, pivotValue) => {
+      return JSON.stringify([buildGroupKeyPart(indexValue), buildGroupKeyPart(pivotValue)]);
+    };
 
     const groupedData = new Map();
     const indexValues = new Set();
@@ -661,7 +695,7 @@ var DataFrame = class DataFrame {
       indexValues.add(indexValue);
       pivotValues.add(pivotValue);
 
-      const groupKey = `${indexValue}||${pivotValue}`;
+      const groupKey = buildGroupKey(indexValue, pivotValue);
 
       if (!groupedData.has(groupKey)) {
         groupedData.set(groupKey, []);
@@ -697,7 +731,7 @@ var DataFrame = class DataFrame {
       data[indexCol].append(indexValue);
 
       for (const pivotValue of pivotValues) {
-        const groupKey = `${indexValue}||${pivotValue}`;
+        const groupKey = buildGroupKey(indexValue, pivotValue);
 
         for (const col of Object.keys(aggMapping)) {
           const colName = `${pivotValue}_${col}`;

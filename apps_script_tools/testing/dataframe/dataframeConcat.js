@@ -35,7 +35,7 @@ DATAFRAME_CONCAT_TESTS = [
     },
 
     {
-        description: 'DataFrame.concat() should handle DataFrames with different columns',
+        description: 'DataFrame.concat() should reject DataFrames with different columns',
         test: () => {
             const df1 = DataFrame.fromRecords([
                 { id: 1, name: 'Alice' }
@@ -45,21 +45,34 @@ DATAFRAME_CONCAT_TESTS = [
                 { id: 2, age: 30 }
             ]);
 
+            try {
+                DataFrame.concat([df1, df2]);
+                throw new Error('Expected concat to reject mismatched columns');
+            } catch (error) {
+                if (!String(error.message).includes('identical column names')) {
+                    throw new Error(`Expected identical-column-names error, got: ${error.message}`);
+                }
+            }
+        }
+    },
+
+    {
+        description: 'DataFrame.concat() should align DataFrames with matching columns in different order',
+        test: () => {
+            const df1 = DataFrame.fromRecords([
+                { id: 1, name: 'Alice' }
+            ]);
+            const df2 = DataFrame.fromRecords([
+                { name: 'Bob', id: 2 }
+            ]);
+
             const result = DataFrame.concat([df1, df2]);
-
-            // Check columns (should have all unique columns)
-            if (!result.columns.includes('id') ||
-                !result.columns.includes('name') ||
-                !result.columns.includes('age')) {
-                throw new Error(`Expected columns ['id', 'name', 'age'], but got ${result.columns}`);
+            if (result.columns[0] !== 'id' || result.columns[1] !== 'name') {
+                throw new Error(`Expected result columns ['id','name'], got ${JSON.stringify(result.columns)}`);
             }
 
-            // Check for null values in missing columns
-            if (result.at(0).age !== null) {
-                throw new Error(`Expected df1 row to have age=null, but got ${result.at(0).age}`);
-            }
-            if (result.at(1).name !== null) {
-                throw new Error(`Expected df2 row to have name=null, but got ${result.at(1).name}`);
+            if (result.at(1).id !== 2 || result.at(1).name !== 'Bob') {
+                throw new Error(`Expected second row to align values by column name, got ${JSON.stringify(result.at(1))}`);
             }
         }
     },
@@ -203,7 +216,7 @@ DATAFRAME_CONCAT_TESTS = [
     },
 
     {
-        description: 'DataFrame.concat() should handle DataFrames with completely different columns',
+        description: 'DataFrame.concat() should reject DataFrames with completely different columns',
         test: () => {
             const df1 = DataFrame.fromRecords([
                 { a: 1, b: 2 }
@@ -213,22 +226,13 @@ DATAFRAME_CONCAT_TESTS = [
                 { c: 3, d: 4 }
             ]);
 
-            const result = DataFrame.concat([df1, df2]);
-
-            // Check columns (should have all columns)
-            const expectedColumns = ['a', 'b', 'c', 'd'].sort();
-            if (JSON.stringify(result.columns.sort()) !== JSON.stringify(expectedColumns)) {
-                throw new Error(`Expected columns ${expectedColumns}, but got ${result.columns}`);
-            }
-
-            // First row should have null for c and d
-            if (result.at(0).c !== null || result.at(0).d !== null) {
-                throw new Error(`Expected df1 row to have c=null and d=null`);
-            }
-
-            // Second row should have null for a and b
-            if (result.at(1).a !== null || result.at(1).b !== null) {
-                throw new Error(`Expected df2 row to have a=null and b=null`);
+            try {
+                DataFrame.concat([df1, df2]);
+                throw new Error('Expected concat to reject completely different columns');
+            } catch (error) {
+                if (!String(error.message).includes('identical column names')) {
+                    throw new Error(`Expected identical-column-names error, got: ${error.message}`);
+                }
             }
         }
     }
