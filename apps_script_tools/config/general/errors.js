@@ -26,4 +26,3 @@ class AstConfigHttpCoreError extends AstConfigError {
     this.name = 'AstConfigHttpCoreError';
   }
 }
-

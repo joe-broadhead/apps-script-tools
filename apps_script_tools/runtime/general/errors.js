@@ -19,4 +19,3 @@ class AstRuntimeValidationError extends AstRuntimeError {
     this.name = 'AstRuntimeValidationError';
   }
 }
-
