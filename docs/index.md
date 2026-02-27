@@ -30,6 +30,7 @@
 - `AST.Jobs`: script-properties checkpointed multi-step job runner with retry/resume and status controls.
 - `AST.Triggers`: declarative time-based trigger upsert/list/delete with optional Jobs dispatch.
 - `AST.Chat`: durable user-scoped thread persistence and bounded history assembly.
+- `AST.GitHub`: GitHub REST + GraphQL automation with typed errors, dry-run planning, and cache/ETag support.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -49,10 +50,11 @@ flowchart LR
     B --> Q[AST.Cache]
     B --> S[AST.Config / AST.Runtime]
     B --> O[AST.Telemetry]
-    B --> V[AST.TelemetryHelpers]
+    B --> TH[AST.TelemetryHelpers]
     B --> T[AST.Jobs]
     B --> AC[AST.Triggers]
     B --> W[AST.Chat]
+    B --> GH[AST.GitHub]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
     I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
@@ -65,6 +67,7 @@ flowchart LR
     T --> U["Script Properties Checkpoints"]
     AC --> AD["ScriptApp Time Triggers"]
     W --> X["Durable Thread Store"]
+    GH --> GHAPI[GitHub REST + GraphQL APIs]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -77,6 +80,9 @@ flowchart LR
 
 ## `v0.0.5` (unreleased) highlights
 
+- `AST.GitHub` module for GitHub REST + GraphQL automation.
+- Mutation dry-run planning support and typed error mapping for GitHub API calls.
+- Read cache + ETag revalidation support for GitHub read/list/search and GraphQL query operations.
 - `AST.DBT` namespace now includes artifact loaders (`catalog`, `run_results`, `sources`) plus `diffEntities` and `impact`.
 - Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
 - v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.

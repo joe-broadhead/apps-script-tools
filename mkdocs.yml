@@ -105,6 +105,7 @@ nav:
     - AI Quick Start: getting-started/ai-quickstart.md
     - RAG Quick Start: getting-started/rag-quickstart.md
     - Storage Quick Start: getting-started/storage-quickstart.md
+    - GitHub Quick Start: getting-started/github-quickstart.md
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
@@ -112,6 +113,8 @@ nav:
     - dbt Manifest Search: api/dbt-manifest-search.md
     - dbt Artifacts and Impact: api/dbt-artifacts-impact.md
     - SQL Contracts: api/sql-contracts.md
+    - GitHub Contracts: api/github-contracts.md
+    - GitHub Operations: api/github-operations.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md
     - AI Tool Calling: api/ai-tool-calling.md
@@ -134,6 +137,7 @@ nav:
     - AI Security: operations/ai-security.md
     - RAG Indexing: operations/rag-indexing.md
     - Storage Security: operations/storage-security.md
+    - GitHub Security: operations/github-security.md
     - Security: operations/security.md
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md

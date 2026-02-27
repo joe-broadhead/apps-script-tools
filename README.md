@@ -37,6 +37,7 @@
 - `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single-key ops, tag invalidation, and stats
 - `AST.Config`: script-properties snapshot helpers for runtime bootstrap
 - `AST.Runtime`: one-shot runtime config hydration across namespaces
+- `AST.GitHub`: GitHub REST + GraphQL automation with dry-run and cache/ETag support
 - `AST.Telemetry`: trace spans/events with redaction and sink controls
 - `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
 - `AST.Jobs`: script-properties checkpointed multi-step job orchestration with retry/resume semantics
@@ -55,6 +56,14 @@ Current release state:
 - Next release target on `master`: `v0.0.5` (unreleased)
 
 `v0.0.5` (in progress) highlights:
+
+- New `AST.GitHub` module with:
+  - broad REST operations for repositories, branches, commits, files, issues, PRs, releases/tags, and search.
+  - GraphQL support through `AST.GitHub.graphql(...)`.
+  - strict typed errors and deterministic request validation.
+  - mutation dry-run planning (`options.dryRun=true`) for safe preview workflows.
+  - optional read caching + ETag revalidation with stale-on-error fallback.
+  - runtime/script-property config resolution for PAT auth, retries, timeouts, and cache policy.
 
 - New `AST.DBT` module with:
   - `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
@@ -283,6 +292,7 @@ Notes:
   - `.github/workflows/security-secret-scan.yml`
 - Optional live AI smoke checks: `.github/workflows/integration-ai-live.yml`
 - Naming convention and contribution rules: `CONTRIBUTING.md`
+- Optional live GitHub API smoke checks: `.github/workflows/integration-github-live.yml`
 
 ## Release
 

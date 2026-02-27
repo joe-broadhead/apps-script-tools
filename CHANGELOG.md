@@ -74,6 +74,27 @@
 
 ### Added
 
+- New `AST.GitHub` namespace with:
+  - `run` + helper methods for repo/branch/commit/file/issue/PR/release/tag/search flows
+  - `graphql(...)` for explicit GraphQL queries/mutations
+  - `operations`, `providers`, `capabilities`, `configure`, `getConfig`, `clearConfig`
+- GitHub operation registry and typed error model:
+  - `AstGitHubError`, `AstGitHubValidationError`, `AstGitHubAuthError`, `AstGitHubNotFoundError`
+  - `AstGitHubRateLimitError`, `AstGitHubConflictError`, `AstGitHubCapabilityError`
+  - `AstGitHubProviderError`, `AstGitHubParseError`
+- GitHub mutation dry-run planning (`options.dryRun=true`) with deterministic `plannedRequest` payloads.
+- GitHub GraphQL client support with typed GraphQL error mapping and optional cache/ETag revalidation.
+- GitHub read cache + ETag revalidation policy with stale-on-error fallback support.
+- GitHub local/perf/GAS test coverage:
+  - local: namespace, validation, config precedence, read/write routing, dry-run, graphql, cache/etag, rate-limit, typed errors
+  - perf: `github.cache_profile` benchmark with warm-cache and ETag ratio thresholds
+  - GAS: namespace and contract smoke tests in `runAllTests`
+- GitHub docs set:
+  - `getting-started/github-quickstart.md`
+  - `api/github-contracts.md`
+  - `api/github-operations.md`
+  - `operations/github-security.md`
+
 - New `AST.Cache` namespace with:
   - `get`, `set`, `delete`, `invalidateByTag`, `stats`
   - `backends`, `capabilities`
@@ -212,7 +233,8 @@
 
 ### Changed
 
-- `AST.VERSION` and package version set to `0.0.4` for this release line.
+- `AST.VERSION` and package version moved to `0.0.5` development line.
+- `AST` namespace now exposes `AST.GitHub`.
 - Breaking: internal non-`AST` top-level functions are now strictly internalized (`ast*` / `__ast*` / `*_` naming). Downstream consumers must use documented `AST` namespace APIs instead of direct global helper/function names.
 - `AST` namespace now exposes `AST.RAG`.
 - `AST` namespace now exposes `AST.Cache`.

@@ -640,11 +640,60 @@ const history = store.buildHistory(user, {
   maxPairs: 10,
   systemMessage: 'You are a project assistant.'
 });
+
+## `ASTX.GitHub`
+
+GitHub API automation surface with REST + GraphQL support, typed errors, dry-run mutation planning, and optional cache/ETag revalidation.
+
+Primary methods:
+
+- `ASTX.GitHub.run(request)` for operation-routed REST execution.
+- `ASTX.GitHub.graphql(request)` for explicit GraphQL queries/mutations.
+- Helper methods for repository, branch, commit, file, issue, pull request, release/tag, and search flows.
+- `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(...)` for runtime discovery.
+- `ASTX.GitHub.configure(config)` / `ASTX.GitHub.getConfig()` / `ASTX.GitHub.clearConfig()`.
+
+High-signal behavior:
+
+- auth precedence is request -> runtime `configure(...)` -> script properties.
+- mutation operations support `options.dryRun=true` and return `dryRun.plannedRequest`.
+- read operations can use cache + ETag revalidation when cache is enabled.
+- retries are bounded to transient statuses (`429`, `502`, `503`, `504`) and secondary-rate-limit `403`.
+- response includes normalized rate-limit metadata from GitHub headers.
+
+```javascript
+const repo = ASTX.GitHub.getRepository({
+  owner: 'octocat',
+  repo: 'hello-world'
+});
+
+Logger.log(repo.data.full_name);
+Logger.log(repo.rateLimit.remaining);
+```
+
+```javascript
+const planned = ASTX.GitHub.createPullRequest({
+  owner: 'octocat',
+  repo: 'hello-world',
+  body: {
+    title: 'feature: add github toolkit',
+    head: 'feature/github-toolkit',
+    base: 'master'
+  },
+  options: {
+    dryRun: true
+  }
+});
+
+Logger.log(JSON.stringify(planned.dryRun.plannedRequest, null, 2));
 ```
 
 See:
 
 - [Chat Contracts](chat-contracts.md)
+- [GitHub Contracts](github-contracts.md)
+- [GitHub Operations](github-operations.md)
+- [GitHub Security](../operations/github-security.md)
 
 ## `ASTX.AI`
 

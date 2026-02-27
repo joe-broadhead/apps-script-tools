@@ -30,6 +30,7 @@ ASTX.TelemetryHelpers
 ASTX.Jobs
 ASTX.Triggers
 ASTX.Chat
+ASTX.GitHub
 ASTX.Sql
 ASTX.Utils
 ```
@@ -342,6 +343,64 @@ store.newThread({ userKey: 'user-1' }, { title: 'New chat' });
 store.switchThread({ userKey: 'user-1' }, { threadId: 'thread_123' });
 store.appendTurn({ userKey: 'user-1' }, { turn: { role: 'user', content: 'Hello' } });
 store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You are helpful.' });
+
+## `GitHub` essentials
+
+```javascript
+ASTX.GitHub.run(request)
+ASTX.GitHub.graphql(request)
+ASTX.GitHub.getMe(request)
+ASTX.GitHub.getRepository(request)
+ASTX.GitHub.createRepository(request)
+ASTX.GitHub.forkRepository(request)
+ASTX.GitHub.listBranches(request)
+ASTX.GitHub.createBranch(request)
+ASTX.GitHub.listCommits(request)
+ASTX.GitHub.getCommit(request)
+ASTX.GitHub.getFileContents(request)
+ASTX.GitHub.createOrUpdateFile(request)
+ASTX.GitHub.deleteFile(request)
+ASTX.GitHub.pushFiles(request)
+ASTX.GitHub.listIssues(request)
+ASTX.GitHub.getIssue(request)
+ASTX.GitHub.getIssueComments(request)
+ASTX.GitHub.createIssue(request)
+ASTX.GitHub.updateIssue(request)
+ASTX.GitHub.addIssueComment(request)
+ASTX.GitHub.listPullRequests(request)
+ASTX.GitHub.searchPullRequests(request)
+ASTX.GitHub.getPullRequest(request)
+ASTX.GitHub.getPullRequestDiff(request)
+ASTX.GitHub.getPullRequestFiles(request)
+ASTX.GitHub.getPullRequestComments(request)
+ASTX.GitHub.getPullRequestReviewComments(request)
+ASTX.GitHub.getPullRequestReviews(request)
+ASTX.GitHub.getPullRequestStatus(request)
+ASTX.GitHub.createPullRequest(request)
+ASTX.GitHub.updatePullRequest(request)
+ASTX.GitHub.mergePullRequest(request)
+ASTX.GitHub.updatePullRequestBranch(request)
+ASTX.GitHub.createPullRequestReview(request)
+ASTX.GitHub.submitPendingPullRequestReview(request)
+ASTX.GitHub.deletePendingPullRequestReview(request)
+ASTX.GitHub.addCommentToPendingReview(request)
+ASTX.GitHub.replyToPullRequestComment(request)
+ASTX.GitHub.listReleases(request)
+ASTX.GitHub.getLatestRelease(request)
+ASTX.GitHub.getReleaseByTag(request)
+ASTX.GitHub.listTags(request)
+ASTX.GitHub.getTag(request)
+ASTX.GitHub.searchRepositories(request)
+ASTX.GitHub.searchUsers(request)
+ASTX.GitHub.searchCode(request)
+ASTX.GitHub.searchIssues(request)
+ASTX.GitHub.rateLimit(request)
+ASTX.GitHub.operations()
+ASTX.GitHub.providers()
+ASTX.GitHub.capabilities(operationOrGroup)
+ASTX.GitHub.configure(config, options)
+ASTX.GitHub.getConfig()
+ASTX.GitHub.clearConfig()
 ```
 
 ## High-signal behavior notes
@@ -403,3 +462,6 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.
+- GitHub mutation operations support `options.dryRun=true` planning and skip network writes.
+- GitHub read operations support optional cache + ETag revalidation with stale-on-error fallback.
+- GitHub API auth defaults to PAT (`GITHUB_TOKEN`) unless overridden per request.

@@ -97,7 +97,7 @@ Object.freeze(AST_UTILS);
 
 Object.defineProperties(AST, {
   VERSION: {
-    value: '0.0.4',
+    value: '0.0.5',
     enumerable: true
   },
   Series: {
@@ -179,6 +179,10 @@ Object.defineProperties(AST, {
   },
   Chat: {
     get: () => astResolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
+    enumerable: true
+  },
+  GitHub: {
+    get: () => resolveAstBinding('AST_GITHUB', () => (typeof AST_GITHUB === 'undefined' ? undefined : AST_GITHUB)),
     enumerable: true
   },
   Sql: {
