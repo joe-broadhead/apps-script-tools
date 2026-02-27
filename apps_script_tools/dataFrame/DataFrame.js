@@ -1,7 +1,54 @@
+let __astDataFrameReservedColumnNames = null;
+
+function __astGetDataFrameReservedColumnNames() {
+  if (__astDataFrameReservedColumnNames) {
+    return __astDataFrameReservedColumnNames;
+  }
+
+  const reserved = new Set(['data', 'columns', 'index']);
+
+  if (typeof DataFrame !== 'undefined' && DataFrame && DataFrame.prototype) {
+    const prototypeKeys = Object.getOwnPropertyNames(DataFrame.prototype);
+    for (let idx = 0; idx < prototypeKeys.length; idx++) {
+      const key = prototypeKeys[idx];
+      if (typeof key === 'string' && key.length > 0) {
+        reserved.add(key);
+      }
+    }
+  }
+
+  __astDataFrameReservedColumnNames = reserved;
+  return reserved;
+}
+
+function __astAssertNoReservedDataFrameColumns(columns) {
+  if (!Array.isArray(columns) || columns.length === 0) {
+    return;
+  }
+
+  const reserved = __astGetDataFrameReservedColumnNames();
+  const conflicts = [];
+
+  for (let idx = 0; idx < columns.length; idx++) {
+    const columnName = columns[idx];
+    if (reserved.has(columnName)) {
+      conflicts.push(columnName);
+    }
+  }
+
+  if (conflicts.length > 0) {
+    const uniqueConflicts = Array.from(new Set(conflicts)).sort();
+    throw new Error(
+      `DataFrame column names conflict with reserved DataFrame members: ${uniqueConflicts.join(', ')}`
+    );
+  }
+}
+
 var DataFrame = class DataFrame {
   constructor(data, index = null) {
     this.data = data;
     this.columns = this.getColumns();
+    __astAssertNoReservedDataFrameColumns(this.columns);
 
     if (!Object.values(data).every(series => series instanceof Series && series.len() === this.len())) {
       throw new Error('All arguments must be Series of the same length');
