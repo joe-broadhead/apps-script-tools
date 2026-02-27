@@ -2,6 +2,7 @@ import { listScriptFiles, loadScripts } from './helpers.mjs';
 
 export function loadAiScripts(context, { includeAst = false, includeSecrets = false } = {}) {
   const shared = [
+    ...listScriptFiles('apps_script_tools/config/general'),
     'apps_script_tools/config/Config.js',
     'apps_script_tools/utilities/auth/vertexServiceAccountAuthCore.js'
   ];

@@ -10,6 +10,7 @@ export function loadRagScripts(
   } = {}
 ) {
   const paths = [];
+  paths.push(...listScriptFiles('apps_script_tools/config/general'));
   paths.push('apps_script_tools/config/Config.js');
 
   if (includeSecrets) {
