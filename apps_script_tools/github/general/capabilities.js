@@ -32,9 +32,11 @@ const AST_GITHUB_OPERATION_GROUPS = Object.freeze({
 });
 
 function astGitHubGetCapabilities(operationOrGroup) {
+  const supportedOperations = Array.from(new Set(astGitHubListOperations().concat(['graphql']))).sort();
+
   if (typeof operationOrGroup === 'undefined' || operationOrGroup === null || operationOrGroup === '') {
     return {
-      operations: astGitHubListOperations(),
+      operations: supportedOperations,
       groups: Object.keys(AST_GITHUB_OPERATION_GROUPS).sort(),
       graphql: true,
       dryRun: true,
@@ -48,14 +50,6 @@ function astGitHubGetCapabilities(operationOrGroup) {
   }
 
   const key = astGitHubNormalizePathString(operationOrGroup, '').toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(AST_GITHUB_OPERATION_GROUPS, key)) {
-    return {
-      group: key,
-      operations: AST_GITHUB_OPERATION_GROUPS[key].slice(),
-      count: AST_GITHUB_OPERATION_GROUPS[key].length
-    };
-  }
-
   if (key === 'graphql') {
     return {
       operation: 'graphql',
@@ -64,6 +58,14 @@ function astGitHubGetCapabilities(operationOrGroup) {
       mutation: true,
       cache: true,
       dryRun: true
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(AST_GITHUB_OPERATION_GROUPS, key)) {
+    return {
+      group: key,
+      operations: AST_GITHUB_OPERATION_GROUPS[key].slice(),
+      count: AST_GITHUB_OPERATION_GROUPS[key].length
     };
   }
 

@@ -98,4 +98,13 @@ test('GitHub providers and capabilities report expected support', () => {
   const groupCaps = context.AST.GitHub.capabilities('pull_requests');
   assert.equal(groupCaps.group, 'pull_requests');
   assert.equal(groupCaps.operations.includes('merge_pull_request'), true);
+
+  const graphqlCaps = context.AST.GitHub.capabilities('graphql');
+  assert.equal(graphqlCaps.operation, 'graphql');
+  assert.equal(graphqlCaps.mutation, true);
+  assert.equal(graphqlCaps.cache, true);
+
+  const defaultCaps = context.AST.GitHub.capabilities();
+  assert.equal(Array.isArray(defaultCaps.operations), true);
+  assert.equal(defaultCaps.operations.includes('graphql'), true);
 });
