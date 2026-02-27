@@ -86,6 +86,21 @@ var GroupBy = class GroupBy {
         });
       }
 
+      for (let idx = 0; idx < outputPlans.length; idx++) {
+        const plan = outputPlans[idx];
+
+        if (!this.df.columns.includes(plan.colName)) {
+          throw new Error(`Column '${plan.colName}' not found in DataFrame`);
+        }
+
+        if (!plan.isCustomFunc) {
+          const series = this.df[plan.colName];
+          if (!series || typeof series[plan.aggFunc] !== 'function') {
+            throw new Error(`Invalid aggregation function '${plan.aggFunc}' for column '${plan.colName}'`);
+          }
+        }
+      }
+
       const results = [];
   
       for (const group of Object.values(this.groups)) {
@@ -101,11 +116,52 @@ var GroupBy = class GroupBy {
   
         results.push(groupKeys.assign(output));
       }
-  
+
+      if (results.length === 0) {
+        const emptyColumns = {};
+        const sourceTypeByOutput = {};
+
+        for (let idx = 0; idx < this.keys.length; idx++) {
+          const keyColumn = this.keys[idx];
+          if (!Object.prototype.hasOwnProperty.call(emptyColumns, keyColumn)) {
+            emptyColumns[keyColumn] = astGroupByBuildTypedEmptySeries(this.df.data[keyColumn], keyColumn);
+          }
+        }
+
+        for (let idx = 0; idx < outputPlans.length; idx++) {
+          const plan = outputPlans[idx];
+          const sourceSeries = this.df.data[plan.colName];
+          sourceTypeByOutput[plan.outputName] = astGroupByResolveEmptyAggOutputType(plan, sourceSeries);
+        }
+
+        const emptyOutputColumns = this.keys.concat(outputPlans.map(plan => plan.outputName));
+        for (let idx = 0; idx < emptyOutputColumns.length; idx++) {
+          const outputColumn = emptyOutputColumns[idx];
+          if (!Object.prototype.hasOwnProperty.call(emptyColumns, outputColumn)) {
+            const outputType = Object.prototype.hasOwnProperty.call(sourceTypeByOutput, outputColumn)
+              ? sourceTypeByOutput[outputColumn]
+              : null;
+            emptyColumns[outputColumn] = new Series(
+              [],
+              outputColumn,
+              outputType,
+              [],
+              { allowComplexValues: true }
+            );
+          }
+        }
+
+        return new DataFrame(emptyColumns);
+      }
+
       return DataFrame.concat(results);
     }
 
     apply(func) {
+      if (typeof func !== 'function') {
+        throw new Error('The applied function must be a function');
+      }
+
       const results = [];
       
       for (const group of Object.values(this.groups)) {
@@ -117,6 +173,16 @@ var GroupBy = class GroupBy {
         
         results.push(transformedGroup);
       }
+
+      if (results.length === 0) {
+        const emptyColumns = {};
+        for (let idx = 0; idx < this.df.columns.length; idx++) {
+          const columnName = this.df.columns[idx];
+          emptyColumns[columnName] = astGroupByBuildTypedEmptySeries(this.df.data[columnName], columnName);
+        }
+        return new DataFrame(emptyColumns);
+      }
+
       return DataFrame.concat(results);
     }
 
@@ -126,6 +192,65 @@ var GroupBy = class GroupBy {
       }
     }
   };
+
+const AST_GROUPBY_NUMERIC_AGG_TYPES = new Set([
+  'count',
+  'len',
+  'mean',
+  'median',
+  'nunique',
+  'product',
+  'std',
+  'sum',
+  'var'
+]);
+
+const AST_GROUPBY_BOOLEAN_AGG_TYPES = new Set([
+  'all',
+  'any'
+]);
+
+function astGroupByBuildTypedEmptySeries(sourceSeries, fallbackName) {
+  const seriesName = typeof fallbackName === 'string' && fallbackName.length > 0
+    ? fallbackName
+    : (
+      sourceSeries && typeof sourceSeries.name === 'string' && sourceSeries.name.length > 0
+        ? sourceSeries.name
+        : ''
+    );
+  const seriesType = sourceSeries && typeof sourceSeries.type === 'string' && sourceSeries.type.length > 0
+    ? sourceSeries.type
+    : null;
+  const useUTC = Boolean(sourceSeries && sourceSeries.useUTC === true);
+
+  return new Series(
+    [],
+    seriesName,
+    seriesType,
+    [],
+    { useUTC, allowComplexValues: true }
+  );
+}
+
+function astGroupByResolveEmptyAggOutputType(plan, sourceSeries) {
+  const sourceType = sourceSeries && typeof sourceSeries.type === 'string' && sourceSeries.type.length > 0
+    ? sourceSeries.type
+    : null;
+
+  if (!plan || plan.isCustomFunc) {
+    return sourceType;
+  }
+
+  const reducerName = String(plan.aggFunc || '').trim().toLowerCase();
+  if (AST_GROUPBY_NUMERIC_AGG_TYPES.has(reducerName)) {
+    return 'number';
+  }
+  if (AST_GROUPBY_BOOLEAN_AGG_TYPES.has(reducerName)) {
+    return 'boolean';
+  }
+
+  return sourceType;
+}
 
 const __astGroupByRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astGroupByRoot.GroupBy = GroupBy;
