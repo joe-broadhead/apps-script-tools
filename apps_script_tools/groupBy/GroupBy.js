@@ -211,9 +211,13 @@ const AST_GROUPBY_BOOLEAN_AGG_TYPES = new Set([
 ]);
 
 function astGroupByBuildTypedEmptySeries(sourceSeries, fallbackName) {
-  const seriesName = sourceSeries && typeof sourceSeries.name === 'string' && sourceSeries.name.length > 0
-    ? sourceSeries.name
-    : fallbackName;
+  const seriesName = typeof fallbackName === 'string' && fallbackName.length > 0
+    ? fallbackName
+    : (
+      sourceSeries && typeof sourceSeries.name === 'string' && sourceSeries.name.length > 0
+        ? sourceSeries.name
+        : ''
+    );
   const seriesType = sourceSeries && typeof sourceSeries.type === 'string' && sourceSeries.type.length > 0
     ? sourceSeries.type
     : null;

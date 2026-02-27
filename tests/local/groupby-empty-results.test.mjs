@@ -120,3 +120,31 @@ test('GroupBy.apply validates callback type even when input is empty', () => {
     /The applied function must be a function/
   );
 });
+
+test('GroupBy empty agg fallback keeps schema keys aligned to DataFrame columns', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromColumns({
+    grp_key: new context.Series([], 'grp_name', 'string'),
+    value_key: new context.Series([], 'value_name', 'number')
+  });
+
+  const out = df.groupBy(['grp_key']).agg({
+    value_key: 'sum'
+  });
+
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['grp_key', 'value_key_sum']));
+  assert.equal(JSON.stringify(Object.keys(out.schema())), JSON.stringify(out.columns));
+});
+
+test('GroupBy empty apply fallback keeps schema keys aligned to DataFrame columns', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromColumns({
+    grp_key: new context.Series([], 'grp_name', 'string'),
+    value_key: new context.Series([], 'value_name', 'number')
+  });
+
+  const out = df.groupBy(['grp_key']).apply(group => group);
+
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['grp_key', 'value_key']));
+  assert.equal(JSON.stringify(Object.keys(out.schema())), JSON.stringify(out.columns));
+});
