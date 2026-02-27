@@ -47,14 +47,14 @@ function astGitHubExtractRateLimitFromHeaders(headers = {}, bodyJson = null) {
       : null
   };
 
-  if (operationSpecIsRateLimitBody(bodyJson)) {
+  if (astGitHubNormalizeIsRateLimitBody(bodyJson)) {
     output.resources = bodyJson.resources;
   }
 
   return output;
 }
 
-function operationSpecIsRateLimitBody(bodyJson) {
+function astGitHubNormalizeIsRateLimitBody(bodyJson) {
   return astGitHubNormalizeIsPlainObject(bodyJson) && astGitHubNormalizeIsPlainObject(bodyJson.resources);
 }
 

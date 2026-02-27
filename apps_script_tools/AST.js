@@ -182,7 +182,7 @@ Object.defineProperties(AST, {
     enumerable: true
   },
   GitHub: {
-    get: () => resolveAstBinding('AST_GITHUB', () => (typeof AST_GITHUB === 'undefined' ? undefined : AST_GITHUB)),
+    get: () => astResolveAstBinding('AST_GITHUB', () => (typeof AST_GITHUB === 'undefined' ? undefined : AST_GITHUB)),
     enumerable: true
   },
   Sql: {
