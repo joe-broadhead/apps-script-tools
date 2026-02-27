@@ -292,9 +292,14 @@ function astGitHubExecuteStandardOperation(request, config, spec, overrides = {}
       ? false
       : astGitHubIsCacheEnabled(operationSpec, config, request.options));
   const cacheConfig = config.cache || {};
+  const requestHeaders = astGitHubBuildHeaders(config, request, operationSpec);
+  const cacheVary = {
+    accept: requestHeaders.Accept || null,
+    apiVersion: requestHeaders['X-GitHub-Api-Version'] || null
+  };
 
   const cacheKey = useCache
-    ? astGitHubBuildCacheKey(request, config, method, path, queryParams, null, false)
+    ? astGitHubBuildCacheKey(request, config, method, path, queryParams, null, false, cacheVary)
     : null;
 
   const nowMs = Date.now();
@@ -320,9 +325,9 @@ function astGitHubExecuteStandardOperation(request, config, spec, overrides = {}
     });
   }
 
-  const extraHeaders = {};
+  const requestHeadersWithConditional = Object.assign({}, requestHeaders);
   if (useCache && cachedState.etagValid) {
-    extraHeaders['If-None-Match'] = cached.etag;
+    requestHeadersWithConditional['If-None-Match'] = cached.etag;
   }
 
   let httpResult;
@@ -331,7 +336,7 @@ function astGitHubExecuteStandardOperation(request, config, spec, overrides = {}
       operation: request.operation,
       url,
       method,
-      headers: astGitHubBuildHeaders(config, request, operationSpec, extraHeaders),
+      headers: requestHeadersWithConditional,
       payload: includeBody ? JSON.stringify(requestBody) : undefined,
       retries: config.retries,
       timeoutMs: config.timeoutMs

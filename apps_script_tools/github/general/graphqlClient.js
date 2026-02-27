@@ -77,6 +77,11 @@ function astGitHubRunGraphqlRequest(request, config) {
 
   const useCache = astGitHubIsCacheEnabled({ read: !isMutation }, config, request.options) && !isMutation;
   const cacheConfig = config.cache || {};
+  const requestHeaders = astGitHubBuildRequestHeaders(config, null);
+  const cacheVary = {
+    accept: requestHeaders.Accept || null,
+    apiVersion: requestHeaders['X-GitHub-Api-Version'] || null
+  };
   const payload = {
     query: request.query,
     variables: request.variables || {},
@@ -84,7 +89,7 @@ function astGitHubRunGraphqlRequest(request, config) {
   };
 
   const cacheKey = useCache
-    ? astGitHubBuildCacheKey(request, config, 'post', '/graphql', {}, payload, true)
+    ? astGitHubBuildCacheKey(request, config, 'post', '/graphql', {}, payload, true, cacheVary)
     : null;
 
   const nowMs = Date.now();
@@ -110,9 +115,9 @@ function astGitHubRunGraphqlRequest(request, config) {
     });
   }
 
-  const extraHeaders = {};
+  const requestHeadersWithConditional = Object.assign({}, requestHeaders);
   if (cachedState.etagValid) {
-    extraHeaders['If-None-Match'] = cached.etag;
+    requestHeadersWithConditional['If-None-Match'] = cached.etag;
   }
 
   let httpResult;
@@ -122,7 +127,7 @@ function astGitHubRunGraphqlRequest(request, config) {
       url: config.graphqlUrl,
       method: 'post',
       payload: JSON.stringify(payload),
-      headers: astGitHubBuildRequestHeaders(config, null, extraHeaders),
+      headers: requestHeadersWithConditional,
       retries: config.retries,
       timeoutMs: config.timeoutMs
     });

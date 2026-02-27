@@ -137,6 +137,30 @@ test('searchPullRequests appends is:pr qualifier when missing', () => {
   assert.match(calls[0].url, /is%3Apr/);
 });
 
+test('getPullRequestComments validates pullNumber before network request', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return createResponse(200, []);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  assert.throws(
+    () => context.AST.GitHub.getPullRequestComments({
+      owner: 'octocat',
+      repo: 'hello-world'
+    }),
+    /pullNumber/
+  );
+  assert.equal(fetchCalls, 0);
+});
+
 test('searchPullRequests appends is:pr when query contains overlapping qualifier text', () => {
   const calls = [];
   const context = createGasContext({

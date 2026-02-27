@@ -50,6 +50,16 @@ function astGitHubBuildPullNumberPath(request = {}, suffix = '') {
   return astGitHubBuildRepoPath(request, `/pulls/${pullNumber}${suffix || ''}`);
 }
 
+function astGitHubBuildPullIssueCommentsPath(request = {}) {
+  const pullNumber = Number(request.pullNumber);
+  if (!Number.isInteger(pullNumber) || pullNumber < 1) {
+    throw new AstGitHubValidationError("Missing required GitHub request field 'pullNumber'", {
+      field: 'pullNumber'
+    });
+  }
+  return astGitHubBuildRepoPath(request, `/issues/${pullNumber}/comments`);
+}
+
 function astGitHubBuildPathForTag(request = {}, includeGitRef = false) {
   const tag = astGitHubEncodePathSegment(request.tag, 'tag');
   if (includeGitRef) {

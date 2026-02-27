@@ -10,6 +10,14 @@ function astGitHubCacheStableJson(value) {
   }
 }
 
+function astGitHubCacheNormalizeVaryValue(value, fallback = null) {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 function astGitHubHashString(value) {
   const source = String(value || '');
 
@@ -63,8 +71,9 @@ function astGitHubBuildCacheOptions(cacheConfig = {}) {
   return options;
 }
 
-function astGitHubBuildCacheKey(request, config, method, path, queryParams, bodyPayload, isGraphql = false) {
+function astGitHubBuildCacheKey(request, config, method, path, queryParams, bodyPayload, isGraphql = false, cacheVary = null) {
   const operation = request.operation;
+  const vary = astGitHubCacheIsPlainObject(cacheVary) ? cacheVary : {};
   const cacheDescriptor = {
     operation,
     method: String(method || '').toUpperCase(),
@@ -75,6 +84,8 @@ function astGitHubBuildCacheKey(request, config, method, path, queryParams, body
     body: astGitHubCacheIsPlainObject(bodyPayload) ? bodyPayload : null,
     baseUrl: config.baseUrl,
     graphqlUrl: config.graphqlUrl,
+    apiVersion: astGitHubCacheNormalizeVaryValue(vary.apiVersion, astGitHubCacheNormalizeVaryValue(config.apiVersion, null)),
+    accept: astGitHubCacheNormalizeVaryValue(vary.accept, null),
     tokenFingerprint: astGitHubHashString(config.token).slice(0, 16)
   };
 

@@ -298,3 +298,118 @@ test('rest mutation invalidates cached graphql read entries via github:all tag',
   assert.equal(secondGraphql.cache.hit, false);
   assert.equal(secondGraphql.data.data.viewer.login, 'second');
 });
+
+test('cache key varies by accept override for identical read operation path', () => {
+  const cache = createCacheMock();
+  let fetchCalls = 0;
+
+  const context = createGasContext({
+    AST_CACHE: cache,
+    UrlFetchApp: {
+      fetch: (_url, options = {}) => {
+        fetchCalls += 1;
+        return createResponse(200, {
+          id: fetchCalls,
+          accept: options.headers.Accept
+        }, { etag: `"v${fetchCalls}"` });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_CACHE_ENABLED: true,
+    GITHUB_CACHE_BACKEND: 'memory',
+    GITHUB_CACHE_NAMESPACE: 'gh_cache_accept_vary',
+    GITHUB_CACHE_TTL_SEC: 120,
+    GITHUB_CACHE_STALE_TTL_SEC: 600,
+    GITHUB_CACHE_ETAG_TTL_SEC: 3600
+  });
+
+  const first = context.AST.GitHub.getRepository({
+    owner: 'octocat',
+    repo: 'hello-world',
+    providerOptions: {
+      accept: 'application/vnd.github.raw+json'
+    }
+  });
+  const second = context.AST.GitHub.getRepository({
+    owner: 'octocat',
+    repo: 'hello-world'
+  });
+  const third = context.AST.GitHub.getRepository({
+    owner: 'octocat',
+    repo: 'hello-world',
+    providerOptions: {
+      accept: 'application/vnd.github.raw+json'
+    }
+  });
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(first.cache.hit, false);
+  assert.equal(second.cache.hit, false);
+  assert.equal(third.cache.hit, true);
+  assert.equal(first.data.id, 1);
+  assert.equal(second.data.id, 2);
+  assert.equal(third.data.id, 1);
+});
+
+test('cache key varies by apiVersion override for identical graphql query', () => {
+  const cache = createCacheMock();
+  let fetchCalls = 0;
+
+  const context = createGasContext({
+    AST_CACHE: cache,
+    UrlFetchApp: {
+      fetch: (_url, options = {}) => {
+        fetchCalls += 1;
+        return createResponse(200, {
+          data: {
+            viewer: {
+              login: `v${options.headers['X-GitHub-Api-Version']}`
+            }
+          }
+        }, { etag: `"v${fetchCalls}"` });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_CACHE_ENABLED: true,
+    GITHUB_CACHE_BACKEND: 'memory',
+    GITHUB_CACHE_NAMESPACE: 'gh_cache_version_vary',
+    GITHUB_CACHE_TTL_SEC: 120,
+    GITHUB_CACHE_STALE_TTL_SEC: 600,
+    GITHUB_CACHE_ETAG_TTL_SEC: 3600
+  });
+
+  const first = context.AST.GitHub.graphql({
+    query: 'query { viewer { login } }',
+    providerOptions: {
+      apiVersion: '2022-11-28'
+    }
+  });
+  const second = context.AST.GitHub.graphql({
+    query: 'query { viewer { login } }',
+    providerOptions: {
+      apiVersion: '2099-01-01'
+    }
+  });
+  const third = context.AST.GitHub.graphql({
+    query: 'query { viewer { login } }',
+    providerOptions: {
+      apiVersion: '2022-11-28'
+    }
+  });
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(first.cache.hit, false);
+  assert.equal(second.cache.hit, false);
+  assert.equal(third.cache.hit, true);
+  assert.equal(first.data.data.viewer.login, 'v2022-11-28');
+  assert.equal(second.data.data.viewer.login, 'v2099-01-01');
+  assert.equal(third.data.data.viewer.login, 'v2022-11-28');
+});
