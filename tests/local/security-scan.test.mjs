@@ -17,11 +17,22 @@ test('security scan rules include expanded high-confidence providers', () => {
 
 test('security scan detects stripe, twilio, sendgrid, and jwt patterns', () => {
   const stripeKey = ['sk', 'live', '1234567890abcdef1234567890abcdef'].join('_');
+  const twilioToken = Array(2).fill('0123456789abcdef').join('');
+  const sendgridKey = [
+    'SG',
+    'ABCDEFGHIJKLMNOPQRSTUV123456',
+    '_ZYXWVUTSRQPONMLKJIHGFEDCBA987654'
+  ].join('.');
+  const jwtToken = [
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+    'eyJzdWIiOiIxMjM0NTY3ODkwIn0',
+    'c2lnbmF0dXJlMTIzNDU2Nzg5MA'
+  ].join('.');
   const content = [
     `STRIPE=${stripeKey}`,
-    'TWILIO_AUTH_TOKEN = 0123456789abcdef0123456789abcdef',
-    'SENDGRID=SG.ABCDEFGHIJKLMNOPQRSTUV123456._ZYXWVUTSRQPONMLKJIHGFEDCBA987654',
-    'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlMTIzNDU2Nzg5MA'
+    `TWILIO_AUTH_TOKEN = ${twilioToken}`,
+    `SENDGRID=${sendgridKey}`,
+    `JWT=${jwtToken}`
   ].join('\n');
 
   const findings = scanContentForSecrets(content, 'inline.txt', []);
