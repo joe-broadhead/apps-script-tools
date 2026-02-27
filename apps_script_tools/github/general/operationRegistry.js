@@ -15,7 +15,7 @@ const AST_GITHUB_OPERATION_REGISTRY = Object.freeze({
   create_branch: Object.freeze({ method: 'custom', path: request => astGitHubBuildRepoPath(request), read: false, paginated: false, group: 'branches', mutation: true, customExecutor: 'create_branch' }),
   list_commits: Object.freeze({ method: 'get', path: request => astGitHubBuildRepoPath(request, '/commits'), read: true, paginated: true, group: 'commits' }),
   get_commit: Object.freeze({ method: 'get', path: request => {
-    const ref = astGitHubEncodePathSegment(request.ref || request.sha, 'ref');
+    const ref = astGitHubEncodePathSegment(request.ref || request.sha, 'ref', { allowSlash: true });
     return astGitHubBuildRepoPath(request, `/commits/${ref}`);
   }, read: true, paginated: false, group: 'commits' }),
 

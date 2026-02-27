@@ -10,7 +10,7 @@ function astGitHubNormalizePathString(value, fallback = '') {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-function astGitHubEncodePathSegment(value, fieldName = 'value') {
+function astGitHubEncodePathSegment(value, fieldName = 'value', options = {}) {
   const normalized = astGitHubNormalizePathString(value, '');
   if (!normalized) {
     throw new AstGitHubValidationError(`Missing required GitHub request field '${fieldName}'`, {
@@ -18,13 +18,46 @@ function astGitHubEncodePathSegment(value, fieldName = 'value') {
     });
   }
 
-  if (/[\u0000-\u001F]/.test(normalized) || normalized.includes('/') || normalized.includes('\\') || normalized.includes('..')) {
+  const allowSlash = astGitHubPathIsPlainObject(options) && options.allowSlash === true;
+
+  if (/[\u0000-\u001F]/.test(normalized) || normalized.includes('\\') || normalized.includes('..')) {
     throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains disallowed path characters`, {
       field: fieldName,
       value: normalized
     });
   }
-  return encodeURIComponent(normalized);
+
+  if (!allowSlash && normalized.includes('/')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains disallowed path characters`, {
+      field: fieldName,
+      value: normalized
+    });
+  }
+
+  if (!allowSlash) {
+    return encodeURIComponent(normalized);
+  }
+
+  if (normalized.startsWith('/') || normalized.endsWith('/') || normalized.includes('//')) {
+    throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains invalid slash placement`, {
+      field: fieldName,
+      value: normalized
+    });
+  }
+
+  const encodedSegments = normalized
+    .split('/')
+    .map(segment => {
+      if (!segment || segment === '.' || segment === '..') {
+        throw new AstGitHubValidationError(`GitHub request field '${fieldName}' contains invalid path segments`, {
+          field: fieldName,
+          value: normalized
+        });
+      }
+      return encodeURIComponent(segment);
+    });
+
+  return encodedSegments.join('%2F');
 }
 
 function astGitHubBuildRepoPath(request = {}, suffix = '') {
@@ -68,7 +101,7 @@ function astGitHubBuildPullIssueCommentsPath(request = {}) {
 }
 
 function astGitHubBuildPathForTag(request = {}, includeGitRef = false) {
-  const tag = astGitHubEncodePathSegment(request.tag, 'tag');
+  const tag = astGitHubEncodePathSegment(request.tag, 'tag', { allowSlash: true });
   if (includeGitRef) {
     return astGitHubBuildRepoPath(request, `/git/ref/tags/${tag}`);
   }
