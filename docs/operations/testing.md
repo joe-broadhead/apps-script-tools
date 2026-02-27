@@ -63,6 +63,11 @@ Run via reusable workflow:
 
 PR CI runs `suite=functional` through the `gas-functional` job (internal PRs and branch pushes) when clasp secrets are configured.
 
+Required repository settings for integration workflows:
+
+- variable: `GAS_SCRIPT_ID`
+- secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`
+
 Dispatch options:
 
 - `suite=functional` -> runs `runAllTests`
