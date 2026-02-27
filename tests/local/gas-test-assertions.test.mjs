@@ -93,6 +93,34 @@ test('astTestRunWithAssertions deepEqual compares DataView bytes', () => {
   );
 });
 
+test('astTestRunWithAssertions deepEqual distinguishes sparse holes from explicit undefined', () => {
+  const context = loadAssertionContext();
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.deepEqual([, 1], [undefined, 1]);
+    }),
+    /Expected/
+  );
+});
+
+test('astTestRunWithAssertions failure messages handle circular values safely', () => {
+  const context = loadAssertionContext();
+
+  const left = {};
+  left.self = left;
+
+  const right = { flag: true };
+  right.self = right;
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.deepEqual(left, right);
+    }),
+    error => error && error.name === 'AstTestAssertionError'
+  );
+});
+
 test('astTestRunWithAssertions supports async test callbacks', async () => {
   const context = loadAssertionContext();
 

@@ -13,27 +13,109 @@ function astTestNormalizePositiveInt_(value, fallback) {
   return Math.floor(parsed);
 }
 
-function astTestSortObjectKeys_(value) {
+function astTestSortObjectKeys_(value, seen) {
+  const activeSeen = Array.isArray(seen) ? seen : [];
+
   if (Array.isArray(value)) {
-    return value.map(entry => astTestSortObjectKeys_(entry));
+    if (activeSeen.indexOf(value) !== -1) {
+      return '[Circular]';
+    }
+
+    activeSeen.push(value);
+    try {
+      const output = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (Object.prototype.hasOwnProperty.call(value, index)) {
+          output[index] = astTestSortObjectKeys_(value[index], activeSeen);
+        } else {
+          output[index] = '[SparseHole]';
+        }
+      }
+      return output;
+    } finally {
+      activeSeen.pop();
+    }
   }
 
   if (!astTestIsPlainObject_(value)) {
+    const tag = astTestObjectTag_(value);
+
+    if (tag === '[object Set]') {
+      return Array.from(value.values())
+        .map(entry => astTestSortObjectKeys_(entry, activeSeen))
+        .sort((left, right) => String(left).localeCompare(String(right)));
+    }
+
+    if (tag === '[object Map]') {
+      return Array.from(value.entries())
+        .map(entry => [
+          astTestSortObjectKeys_(entry[0], activeSeen),
+          astTestSortObjectKeys_(entry[1], activeSeen)
+        ])
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0])));
+    }
+
+    if (tag === '[object DataView]') {
+      const bytes = [];
+      for (let index = 0; index < value.byteLength; index += 1) {
+        bytes.push(value.getUint8(index));
+      }
+      return {
+        type: 'DataView',
+        bytes
+      };
+    }
+
+    if (ArrayBuffer.isView(value)) {
+      return {
+        type: value.constructor && value.constructor.name ? value.constructor.name : 'TypedArray',
+        values: Array.from(value)
+      };
+    }
+
+    if (tag === '[object Date]') {
+      return {
+        type: 'Date',
+        value: Object.is(value.getTime(), value.getTime()) ? value.toISOString() : 'InvalidDate'
+      };
+    }
+
+    if (tag === '[object RegExp]') {
+      return {
+        type: 'RegExp',
+        source: value.source,
+        flags: value.flags
+      };
+    }
+
     return value;
   }
 
+  if (activeSeen.indexOf(value) !== -1) {
+    return '[Circular]';
+  }
+
+  activeSeen.push(value);
+  try {
   const output = {};
   Object.keys(value).sort().forEach(key => {
-    output[key] = astTestSortObjectKeys_(value[key]);
+    output[key] = astTestSortObjectKeys_(value[key], activeSeen);
   });
   return output;
+  } finally {
+    activeSeen.pop();
+  }
 }
 
 function astTestStableStringify_(value) {
-  if (typeof value === 'undefined') {
-    return 'undefined';
+  try {
+    if (typeof value === 'undefined') {
+      return 'undefined';
+    }
+    return JSON.stringify(astTestSortObjectKeys_(value));
+  } catch (error) {
+    return `[Unserializable: ${error && error.message ? error.message : 'unknown'}]`;
   }
-  return JSON.stringify(astTestSortObjectKeys_(value));
 }
 
 function astTestObjectTag_(value) {
@@ -82,6 +164,12 @@ function astTestDeepEqual_(left, right, seenLeft, seenRight) {
       }
 
       for (let index = 0; index < left.length; index += 1) {
+        const leftHasIndex = Object.prototype.hasOwnProperty.call(left, index);
+        const rightHasIndex = Object.prototype.hasOwnProperty.call(right, index);
+        if (leftHasIndex !== rightHasIndex) {
+          return false;
+        }
+
         if (!astTestDeepEqual_(left[index], right[index], seenLeft, seenRight)) {
           return false;
         }
