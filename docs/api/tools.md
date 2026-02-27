@@ -379,10 +379,13 @@ High-signal behavior:
 
 - values are normalized to trimmed strings.
 - supports `keys` filtering and prefix filtering (`prefix`, `stripPrefix`).
+- accepts explicit handle injection via `scriptProperties: PropertiesService.getScriptProperties()`.
+- default implicit-handle reads are fresh (no shared memoized snapshot). Set `cacheDefaultHandle: true` to opt into implicit-handle memoization.
 - gracefully returns `{}` when script properties are unavailable.
 
 ```javascript
 const props = ASTX.Config.fromScriptProperties({
+  scriptProperties: PropertiesService.getScriptProperties(),
   prefix: 'OPENAI_',
   stripPrefix: true
 });
@@ -402,10 +405,12 @@ High-signal behavior:
 - default target modules: `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`.
 - configuration merge policy is controlled by `options.merge` (default `true`).
 - supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
+- forwards `scriptProperties`/`keys`/`prefix`/`stripPrefix` and config snapshot controls (`disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.
 
 ```javascript
 const summary = ASTX.Runtime.configureFromProps({
-  modules: ['AI', 'RAG', 'Storage']
+  modules: ['AI', 'RAG', 'Storage'],
+  scriptProperties: PropertiesService.getScriptProperties()
 });
 
 Logger.log(summary.configuredModules);

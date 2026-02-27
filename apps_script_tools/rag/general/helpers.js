@@ -97,7 +97,8 @@ function astRagToScriptPropertiesSnapshot(allowedKeys, options = {}) {
   if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
     return astConfigGetScriptPropertiesSnapshotMemoized({
       keys: Array.isArray(allowedKeys) ? allowedKeys : [],
-      forceRefresh
+      forceRefresh,
+      cacheDefaultHandle: true
     });
   }
 

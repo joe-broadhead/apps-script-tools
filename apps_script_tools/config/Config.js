@@ -711,6 +711,12 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
     )
   );
   const explicitCacheScopeId = astConfigNormalizeString(options.cacheScopeId, '');
+  const cacheDefaultHandle = astConfigResolveFirstBoolean([options.cacheDefaultHandle], false);
+  const shouldDisableImplicitHandleCache = (
+    !hasExplicitScriptPropertiesHandle
+    && !explicitCacheScopeId
+    && !cacheDefaultHandle
+  );
   const sharedCacheScopeId = explicitCacheScopeId
     || (hasExplicitScriptPropertiesHandle ? '' : AST_CONFIG_DEFAULT_HANDLE_CACHE_ID);
 
@@ -735,7 +741,8 @@ function astConfigGetScriptPropertiesSnapshotMemoized(options = {}) {
     scriptProperties,
     requestedKeys,
     Object.assign({}, options, {
-      cacheScopeId: sharedCacheScopeId
+      cacheScopeId: sharedCacheScopeId,
+      disableCache: astConfigNormalizeBoolean(options.disableCache, false) || shouldDisableImplicitHandleCache
     })
   );
   return astConfigBuildOutput(entries, Object.assign({}, options, {

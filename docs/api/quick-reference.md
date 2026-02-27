@@ -462,6 +462,8 @@ ASTX.GitHub.clearConfig()
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.
+- `ASTX.Config.fromScriptProperties(...)` supports explicit handle injection with `scriptProperties: PropertiesService.getScriptProperties()` for deterministic GAS web-app behavior.
+- default implicit config snapshots are fresh reads; set `cacheDefaultHandle: true` to opt into implicit-handle memoization.
 - GitHub mutation operations support `options.dryRun=true` planning and skip network writes.
 - GitHub read operations support optional cache + ETag revalidation with stale-on-error fallback.
 - GitHub API auth defaults to PAT (`GITHUB_TOKEN`) unless overridden per request.

@@ -135,7 +135,8 @@ function astCacheClearRuntimeConfig() {
 function astCacheGetScriptPropertiesSnapshot() {
   if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
     return astConfigGetScriptPropertiesSnapshotMemoized({
-      keys: AST_CACHE_CONFIG_KEYS
+      keys: AST_CACHE_CONFIG_KEYS,
+      cacheDefaultHandle: true
     });
   }
 

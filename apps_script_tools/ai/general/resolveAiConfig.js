@@ -143,7 +143,8 @@ function astGetScriptPropertiesSnapshot(options = {}) {
   if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
     return astConfigGetScriptPropertiesSnapshotMemoized({
       keys: AST_AI_CONFIG_KEYS,
-      forceRefresh
+      forceRefresh,
+      cacheDefaultHandle: true
     });
   }
 
