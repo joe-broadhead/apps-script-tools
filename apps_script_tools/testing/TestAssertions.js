@@ -315,7 +315,7 @@ function astTestBuildAssertionApi_() {
 
     equal(actual, expected, message) {
       touch();
-      if (actual !== expected) {
+      if (!Object.is(actual, expected)) {
         throw astTestAssertionError_(
           message || `Expected ${astTestStableStringify_(expected)} but got ${astTestStableStringify_(actual)}`
         );
@@ -324,7 +324,7 @@ function astTestBuildAssertionApi_() {
 
     notEqual(actual, expected, message) {
       touch();
-      if (actual === expected) {
+      if (Object.is(actual, expected)) {
         throw astTestAssertionError_(
           message || `Expected values to differ, both were ${astTestStableStringify_(actual)}`
         );

@@ -27,6 +27,36 @@ test('astTestRunWithAssertions enforces minimum assertion count', () => {
   );
 });
 
+test('astTestRunWithAssertions equal uses Object.is semantics', () => {
+  const context = loadAssertionContext();
+
+  context.astTestRunWithAssertions(t => {
+    t.equal(Number.NaN, Number.NaN);
+  });
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.equal(0, -0);
+    }),
+    /Expected/
+  );
+});
+
+test('astTestRunWithAssertions notEqual uses Object.is semantics', () => {
+  const context = loadAssertionContext();
+
+  context.astTestRunWithAssertions(t => {
+    t.notEqual(0, -0);
+  });
+
+  assert.throws(
+    () => context.astTestRunWithAssertions(t => {
+      t.notEqual(Number.NaN, Number.NaN);
+    }),
+    /Expected values to differ/
+  );
+});
+
 test('astTestRunWithAssertions supports deepEqual with stable object key ordering', () => {
   const context = loadAssertionContext();
 
