@@ -413,3 +413,53 @@ test('cache key varies by apiVersion override for identical graphql query', () =
   assert.equal(second.data.data.viewer.login, 'v2099-01-01');
   assert.equal(third.data.data.viewer.login, 'v2022-11-28');
 });
+
+test('cached getPullRequestDiff preserves JSON shape when accept override requests JSON', () => {
+  const cache = createCacheMock();
+  let fetchCalls = 0;
+
+  const context = createGasContext({
+    AST_CACHE: cache,
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return createResponse(200, { id: 22, title: 'PR' }, { etag: '"v1"' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_CACHE_ENABLED: true,
+    GITHUB_CACHE_BACKEND: 'memory',
+    GITHUB_CACHE_NAMESPACE: 'gh_cache_diff_accept_json',
+    GITHUB_CACHE_TTL_SEC: 120,
+    GITHUB_CACHE_STALE_TTL_SEC: 600,
+    GITHUB_CACHE_ETAG_TTL_SEC: 3600
+  });
+
+  const first = context.AST.GitHub.getPullRequestDiff({
+    owner: 'octocat',
+    repo: 'hello-world',
+    pullNumber: 22,
+    providerOptions: {
+      accept: 'application/vnd.github+json'
+    }
+  });
+  const second = context.AST.GitHub.getPullRequestDiff({
+    owner: 'octocat',
+    repo: 'hello-world',
+    pullNumber: 22,
+    providerOptions: {
+      accept: 'application/vnd.github+json'
+    }
+  });
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(first.cache.hit, false);
+  assert.equal(second.cache.hit, true);
+  assert.equal(first.data.id, 22);
+  assert.equal(second.data.id, 22);
+  assert.equal(typeof second.data, 'object');
+});

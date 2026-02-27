@@ -404,7 +404,9 @@ function astGitHubExecuteStandardOperation(request, config, spec, overrides = {}
 
   if (useCache) {
     const envelope = astGitHubBuildCachedEnvelope(
-      astGitHubExtractDataBody(operationSpec, httpResult),
+      astGitHubExtractDataBody(operationSpec, httpResult, {
+        accept: requestHeaders.Accept || null
+      }),
       httpResult.headers,
       cacheConfig,
       astGitHubRunNormalizeString(httpResult.headers.etag, null),

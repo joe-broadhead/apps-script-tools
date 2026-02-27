@@ -64,3 +64,33 @@ test('graphql maps upstream errors to AstGitHubProviderError', () => {
     }
   );
 });
+
+test('graphql dryRun detects mutation selected by operationName in multi-operation document', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not call fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.graphql({
+    query: `
+      query ReadViewer { viewer { login } }
+      mutation UpdateIssue { updateIssue(input: { id: "I_1", title: "x" }) { issue { id } } }
+    `,
+    operationName: 'UpdateIssue',
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.dryRun.enabled, true);
+  assert.equal(response.dryRun.plannedRequest.operation, 'graphql');
+});

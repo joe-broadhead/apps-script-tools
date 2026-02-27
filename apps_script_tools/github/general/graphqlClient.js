@@ -1,11 +1,46 @@
-function astGitHubGraphqlIsMutation(query) {
-  const source = astGitHubNormalizeString(query, '').trim().toLowerCase();
+function astGitHubGraphqlNormalizeDocument(query) {
+  const source = astGitHubNormalizeString(query, '');
   if (!source) {
-    return false;
+    return '';
+  }
+  return source.replace(/^\s*(#.*\n)*/g, '').trim();
+}
+
+function astGitHubGraphqlDetectOperationType(query, operationName = null) {
+  const cleaned = astGitHubGraphqlNormalizeDocument(query);
+  if (!cleaned) {
+    return null;
   }
 
-  const cleaned = source.replace(/^\s*(#.*\n)*/g, '').trim();
-  return cleaned.startsWith('mutation');
+  const normalizedOperationName = astGitHubNormalizeString(operationName, '');
+  if (normalizedOperationName) {
+    const pattern = /\b(query|mutation|subscription)\b\s+([_A-Za-z][_0-9A-Za-z]*)/gi;
+    let match = pattern.exec(cleaned);
+    while (match) {
+      const type = astGitHubNormalizeString(match[1], '').toLowerCase();
+      const name = astGitHubNormalizeString(match[2], '');
+      if (name === normalizedOperationName) {
+        return type || null;
+      }
+      match = pattern.exec(cleaned);
+    }
+  }
+
+  const normalized = cleaned.toLowerCase();
+  if (normalized.startsWith('mutation')) {
+    return 'mutation';
+  }
+  if (normalized.startsWith('query')) {
+    return 'query';
+  }
+  if (normalized.startsWith('subscription')) {
+    return 'subscription';
+  }
+  return null;
+}
+
+function astGitHubGraphqlIsMutation(query, operationName = null) {
+  return astGitHubGraphqlDetectOperationType(query, operationName) === 'mutation';
 }
 
 function astGitHubBuildRequestHeaders(config, operationSpec, extraHeaders = {}) {
@@ -44,7 +79,7 @@ function astGitHubBuildCachedEnvelope(bodyData, responseHeaders, cacheConfig, et
 }
 
 function astGitHubRunGraphqlRequest(request, config) {
-  const isMutation = astGitHubGraphqlIsMutation(request.query);
+  const isMutation = astGitHubGraphqlIsMutation(request.query, request.operationName);
 
   const dryRunPlan = request.options.dryRun && isMutation
     ? astGitHubBuildDryRunPlan({
