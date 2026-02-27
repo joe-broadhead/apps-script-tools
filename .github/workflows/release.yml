@@ -26,6 +26,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Node dependencies (lockfile-aware)
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --ignore-scripts
+          else
+            npm install --ignore-scripts --no-audit --no-fund
+          fi
+
       - name: Run lint and local tests
         run: |
           npm run lint
@@ -74,7 +82,7 @@ jobs:
           name: ${{ steps.resolve_tag.outputs.tag }}
           generate_release_notes: true
           body: |
-            Script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`
+            Script ID: `${{ vars.GAS_SCRIPT_ID }}`
             Library identifier: `AST`
             Docs: https://joe-broadhead.github.io/apps-script-tools/
 

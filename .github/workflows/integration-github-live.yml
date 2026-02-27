@@ -14,11 +14,14 @@ on:
         default: ""
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   live-github-smoke:
     runs-on: ubuntu-latest
     env:
-      SCRIPT_ID: 1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_
+      SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
       CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
       CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
       CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
@@ -32,41 +35,26 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install clasp
-        run: npm install -g @google/clasp
-
-      - name: Configure clasp auth
+      - name: Install Node dependencies (lockfile-aware)
         run: |
-          test -n "$CLASP_CLIENT_ID"
-          test -n "$CLASP_CLIENT_SECRET"
-          test -n "$CLASP_REFRESH_TOKEN"
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --ignore-scripts
+          else
+            npm install --ignore-scripts --no-audit --no-fund
+          fi
+
+      - name: Validate GitHub token
+        run: |
           test -n "$GITHUB_TOKEN"
-          cat > ~/.clasprc.json <<JSON
-          {
-            "token": {
-              "access_token": "",
-              "refresh_token": "${CLASP_REFRESH_TOKEN}",
-              "scope": "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform",
-              "token_type": "Bearer",
-              "expiry_date": 0
-            },
-            "oauth2ClientSettings": {
-              "clientId": "${CLASP_CLIENT_ID}",
-              "clientSecret": "${CLASP_CLIENT_SECRET}",
-              "redirectUri": "http://localhost"
-            },
-            "isLocalCreds": false
-          }
-          JSON
 
-      - name: Configure script binding
-        run: |
-          cat > .clasp.json <<JSON
-          {
-            "scriptId": "${SCRIPT_ID}",
-            "rootDir": "apps_script_tools"
-          }
-          JSON
+      - name: Setup clasp auth and binding
+        uses: ./.github/actions/setup-clasp
+        with:
+          script-id: ${{ env.SCRIPT_ID }}
+          root-dir: apps_script_tools
+          clasp-client-id: ${{ env.CLASP_CLIENT_ID }}
+          clasp-client-secret: ${{ env.CLASP_CLIENT_SECRET }}
+          clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
       - name: Push and execute GitHub live smoke
         run: |

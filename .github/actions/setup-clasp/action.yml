@@ -1,0 +1,68 @@
+name: Setup clasp auth and binding
+description: Install clasp, configure OAuth credentials, and bind a target Apps Script project.
+
+inputs:
+  script-id:
+    description: Apps Script project ID.
+    required: true
+  root-dir:
+    description: Project rootDir for .clasp.json.
+    required: false
+    default: apps_script_tools
+  clasp-client-id:
+    description: OAuth client ID used by clasp.
+    required: true
+  clasp-client-secret:
+    description: OAuth client secret used by clasp.
+    required: true
+  clasp-refresh-token:
+    description: OAuth refresh token used by clasp.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install clasp
+      shell: bash
+      run: npm install -g @google/clasp
+
+    - name: Configure clasp auth
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "${{ inputs.script-id }}" ]; then
+          echo "Missing script-id input. Configure repository variable GAS_SCRIPT_ID."
+          exit 1
+        fi
+        if [ -z "${{ inputs.clasp-client-id }}" ] || [ -z "${{ inputs.clasp-client-secret }}" ] || [ -z "${{ inputs.clasp-refresh-token }}" ]; then
+          echo "Missing clasp credentials. Set CLASP_CLIENT_ID, CLASP_CLIENT_SECRET, and CLASP_REFRESH_TOKEN secrets."
+          exit 1
+        fi
+        cat > ~/.clasprc.json <<JSON
+        {
+          "token": {
+            "access_token": "",
+            "refresh_token": "${{ inputs.clasp-refresh-token }}",
+            "scope": "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform",
+            "token_type": "Bearer",
+            "expiry_date": 0
+          },
+          "oauth2ClientSettings": {
+            "clientId": "${{ inputs.clasp-client-id }}",
+            "clientSecret": "${{ inputs.clasp-client-secret }}",
+            "redirectUri": "http://localhost"
+          },
+          "isLocalCreds": false
+        }
+        JSON
+
+    - name: Configure script binding
+      shell: bash
+      run: |
+        set -euo pipefail
+        cat > .clasp.json <<JSON
+        {
+          "scriptId": "${{ inputs.script-id }}",
+          "rootDir": "${{ inputs.root-dir }}"
+        }
+        JSON

@@ -38,6 +38,11 @@ Core library vs cookbook projects:
 - Cookbook apps under `cookbooks/` should use their own local `.clasp.json` (`rootDir=src`) and isolated deployment lifecycle.
 - Keep cookbook-specific UI/workflow code out of `apps_script_tools/` unless promoting reusable library functionality.
 
+CI workflow config:
+
+- Set repository variable `GAS_SCRIPT_ID` for GitHub Actions integration workflows.
+- Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
+
 Consumer validation (recommended):
 
 - install library in a clean Apps Script project
