@@ -149,8 +149,10 @@ function astGitHubShouldRetry(statusCode, bodyText, bodyJson) {
 }
 
 function astGitHubExtractRateLimit(headers = {}, bodyJson = null) {
-  const limit = Number(headers['x-ratelimit-limit'] || 0);
-  const remaining = Number(headers['x-ratelimit-remaining'] || 0);
+  const hasLimitHeader = Object.prototype.hasOwnProperty.call(headers, 'x-ratelimit-limit');
+  const hasRemainingHeader = Object.prototype.hasOwnProperty.call(headers, 'x-ratelimit-remaining');
+  const limit = hasLimitHeader ? Number(headers['x-ratelimit-limit']) : null;
+  const remaining = hasRemainingHeader ? Number(headers['x-ratelimit-remaining']) : null;
   const resetRaw = headers['x-ratelimit-reset'];
   const resetSeconds = Number(resetRaw || 0);
   const resetAt = resetSeconds > 0
@@ -158,8 +160,8 @@ function astGitHubExtractRateLimit(headers = {}, bodyJson = null) {
     : null;
 
   const output = {
-    limit: isFinite(limit) && limit > 0 ? limit : null,
-    remaining: isFinite(remaining) ? remaining : null,
+    limit: hasLimitHeader && isFinite(limit) && limit > 0 ? limit : null,
+    remaining: hasRemainingHeader && isFinite(remaining) ? remaining : null,
     resetAt
   };
 
@@ -194,8 +196,10 @@ function astGitHubBuildHttpError(statusCode, context, bodyText, bodyJson, header
   }
 
   if (statusCode === 403) {
-    const remaining = Number(headers['x-ratelimit-remaining'] || 0);
-    if (remaining === 0 || astGitHubIsSecondaryRateLimit(bodyText, bodyJson)) {
+    const hasRemainingHeader = Object.prototype.hasOwnProperty.call(headers, 'x-ratelimit-remaining');
+    const remaining = hasRemainingHeader ? Number(headers['x-ratelimit-remaining']) : null;
+    const rateLimitByHeader = hasRemainingHeader && isFinite(remaining) && remaining === 0;
+    if (rateLimitByHeader || astGitHubIsSecondaryRateLimit(bodyText, bodyJson)) {
       return new AstGitHubRateLimitError('GitHub rate limit reached (403)', details, cause);
     }
     return new AstGitHubAuthError('GitHub authorization failed (403)', details, cause);

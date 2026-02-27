@@ -314,6 +314,15 @@ function astGitHubResolveCacheConfig(requestOptions = {}, runtimeConfig = {}, sc
   };
 }
 
+function astGitHubBuildDefaultGraphqlUrl(baseUrl) {
+  const normalizedBase = astGitHubResolveNormalizeString(baseUrl, AST_GITHUB_DEFAULTS.apiBaseUrl)
+    .replace(/\/+$/, '');
+  if (/\/api\/v3$/i.test(normalizedBase)) {
+    return normalizedBase.replace(/\/api\/v3$/i, '/api/graphql');
+  }
+  return `${normalizedBase}/graphql`;
+}
+
 function astGitHubResolveConfig(request = {}) {
   if (!astGitHubResolveIsPlainObject(request)) {
     throw new AstGitHubValidationError('resolve config expected normalized GitHub request object');
@@ -350,7 +359,7 @@ function astGitHubResolveConfig(request = {}) {
     options.graphqlUrl,
     runtimeConfig.GITHUB_GRAPHQL_URL,
     scriptConfig.GITHUB_GRAPHQL_URL
-  ], `${baseUrl.replace(/\/+$/, '')}/graphql`);
+  ], astGitHubBuildDefaultGraphqlUrl(baseUrl));
 
   const owner = astGitHubResolveStringCandidates([
     request.owner,

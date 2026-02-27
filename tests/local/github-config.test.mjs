@@ -94,3 +94,23 @@ test('GitHub config falls back to runtime/script defaults when request options o
   assert.equal(resolved.cache.enabled, true);
   assert.equal(resolved.cache.namespace, 'runtime_ns');
 });
+
+test('GitHub config derives GHES GraphQL URL from REST /api/v3 base', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_TOKEN: 'script-token',
+      GITHUB_API_BASE_URL: 'https://ghe.example.com/api/v3'
+    })
+  });
+  loadGitHubScripts(context);
+
+  context.astGitHubClearRuntimeConfig();
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'graphql',
+    query: '{ viewer { login } }'
+  });
+
+  const resolved = context.astGitHubResolveConfig(normalized);
+  assert.equal(resolved.baseUrl, 'https://ghe.example.com/api/v3');
+  assert.equal(resolved.graphqlUrl, 'https://ghe.example.com/api/graphql');
+});

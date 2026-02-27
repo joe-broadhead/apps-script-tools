@@ -93,3 +93,26 @@ test('non-retriable provider 501 fails fast without exhausting retries', () => {
 
   assert.equal(calls, 1);
 });
+
+test('403 without x-ratelimit-remaining maps to AstGitHubAuthError', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => createResponse(403, { message: 'Resource not accessible by integration' }, {})
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_RETRIES: 0
+  });
+
+  assert.throws(
+    () => context.AST.GitHub.getMe(),
+    error => {
+      assert.equal(error.name, 'AstGitHubAuthError');
+      assert.equal(error.details.statusCode, 403);
+      return true;
+    }
+  );
+});
