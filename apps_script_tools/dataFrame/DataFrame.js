@@ -587,8 +587,8 @@ var DataFrame = class DataFrame {
   /**
    * Set the row index from one or more columns.
    *
-   * Multi-column indexes are represented as single string labels using JSON array
-   * encoding to avoid delimiter collisions.
+   * Multi-column indexes are represented as single string labels using a
+   * type-stable tuple encoding to avoid lossy JSON coercion.
    *
    * @param {string|string[]} keys
    * @param {Object} [options={}]
@@ -617,7 +617,7 @@ var DataFrame = class DataFrame {
         for (let keyIdx = 0; keyIdx < keyArrays.length; keyIdx++) {
           values[keyIdx] = keyArrays[keyIdx][rowIdx];
         }
-        nextIndex[rowIdx] = JSON.stringify(values);
+        nextIndex[rowIdx] = __astEncodeDataFrameIndexTuple(values);
       }
     }
 
@@ -1725,6 +1725,9 @@ function __astNormalizeDataFrameTargetColumns(columns, methodName) {
   if (!Array.isArray(columns)) {
     throw new Error(`DataFrame.${methodName} option columns must be an array`);
   }
+  if (columns.length === 0) {
+    throw new Error(`DataFrame.${methodName} option columns must contain at least one column`);
+  }
 
   const normalized = new Array(columns.length);
   const seen = new Set();
@@ -1896,6 +1899,14 @@ function __astBuildDataFrameLabelLookupKey(label) {
   if (typeof label === 'bigint') return `bigint:${String(label)}`;
   if (label instanceof Date) return `date:${label.toISOString()}`;
   return `${typeof label}:${__astDataFrameLabelToStableText(label)}`;
+}
+
+function __astEncodeDataFrameIndexTuple(values) {
+  const encoded = new Array(values.length);
+  for (let idx = 0; idx < values.length; idx++) {
+    encoded[idx] = __astBuildDataFrameLabelLookupKey(values[idx]);
+  }
+  return JSON.stringify(encoded);
 }
 
 function __astDataFrameLabelToStableText(label) {

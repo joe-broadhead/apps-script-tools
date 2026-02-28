@@ -113,10 +113,18 @@ test('DataFrame.setIndex supports single and multi-column keys with integrity ch
   const withMultiKey = df.setIndex(['country', 'city']);
   assertJsonEqual(withMultiKey.columns, ['value']);
   assertJsonEqual(withMultiKey.index, [
-    JSON.stringify(['NL', 'AMS']),
-    JSON.stringify(['US', 'NYC'])
+    JSON.stringify(['string:NL', 'string:AMS']),
+    JSON.stringify(['string:US', 'string:NYC'])
   ]);
   assertJsonEqual(withMultiKey.toRecords(), [{ value: 10 }, { value: 20 }]);
+
+  const specialKeys = context.DataFrame.fromColumns({
+    k1: [null, NaN, Infinity, -Infinity],
+    k2: ['x', 'x', 'x', 'x'],
+    v: [1, 2, 3, 4]
+  });
+  const specialIndexed = specialKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
+  assert.equal(new Set(specialIndexed.index).size, 4);
 
   const duplicate = context.DataFrame.fromRecords([
     { k1: 'A', k2: 1, v: 10 },
@@ -172,6 +180,10 @@ test('DataFrame.reindex enforces strict unknown-label handling and supports fill
   assert.throws(
     () => df.reindex({ columns: ['a', 'missing'] }),
     /unknown column labels/
+  );
+  assert.throws(
+    () => df.reindex({ columns: [] }),
+    /columns must contain at least one column/
   );
 
   const reindexed = df.reindex({
