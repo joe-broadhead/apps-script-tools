@@ -78,6 +78,11 @@ const out = df.assign({ amount_x2: frame => frame.amount.multiply(2) });
 ```
 
 ```javascript
+const df = ASTX.DataFrame.fromColumns({
+  id: [1, 2, 3],
+  amount: [10, 25, 40]
+});
+
 const withDelta = df.pctChange(1, { columns: ['amount'] });
 const topRows = df.nlargest(5, ['amount']);
 const summary = df.describe({ columns: ['amount'] });

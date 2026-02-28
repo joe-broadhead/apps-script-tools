@@ -84,9 +84,10 @@ export function runDataFramePerf(context, options = {}) {
     }
   );
 
+  const sampleSize = Math.min(1000, rows);
   const sample = measureBenchmark(
     `dataframe.sample_n1000_${rows}`,
-    () => df10.sample({ n: 1000, randomState: 42 }),
+    () => df10.sample({ n: sampleSize, randomState: 42 }),
     {
       samples,
       resetCounters: () => DataFrame.__resetPerfCounters(),
