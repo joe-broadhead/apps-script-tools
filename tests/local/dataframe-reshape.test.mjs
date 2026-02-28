@@ -238,6 +238,36 @@ test('DataFrame.join column-based join rejects suffix-expanded output name colli
   );
 });
 
+test('DataFrame.join column-based joins tolerate Invalid Date keys without throwing', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { key: new Date('invalid-left'), left_value: 'L-invalid' },
+    { key: new Date('2024-01-01T00:00:00Z'), left_value: 'L-valid' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { key: new Date('invalid-right'), right_value: 'R-invalid' },
+    { key: new Date('2024-01-01T00:00:00Z'), right_value: 'R-valid' }
+  ]);
+
+  const out = left.join(right, {
+    how: 'inner',
+    on: 'key'
+  });
+  const records = out.toRecords();
+
+  assert.equal(records.length, 2);
+  assert.equal(records[0].left_value, 'L-invalid');
+  assert.equal(records[0].right_value, 'R-invalid');
+  assert.equal(records[0].key instanceof Date, true);
+  assert.equal(Number.isNaN(records[0].key.getTime()), true);
+
+  assert.equal(records[1].left_value, 'L-valid');
+  assert.equal(records[1].right_value, 'R-valid');
+  assert.equal(records[1].key instanceof Date, true);
+  assert.equal(records[1].key.toISOString(), '2024-01-01T00:00:00.000Z');
+});
+
 test('DataFrame.merge right join preserves coalesced key values for leftOn/rightOn rows from right', () => {
   const context = createContext();
 
@@ -306,6 +336,30 @@ test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date valu
   assert.equal(minValue instanceof Date, true);
   assert.equal(Number.isNaN(minValue.getTime()), false);
   assert.equal(minValue.toISOString(), '2024-01-01T00:00:00.000Z');
+});
+
+test('DataFrame.pivotTable max aggregation treats Invalid Date as missing', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { group: 'g1', bucket: 'b1', event_date: new Date('invalid') },
+    { group: 'g1', bucket: 'b1', event_date: new Date('2024-01-01T00:00:00Z') },
+    { group: 'g1', bucket: 'b1', event_date: new Date('2024-06-01T00:00:00Z') }
+  ]);
+
+  const out = df.pivotTable({
+    index: ['group'],
+    columns: 'bucket',
+    values: ['event_date'],
+    aggFunc: 'max'
+  });
+
+  const valueColumn = out.columns.find(column => column !== 'group');
+  const maxValue = out.toRecords()[0][valueColumn];
+
+  assert.equal(maxValue instanceof Date, true);
+  assert.equal(Number.isNaN(maxValue.getTime()), false);
+  assert.equal(maxValue.toISOString(), '2024-06-01T00:00:00.000Z');
 });
 
 test('DataFrame.melt supports idVars/valueVars and can retain source index as a column', () => {

@@ -279,6 +279,46 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() column joins should tolerate Invalid Date keys without throwing',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { key: new Date('invalid-left'), left_value: 'L-invalid' },
+        { key: new Date('2024-01-01T00:00:00Z'), left_value: 'L-valid' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { key: new Date('invalid-right'), right_value: 'R-invalid' },
+        { key: new Date('2024-01-01T00:00:00Z'), right_value: 'R-valid' }
+      ]);
+
+      const out = left.join(right, {
+        how: 'inner',
+        on: 'key'
+      });
+      const records = out.toRecords();
+
+      if (records.length !== 2) {
+        throw new Error(`Unexpected invalid-date join row count: ${records.length}`);
+      }
+
+      if (records[0].left_value !== 'L-invalid' || records[0].right_value !== 'R-invalid') {
+        throw new Error(`Unexpected invalid-date join first row values: ${JSON.stringify(records[0])}`);
+      }
+
+      if (!(records[0].key instanceof Date) || !Number.isNaN(records[0].key.getTime())) {
+        throw new Error(`Expected Invalid Date key in first row, got ${String(records[0].key)}`);
+      }
+
+      if (
+        records[1].left_value !== 'L-valid'
+        || records[1].right_value !== 'R-valid'
+        || !(records[1].key instanceof Date)
+        || records[1].key.toISOString() !== '2024-01-01T00:00:00.000Z'
+      ) {
+        throw new Error(`Unexpected invalid-date join second row: ${JSON.stringify(records[1])}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.merge() right join should preserve coalesced key values for leftOn/rightOn rows from right',
     test: () => {
       const left = DataFrame.fromRecords([
@@ -361,6 +401,38 @@ DATAFRAME_RESHAPE_TESTS = [
 
       if (minValue.toISOString() !== '2024-01-01T00:00:00.000Z') {
         throw new Error(`Unexpected pivot min date: ${minValue.toISOString()}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.pivotTable() max aggregation should treat Invalid Date as missing',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { group: 'g1', bucket: 'b1', event_date: new Date('invalid') },
+        { group: 'g1', bucket: 'b1', event_date: new Date('2024-01-01T00:00:00Z') },
+        { group: 'g1', bucket: 'b1', event_date: new Date('2024-06-01T00:00:00Z') }
+      ]);
+
+      const out = df.pivotTable({
+        index: ['group'],
+        columns: 'bucket',
+        values: ['event_date'],
+        aggFunc: 'max'
+      });
+
+      const valueColumn = out.columns.find(column => column !== 'group');
+      const maxValue = out.toRecords()[0][valueColumn];
+
+      if (!(maxValue instanceof Date)) {
+        throw new Error(`Expected Date output for pivot max, got ${String(maxValue)}`);
+      }
+
+      if (Number.isNaN(maxValue.getTime())) {
+        throw new Error('Expected valid Date for pivot max with mixed valid/invalid Date values');
+      }
+
+      if (maxValue.toISOString() !== '2024-06-01T00:00:00.000Z') {
+        throw new Error(`Unexpected pivot max date: ${maxValue.toISOString()}`);
       }
     }
   },

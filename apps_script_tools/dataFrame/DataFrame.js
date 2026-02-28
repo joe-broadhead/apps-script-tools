@@ -2656,7 +2656,9 @@ function __astResolveDataFramePivotAggregator(aggEntry, columnName, methodName) 
   }
   if (aggName === 'min') {
     return values => {
-      const filtered = values.filter(value => !__astDataFrameIsMissingValue(value));
+      const filtered = values.filter(
+        value => !__astDataFrameIsMissingValue(value) && !__astDataFrameIsInvalidDateValue(value)
+      );
       if (filtered.length === 0) {
         return null;
       }
@@ -2671,7 +2673,9 @@ function __astResolveDataFramePivotAggregator(aggEntry, columnName, methodName) 
   }
   if (aggName === 'max') {
     return values => {
-      const filtered = values.filter(value => !__astDataFrameIsMissingValue(value));
+      const filtered = values.filter(
+        value => !__astDataFrameIsMissingValue(value) && !__astDataFrameIsInvalidDateValue(value)
+      );
       if (filtered.length === 0) {
         return null;
       }
@@ -2701,6 +2705,10 @@ function __astCoerceDataFramePivotNumeric(value, columnName, aggName, methodName
   }
 
   return numeric;
+}
+
+function __astDataFrameIsInvalidDateValue(value) {
+  return value instanceof Date && Number.isNaN(value.getTime());
 }
 
 function __astCompareDataFramePivotValue(left, right) {
