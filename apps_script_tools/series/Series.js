@@ -377,6 +377,118 @@ var Series = class Series {
   }
 
   /**
+   * Sort values by index labels.
+   *
+   * @param {boolean} [ascending=true]
+   * @returns {Series}
+   */
+  sortIndex(ascending = true) {
+    if (typeof ascending !== 'boolean') {
+      throw new Error('Series.sortIndex parameter ascending must be boolean');
+    }
+
+    if (this.len() <= 1) {
+      return astSeriesBuildLike(this, [...this.array], [...this.index]);
+    }
+
+    const positions = arrayFromRange(0, this.len() - 1);
+    positions.sort((leftPos, rightPos) => {
+      const compared = astSeriesCompareIndexLabels(this.index[leftPos], this.index[rightPos]);
+      if (compared === 0) {
+        return leftPos - rightPos;
+      }
+      return ascending ? compared : -compared;
+    });
+
+    const values = new Array(positions.length);
+    const index = new Array(positions.length);
+    for (let idx = 0; idx < positions.length; idx++) {
+      const sourcePos = positions[idx];
+      values[idx] = this.array[sourcePos];
+      index[idx] = this.index[sourcePos];
+    }
+
+    return astSeriesBuildLike(this, values, index);
+  }
+
+  /**
+   * Reindex the Series to the provided index labels.
+   *
+   * @param {Array<*>} index
+   * @param {Object} [options={}]
+   * @param {boolean} [options.allowMissingLabels=false]
+   * @param {*} [options.fillValue=null]
+   * @param {boolean} [options.verifyIntegrity=false]
+   * @returns {Series}
+   */
+  reindex(index, options = {}) {
+    const targetIndex = astSeriesNormalizeTargetIndex(index, 'reindex');
+    const normalized = astSeriesNormalizeReindexOptions(options, 'reindex');
+    const lookup = astSeriesBuildIndexLookup(this.index, normalized.verifyIntegrity, 'reindex');
+    const reindexState = astSeriesBuildReindexState(lookup);
+    const values = new Array(targetIndex.length);
+    const missing = [];
+
+    for (let idx = 0; idx < targetIndex.length; idx++) {
+      const label = targetIndex[idx];
+      const sourcePos = astSeriesTakeNextIndexPosition(lookup, reindexState, label);
+      if (sourcePos >= 0) {
+        values[idx] = this.array[sourcePos];
+      } else if (normalized.allowMissingLabels) {
+        values[idx] = normalized.fillValue;
+      } else {
+        missing.push(label);
+      }
+    }
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Series.reindex received unknown index labels: ${astSeriesFormatLabelList(missing)}`
+      );
+    }
+
+    return astSeriesBuildLike(this, values, targetIndex);
+  }
+
+  /**
+   * Align two Series to the same index labels.
+   *
+   * @param {Series} other
+   * @param {Object} [options={}]
+   * @param {'inner'|'outer'|'left'|'right'} [options.join='outer']
+   * @param {*} [options.fillValue=null]
+   * @param {boolean} [options.verifyIntegrity=false]
+   * @returns {{left: Series, right: Series, index: Array<*>, join: string}}
+   */
+  align(other, options = {}) {
+    if (!(other instanceof Series)) {
+      throw new Error('Series.align requires another Series instance');
+    }
+
+    const normalized = astSeriesNormalizeAlignOptions(options, 'align');
+    const joinedIndex = astSeriesResolveJoinIndex(this.index, other.index, normalized.join, 'align');
+
+    const left = this.reindex(joinedIndex, {
+      allowMissingLabels: true,
+      fillValue: normalized.fillValue,
+      verifyIntegrity: normalized.verifyIntegrity
+    });
+
+    const right = other.reindex(joinedIndex, {
+      allowMissingLabels: true,
+      fillValue: normalized.fillValue,
+      verifyIntegrity: normalized.verifyIntegrity
+    });
+
+    return {
+      left,
+      right,
+      index: [...joinedIndex],
+      join: normalized.join
+    };
+  }
+
+  /**
    * @function rename
    * @description Creates a new `Series` instance with the same data but a different name. The new name must be a non-empty string.
    * @memberof Series
@@ -2435,12 +2547,15 @@ var Series = class Series {
   }
 };
 
-function astSeriesBuildLike(series, values) {
+const AST_SERIES_SYMBOL_KEY_MAP = new Map();
+let AST_SERIES_SYMBOL_KEY_COUNTER = 0;
+
+function astSeriesBuildLike(series, values, index = null) {
   return new Series(
     values,
     series.name,
     null,
-    [...series.index],
+    index == null ? [...series.index] : [...index],
     {
       useUTC: series.useUTC,
       allowComplexValues: true
@@ -2606,6 +2721,382 @@ function astSeriesResolveOtherValues(series, other, methodName) {
   }
 
   return new Array(length).fill(other);
+}
+
+function astSeriesNormalizeTargetIndex(index, methodName) {
+  if (!Array.isArray(index)) {
+    throw new Error(`Series.${methodName} requires index to be an array`);
+  }
+  return [...index];
+}
+
+function astSeriesNormalizeReindexOptions(options, methodName) {
+  if (options == null) {
+    return {
+      allowMissingLabels: false,
+      fillValue: null,
+      verifyIntegrity: false
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'allowMissingLabels')
+    && typeof options.allowMissingLabels !== 'boolean'
+  ) {
+    throw new Error(`Series.${methodName} option allowMissingLabels must be boolean`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'verifyIntegrity')
+    && typeof options.verifyIntegrity !== 'boolean'
+  ) {
+    throw new Error(`Series.${methodName} option verifyIntegrity must be boolean`);
+  }
+
+  return {
+    allowMissingLabels: options.allowMissingLabels === true,
+    fillValue: Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null,
+    verifyIntegrity: options.verifyIntegrity === true
+  };
+}
+
+function astSeriesNormalizeAlignOptions(options, methodName) {
+  if (options == null) {
+    return {
+      join: 'outer',
+      fillValue: null,
+      verifyIntegrity: false
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const join = options.join == null ? 'outer' : options.join;
+  if (!['inner', 'outer', 'left', 'right'].includes(join)) {
+    throw new Error(`Series.${methodName} option join must be one of inner|outer|left|right`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'verifyIntegrity')
+    && typeof options.verifyIntegrity !== 'boolean'
+  ) {
+    throw new Error(`Series.${methodName} option verifyIntegrity must be boolean`);
+  }
+
+  return {
+    join,
+    fillValue: Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null,
+    verifyIntegrity: options.verifyIntegrity === true
+  };
+}
+
+function astSeriesCompareIndexLabels(left, right) {
+  if (Object.is(left, right)) {
+    return 0;
+  }
+
+  if (left == null && right == null) {
+    return 0;
+  }
+
+  if (left == null) {
+    return 1;
+  }
+
+  if (right == null) {
+    return -1;
+  }
+
+  if (typeof left === 'number' && typeof right === 'number') {
+    if (Number.isNaN(left) && Number.isNaN(right)) {
+      return 0;
+    }
+    if (Number.isNaN(left)) {
+      return 1;
+    }
+    if (Number.isNaN(right)) {
+      return -1;
+    }
+    if (left === right) {
+      return 0;
+    }
+    return left < right ? -1 : 1;
+  }
+
+  try {
+    if (left < right) {
+      return -1;
+    }
+
+    if (left > right) {
+      return 1;
+    }
+  } catch (_error) {
+    // Some label types (for example Symbol) do not support relational comparison.
+  }
+
+  const leftText = astSeriesLabelToStableText(left);
+  const rightText = astSeriesLabelToStableText(right);
+  if (leftText === rightText) {
+    return 0;
+  }
+  return leftText < rightText ? -1 : 1;
+}
+
+function astSeriesBuildIndexLookup(index, verifyIntegrity, methodName) {
+  const lookup = new Map();
+
+  for (let idx = 0; idx < index.length; idx++) {
+    const label = index[idx];
+    const key = astSeriesBuildLabelLookupKey(label);
+    const bucket = lookup.get(key);
+
+    if (bucket == null) {
+      lookup.set(key, [{ label, positions: [idx] }]);
+      continue;
+    }
+
+    const existing = bucket.find(entry => astSeriesAreIndexLabelsEqual(entry.label, label));
+    if (existing) {
+      if (verifyIntegrity) {
+        throw new Error(
+          `Series.${methodName} found duplicate index label '${astSeriesFormatLabel(label)}'`
+        );
+      }
+      existing.positions.push(idx);
+      continue;
+    }
+
+    bucket.push({ label, positions: [idx] });
+  }
+
+  return lookup;
+}
+
+function astSeriesLookupIndexPosition(lookup, label) {
+  const key = astSeriesBuildLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
+      return bucket[idx].positions[0];
+    }
+  }
+
+  return -1;
+}
+
+function astSeriesBuildReindexState(lookup) {
+  const state = new Map();
+
+  for (const [key, bucket] of lookup.entries()) {
+    const bucketState = [];
+    for (let idx = 0; idx < bucket.length; idx++) {
+      bucketState.push({
+        label: bucket[idx].label,
+        cursor: 0
+      });
+    }
+    state.set(key, bucketState);
+  }
+
+  return state;
+}
+
+function astSeriesTakeNextIndexPosition(lookup, state, label) {
+  const key = astSeriesBuildLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  const bucketState = state.get(key);
+  if (!bucket || !bucketState) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    const entry = bucket[idx];
+    if (!astSeriesAreIndexLabelsEqual(entry.label, label)) {
+      continue;
+    }
+
+    const cursorState = bucketState[idx];
+    if (entry.positions.length === 0) {
+      return -1;
+    }
+
+    const position = entry.positions[cursorState.cursor % entry.positions.length];
+    cursorState.cursor += 1;
+    return position;
+  }
+
+  return -1;
+}
+
+function astSeriesBuildLabelLookupKey(label) {
+  if (label === null) return 'null:null';
+  if (label === undefined) return 'undefined:undefined';
+  if (typeof label === 'number') {
+    return Number.isNaN(label) ? 'number:NaN' : `number:${label}`;
+  }
+  if (typeof label === 'string') return `string:${label}`;
+  if (typeof label === 'boolean') return `boolean:${label}`;
+  if (typeof label === 'bigint') return `bigint:${String(label)}`;
+  if (typeof label === 'symbol') return `symbol:${astSeriesFormatSymbolForKey(label)}`;
+  if (label instanceof Date) return `date:${astSeriesFormatDateForKey(label)}`;
+  return `${typeof label}:${astSeriesLabelToStableText(label)}`;
+}
+
+function astSeriesLabelToStableText(label) {
+  if (label === null) return 'null';
+  if (label === undefined) return 'undefined';
+  if (typeof label === 'number' && Number.isNaN(label)) return 'NaN';
+  if (typeof label === 'symbol') return String(label);
+  if (label instanceof Date) return astSeriesFormatDateForKey(label);
+  try {
+    return JSON.stringify(label);
+  } catch (_error) {
+    return String(label);
+  }
+}
+
+function astSeriesFormatSymbolForKey(value) {
+  const globalKey = Symbol.keyFor(value);
+  if (globalKey != null) {
+    return `global:${globalKey}`;
+  }
+
+  const existing = AST_SERIES_SYMBOL_KEY_MAP.get(value);
+  if (existing) {
+    return existing;
+  }
+
+  AST_SERIES_SYMBOL_KEY_COUNTER += 1;
+  const description = value.description == null ? '' : String(value.description);
+  const next = `local:${description}:${AST_SERIES_SYMBOL_KEY_COUNTER}`;
+  AST_SERIES_SYMBOL_KEY_MAP.set(value, next);
+  return next;
+}
+
+function astSeriesAreIndexLabelsEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
+      return true;
+    }
+    return leftTime === rightTime;
+  }
+
+  return false;
+}
+
+function astSeriesFormatDateForKey(value) {
+  const time = value.getTime();
+  if (Number.isNaN(time)) {
+    return 'Invalid Date';
+  }
+  return value.toISOString();
+}
+
+function astSeriesFormatLabel(label) {
+  if (typeof label === 'string') {
+    return label;
+  }
+  return astSeriesLabelToStableText(label);
+}
+
+function astSeriesFormatLabelList(labels) {
+  return labels.map(label => `'${astSeriesFormatLabel(label)}'`).join(', ');
+}
+
+function astSeriesResolveJoinIndex(leftIndex, rightIndex, join, methodName) {
+  if (!['inner', 'outer', 'left', 'right'].includes(join)) {
+    throw new Error(`Series.${methodName} option join must be one of inner|outer|left|right`);
+  }
+
+  const leftAll = [...leftIndex];
+  const rightAll = [...rightIndex];
+  const leftLookup = astSeriesBuildIndexLookup(leftAll, false, methodName);
+  const rightLookup = astSeriesBuildIndexLookup(rightAll, false, methodName);
+
+  if (join === 'left') {
+    return leftAll;
+  }
+
+  if (join === 'right') {
+    return rightAll;
+  }
+
+  if (join === 'inner') {
+    const output = [];
+    for (let idx = 0; idx < leftAll.length; idx++) {
+      if (astSeriesLookupIndexPosition(rightLookup, leftAll[idx]) >= 0) {
+        output.push(leftAll[idx]);
+      }
+    }
+    return output;
+  }
+
+  const output = [...leftAll];
+  const rightCounts = new Map();
+  for (let idx = 0; idx < rightAll.length; idx++) {
+    const label = rightAll[idx];
+    const key = astSeriesBuildLabelLookupKey(label);
+    const seen = astSeriesIncrementJoinLabelCount(rightCounts, key, label);
+    const leftCount = astSeriesLookupLabelCount(leftLookup, label);
+    if (seen <= leftCount) {
+      continue;
+    }
+    output.push(label);
+  }
+  return output;
+}
+
+function astSeriesIncrementJoinLabelCount(state, key, label) {
+  const bucket = state.get(key);
+  if (bucket == null) {
+    state.set(key, [{ label, count: 1 }]);
+    return 1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (!astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
+      continue;
+    }
+    bucket[idx].count += 1;
+    return bucket[idx].count;
+  }
+
+  bucket.push({ label, count: 1 });
+  return 1;
+}
+
+function astSeriesLookupLabelCount(lookup, label) {
+  const key = astSeriesBuildLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return 0;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (!astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
+      continue;
+    }
+    return bucket[idx].positions.length;
+  }
+
+  return 0;
 }
 
 function astSeriesNormalizeHeadTailCount(value, methodName) {

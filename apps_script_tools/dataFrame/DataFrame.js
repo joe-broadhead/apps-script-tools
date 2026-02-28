@@ -584,6 +584,59 @@ var DataFrame = class DataFrame {
     return result;
   }
 
+  /**
+   * Set the row index from one or more columns.
+   *
+   * Multi-column indexes are represented as single string labels using a
+   * type-stable tuple encoding to avoid lossy JSON coercion.
+   *
+   * @param {string|string[]} keys
+   * @param {Object} [options={}]
+   * @param {boolean} [options.drop=true]
+   * @param {boolean} [options.verifyIntegrity=false]
+   * @returns {DataFrame}
+   */
+  setIndex(keys, options = {}) {
+    const normalizedKeys = __astNormalizeDataFrameColumnList(this, keys, 'keys', 'setIndex');
+    if (normalizedKeys.length === 0) {
+      throw new Error('DataFrame.setIndex requires at least one key column');
+    }
+
+    const normalized = __astNormalizeDataFrameSetIndexOptions(options, 'setIndex');
+    const nextIndex = new Array(this.len());
+
+    if (normalizedKeys.length === 1) {
+      const source = this.data[normalizedKeys[0]].array;
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        nextIndex[rowIdx] = source[rowIdx];
+      }
+    } else {
+      const keyArrays = normalizedKeys.map(key => this.data[key].array);
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        const values = new Array(keyArrays.length);
+        for (let keyIdx = 0; keyIdx < keyArrays.length; keyIdx++) {
+          values[keyIdx] = keyArrays[keyIdx][rowIdx];
+        }
+        nextIndex[rowIdx] = __astEncodeDataFrameIndexTuple(values);
+      }
+    }
+
+    if (normalized.verifyIntegrity) {
+      __astAssertDataFrameUniqueIndex(nextIndex, 'setIndex');
+    }
+
+    const outputColumns = normalized.drop
+      ? this.columns.filter(column => !normalizedKeys.includes(column))
+      : [...this.columns];
+    if (outputColumns.length === 0 && this.len() > 0) {
+      throw new Error('DataFrame.setIndex cannot drop all columns for a non-empty DataFrame; use drop=false or keep at least one non-index column');
+    }
+
+    const result = this.select(outputColumns);
+    result.index = nextIndex;
+    return result;
+  }
+
   selectExpr(map, options = {}) {
     if (map == null || typeof map !== 'object' || Array.isArray(map)) {
       throw new Error('selectExpr requires an object mapping of output columns');
@@ -788,6 +841,108 @@ var DataFrame = class DataFrame {
   resetIndex() {
     this.index = this.len() === 0 ? [] : arrayFromRange(0, this.len() - 1);
     return this;
+  }
+
+  /**
+   * Sort rows by index labels.
+   *
+   * @param {Object} [options={}]
+   * @param {boolean} [options.ascending=true]
+   * @param {boolean} [options.verifyIntegrity=false]
+   * @returns {DataFrame}
+   */
+  sortIndex(options = {}) {
+    const normalized = __astNormalizeDataFrameSortIndexOptions(options, 'sortIndex');
+
+    if (normalized.verifyIntegrity) {
+      __astAssertDataFrameUniqueIndex(this.index, 'sortIndex');
+    }
+
+    if (this.len() <= 1) {
+      return __astCloneDataFrame(this);
+    }
+
+    const rowIndexes = arrayFromRange(0, this.len() - 1);
+    rowIndexes.sort((leftPos, rightPos) => {
+      const compared = __astCompareDataFrameIndexLabels(this.index[leftPos], this.index[rightPos]);
+      if (compared === 0) {
+        return leftPos - rightPos;
+      }
+      return normalized.ascending ? compared : -compared;
+    });
+
+    return this._buildFromRowIndexes(rowIndexes, true);
+  }
+
+  /**
+   * Reindex rows and/or columns with deterministic fill behavior.
+   *
+   * @param {Object} [options={}]
+   * @param {Array<*>} [options.index]
+   * @param {string[]} [options.columns]
+   * @param {*} [options.fillValue=null]
+   * @param {boolean} [options.allowMissingLabels=false]
+   * @param {boolean} [options.verifyIntegrity=false]
+   * @returns {DataFrame}
+   */
+  reindex(options = {}) {
+    const normalized = __astNormalizeDataFrameReindexOptions(this, options, 'reindex');
+
+    if (normalized.verifyIntegrity) {
+      __astAssertDataFrameUniqueIndex(this.index, 'reindex');
+    }
+
+    const sourceLookup = __astBuildDataFrameIndexLookup(this.index, false, 'reindex');
+    const reindexState = __astBuildDataFrameReindexState(sourceLookup);
+    const rowPositions = new Array(normalized.index.length);
+    const missingRowLabels = [];
+
+    for (let rowIdx = 0; rowIdx < normalized.index.length; rowIdx++) {
+      const label = normalized.index[rowIdx];
+      const sourcePos = __astTakeNextDataFrameIndexPosition(sourceLookup, reindexState, label);
+      rowPositions[rowIdx] = sourcePos;
+      if (sourcePos < 0) {
+        missingRowLabels.push(label);
+      }
+    }
+
+    if (missingRowLabels.length > 0 && !normalized.allowMissingLabels) {
+      throw new Error(
+        `DataFrame.reindex received unknown index labels: ${__astFormatDataFrameLabelList(missingRowLabels)}`
+      );
+    }
+
+    const missingColumns = normalized.columns.filter(column => !this.columns.includes(column));
+    if (missingColumns.length > 0 && !normalized.allowMissingLabels) {
+      throw new Error(
+        `DataFrame.reindex received unknown column labels: ${missingColumns.join(', ')}`
+      );
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+      const column = normalized.columns[colIdx];
+      const values = new Array(normalized.index.length);
+      const sourceArray = this.columns.includes(column)
+        ? this.data[column].array
+        : null;
+
+      for (let rowIdx = 0; rowIdx < normalized.index.length; rowIdx++) {
+        const sourcePos = rowPositions[rowIdx];
+        if (sourceArray == null || sourcePos < 0) {
+          values[rowIdx] = normalized.fillValue;
+        } else {
+          values[rowIdx] = sourceArray[sourcePos];
+        }
+      }
+
+      outputColumns[column] = values;
+    }
+
+    return DataFrame.fromColumns(outputColumns, {
+      copy: false,
+      index: [...normalized.index]
+    });
   }
 
   asType(types) {
@@ -1396,6 +1551,9 @@ var DataFrame = class DataFrame {
   }
 };
 
+const AST_DATAFRAME_SYMBOL_KEY_MAP = new Map();
+let AST_DATAFRAME_SYMBOL_KEY_COUNTER = 0;
+
 function __astDataFrameIsPlainObject(value) {
   return value != null
     && typeof value === 'object'
@@ -1452,6 +1610,383 @@ function __astNormalizeDataFrameColumnList(dataframe, columns, optionName, metho
   }
 
   return unique;
+}
+
+function __astNormalizeDataFrameSetIndexOptions(options, methodName) {
+  if (options == null) {
+    return {
+      drop: true,
+      verifyIntegrity: false
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'drop')
+    && typeof options.drop !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option drop must be boolean`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'verifyIntegrity')
+    && typeof options.verifyIntegrity !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option verifyIntegrity must be boolean`);
+  }
+
+  return {
+    drop: options.drop !== false,
+    verifyIntegrity: options.verifyIntegrity === true
+  };
+}
+
+function __astNormalizeDataFrameSortIndexOptions(options, methodName) {
+  if (options == null) {
+    return {
+      ascending: true,
+      verifyIntegrity: false
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'ascending')
+    && typeof options.ascending !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option ascending must be boolean`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'verifyIntegrity')
+    && typeof options.verifyIntegrity !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option verifyIntegrity must be boolean`);
+  }
+
+  return {
+    ascending: options.ascending !== false,
+    verifyIntegrity: options.verifyIntegrity === true
+  };
+}
+
+function __astNormalizeDataFrameReindexOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'allowMissingLabels')
+    && typeof options.allowMissingLabels !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option allowMissingLabels must be boolean`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'verifyIntegrity')
+    && typeof options.verifyIntegrity !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option verifyIntegrity must be boolean`);
+  }
+
+  const normalizedIndex = options.index == null
+    ? [...dataframe.index]
+    : __astNormalizeDataFrameTargetIndex(options.index, methodName);
+
+  const normalizedColumns = options.columns == null
+    ? [...dataframe.columns]
+    : __astNormalizeDataFrameTargetColumns(options.columns, methodName);
+
+  return {
+    index: normalizedIndex,
+    columns: normalizedColumns,
+    fillValue: Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null,
+    allowMissingLabels: options.allowMissingLabels === true,
+    verifyIntegrity: options.verifyIntegrity === true
+  };
+}
+
+function __astNormalizeDataFrameTargetIndex(index, methodName) {
+  if (!Array.isArray(index)) {
+    throw new Error(`DataFrame.${methodName} option index must be an array`);
+  }
+
+  return [...index];
+}
+
+function __astNormalizeDataFrameTargetColumns(columns, methodName) {
+  if (!Array.isArray(columns)) {
+    throw new Error(`DataFrame.${methodName} option columns must be an array`);
+  }
+  if (columns.length === 0) {
+    throw new Error(`DataFrame.${methodName} option columns must contain at least one column`);
+  }
+
+  const normalized = new Array(columns.length);
+  const seen = new Set();
+
+  for (let idx = 0; idx < columns.length; idx++) {
+    const column = columns[idx];
+    if (typeof column !== 'string' || column.trim().length === 0) {
+      throw new Error(`DataFrame.${methodName} option columns must contain non-empty strings (invalid at index ${idx})`);
+    }
+
+    if (seen.has(column)) {
+      throw new Error(`DataFrame.${methodName} option columns contains duplicate label '${column}'`);
+    }
+    seen.add(column);
+    normalized[idx] = column;
+  }
+
+  return normalized;
+}
+
+function __astCompareDataFrameIndexLabels(left, right) {
+  if (Object.is(left, right)) {
+    return 0;
+  }
+
+  if (left == null && right == null) {
+    return 0;
+  }
+
+  if (left == null) {
+    return 1;
+  }
+
+  if (right == null) {
+    return -1;
+  }
+
+  if (typeof left === 'number' && typeof right === 'number') {
+    if (Number.isNaN(left) && Number.isNaN(right)) {
+      return 0;
+    }
+    if (Number.isNaN(left)) {
+      return 1;
+    }
+    if (Number.isNaN(right)) {
+      return -1;
+    }
+    if (left === right) {
+      return 0;
+    }
+    return left < right ? -1 : 1;
+  }
+
+  try {
+    if (left < right) {
+      return -1;
+    }
+
+    if (left > right) {
+      return 1;
+    }
+  } catch (_error) {
+    // Some label types (for example Symbol) do not support relational comparison.
+  }
+
+  const leftText = __astDataFrameLabelToStableText(left);
+  const rightText = __astDataFrameLabelToStableText(right);
+  if (leftText === rightText) {
+    return 0;
+  }
+  return leftText < rightText ? -1 : 1;
+}
+
+function __astAssertDataFrameUniqueIndex(index, methodName) {
+  __astBuildDataFrameIndexLookup(index, true, methodName);
+}
+
+function __astBuildDataFrameIndexLookup(index, verifyIntegrity, methodName) {
+  const lookup = new Map();
+
+  for (let idx = 0; idx < index.length; idx++) {
+    const label = index[idx];
+    const key = __astBuildDataFrameLabelLookupKey(label);
+    const bucket = lookup.get(key);
+
+    if (bucket == null) {
+      lookup.set(key, [{ label, positions: [idx] }]);
+      continue;
+    }
+
+    const existing = bucket.find(entry => __astAreDataFrameIndexLabelsEqual(entry.label, label));
+    if (existing) {
+      if (verifyIntegrity) {
+        throw new Error(
+          `DataFrame.${methodName} found duplicate index label '${__astFormatDataFrameLabel(label)}'`
+        );
+      }
+      existing.positions.push(idx);
+      continue;
+    }
+
+    bucket.push({ label, positions: [idx] });
+  }
+
+  return lookup;
+}
+
+function __astLookupDataFrameIndexPosition(lookup, label) {
+  const key = __astBuildDataFrameLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (__astAreDataFrameIndexLabelsEqual(bucket[idx].label, label)) {
+      return bucket[idx].positions[0];
+    }
+  }
+
+  return -1;
+}
+
+function __astBuildDataFrameReindexState(lookup) {
+  const state = new Map();
+
+  for (const [key, bucket] of lookup.entries()) {
+    const bucketState = [];
+    for (let idx = 0; idx < bucket.length; idx++) {
+      bucketState.push({
+        label: bucket[idx].label,
+        cursor: 0
+      });
+    }
+    state.set(key, bucketState);
+  }
+
+  return state;
+}
+
+function __astTakeNextDataFrameIndexPosition(lookup, state, label) {
+  const key = __astBuildDataFrameLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  const bucketState = state.get(key);
+  if (!bucket || !bucketState) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    const entry = bucket[idx];
+    if (!__astAreDataFrameIndexLabelsEqual(entry.label, label)) {
+      continue;
+    }
+
+    const cursorState = bucketState[idx];
+    if (entry.positions.length === 0) {
+      return -1;
+    }
+
+    const position = entry.positions[cursorState.cursor % entry.positions.length];
+    cursorState.cursor += 1;
+    return position;
+  }
+
+  return -1;
+}
+
+function __astBuildDataFrameLabelLookupKey(label) {
+  if (label === null) return 'null:null';
+  if (label === undefined) return 'undefined:undefined';
+  if (typeof label === 'number') {
+    if (Number.isNaN(label)) return 'number:NaN';
+    if (Object.is(label, -0)) return 'number:-0';
+    return `number:${label}`;
+  }
+  if (typeof label === 'string') return `string:${label}`;
+  if (typeof label === 'boolean') return `boolean:${label}`;
+  if (typeof label === 'bigint') return `bigint:${String(label)}`;
+  if (typeof label === 'symbol') return `symbol:${__astFormatDataFrameSymbolForKey(label)}`;
+  if (label instanceof Date) return `date:${__astFormatDataFrameDateForKey(label)}`;
+  return `${typeof label}:${__astDataFrameLabelToStableText(label)}`;
+}
+
+function __astEncodeDataFrameIndexTuple(values) {
+  const encoded = new Array(values.length);
+  for (let idx = 0; idx < values.length; idx++) {
+    encoded[idx] = __astBuildDataFrameLabelLookupKey(values[idx]);
+  }
+  return JSON.stringify(encoded);
+}
+
+function __astDataFrameLabelToStableText(label) {
+  if (label === null) return 'null';
+  if (label === undefined) return 'undefined';
+  if (typeof label === 'number' && Number.isNaN(label)) return 'NaN';
+  if (typeof label === 'symbol') return String(label);
+  if (label instanceof Date) return __astFormatDataFrameDateForKey(label);
+  try {
+    return JSON.stringify(label);
+  } catch (_error) {
+    return String(label);
+  }
+}
+
+function __astFormatDataFrameSymbolForKey(value) {
+  const globalKey = Symbol.keyFor(value);
+  if (globalKey != null) {
+    return `global:${globalKey}`;
+  }
+
+  const existing = AST_DATAFRAME_SYMBOL_KEY_MAP.get(value);
+  if (existing) {
+    return existing;
+  }
+
+  AST_DATAFRAME_SYMBOL_KEY_COUNTER += 1;
+  const description = value.description == null ? '' : String(value.description);
+  const next = `local:${description}:${AST_DATAFRAME_SYMBOL_KEY_COUNTER}`;
+  AST_DATAFRAME_SYMBOL_KEY_MAP.set(value, next);
+  return next;
+}
+
+function __astFormatDataFrameDateForKey(value) {
+  const time = value.getTime();
+  if (Number.isNaN(time)) {
+    return 'Invalid Date';
+  }
+  return value.toISOString();
+}
+
+function __astAreDataFrameIndexLabelsEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
+      return true;
+    }
+    return leftTime === rightTime;
+  }
+
+  return false;
+}
+
+function __astFormatDataFrameLabel(label) {
+  if (typeof label === 'string') {
+    return label;
+  }
+  return __astDataFrameLabelToStableText(label);
+}
+
+function __astFormatDataFrameLabelList(labels) {
+  return labels.map(label => `'${__astFormatDataFrameLabel(label)}'`).join(', ');
 }
 
 function __astNormalizeDataFrameDropNullOptions(dataframe, options, methodName) {
