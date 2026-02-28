@@ -40,6 +40,12 @@ test('Series.sortIndex sorts by index labels and keeps duplicate-label order sta
   );
   const symbolSorted = symbolSeries.sortIndex();
   assert.equal(symbolSorted.array.length, 3);
+
+  const signedZeroSeries = new context.Series([1, 2, 3], 'signed-zero', null, [0, -0, 1]);
+  const signedZeroSorted = signedZeroSeries.sortIndex();
+  assert.equal(Object.is(signedZeroSorted.index[0], 0), true);
+  assert.equal(Object.is(signedZeroSorted.index[1], -0), true);
+  assert.equal(signedZeroSorted.index[2], 1);
 });
 
 test('Series.reindex validates unknown labels and supports deterministic fill behavior', () => {

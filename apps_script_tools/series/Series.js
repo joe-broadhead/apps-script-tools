@@ -2823,6 +2823,9 @@ function astSeriesCompareIndexLabels(left, right) {
     if (Number.isNaN(right)) {
       return -1;
     }
+    if (left === right) {
+      return 0;
+    }
     return left < right ? -1 : 1;
   }
 
