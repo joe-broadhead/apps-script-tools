@@ -72,6 +72,42 @@ function patternMissingData(ASTX) {
 }
 ```
 
+## Index management and alignment
+
+```javascript
+function patternIndexing(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { country: 'NL', city: 'AMS', amount: 10 },
+    { country: 'US', city: 'NYC', amount: 20 }
+  ]);
+
+  const indexed = df.setIndex(['country', 'city']); // index labels like '["NL","AMS"]'
+  const sorted = indexed.sortIndex({ ascending: true });
+  const reindexed = sorted.reindex({
+    index: ['["US","NYC"]', '["BE","BRU"]', '["NL","AMS"]'],
+    columns: ['amount', 'status'],
+    allowMissingLabels: true,
+    fillValue: 0
+  });
+
+  return reindexed;
+}
+```
+
+```javascript
+function patternSeriesAlign(ASTX) {
+  const left = new ASTX.Series([1, 2], 'left', null, ['a', 'b']);
+  const right = new ASTX.Series([10, 30], 'right', null, ['b', 'c']);
+
+  const aligned = left.align(right, {
+    join: 'outer',
+    fillValue: null
+  });
+
+  return aligned; // { left: Series, right: Series, index: ['a', 'b', 'c'] }
+}
+```
+
 ## Single-pass projection with `selectExpr`
 
 ```javascript
