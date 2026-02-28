@@ -2629,11 +2629,11 @@ function __astNormalizeDataFrameNuniqueOptions(dataframe, options, methodName) {
 }
 
 function __astNormalizeDataFrameNuniqueAxis(axis, methodName) {
-  if (axis === undefined || axis === null || axis === 'columns' || axis === 'column' || axis === 'cols' || axis === 0 || axis === '0') {
+  if (axis === undefined || axis === null || axis === 'columns' || axis === 'column' || axis === 'cols' || axis === 'index' || axis === 0 || axis === '0') {
     return 'columns';
   }
 
-  if (axis === 'rows' || axis === 'row' || axis === 'index' || axis === 1 || axis === '1') {
+  if (axis === 'rows' || axis === 'row' || axis === 1 || axis === '1') {
     return 'rows';
   }
 

@@ -88,6 +88,7 @@ test('DataFrame.nunique supports columns and rows axis with dropna behavior', ()
   // pandas-compatible numeric aliases
   assert.equal(JSON.stringify(df.nunique({ axis: 0 }).array), JSON.stringify(byColumns.array));
   assert.equal(JSON.stringify(df.nunique({ axis: 1 }).array), JSON.stringify(byRows.array));
+  assert.equal(JSON.stringify(df.nunique({ axis: 'index' }).array), JSON.stringify(byColumns.array));
 });
 
 test('DataFrame.valueCounts returns sorted combination counts and supports normalize', () => {
