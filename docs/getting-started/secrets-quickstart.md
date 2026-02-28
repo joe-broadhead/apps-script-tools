@@ -17,9 +17,10 @@ function configureSecretsRuntime() {
 
 Supported script property keys:
 
-- `SECRETS_PROVIDER`
-- `SECRETS_PROJECT_ID`
-- `SECRETS_DEFAULT_PREFIX`
+- `AST_SECRETS_PROVIDER`
+- `AST_SECRETS_REQUIRED`
+- `AST_SECRETS_MAX_REFERENCE_DEPTH`
+- `AST_SECRETS_SECRET_MANAGER_PROJECT_ID` (or `SECRET_MANAGER_PROJECT_ID`)
 
 ## Read a secret value
 

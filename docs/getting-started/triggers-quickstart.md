@@ -12,7 +12,7 @@ const ASTX = ASTLib.AST || ASTLib;
 function configureTriggersRuntime() {
   const ASTX = ASTLib.AST || ASTLib;
   ASTX.Triggers.configure({
-    TRIGGERS_PROPERTY_PREFIX: 'triggers_v1'
+    AST_TRIGGERS_PROPERTY_PREFIX: 'triggers_v1'
   });
 }
 ```
