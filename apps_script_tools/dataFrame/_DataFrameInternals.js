@@ -504,7 +504,8 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     leftOn = null,
     rightOn = null,
     suffixes = ['_x', '_y'],
-    validate = null
+    validate = null,
+    methodName = 'merge'
   } = options;
 
   if (!Array.isArray(suffixes) || suffixes.length !== 2) {
@@ -604,20 +605,20 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   const rowCount = rowPairs.length;
 
   for (let idx = 0; idx < joinColumnPairs.length; idx++) {
-    out[joinColumnPairs[idx].name] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, joinColumnPairs[idx].name, rowCount, methodName);
   }
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
-    out[leftOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, leftOnlyColumns[idx], rowCount, methodName);
   }
 
   for (let idx = 0; idx < overlapColumns.length; idx++) {
-    out[`${overlapColumns[idx]}${leftSuffix}`] = new Array(rowCount);
-    out[`${overlapColumns[idx]}${rightSuffix}`] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, `${overlapColumns[idx]}${leftSuffix}`, rowCount, methodName);
+    __astInitializeMergeOutputColumn(out, `${overlapColumns[idx]}${rightSuffix}`, rowCount, methodName);
   }
 
   for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
-    out[rightOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, rightOnlyColumns[idx], rowCount, methodName);
   }
 
   for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
@@ -651,6 +652,17 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   }
 
   return DataFrame.fromColumns(out, { copy: false });
+}
+
+function __astInitializeMergeOutputColumn(outputColumns, outputName, rowCount, methodName) {
+  if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+    throw new Error(
+      `DataFrame.${methodName} produced duplicate output column name '${outputName}'. ` +
+      'Adjust lsuffix/rsuffix to avoid collisions with existing columns.'
+    );
+  }
+
+  outputColumns[outputName] = new Array(rowCount);
 }
 
 function __astResolveJoinColumnPairs(how, leftKeys, rightKeys) {

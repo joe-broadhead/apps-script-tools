@@ -1175,7 +1175,10 @@ var DataFrame = class DataFrame {
       throw new Error('`other` must be a DataFrame');
     }
 
-    return __astMergeDataFramesColumnar(this, other, how, options);
+    return __astMergeDataFramesColumnar(this, other, how, {
+      ...options,
+      methodName: 'merge'
+    });
   }
 
   /**
@@ -1196,7 +1199,8 @@ var DataFrame = class DataFrame {
     const normalized = __astNormalizeDataFrameJoinOptions(this, right, options, 'join');
     const mergeOptions = {
       suffixes: [normalized.lsuffix, normalized.rsuffix],
-      validate: normalized.validate
+      validate: normalized.validate,
+      methodName: 'join'
     };
 
     if (normalized.useIndexJoin) {

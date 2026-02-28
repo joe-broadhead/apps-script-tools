@@ -252,6 +252,33 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should reject column-join output column name collisions from suffix expansion',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { key: 1, value: 1, value_x: 10 }
+      ]);
+      const right = DataFrame.fromRecords([
+        { key: 1, value: 2 }
+      ]);
+
+      let threw = false;
+      try {
+        left.join(right, {
+          how: 'inner',
+          on: 'key',
+          lsuffix: '_x',
+          rsuffix: '_y'
+        });
+      } catch (error) {
+        threw = /duplicate output column name 'value_x'/.test(error.message);
+      }
+
+      if (!threw) {
+        throw new Error('Expected column-join output column collision error');
+      }
+    }
+  },
+  {
     description: 'DataFrame.pivotTable() min aggregation should prefer valid Date over Invalid Date',
     test: () => {
       const df = DataFrame.fromRecords([

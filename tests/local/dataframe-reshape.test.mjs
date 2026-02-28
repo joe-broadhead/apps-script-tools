@@ -217,6 +217,27 @@ test('DataFrame.join index join rejects suffix-expanded output name collisions',
   );
 });
 
+test('DataFrame.join column-based join rejects suffix-expanded output name collisions', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { key: 1, value: 1, value_x: 10 }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { key: 1, value: 2 }
+  ]);
+
+  assert.throws(
+    () => left.join(right, {
+      how: 'inner',
+      on: 'key',
+      lsuffix: '_x',
+      rsuffix: '_y'
+    }),
+    /duplicate output column name 'value_x'/
+  );
+});
+
 test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date values deterministically', () => {
   const context = createContext();
 
