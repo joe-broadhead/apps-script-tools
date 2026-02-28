@@ -81,10 +81,10 @@ function patternIndexing(ASTX) {
     { country: 'US', city: 'NYC', amount: 20 }
   ]);
 
-  const indexed = df.setIndex(['country', 'city']); // index labels like '["NL","AMS"]'
+  const indexed = df.setIndex(['country', 'city']); // index labels like '["string:NL","string:AMS"]'
   const sorted = indexed.sortIndex({ ascending: true });
   const reindexed = sorted.reindex({
-    index: ['["US","NYC"]', '["BE","BRU"]', '["NL","AMS"]'],
+    index: ['["string:US","string:NYC"]', '["string:BE","string:BRU"]', '["string:NL","string:AMS"]'],
     columns: ['amount', 'status'],
     allowMissingLabels: true,
     fillValue: 0

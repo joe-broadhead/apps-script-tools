@@ -2823,12 +2823,16 @@ function astSeriesCompareIndexLabels(left, right) {
     return left < right ? -1 : 1;
   }
 
-  if (left < right) {
-    return -1;
-  }
+  try {
+    if (left < right) {
+      return -1;
+    }
 
-  if (left > right) {
-    return 1;
+    if (left > right) {
+      return 1;
+    }
+  } catch (_error) {
+    // Some label types (for example Symbol) do not support relational comparison.
   }
 
   const leftText = astSeriesLabelToStableText(left);
@@ -2938,7 +2942,7 @@ function astSeriesBuildLabelLookupKey(label) {
   if (typeof label === 'string') return `string:${label}`;
   if (typeof label === 'boolean') return `boolean:${label}`;
   if (typeof label === 'bigint') return `bigint:${String(label)}`;
-  if (label instanceof Date) return `date:${label.toISOString()}`;
+  if (label instanceof Date) return `date:${astSeriesFormatDateForKey(label)}`;
   return `${typeof label}:${astSeriesLabelToStableText(label)}`;
 }
 
@@ -2946,11 +2950,20 @@ function astSeriesLabelToStableText(label) {
   if (label === null) return 'null';
   if (label === undefined) return 'undefined';
   if (typeof label === 'number' && Number.isNaN(label)) return 'NaN';
+  if (label instanceof Date) return astSeriesFormatDateForKey(label);
   try {
     return JSON.stringify(label);
   } catch (_error) {
     return String(label);
   }
+}
+
+function astSeriesFormatDateForKey(value) {
+  const time = value.getTime();
+  if (Number.isNaN(time)) {
+    return 'Invalid Date';
+  }
+  return value.toISOString();
 }
 
 function astSeriesFormatLabel(label) {

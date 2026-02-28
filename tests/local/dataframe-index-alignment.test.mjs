@@ -31,6 +31,15 @@ test('Series.sortIndex sorts by index labels and keeps duplicate-label order sta
   assertJsonEqual(series.index, ['b', 'a', 'c', 'a']);
   assertJsonEqual(series.array, [20, 10, 30, 15]);
   assert.throws(() => series.sortIndex('asc'), /ascending must be boolean/);
+
+  const symbolSeries = new context.Series(
+    [1, 2, 3],
+    'symbols',
+    null,
+    [Symbol('b'), Symbol('a'), Symbol('c')]
+  );
+  const symbolSorted = symbolSeries.sortIndex();
+  assert.equal(symbolSorted.array.length, 3);
 });
 
 test('Series.reindex validates unknown labels and supports deterministic fill behavior', () => {
@@ -126,6 +135,15 @@ test('DataFrame.setIndex supports single and multi-column keys with integrity ch
   const specialIndexed = specialKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
   assert.equal(new Set(specialIndexed.index).size, 4);
 
+  const dateKeys = context.DataFrame.fromColumns({
+    d: [new Date('invalid-date'), new Date('2026-01-01T00:00:00.000Z')],
+    k: ['x', 'x'],
+    v: [1, 2]
+  });
+  const dateIndexed = dateKeys.setIndex(['d', 'k'], { drop: false, verifyIntegrity: true });
+  assert.equal(dateIndexed.index.length, 2);
+  assert.notEqual(dateIndexed.index[0], dateIndexed.index[1]);
+
   const duplicate = context.DataFrame.fromRecords([
     { k1: 'A', k2: 1, v: 10 },
     { k1: 'A', k2: 1, v: 20 }
@@ -163,6 +181,14 @@ test('DataFrame.sortIndex sorts by index labels and preserves stable order for d
   assertJsonEqual(desc.toRecords().map(row => row.id), [4, 1, 2, 3]);
 
   assert.throws(() => df.sortIndex({ ascending: 'false' }), /ascending must be boolean/);
+
+  const symbolDf = context.DataFrame.fromRecords([
+    { id: 1 },
+    { id: 2 }
+  ]);
+  symbolDf.index = [Symbol('b'), Symbol('a')];
+  const symbolSorted = symbolDf.sortIndex();
+  assert.equal(symbolSorted.index.length, 2);
 });
 
 test('DataFrame.reindex enforces strict unknown-label handling and supports fill values', () => {
