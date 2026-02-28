@@ -586,6 +586,44 @@ var DataFrame = class DataFrame {
   }
 
   /**
+   * Return a boolean DataFrame mask where missing values are true.
+   *
+   * Missing values follow DataFrame semantics: `null`, `undefined`, and `NaN`.
+   *
+   * @returns {DataFrame}
+   */
+  isNull() {
+    return __astBuildDataFrameMissingMask(this, false);
+  }
+
+  /**
+   * Alias for `isNull()`.
+   *
+   * @returns {DataFrame}
+   */
+  isNa() {
+    return this.isNull();
+  }
+
+  /**
+   * Return a boolean DataFrame mask where non-missing values are true.
+   *
+   * @returns {DataFrame}
+   */
+  notNull() {
+    return __astBuildDataFrameMissingMask(this, true);
+  }
+
+  /**
+   * Alias for `notNull()`.
+   *
+   * @returns {DataFrame}
+   */
+  notNa() {
+    return this.notNull();
+  }
+
+  /**
    * Replace matching values in the DataFrame.
    *
    * Supported forms:
@@ -1161,6 +1199,214 @@ var DataFrame = class DataFrame {
     return this._buildFromRowIndexes(keepRows, false);
   }
 
+  /**
+   * Return a boolean Series marking duplicate rows by subset keys.
+   *
+   * @param {string|string[]} [subset=[]]
+   * @param {Object} [options={}]
+   * @param {'first'|'last'|false} [options.keep='first']
+   * @returns {Series}
+   */
+  duplicated(subset = [], options = {}) {
+    const normalized = __astNormalizeDataFrameDuplicatedOptions(this, subset, options, 'duplicated');
+    const output = new Array(this.len());
+
+    if (this.empty()) {
+      return new Series(output, 'duplicated', 'boolean', [...this.index], { skipTypeCoercion: true });
+    }
+
+    const keyArrays = normalized.subset.map(column => this.data[column].array);
+    if (normalized.keep === false) {
+      const counts = new Map();
+      const keys = new Array(this.len());
+
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        const key = __astBuildDataFrameRowKey(keyArrays, rowIdx);
+        keys[rowIdx] = key;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        output[rowIdx] = (counts.get(keys[rowIdx]) || 0) > 1;
+      }
+
+      return new Series(output, 'duplicated', 'boolean', [...this.index], { skipTypeCoercion: true });
+    }
+
+    if (normalized.keep === 'first') {
+      const seen = new Set();
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        const key = __astBuildDataFrameRowKey(keyArrays, rowIdx);
+        if (seen.has(key)) {
+          output[rowIdx] = true;
+          continue;
+        }
+        seen.add(key);
+        output[rowIdx] = false;
+      }
+
+      return new Series(output, 'duplicated', 'boolean', [...this.index], { skipTypeCoercion: true });
+    }
+
+    const remaining = new Map();
+    const keys = new Array(this.len());
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const key = __astBuildDataFrameRowKey(keyArrays, rowIdx);
+      keys[rowIdx] = key;
+      remaining.set(key, (remaining.get(key) || 0) + 1);
+    }
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const key = keys[rowIdx];
+      const nextRemaining = (remaining.get(key) || 0) - 1;
+      remaining.set(key, nextRemaining);
+      output[rowIdx] = nextRemaining > 0;
+    }
+
+    return new Series(output, 'duplicated', 'boolean', [...this.index], { skipTypeCoercion: true });
+  }
+
+  /**
+   * Count unique values along the requested axis.
+   *
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|0|1|'index'} [options.axis='columns']
+   * @param {boolean} [options.dropna=true]
+   * @param {string|string[]} [options.columns]
+   * @returns {Series}
+   */
+  nunique(options = {}) {
+    const normalized = __astNormalizeDataFrameNuniqueOptions(this, options, 'nunique');
+
+    if (normalized.axis === 'columns') {
+      const output = new Array(normalized.columns.length);
+
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        const column = normalized.columns[colIdx];
+        const source = this.data[column].array;
+        const seen = new Set();
+
+        for (let rowIdx = 0; rowIdx < source.length; rowIdx++) {
+          const value = source[rowIdx];
+          if (normalized.dropna && __astDataFrameIsMissingValue(value)) {
+            continue;
+          }
+          seen.add(astBuildValuesKey([value]));
+        }
+
+        output[colIdx] = seen.size;
+      }
+
+      return new Series(output, 'nunique', null, [...normalized.columns], { skipTypeCoercion: true });
+    }
+
+    const output = new Array(this.len());
+    const keyArrays = normalized.columns.map(column => this.data[column].array);
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const seen = new Set();
+
+      for (let colIdx = 0; colIdx < keyArrays.length; colIdx++) {
+        const value = keyArrays[colIdx][rowIdx];
+        if (normalized.dropna && __astDataFrameIsMissingValue(value)) {
+          continue;
+        }
+        seen.add(astBuildValuesKey([value]));
+      }
+
+      output[rowIdx] = seen.size;
+    }
+
+    return new Series(output, 'nunique', null, [...this.index], { skipTypeCoercion: true });
+  }
+
+  /**
+   * Count duplicate row combinations for selected columns.
+   *
+   * Returns a DataFrame containing subset columns plus a count column.
+   *
+   * @param {Object} [options={}]
+   * @param {string|string[]} [options.subset]
+   * @param {boolean} [options.dropna=true]
+   * @param {boolean} [options.sort=true]
+   * @param {boolean} [options.ascending=false]
+   * @param {boolean} [options.normalize=false]
+   * @param {string} [options.countColumn='count']
+   * @returns {DataFrame}
+   */
+  valueCounts(options = {}) {
+    const normalized = __astNormalizeDataFrameValueCountsOptions(this, options, 'valueCounts');
+    const columnArrays = normalized.subset.map(column => this.data[column].array);
+    const countsByKey = new Map();
+    let includedRows = 0;
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const values = new Array(columnArrays.length);
+      let hasMissing = false;
+
+      for (let colIdx = 0; colIdx < columnArrays.length; colIdx++) {
+        const value = columnArrays[colIdx][rowIdx];
+        if (__astDataFrameIsMissingValue(value)) {
+          hasMissing = true;
+        }
+        values[colIdx] = value;
+      }
+
+      if (normalized.dropna && hasMissing) {
+        continue;
+      }
+
+      includedRows += 1;
+      const key = astBuildValuesKey(values);
+      const existing = countsByKey.get(key);
+      if (existing) {
+        existing.count += 1;
+        continue;
+      }
+
+      countsByKey.set(key, {
+        values,
+        count: 1,
+        firstRow: rowIdx
+      });
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < normalized.subset.length; colIdx++) {
+      outputColumns[normalized.subset[colIdx]] = [];
+    }
+    outputColumns[normalized.countColumn] = [];
+
+    if (countsByKey.size === 0 || includedRows === 0) {
+      return DataFrame.fromColumns(outputColumns, { copy: false });
+    }
+
+    const entries = Array.from(countsByKey.values());
+    if (normalized.sort) {
+      entries.sort((left, right) => {
+        if (left.count !== right.count) {
+          return normalized.ascending
+            ? left.count - right.count
+            : right.count - left.count;
+        }
+        return left.firstRow - right.firstRow;
+      });
+    } else {
+      entries.sort((left, right) => left.firstRow - right.firstRow);
+    }
+
+    for (let entryIdx = 0; entryIdx < entries.length; entryIdx++) {
+      const entry = entries[entryIdx];
+      for (let colIdx = 0; colIdx < normalized.subset.length; colIdx++) {
+        outputColumns[normalized.subset[colIdx]].push(entry.values[colIdx]);
+      }
+      outputColumns[normalized.countColumn].push(
+        normalized.normalize ? (entry.count / includedRows) : entry.count
+      );
+    }
+
+    return DataFrame.fromColumns(outputColumns, { copy: false });
+  }
+
   drop(columns) {
     const droppedData = removeKeysFromObject(this.data, columns);
     const result = new DataFrame(droppedData);
@@ -1277,6 +1523,109 @@ var DataFrame = class DataFrame {
       }
 
       nextColumns[columnName] = mapped;
+    }
+
+    return DataFrame.fromColumns(nextColumns, { copy: false, index: [...this.index] });
+  }
+
+  /**
+   * Aggregate selected columns using named Series reducers or custom functions.
+   *
+   * Custom callback signature: `(series, columnName, frame) => scalar`.
+   *
+   * @param {string|Function|Array<string|Function>|Object<string, string|Function|Array<string|Function>>} aggregations
+   * @param {Object} [options={}]
+   * @param {string|string[]} [options.columns]
+   * @returns {Series|DataFrame}
+   */
+  agg(aggregations, options = {}) {
+    const normalized = __astNormalizeDataFrameAggOptions(this, aggregations, options, 'agg');
+    const rowLabels = [];
+    const rowValuesByLabel = new Map();
+
+    for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+      const column = normalized.columns[colIdx];
+      const series = this.data[column];
+      const specs = normalized.columnSpecs[column];
+
+      for (let specIdx = 0; specIdx < specs.length; specIdx++) {
+        const spec = specs[specIdx];
+        let value;
+
+        if (spec.kind === 'method') {
+          value = series[spec.method]();
+        } else {
+          value = spec.fn(series, column, this);
+        }
+
+        if (!rowValuesByLabel.has(spec.label)) {
+          rowValuesByLabel.set(spec.label, Object.create(null));
+          rowLabels.push(spec.label);
+        }
+
+        rowValuesByLabel.get(spec.label)[column] = value;
+      }
+    }
+
+    if (rowLabels.length === 1) {
+      const row = rowValuesByLabel.get(rowLabels[0]) || Object.create(null);
+      const output = new Array(normalized.columns.length);
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        output[colIdx] = row[normalized.columns[colIdx]];
+      }
+      return new Series(output, rowLabels[0], null, [...normalized.columns], { skipTypeCoercion: true, allowComplexValues: true });
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+      const column = normalized.columns[colIdx];
+      outputColumns[column] = new Array(rowLabels.length).fill(null);
+    }
+
+    for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
+      const label = rowLabels[rowIdx];
+      const row = rowValuesByLabel.get(label) || Object.create(null);
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        const column = normalized.columns[colIdx];
+        if (Object.prototype.hasOwnProperty.call(row, column)) {
+          outputColumns[column][rowIdx] = row[column];
+        }
+      }
+    }
+
+    return DataFrame.fromColumns(outputColumns, { copy: false, index: [...rowLabels] });
+  }
+
+  /**
+   * Transform column values while preserving original row count and index.
+   *
+   * Callback signature when `transformer` is a function:
+   * `(series, columnName, frame) => Series|Array|scalar`.
+   *
+   * @param {Function|Object<string, Function|Series|Array|*>} transformer
+   * @param {Object} [options={}]
+   * @param {string|string[]} [options.columns]
+   * @returns {DataFrame}
+   */
+  transform(transformer, options = {}) {
+    const normalized = __astNormalizeDataFrameTransformOptions(this, transformer, options, 'transform');
+    const nextColumns = {};
+
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const column = this.columns[colIdx];
+      const sourceSeries = this.data[column];
+      if (!Object.prototype.hasOwnProperty.call(normalized.transformers, column)) {
+        nextColumns[column] = [...sourceSeries.array];
+        continue;
+      }
+
+      nextColumns[column] = __astResolveDataFrameTransformOutput(
+        this,
+        sourceSeries,
+        column,
+        normalized.transformers[column],
+        'transform'
+      );
     }
 
     return DataFrame.fromColumns(nextColumns, { copy: false, index: [...this.index] });
@@ -2155,6 +2504,40 @@ function __astDataFrameIsMissingValue(value) {
   return value == null || (typeof value === 'number' && Number.isNaN(value));
 }
 
+function __astDataFrameIsDangerousObjectKey(value) {
+  return value === '__proto__' || value === 'prototype' || value === 'constructor';
+}
+
+function __astBuildDataFrameMissingMask(dataframe, invert = false) {
+  const nextColumns = {};
+
+  for (let colIdx = 0; colIdx < dataframe.columns.length; colIdx++) {
+    const column = dataframe.columns[colIdx];
+    const source = dataframe.data[column].array;
+    const output = new Array(source.length);
+
+    for (let rowIdx = 0; rowIdx < source.length; rowIdx++) {
+      const isMissing = __astDataFrameIsMissingValue(source[rowIdx]);
+      output[rowIdx] = invert ? !isMissing : isMissing;
+    }
+
+    nextColumns[column] = output;
+  }
+
+  return DataFrame.fromColumns(nextColumns, {
+    copy: false,
+    index: [...dataframe.index]
+  });
+}
+
+function __astBuildDataFrameRowKey(keyArrays, rowIdx) {
+  const values = new Array(keyArrays.length);
+  for (let keyIdx = 0; keyIdx < keyArrays.length; keyIdx++) {
+    values[keyIdx] = keyArrays[keyIdx][rowIdx];
+  }
+  return astBuildValuesKey(values);
+}
+
 function __astNormalizeDataFrameAxis(axis, methodName) {
   if (axis === undefined || axis === null || axis === 'rows' || axis === 'row' || axis === 'index' || axis === 0 || axis === '0') {
     return 'rows';
@@ -2190,6 +2573,279 @@ function __astNormalizeDataFrameApplyOptions(options, methodName) {
   }
 
   return { axis, resultName };
+}
+
+function __astNormalizeDataFrameDuplicatedOptions(dataframe, subset, options, methodName) {
+  const normalizedSubset = __astNormalizeDataFrameColumnList(dataframe, subset, 'subset', methodName);
+  const targetSubset = normalizedSubset.length > 0 ? normalizedSubset : [...dataframe.columns];
+
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const keep = Object.prototype.hasOwnProperty.call(options, 'keep')
+    ? options.keep
+    : 'first';
+  if (keep !== 'first' && keep !== 'last' && keep !== false) {
+    throw new Error(`DataFrame.${methodName} option keep must be one of: first, last, false`);
+  }
+
+  return {
+    subset: targetSubset,
+    keep
+  };
+}
+
+function __astNormalizeDataFrameNuniqueOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const axis = Object.prototype.hasOwnProperty.call(options, 'axis')
+    ? __astNormalizeDataFrameNuniqueAxis(options.axis, methodName)
+    : 'columns';
+  const columns = Object.prototype.hasOwnProperty.call(options, 'columns')
+    ? __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+    : [...dataframe.columns];
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'dropna')
+    && typeof options.dropna !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option dropna must be boolean`);
+  }
+
+  return {
+    axis,
+    columns,
+    dropna: options.dropna !== false
+  };
+}
+
+function __astNormalizeDataFrameNuniqueAxis(axis, methodName) {
+  if (axis === undefined || axis === null || axis === 'columns' || axis === 'column' || axis === 'cols' || axis === 'index' || axis === 0 || axis === '0') {
+    return 'columns';
+  }
+
+  if (axis === 'rows' || axis === 'row' || axis === 1 || axis === '1') {
+    return 'rows';
+  }
+
+  throw new Error(`DataFrame.${methodName} option axis must be one of columns|rows|0|1|index`);
+}
+
+function __astNormalizeDataFrameValueCountsOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const subset = Object.prototype.hasOwnProperty.call(options, 'subset')
+    ? __astNormalizeDataFrameColumnList(dataframe, options.subset, 'subset', methodName)
+    : [...dataframe.columns];
+  if (subset.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one subset column`);
+  }
+
+  const normalized = {
+    subset,
+    dropna: options.dropna !== false,
+    sort: options.sort !== false,
+    ascending: options.ascending === true,
+    normalize: options.normalize === true,
+    countColumn: options.countColumn == null ? 'count' : String(options.countColumn)
+  };
+
+  if (normalized.countColumn.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} option countColumn must be a non-empty string`);
+  }
+  if (__astDataFrameIsDangerousObjectKey(normalized.countColumn)) {
+    throw new Error(`DataFrame.${methodName} option countColumn must not be one of: __proto__, prototype, constructor`);
+  }
+  if (subset.includes(normalized.countColumn)) {
+    throw new Error(`DataFrame.${methodName} option countColumn must not collide with subset columns`);
+  }
+
+  const booleanOptions = ['dropna', 'sort', 'ascending', 'normalize'];
+  for (let idx = 0; idx < booleanOptions.length; idx++) {
+    const key = booleanOptions[idx];
+    if (Object.prototype.hasOwnProperty.call(options, key) && typeof options[key] !== 'boolean') {
+      throw new Error(`DataFrame.${methodName} option ${key} must be boolean`);
+    }
+  }
+
+  return normalized;
+}
+
+function __astNormalizeDataFrameAggOptions(dataframe, aggregations, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  if (aggregations == null) {
+    throw new Error(`DataFrame.${methodName} requires aggregations`);
+  }
+
+  const isColumnMap = __astDataFrameIsPlainObject(aggregations);
+  const columns = isColumnMap
+    ? Object.keys(aggregations)
+    : (
+      Object.prototype.hasOwnProperty.call(options, 'columns')
+        ? __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+        : [...dataframe.columns]
+    );
+
+  if (columns.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one target column`);
+  }
+
+  const unknownColumns = columns.filter(column => !dataframe.columns.includes(column));
+  if (unknownColumns.length > 0) {
+    throw new Error(`DataFrame.${methodName} received unknown columns: ${unknownColumns.join(', ')}`);
+  }
+
+  const columnSpecs = {};
+  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+    const column = columns[colIdx];
+    const specSource = isColumnMap ? aggregations[column] : aggregations;
+    if (typeof specSource === 'undefined') {
+      throw new Error(`DataFrame.${methodName} received no aggregation spec for column '${column}'`);
+    }
+    columnSpecs[column] = __astNormalizeDataFrameAggSpecList(dataframe, column, specSource, methodName);
+  }
+
+  return { columns, columnSpecs };
+}
+
+function __astNormalizeDataFrameAggSpecList(dataframe, column, specSource, methodName) {
+  const source = Array.isArray(specSource) ? specSource : [specSource];
+  if (source.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one aggregation for column '${column}'`);
+  }
+
+  const output = new Array(source.length);
+  const labels = new Set();
+  for (let idx = 0; idx < source.length; idx++) {
+    const current = source[idx];
+    if (typeof current === 'string') {
+      const method = current.trim();
+      if (method.length === 0) {
+        throw new Error(`DataFrame.${methodName} received an empty aggregation method for column '${column}'`);
+      }
+
+      const reducer = dataframe.data[column][method];
+      if (typeof reducer !== 'function') {
+        throw new Error(`DataFrame.${methodName} unknown aggregation method '${method}' for column '${column}'`);
+      }
+
+      if (labels.has(method)) {
+        throw new Error(`DataFrame.${methodName} duplicate aggregation label '${method}' for column '${column}'`);
+      }
+      labels.add(method);
+      output[idx] = { kind: 'method', method, label: method };
+      continue;
+    }
+
+    if (typeof current === 'function') {
+      const baseLabel = current.name && current.name.length > 0 ? current.name : `custom_${idx + 1}`;
+      if (labels.has(baseLabel)) {
+        throw new Error(`DataFrame.${methodName} duplicate aggregation label '${baseLabel}' for column '${column}'`);
+      }
+      labels.add(baseLabel);
+      output[idx] = { kind: 'function', fn: current, label: baseLabel };
+      continue;
+    }
+
+    throw new Error(`DataFrame.${methodName} aggregation specs must be string or function for column '${column}'`);
+  }
+
+  return output;
+}
+
+function __astNormalizeDataFrameTransformOptions(dataframe, transformer, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  if (typeof transformer === 'function') {
+    const columns = Object.prototype.hasOwnProperty.call(options, 'columns')
+      ? __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+      : [...dataframe.columns];
+    if (columns.length === 0) {
+      throw new Error(`DataFrame.${methodName} requires at least one target column`);
+    }
+
+    const transformers = {};
+    for (let idx = 0; idx < columns.length; idx++) {
+      transformers[columns[idx]] = transformer;
+    }
+    return { transformers };
+  }
+
+  if (__astDataFrameIsPlainObject(transformer)) {
+    const keys = Object.keys(transformer);
+    if (keys.length === 0) {
+      throw new Error(`DataFrame.${methodName} requires at least one transformer mapping`);
+    }
+
+    const unknown = keys.filter(column => !dataframe.columns.includes(column));
+    if (unknown.length > 0) {
+      throw new Error(`DataFrame.${methodName} received unknown columns: ${unknown.join(', ')}`);
+    }
+
+    return { transformers: { ...transformer } };
+  }
+
+  throw new Error(`DataFrame.${methodName} requires transformer to be a function or object mapping`);
+}
+
+function __astResolveDataFrameTransformOutput(dataframe, sourceSeries, column, transformSpec, methodName) {
+  let resolved = transformSpec;
+  if (typeof transformSpec === 'function') {
+    resolved = transformSpec(
+      __astBuildDataFrameColumnSeries(dataframe, column),
+      column,
+      dataframe
+    );
+  }
+
+  if (resolved instanceof Series) {
+    if (resolved.len() !== dataframe.len()) {
+      throw new Error(`DataFrame.${methodName} transform for column '${column}' must return length ${dataframe.len()}`);
+    }
+    return [...resolved.array];
+  }
+
+  if (Array.isArray(resolved)) {
+    if (resolved.length !== dataframe.len()) {
+      throw new Error(`DataFrame.${methodName} transform array for column '${column}' must have length ${dataframe.len()}`);
+    }
+    return [...resolved];
+  }
+
+  if (resolved instanceof DataFrame) {
+    throw new Error(`DataFrame.${methodName} transform for column '${column}' must not return a DataFrame`);
+  }
+
+  const output = new Array(dataframe.len());
+  for (let rowIdx = 0; rowIdx < dataframe.len(); rowIdx++) {
+    output[rowIdx] = resolved;
+  }
+  return output;
 }
 
 function __astNormalizeDataFrameQuantileOptions(dataframe, q, options, methodName) {
@@ -2795,7 +3451,7 @@ function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
 
   const rowPairs = __astBuildDataFrameIndexJoinPairs(leftDf.index, rightDf.index, leftLookup, rightLookup, how);
   const rowCount = rowPairs.length;
-  const outputColumns = {};
+    const outputColumns = Object.create(null);
   const outputIndex = new Array(rowCount);
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {

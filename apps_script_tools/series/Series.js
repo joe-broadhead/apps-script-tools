@@ -1881,6 +1881,161 @@ var Series = class Series {
   }
 
   /**
+   * @function agg
+   * @description Aggregate Series values via named reducers or custom callbacks.
+   *              Callback signature: `(series) => scalar`.
+   * @memberof Series
+   * @param {string|Function|Array<string|Function>} aggregations
+   * @returns {*|Series} Scalar for a single aggregation, or Series for multiple.
+   */
+  agg(aggregations) {
+    const specs = astSeriesNormalizeAggSpecs(this, aggregations, 'agg');
+    const output = new Array(specs.length);
+    const labels = new Array(specs.length);
+
+    for (let idx = 0; idx < specs.length; idx++) {
+      const spec = specs[idx];
+      labels[idx] = spec.label;
+      output[idx] = spec.kind === 'method'
+        ? this[spec.method]()
+        : spec.fn(this);
+    }
+
+    if (output.length === 1) {
+      return output[0];
+    }
+
+    return new Series(output, `${this.name}_agg`, null, labels, {
+      skipTypeCoercion: true,
+      allowComplexValues: true
+    });
+  }
+
+  /**
+   * @function interpolate
+   * @description Fill missing values using deterministic interpolation strategies.
+   * @memberof Series
+   * @param {Object} [options={}]
+   * @param {'linear'|'nearest'|'ffill'|'pad'|'bfill'} [options.method='linear']
+   * @param {Number} [options.limit] - Max consecutive fills per gap.
+   * @returns {Series}
+   */
+  interpolate(options = {}) {
+    const normalized = astSeriesNormalizeInterpolateOptions(options, 'interpolate');
+    const output = [...this.array];
+    const length = this.len();
+
+    if (length === 0) {
+      return astSeriesBuildLike(this, output);
+    }
+
+    if (normalized.method === 'ffill') {
+      let previous = null;
+      let hasPrevious = false;
+      let gapOffset = 0;
+      for (let idx = 0; idx < length; idx++) {
+        const value = output[idx];
+        if (!astSeriesIsMissingValue(value)) {
+          previous = value;
+          hasPrevious = true;
+          gapOffset = 0;
+          continue;
+        }
+
+        if (normalized.limit != null && gapOffset >= normalized.limit) {
+          gapOffset += 1;
+          continue;
+        }
+        if (hasPrevious) {
+          output[idx] = previous;
+        }
+        gapOffset += 1;
+      }
+      return astSeriesBuildLike(this, output);
+    }
+
+    if (normalized.method === 'bfill') {
+      let next = null;
+      let hasNext = false;
+      let gapOffset = 0;
+      for (let idx = length - 1; idx >= 0; idx--) {
+        const value = output[idx];
+        if (!astSeriesIsMissingValue(value)) {
+          next = value;
+          hasNext = true;
+          gapOffset = 0;
+          continue;
+        }
+
+        if (normalized.limit != null && gapOffset >= normalized.limit) {
+          gapOffset += 1;
+          continue;
+        }
+        if (hasNext) {
+          output[idx] = next;
+        }
+        gapOffset += 1;
+      }
+      return astSeriesBuildLike(this, output);
+    }
+
+    let idx = 0;
+    while (idx < length) {
+      if (!astSeriesIsMissingValue(this.array[idx])) {
+        idx += 1;
+        continue;
+      }
+
+      const start = idx;
+      while (idx < length && astSeriesIsMissingValue(this.array[idx])) {
+        idx += 1;
+      }
+      const end = idx;
+      const runLength = end - start;
+
+      const prevIndex = start - 1;
+      const nextIndex = end < length ? end : -1;
+      const prevNumeric = prevIndex >= 0 ? astSeriesNormalizeFiniteNumber(this.array[prevIndex]) : null;
+      const nextNumeric = nextIndex >= 0 ? astSeriesNormalizeFiniteNumber(this.array[nextIndex]) : null;
+
+      for (let runOffset = 0; runOffset < runLength; runOffset++) {
+        if (normalized.limit != null && runOffset >= normalized.limit) {
+          continue;
+        }
+
+        const outPos = start + runOffset;
+        if (normalized.method === 'linear') {
+          if (prevNumeric == null || nextNumeric == null) {
+            continue;
+          }
+          const weight = (runOffset + 1) / (runLength + 1);
+          output[outPos] = prevNumeric + ((nextNumeric - prevNumeric) * weight);
+          continue;
+        }
+
+        // nearest
+        if (prevNumeric == null && nextNumeric == null) {
+          continue;
+        }
+        if (prevNumeric == null) {
+          output[outPos] = nextNumeric;
+          continue;
+        }
+        if (nextNumeric == null) {
+          output[outPos] = prevNumeric;
+          continue;
+        }
+
+        const distPrev = runOffset + 1;
+        const distNext = runLength - runOffset;
+        output[outPos] = distPrev <= distNext ? prevNumeric : nextNumeric;
+      }
+    }
+
+    return astSeriesBuildLike(this, output);
+  }
+
+  /**
    * @function map
    * @description Maps Series values using either a callback, `Map`, plain object, or another `Series`.
    * @memberof Series
@@ -2672,6 +2827,48 @@ var Series = class Series {
    */
   toRecords() {
     return this.combine();
+  }
+
+  /**
+   * @function toFrame
+   * @description Convert the `Series` to a single-column `DataFrame`.
+   * @memberof Series
+   * @param {Object} [options={}]
+   * @param {String} [options.name] - Override output column name.
+   * @returns {DataFrame}
+   */
+  toFrame(options = {}) {
+    if (options == null) {
+      options = {};
+    }
+    if (typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('Series.toFrame options must be an object');
+    }
+
+    if (typeof DataFrame === 'undefined' || typeof DataFrame.fromColumns !== 'function') {
+      throw new Error('Series.toFrame requires DataFrame to be loaded');
+    }
+
+    const targetName = options.name == null ? this.name : String(options.name);
+    if (targetName.trim().length === 0) {
+      throw new Error('Series.toFrame option name must be a non-empty string');
+    }
+
+    const columnName = toSnakeCase(targetName);
+    const columns = {};
+    columns[columnName] = new Series(
+      [...this.array],
+      columnName,
+      this.type,
+      [...this.index],
+      {
+        useUTC: this.useUTC,
+        allowComplexValues: true,
+        skipTypeCoercion: true
+      }
+    );
+
+    return new DataFrame(columns, [...this.index]);
   }
 
   /**
@@ -3563,6 +3760,75 @@ function astSeriesNormalizeTakeIndexes(indexes, length, methodName) {
   }
 
   return normalized;
+}
+
+function astSeriesNormalizeAggSpecs(series, aggregations, methodName) {
+  const source = Array.isArray(aggregations) ? aggregations : [aggregations];
+  if (!Array.isArray(source) || source.length === 0) {
+    throw new Error(`Series.${methodName} requires at least one aggregation`);
+  }
+
+  const specs = new Array(source.length);
+  const labels = new Set();
+
+  for (let idx = 0; idx < source.length; idx++) {
+    const current = source[idx];
+    if (typeof current === 'string') {
+      const method = current.trim();
+      if (method.length === 0) {
+        throw new Error(`Series.${methodName} received an empty aggregation method`);
+      }
+      if (typeof series[method] !== 'function') {
+        throw new Error(`Series.${methodName} unknown aggregation method '${method}'`);
+      }
+      if (labels.has(method)) {
+        throw new Error(`Series.${methodName} duplicate aggregation label '${method}'`);
+      }
+      labels.add(method);
+      specs[idx] = { kind: 'method', method, label: method };
+      continue;
+    }
+
+    if (typeof current === 'function') {
+      const label = current.name && current.name.length > 0 ? current.name : `custom_${idx + 1}`;
+      if (labels.has(label)) {
+        throw new Error(`Series.${methodName} duplicate aggregation label '${label}'`);
+      }
+      labels.add(label);
+      specs[idx] = { kind: 'function', fn: current, label };
+      continue;
+    }
+
+    throw new Error(`Series.${methodName} aggregation specs must be string or function`);
+  }
+
+  return specs;
+}
+
+function astSeriesNormalizeInterpolateOptions(options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const rawMethod = options.method == null ? 'linear' : String(options.method).toLowerCase();
+  const method = rawMethod === 'pad' ? 'ffill' : rawMethod;
+  const allowedMethods = ['linear', 'nearest', 'ffill', 'bfill'];
+  if (!allowedMethods.includes(method)) {
+    throw new Error(`Series.${methodName} option method must be one of: linear, nearest, ffill, pad, bfill`);
+  }
+
+  let limit = null;
+  if (Object.prototype.hasOwnProperty.call(options, 'limit') && options.limit != null) {
+    if (!Number.isInteger(options.limit) || options.limit <= 0) {
+      throw new Error(`Series.${methodName} option limit must be a positive integer`);
+    }
+    limit = options.limit;
+  }
+
+  return { method, limit };
 }
 
 function astSeriesNormalizeQuantileOptions(q, options, methodName) {
