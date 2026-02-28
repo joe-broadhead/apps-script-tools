@@ -194,6 +194,29 @@ test('DataFrame.join validates identical suffixes for leftOn/rightOn overlap cas
   );
 });
 
+test('DataFrame.join index join rejects suffix-expanded output name collisions', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { value: 1, value_x: 10 }
+  ]);
+  left.index = ['row1'];
+
+  const right = context.DataFrame.fromRecords([
+    { value: 2 }
+  ]);
+  right.index = ['row1'];
+
+  assert.throws(
+    () => left.join(right, {
+      how: 'inner',
+      lsuffix: '_x',
+      rsuffix: '_y'
+    }),
+    /duplicate output column name 'value_x'/
+  );
+});
+
 test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date values deterministically', () => {
   const context = createContext();
 

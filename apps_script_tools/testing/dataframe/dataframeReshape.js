@@ -223,6 +223,35 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should reject index-join output column name collisions from suffix expansion',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { value: 1, value_x: 10 }
+      ]);
+      left.index = ['row1'];
+
+      const right = DataFrame.fromRecords([
+        { value: 2 }
+      ]);
+      right.index = ['row1'];
+
+      let threw = false;
+      try {
+        left.join(right, {
+          how: 'inner',
+          lsuffix: '_x',
+          rsuffix: '_y'
+        });
+      } catch (error) {
+        threw = /duplicate output column name 'value_x'/.test(error.message);
+      }
+
+      if (!threw) {
+        throw new Error('Expected index-join output column collision error');
+      }
+    }
+  },
+  {
     description: 'DataFrame.pivotTable() min aggregation should prefer valid Date over Invalid Date',
     test: () => {
       const df = DataFrame.fromRecords([

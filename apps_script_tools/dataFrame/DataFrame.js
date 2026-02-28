@@ -2250,16 +2250,18 @@ function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
   const outputIndex = new Array(rowCount);
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
-    outputColumns[leftOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, leftOnlyColumns[idx], rowCount, 'join');
   }
 
   for (let idx = 0; idx < overlapColumns.length; idx++) {
-    outputColumns[`${overlapColumns[idx]}${leftSuffix}`] = new Array(rowCount);
-    outputColumns[`${overlapColumns[idx]}${rightSuffix}`] = new Array(rowCount);
+    const leftOutput = `${overlapColumns[idx]}${leftSuffix}`;
+    const rightOutput = `${overlapColumns[idx]}${rightSuffix}`;
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, leftOutput, rowCount, 'join');
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, rightOutput, rowCount, 'join');
   }
 
   for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
-    outputColumns[rightOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, rightOnlyColumns[idx], rowCount, 'join');
   }
 
   for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
@@ -2298,6 +2300,17 @@ function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
     copy: false,
     index: outputIndex
   });
+}
+
+function __astInitializeDataFrameJoinOutputColumn(outputColumns, outputName, rowCount, methodName) {
+  if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+    throw new Error(
+      `DataFrame.${methodName} produced duplicate output column name '${outputName}'. ` +
+      'Adjust lsuffix/rsuffix to avoid collisions with existing columns.'
+    );
+  }
+
+  outputColumns[outputName] = new Array(rowCount);
 }
 
 function __astBuildDataFrameIndexJoinPairs(leftIndex, rightIndex, leftLookup, rightLookup, how) {
