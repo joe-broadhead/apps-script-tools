@@ -3049,14 +3049,54 @@ function astSeriesResolveJoinIndex(leftIndex, rightIndex, join, methodName) {
   }
 
   const output = [...leftAll];
+  const rightCounts = new Map();
   for (let idx = 0; idx < rightAll.length; idx++) {
     const label = rightAll[idx];
-    if (astSeriesLookupIndexPosition(leftLookup, label) >= 0) {
+    const key = astSeriesBuildLabelLookupKey(label);
+    const seen = astSeriesIncrementJoinLabelCount(rightCounts, key, label);
+    const leftCount = astSeriesLookupLabelCount(leftLookup, label);
+    if (seen <= leftCount) {
       continue;
     }
     output.push(label);
   }
   return output;
+}
+
+function astSeriesIncrementJoinLabelCount(state, key, label) {
+  const bucket = state.get(key);
+  if (bucket == null) {
+    state.set(key, [{ label, count: 1 }]);
+    return 1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (!astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
+      continue;
+    }
+    bucket[idx].count += 1;
+    return bucket[idx].count;
+  }
+
+  bucket.push({ label, count: 1 });
+  return 1;
+}
+
+function astSeriesLookupLabelCount(lookup, label) {
+  const key = astSeriesBuildLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return 0;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (!astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
+      continue;
+    }
+    return bucket[idx].positions.length;
+  }
+
+  return 0;
 }
 
 function astSeriesNormalizeHeadTailCount(value, methodName) {
