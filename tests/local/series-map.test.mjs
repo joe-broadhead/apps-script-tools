@@ -54,6 +54,18 @@ test('Series.map with Series mapper matches keys by identity, not string coercio
   assert.equal(JSON.stringify(out.array), JSON.stringify(['num-one', 'missing', 'bool-true', 'missing']));
 });
 
+test('Series.map with Series mapper matches Date keys by timestamp value', () => {
+  const context = createContext();
+  const t0 = new Date('2026-01-01T00:00:00.000Z');
+  const t1 = new Date('2026-01-02T00:00:00.000Z');
+  const source = new context.Series([new Date(t0.getTime()), new Date(t1.getTime())], 'keys');
+  const mapper = new context.Series(['first-day', 'second-day'], 'lookup', null, [t0, t1]);
+
+  const out = source.map(mapper, { defaultValue: 'missing' });
+
+  assert.equal(JSON.stringify(out.array), JSON.stringify(['first-day', 'second-day']));
+});
+
 test('Series.map supports naAction=ignore', () => {
   const context = createContext();
   const series = new context.Series([1, null, Number.NaN, 2], 'values');

@@ -57,6 +57,21 @@ SERIES_MAP_TESTS = [
     }
   },
   {
+    description: 'Series.map() should match Series mapper Date keys by timestamp value',
+    test: () => {
+      const t0 = new Date('2026-01-01T00:00:00.000Z');
+      const t1 = new Date('2026-01-02T00:00:00.000Z');
+      const source = new Series([new Date(t0.getTime()), new Date(t1.getTime())], 'keys');
+      const mapper = new Series(['first-day', 'second-day'], 'lookup', null, [t0, t1]);
+
+      const result = source.map(mapper, { defaultValue: 'missing' });
+
+      if (JSON.stringify(result.array) !== JSON.stringify(['first-day', 'second-day'])) {
+        throw new Error(`Unexpected date-mapped output: ${JSON.stringify(result.array)}`);
+      }
+    }
+  },
+  {
     description: 'Series.map() should support naAction=ignore',
     test: () => {
       const series = new Series([1, null, NaN, 2], 'values');

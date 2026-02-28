@@ -2667,17 +2667,10 @@ function astSeriesPrepareMapLookup(mapper, mapperType) {
     return null;
   }
 
-  const byIdentity = new Map();
-
-  for (let idx = 0; idx < mapper.array.length; idx++) {
-    const key = mapper.index[idx];
-    const value = mapper.array[idx];
-    if (!byIdentity.has(key)) {
-      byIdentity.set(key, value);
-    }
-  }
-
-  return { byIdentity };
+  return {
+    indexLookup: astSeriesBuildIndexLookup(mapper.index, false, 'map'),
+    values: mapper.array
+  };
 }
 
 function astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value) {
@@ -2690,8 +2683,11 @@ function astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value) {
   const key = astSeriesStringifyReplaceKey(value);
 
   if (mapperType === 'series') {
-    if (mapperLookup && mapperLookup.byIdentity.has(value)) {
-      return { found: true, value: mapperLookup.byIdentity.get(value) };
+    if (mapperLookup) {
+      const indexPos = astSeriesLookupIndexPosition(mapperLookup.indexLookup, value);
+      if (indexPos >= 0) {
+        return { found: true, value: mapperLookup.values[indexPos] };
+      }
     }
     return { found: false, value: undefined };
   }
