@@ -17,8 +17,10 @@ Key capabilities:
 - Element-wise transforms: `apply`, arithmetic methods, comparisons.
 - Filtering: `filter`, `query`, `where`, `mask`.
 - Missing-data handling: `dropNulls`, `fillNulls`, `replace`.
+- Aggregation and interpolation: `agg`, `interpolate`.
 - Index/delta helpers: `sortIndex`, `reindex`, `align`, `shift`, `diff`, `pctChange`.
 - Stats/selectors: `sum`, `mean`, `median`, `mode`, `std`, `var`, `quantile`, `idxMax`, `idxMin`, `cummax`, `cummin`, `cumproduct`.
+- Conversion: `toFrame`.
 - String/date namespaces: `series.str.*`, `series.dt.*`.
 
 Important contract:
@@ -54,8 +56,10 @@ Transform:
 
 - shape/selection: `head`, `tail`, `take`, `sample`, `copy`, `select`, `selectExpr`, `selectExprDsl`.
 - missing/conditional: `dropNulls`, `fillNulls`, `replace`, `where`, `mask`.
+- null masks and duplicate profiles: `isNull`/`isNa`, `notNull`/`notNa`, `duplicated`, `nunique`, `valueCounts`.
 - index/alignment: `setIndex`, `sortIndex`, `reindex`.
-- transformation: `assign`, `apply`, `applyMap`, `sort`, `shift`, `diff`, `pctChange`.
+- transformation: `assign`, `apply`, `applyMap`, `transform`, `sort`, `shift`, `diff`, `pctChange`.
+- aggregation: `agg`.
 - relational/reshape: `merge`, `join`, `melt`, `explode`, `pivot`, `pivotTable`, `groupBy`, `window`.
 - selectors/stats: `quantile`, `describe`, `nlargest`, `nsmallest`.
 - `dropDuplicates(subset = [])` with explicit subset semantics.

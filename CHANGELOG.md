@@ -81,6 +81,9 @@
   - new docs page: `docs/api/pandas-compatibility-matrix.md`
   - expanded API docs/examples for `sample`, `join`, `pivotTable`, `apply`, delta methods, and statistical selectors
   - new perf checks: `dataframe.sample_n1000_100000`, `dataframe.join_inner_on_100000`, `dataframe.apply_rows_20000`, `dataframe.pivotTable_sum_50000`
+- Additional pandas-parity method coverage:
+  - `DataFrame`: `isNull`/`isNa`, `notNull`/`notNa`, `duplicated`, `nunique`, `valueCounts`, `agg`, `transform`
+  - `Series`: `agg`, `interpolate`, `toFrame`
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 
 ## v0.0.4 - 2026-02-25
