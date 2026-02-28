@@ -24,21 +24,28 @@ function configureChatRuntime() {
 ```javascript
 function chatStoreExample(userId) {
   const ASTX = ASTLib.AST || ASTLib;
-  const store = ASTX.Chat.ThreadStore.create({ userId: userId });
+  const store = ASTX.Chat.ThreadStore.create();
+  const userContext = { userId: userId };
 
-  const thread = store.newThread({ title: 'Project QA' });
+  const thread = store.newThread(userContext, { title: 'Project QA' });
 
-  store.appendTurn(thread.id, {
-    role: 'user',
-    content: 'Summarize the rollout risks.'
+  store.appendTurn(userContext, {
+    threadId: thread.threadId,
+    turn: {
+      role: 'user',
+      content: 'Summarize the rollout risks.'
+    }
   });
 
-  store.appendTurn(thread.id, {
-    role: 'assistant',
-    content: 'Top risks are inventory lag and cutover timing.'
+  store.appendTurn(userContext, {
+    threadId: thread.threadId,
+    turn: {
+      role: 'assistant',
+      content: 'Top risks are inventory lag and cutover timing.'
+    }
   });
 
-  Logger.log(JSON.stringify(store.buildHistory(thread.id)));
+  Logger.log(JSON.stringify(store.buildHistory(userContext, { threadId: thread.threadId })));
 }
 ```
 
@@ -47,9 +54,9 @@ function chatStoreExample(userId) {
 ```javascript
 function chatListThreadsExample(userId) {
   const ASTX = ASTLib.AST || ASTLib;
-  const store = ASTX.Chat.ThreadStore.create({ userId: userId });
+  const store = ASTX.Chat.ThreadStore.create();
 
-  const threads = store.listThreads();
+  const threads = store.listThreads({ userId: userId });
   Logger.log(JSON.stringify(threads));
 }
 ```

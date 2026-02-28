@@ -26,10 +26,10 @@ function triggersUpsertExample() {
   const out = ASTX.Triggers.upsert({
     id: 'daily_sync',
     schedule: {
-      kind: 'every_days',
+      type: 'every_days',
       every: 1,
-      hour: 7,
-      minute: 30
+      atHour: 7,
+      nearMinute: 30
     },
     dispatch: {
       mode: 'direct',
@@ -54,11 +54,11 @@ function triggersDryRunExample() {
   const plan = ASTX.Triggers.upsert({
     id: 'weekly_cleanup',
     schedule: {
-      kind: 'every_weeks',
+      type: 'every_weeks',
       every: 1,
-      dayOfWeek: 'MONDAY',
-      hour: 6,
-      minute: 0
+      onWeekDay: 'MONDAY',
+      atHour: 6,
+      nearMinute: 0
     },
     dispatch: {
       mode: 'direct',
