@@ -1,9 +1,20 @@
+/**
+ * Internal Series helper functions used by numeric/comparison ops.
+ */
 function __astSeriesResolveOperandSeries(series, other) {
   return other instanceof Series
     ? other
     : Series.fromValue(other, series.len(), series.name);
 }
 
+/**
+ * Reduce two operands with a binary reducer over transformed values.
+ *
+ * @param {Series} series
+ * @param {*} other
+ * @param {(left: *, right: *) => *} reducer
+ * @returns {Series}
+ */
 function __astSeriesBinaryReduce(series, other, reducer) {
   return series.transform(
     values => values.reduce((left, right) => reducer(left, right)),
@@ -11,6 +22,14 @@ function __astSeriesBinaryReduce(series, other, reducer) {
   );
 }
 
+/**
+ * Compare two operands with a binary comparator over transformed values.
+ *
+ * @param {Series} series
+ * @param {*} other
+ * @param {(left: *, right: *) => boolean} comparator
+ * @returns {Series}
+ */
 function __astSeriesBinaryCompare(series, other, comparator) {
   return series.transform(
     ([value, comparison]) => comparator(value, comparison),
@@ -18,6 +37,13 @@ function __astSeriesBinaryCompare(series, other, comparator) {
   );
 }
 
+/**
+ * Optimized multiply path for numeric Series x scalar and numeric Series x Series.
+ *
+ * @param {Series} series
+ * @param {*} other
+ * @returns {Series|null}
+ */
 function __astSeriesNumericMultiplyFastPath(series, other) {
   const length = series.len();
   const seriesType = series.type;

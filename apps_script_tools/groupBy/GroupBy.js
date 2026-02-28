@@ -8,12 +8,24 @@
 */
 
 var GroupBy = class GroupBy {
+    /**
+     * Create a grouped view over a DataFrame for keyed aggregation and transforms.
+     *
+     * @param {DataFrame} df
+     * @param {string[]} keys
+     */
     constructor(df, keys) {
       this.df = df;
       this.keys = keys;
       this.groups = this._buildGroups();
     }
 
+    /**
+     * Build in-memory grouped DataFrame slices keyed by normalized group values.
+     *
+     * @returns {Object<string, DataFrame>}
+     * @private
+     */
     _buildGroups() {
       const groups = {};
       const groupedIndexes = new Map();
@@ -46,6 +58,12 @@ var GroupBy = class GroupBy {
       return groups;
     }
   
+    /**
+     * Aggregate each group using built-in reducer names or custom reducer functions.
+     *
+     * @param {Object<string, string|string[]|Function|Function[]>} aggregations
+     * @returns {DataFrame}
+     */
     agg(aggregations) {
       const outputPlans = [];
       const usedOutputNames = new Set(this.keys);
@@ -157,6 +175,12 @@ var GroupBy = class GroupBy {
       return DataFrame.concat(results);
     }
 
+    /**
+     * Apply a transform function to each grouped DataFrame and concatenate results.
+     *
+     * @param {(group: DataFrame) => DataFrame} func
+     * @returns {DataFrame}
+     */
     apply(func) {
       if (typeof func !== 'function') {
         throw new Error('The applied function must be a function');
@@ -186,6 +210,11 @@ var GroupBy = class GroupBy {
       return DataFrame.concat(results);
     }
 
+    /**
+     * Iterate grouped entries as `[groupKey, DataFrame]`.
+     *
+     * @returns {IterableIterator<[string, DataFrame]>}
+     */
     *[Symbol.iterator]() {
       for (const [key, group] of Object.entries(this.groups)) {
         yield [key, group];

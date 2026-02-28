@@ -1,3 +1,7 @@
+/**
+ * Public namespace facade for apps-script-tools.
+ * Exposes lazy getters so module globals can resolve safely in Apps Script load order.
+ */
 const AST = {};
 const AST_GLOBAL = typeof globalThis !== 'undefined' ? globalThis : this;
 const AST_UTILITY_NAMES = Object.freeze([
@@ -76,6 +80,13 @@ const AST_UTILITY_NAMES = Object.freeze([
 ]);
 const AST_UTILS = {};
 
+/**
+ * Resolve a symbol first from local lexical scope fallback, then global scope.
+ *
+ * @param {string} name
+ * @param {Function} lexicalResolver
+ * @returns {*}
+ */
 function astResolveAstBinding(name, lexicalResolver) {
   if (typeof lexicalResolver === 'function') {
     const lexicalValue = lexicalResolver();

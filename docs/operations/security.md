@@ -10,6 +10,18 @@ The library includes secure defaults for query and expression execution:
 - Placeholder interpolation is blocked unless explicitly enabled.
 - Apps Script execution API access is set to `MYSELF`.
 
+## Vulnerability reporting
+
+Report vulnerabilities privately through:
+
+- <https://github.com/joe-broadhead/apps-script-tools/security/advisories/new>
+
+Disclosure timeline targets are defined in `SECURITY.md`:
+
+- acknowledgement within 3 business days
+- triage within 7 business days
+- remediation planning within 14 days (critical/high) or 30 days (medium/low)
+
 ## SQL placeholder guidance
 
 Prefer provider-native parameterization where possible.

@@ -45,6 +45,14 @@ function __astAssertNoReservedDataFrameColumns(columns) {
 }
 
 var DataFrame = class DataFrame {
+  /**
+   * Build a DataFrame from a map of column name -> Series.
+   * Column names are exposed as instance getters (`df.columnName`), so names
+   * that collide with DataFrame members are rejected.
+   *
+   * @param {Object<string, Series>} data
+   * @param {Array<*>|null} [index=null]
+   */
   constructor(data, index = null) {
     this.data = data;
     this.columns = this.getColumns();
@@ -131,6 +139,13 @@ var DataFrame = class DataFrame {
     return new DataFrame(seriesObject, index);
   }
 
+  /**
+   * Construct a DataFrame from row-oriented records.
+   * Records are standardized first so sparse/missing keys become explicit.
+   *
+   * @param {Object[]} records
+   * @returns {DataFrame}
+   */
   static fromRecords(records) {
     __astIncrementDataFrameCounter('fromRecords');
 
@@ -287,6 +302,12 @@ var DataFrame = class DataFrame {
     return undefined;
   }
 
+  /**
+   * Return a projected DataFrame with only selected columns.
+   *
+   * @param {string[]} columns
+   * @returns {DataFrame}
+   */
   select(columns) {
     const selectedData = selectKeysFromObject(this.data, columns);
     const result = new DataFrame(selectedData);
@@ -593,6 +614,13 @@ var DataFrame = class DataFrame {
     return result;
   }
 
+  /**
+   * Add or replace columns using scalar values, Series values, or callbacks.
+   * Callback signatures: `(frame) => valueOrSeries`.
+   *
+   * @param {Object<string, *>} columns
+   * @returns {DataFrame}
+   */
   assign(columns) {
     const assigned = { ...this.data };
 
@@ -638,6 +666,14 @@ var DataFrame = class DataFrame {
     }, this);
   }
 
+  /**
+   * Join this DataFrame with another DataFrame using columnar merge internals.
+   *
+   * @param {DataFrame} other
+   * @param {'left'|'right'|'inner'|'outer'|'cross'} [how='inner']
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
   merge(other, how = 'inner', options = {}) {
     if (!(other instanceof DataFrame)) {
       throw new Error('`other` must be a DataFrame');
@@ -660,6 +696,15 @@ var DataFrame = class DataFrame {
     }, this[firstCol]).str.sha256();
   }
 
+  /**
+   * Pivot records into a wide format keyed by `indexCol` and `pivotCol`.
+   * When `aggMapping` is omitted, non-key columns default to first-value pick.
+   *
+   * @param {string} indexCol
+   * @param {string} pivotCol
+   * @param {Object<string, Function>} [aggMapping={}]
+   * @returns {DataFrame}
+   */
   pivot(indexCol, pivotCol, aggMapping = {}) {
     const records = this.toRecords();
     const buildGroupKeyPart = value => {
@@ -749,6 +794,12 @@ var DataFrame = class DataFrame {
     return new DataFrame(data);
   }
 
+  /**
+   * Create a GroupBy wrapper for keyed aggregation and grouped transforms.
+   *
+   * @param {string|string[]} [keys=[]]
+   * @returns {GroupBy}
+   */
   groupBy(keys = []) {
     const normalizedKeys = Array.isArray(keys) ? keys : [keys];
     if (normalizedKeys.length === 0) {
@@ -979,6 +1030,14 @@ var DataFrame = class DataFrame {
     return body ? `${formattedRows[0]}\n${separator}\n${body}` : `${formattedRows[0]}\n${separator}`;
   }
 
+  /**
+   * Stable multi-column sort with null ordering and optional per-column comparators.
+   *
+   * @param {string|string[]} by
+   * @param {boolean|boolean[]} [ascending=true]
+   * @param {Function|Object<string, Function>|null} [compareFunction=null]
+   * @returns {DataFrame}
+   */
   sort(by, ascending = true, compareFunction = null) {
     if (this.empty()) {
       return new DataFrame(this.data, [...this.index]);

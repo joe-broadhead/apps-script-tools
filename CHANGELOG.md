@@ -260,7 +260,7 @@
 - SQL provider adapters now expose execution-control hooks (`executePrepared`, `getStatus`, `cancelExecution`) in addition to `executeQuery`.
 - BigQuery and Databricks SQL modules now expose detailed execution metadata helpers used by prepared execution and status/cancel workflows.
 
-## v0.0.3
+## v0.0.3 - 2026-02-21
 
 ### Added
 
@@ -311,7 +311,7 @@
 - Expanded docs with DataFrame patterns for `selectExpr` and window workflows.
 - Added SQL contract docs for adapter-routed execution and provider-specific error semantics.
 
-## v0.0.2
+## v0.0.2 - 2026-02-19
 
 ### Added
 
@@ -339,7 +339,7 @@
 - Added performance threshold gate (`npm run test:perf:check`) to release validation.
 - Extended Apps Script integration workflow dispatch to support functional/perf suite selection.
 
-## v0.0.1
+## v0.0.1 - 2026-02-19
 
 ### Fixed
 
@@ -357,7 +357,7 @@
 - Expanded getting-started, API, operations, and release docs with detailed contracts, examples, and troubleshooting.
 - Added pages for SQL contracts, DataFrame patterns, and operational troubleshooting.
 
-## v0.0.0
+## v0.0.0 - 2026-02-18
 
 Initial public release for `apps-script-tools`.
 
