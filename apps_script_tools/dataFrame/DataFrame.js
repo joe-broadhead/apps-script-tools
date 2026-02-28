@@ -1835,7 +1835,7 @@ function __astFinalizeDataFrameApplyDataFrameColumns(dataframe, labels, results,
     }
 
     for (let indexPos = 0; indexPos < dataframe.index.length; indexPos++) {
-      if (!Object.is(piece.index[indexPos], dataframe.index[indexPos])) {
+      if (!__astAreDataFrameIndexLabelsEqual(piece.index[indexPos], dataframe.index[indexPos])) {
         throw new Error(
           `DataFrame.${methodName} with axis='columns' requires callback DataFrame index values to align with source index (mismatch at source column ${sourceColumnLabel}, index position ${indexPos})`
         );

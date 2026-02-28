@@ -165,6 +165,32 @@ test('DataFrame.apply enforces DataFrame alignment rules for axis=columns', () =
   );
 });
 
+test('DataFrame.apply axis=columns accepts Date index labels with equal timestamp values', () => {
+  const context = createContext();
+  const t0 = new Date('2026-01-01T00:00:00.000Z');
+  const t1 = new Date('2026-01-02T00:00:00.000Z');
+
+  const df = context.DataFrame.fromRecords([
+    { value: 1 },
+    { value: 2 }
+  ]);
+  df.index = [t0, t1];
+
+  const out = df.apply(
+    column => context.DataFrame.fromColumns({
+      shifted: column.array.map(value => value + 10)
+    }, {
+      index: [new Date(t0.getTime()), new Date(t1.getTime())]
+    }),
+    { axis: 'columns' }
+  );
+
+  assert.ok(out instanceof context.DataFrame);
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['value_shifted']));
+  assert.equal(out.at(0).value_shifted, 11);
+  assert.equal(out.at(1).value_shifted, 12);
+});
+
 test('DataFrame.applyMap is non-mutating and supports stateful closures', () => {
   const context = createContext();
   const df = context.DataFrame.fromRecords([

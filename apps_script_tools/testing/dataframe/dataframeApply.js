@@ -92,6 +92,40 @@ DATAFRAME_APPLY_TESTS = [
     }
   },
   {
+    description: 'DataFrame.apply() axis=columns should treat Date index labels with equal timestamps as aligned',
+    test: () => {
+      const t0 = new Date('2026-01-01T00:00:00.000Z');
+      const t1 = new Date('2026-01-02T00:00:00.000Z');
+
+      const df = DataFrame.fromRecords([
+        { value: 1 },
+        { value: 2 }
+      ]);
+      df.index = [t0, t1];
+
+      const result = df.apply(
+        column => DataFrame.fromColumns({
+          shifted: column.array.map(value => value + 10)
+        }, {
+          index: [new Date(t0.getTime()), new Date(t1.getTime())]
+        }),
+        { axis: 'columns' }
+      );
+
+      if (!(result instanceof DataFrame)) {
+        throw new Error('Expected DataFrame output');
+      }
+
+      if (JSON.stringify(result.columns) !== JSON.stringify(['value_shifted'])) {
+        throw new Error(`Unexpected output columns: ${JSON.stringify(result.columns)}`);
+      }
+
+      if (result.at(0).value_shifted !== 11 || result.at(1).value_shifted !== 12) {
+        throw new Error(`Unexpected output values: ${JSON.stringify(result.toRecords())}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.applyMap() should map each cell without mutating input',
     test: () => {
       const df = DataFrame.fromRecords([
