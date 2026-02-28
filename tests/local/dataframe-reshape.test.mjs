@@ -109,6 +109,43 @@ test('DataFrame.join treats undefined key options as omitted and defaults to ind
   ]);
 });
 
+test('DataFrame.join index semantics distinguish null/undefined/symbol and support invalid Date labels', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { left_value: 'L-null' },
+    { left_value: 'L-undef' },
+    { left_value: 'L-symbol' },
+    { left_value: 'L-invalid-date' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { right_value: 'R-null' },
+    { right_value: 'R-undef' },
+    { right_value: 'R-symbol' },
+    { right_value: 'R-invalid-date' }
+  ]);
+
+  const leftSymbol = Symbol('k');
+  const rightSymbol = Symbol('k');
+  const leftInvalidDate = new Date('invalid-left');
+  const rightInvalidDate = new Date('invalid-right');
+  left.index = [null, undefined, leftSymbol, leftInvalidDate];
+  right.index = [null, undefined, rightSymbol, rightInvalidDate];
+
+  const out = left.join(right, { how: 'inner' });
+  const records = JSON.parse(JSON.stringify(out.toRecords()));
+
+  assert.equal(out.len(), 3);
+  assert.equal(out.index[0], null);
+  assert.equal(out.index[1], undefined);
+  assert.equal(Number.isNaN(out.index[2].getTime()), true);
+  assert.deepEqual(records, [
+    { left_value: 'L-null', right_value: 'R-null' },
+    { left_value: 'L-undef', right_value: 'R-undef' },
+    { left_value: 'L-invalid-date', right_value: 'R-invalid-date' }
+  ]);
+});
+
 test('DataFrame.melt supports idVars/valueVars and can retain source index as a column', () => {
   const context = createContext();
 

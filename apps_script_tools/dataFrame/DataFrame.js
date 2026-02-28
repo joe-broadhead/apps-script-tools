@@ -1204,32 +1204,7 @@ var DataFrame = class DataFrame {
         return __astMergeDataFramesColumnar(this, right, normalized.how, mergeOptions);
       }
 
-      const joinKeyColumn = __astCreateDataFrameTempJoinColumnName(this, right);
-      const leftColumns = this.toColumns({ copy: false });
-      const rightColumns = right.toColumns({ copy: false });
-      leftColumns[joinKeyColumn] = [...this.index];
-      rightColumns[joinKeyColumn] = [...right.index];
-
-      const leftWithIndex = DataFrame.fromColumns(leftColumns, { copy: false, index: [...this.index] });
-      const rightWithIndex = DataFrame.fromColumns(rightColumns, { copy: false, index: [...right.index] });
-      const merged = __astMergeDataFramesColumnar(leftWithIndex, rightWithIndex, normalized.how, {
-        ...mergeOptions,
-        on: joinKeyColumn
-      });
-
-      const outputColumns = {};
-      for (let colIdx = 0; colIdx < merged.columns.length; colIdx++) {
-        const columnName = merged.columns[colIdx];
-        if (columnName === joinKeyColumn) {
-          continue;
-        }
-        outputColumns[columnName] = merged.data[columnName].array;
-      }
-
-      return DataFrame.fromColumns(outputColumns, {
-        copy: false,
-        index: [...merged.data[joinKeyColumn].array]
-      });
+      return __astJoinDataFramesOnIndex(this, right, normalized.how, mergeOptions);
     }
 
     if (normalized.on.length > 0) {
@@ -2232,6 +2207,187 @@ function __astDataFrameHasDefinedJoinOption(source, optionName) {
   return value !== undefined && value !== null;
 }
 
+function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
+  const leftColumns = leftDf.columns;
+  const rightColumns = rightDf.columns;
+  const leftColumnMap = leftDf.toColumns({ copy: false });
+  const rightColumnMap = rightDf.toColumns({ copy: false });
+
+  const suffixes = Array.isArray(options.suffixes) && options.suffixes.length === 2
+    ? options.suffixes
+    : ['_x', '_y'];
+  const [leftSuffix, rightSuffix] = suffixes;
+
+  const overlapColumns = leftColumns.filter(column => rightColumns.includes(column));
+  const leftOnlyColumns = leftColumns.filter(column => !rightColumns.includes(column));
+  const rightOnlyColumns = rightColumns.filter(column => !leftColumns.includes(column));
+
+  const leftLookup = __astBuildDataFrameIndexLookup(leftDf.index, false, 'join');
+  const rightLookup = __astBuildDataFrameIndexLookup(rightDf.index, false, 'join');
+  __astValidateDataFrameIndexJoinCardinality(options.validate || null, leftLookup, rightLookup);
+
+  const rowPairs = __astBuildDataFrameIndexJoinPairs(leftDf.index, rightDf.index, leftLookup, rightLookup, how);
+  const rowCount = rowPairs.length;
+  const outputColumns = {};
+  const outputIndex = new Array(rowCount);
+
+  for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
+    outputColumns[leftOnlyColumns[idx]] = new Array(rowCount);
+  }
+
+  for (let idx = 0; idx < overlapColumns.length; idx++) {
+    outputColumns[`${overlapColumns[idx]}${leftSuffix}`] = new Array(rowCount);
+    outputColumns[`${overlapColumns[idx]}${rightSuffix}`] = new Array(rowCount);
+  }
+
+  for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
+    outputColumns[rightOnlyColumns[idx]] = new Array(rowCount);
+  }
+
+  for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+    const [leftSourceIdx, rightSourceIdx] = rowPairs[rowIdx];
+
+    for (let colIdx = 0; colIdx < leftOnlyColumns.length; colIdx++) {
+      const columnName = leftOnlyColumns[colIdx];
+      outputColumns[columnName][rowIdx] = __astReadDataFrameJoinColumnValue(leftColumnMap, columnName, leftSourceIdx);
+    }
+
+    for (let colIdx = 0; colIdx < overlapColumns.length; colIdx++) {
+      const columnName = overlapColumns[colIdx];
+      outputColumns[`${columnName}${leftSuffix}`][rowIdx] = __astReadDataFrameJoinColumnValue(
+        leftColumnMap,
+        columnName,
+        leftSourceIdx
+      );
+      outputColumns[`${columnName}${rightSuffix}`][rowIdx] = __astReadDataFrameJoinColumnValue(
+        rightColumnMap,
+        columnName,
+        rightSourceIdx
+      );
+    }
+
+    for (let colIdx = 0; colIdx < rightOnlyColumns.length; colIdx++) {
+      const columnName = rightOnlyColumns[colIdx];
+      outputColumns[columnName][rowIdx] = __astReadDataFrameJoinColumnValue(rightColumnMap, columnName, rightSourceIdx);
+    }
+
+    outputIndex[rowIdx] = leftSourceIdx != null
+      ? leftDf.index[leftSourceIdx]
+      : rightDf.index[rightSourceIdx];
+  }
+
+  return DataFrame.fromColumns(outputColumns, {
+    copy: false,
+    index: outputIndex
+  });
+}
+
+function __astBuildDataFrameIndexJoinPairs(leftIndex, rightIndex, leftLookup, rightLookup, how) {
+  const rowPairs = [];
+
+  if (how === 'inner' || how === 'left' || how === 'outer') {
+    const matchedRight = new Set();
+
+    for (let leftIdx = 0; leftIdx < leftIndex.length; leftIdx++) {
+      const rightMatches = __astLookupDataFrameIndexPositions(rightLookup, leftIndex[leftIdx]);
+      if (rightMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < rightMatches.length; matchIdx++) {
+          const rightIdx = rightMatches[matchIdx];
+          rowPairs.push([leftIdx, rightIdx]);
+          matchedRight.add(rightIdx);
+        }
+      } else if (how === 'left' || how === 'outer') {
+        rowPairs.push([leftIdx, null]);
+      }
+    }
+
+    if (how === 'outer') {
+      for (let rightIdx = 0; rightIdx < rightIndex.length; rightIdx++) {
+        if (!matchedRight.has(rightIdx)) {
+          rowPairs.push([null, rightIdx]);
+        }
+      }
+    }
+
+    return rowPairs;
+  }
+
+  if (how === 'right') {
+    for (let rightIdx = 0; rightIdx < rightIndex.length; rightIdx++) {
+      const leftMatches = __astLookupDataFrameIndexPositions(leftLookup, rightIndex[rightIdx]);
+      if (leftMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < leftMatches.length; matchIdx++) {
+          rowPairs.push([leftMatches[matchIdx], rightIdx]);
+        }
+      } else {
+        rowPairs.push([null, rightIdx]);
+      }
+    }
+
+    return rowPairs;
+  }
+
+  throw new Error(`Unknown join type: ${how}`);
+}
+
+function __astLookupDataFrameIndexPositions(lookup, label) {
+  const key = __astBuildDataFrameLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return [];
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (__astAreDataFrameIndexLabelsEqual(bucket[idx].label, label)) {
+      return bucket[idx].positions;
+    }
+  }
+
+  return [];
+}
+
+function __astValidateDataFrameIndexJoinCardinality(validate, leftLookup, rightLookup) {
+  if (!validate) {
+    return;
+  }
+
+  const multiLeft = __astHasDataFrameDuplicateIndexBuckets(leftLookup);
+  const multiRight = __astHasDataFrameDuplicateIndexBuckets(rightLookup);
+
+  let actual;
+  if (!multiLeft && !multiRight) {
+    actual = 'one_to_one';
+  } else if (!multiLeft && multiRight) {
+    actual = 'one_to_many';
+  } else if (multiLeft && !multiRight) {
+    actual = 'many_to_one';
+  } else {
+    actual = 'many_to_many';
+  }
+
+  if (actual !== validate) {
+    throw new Error(`Validate failed: expected ${validate} but got ${actual}`);
+  }
+}
+
+function __astHasDataFrameDuplicateIndexBuckets(lookup) {
+  for (const bucket of lookup.values()) {
+    for (let idx = 0; idx < bucket.length; idx++) {
+      if (bucket[idx].positions.length > 1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function __astReadDataFrameJoinColumnValue(columnMap, columnName, rowIdx) {
+  if (rowIdx == null) {
+    return null;
+  }
+  return columnMap[columnName][rowIdx];
+}
+
 function __astNormalizeDataFrameJoinSharedColumns(leftDf, rightDf, columns, methodName) {
   const normalized = __astNormalizeDataFrameColumnList(leftDf, columns, 'on', methodName);
   const missingOnRight = normalized.filter(column => !rightDf.columns.includes(column));
@@ -2239,25 +2395,6 @@ function __astNormalizeDataFrameJoinSharedColumns(leftDf, rightDf, columns, meth
     throw new Error(`DataFrame.${methodName} option on contains columns missing on right DataFrame: ${missingOnRight.join(', ')}`);
   }
   return normalized;
-}
-
-function __astCreateDataFrameTempJoinColumnName(leftDf, rightDf) {
-  const leftColumns = new Set(leftDf.columns);
-  const rightColumns = new Set(rightDf.columns);
-  const base = '__ast_join_index__';
-
-  if (!leftColumns.has(base) && !rightColumns.has(base)) {
-    return base;
-  }
-
-  let suffix = 1;
-  while (true) {
-    const candidate = `${base}${suffix}`;
-    if (!leftColumns.has(candidate) && !rightColumns.has(candidate)) {
-      return candidate;
-    }
-    suffix += 1;
-  }
 }
 
 function __astNormalizeDataFrameMeltOptions(dataframe, options, methodName) {

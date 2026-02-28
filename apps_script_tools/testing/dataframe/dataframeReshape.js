@@ -111,6 +111,56 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should preserve index-label equality semantics for null/undefined/symbol/invalid-date',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { left_value: 'L-null' },
+        { left_value: 'L-undef' },
+        { left_value: 'L-symbol' },
+        { left_value: 'L-invalid-date' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { right_value: 'R-null' },
+        { right_value: 'R-undef' },
+        { right_value: 'R-symbol' },
+        { right_value: 'R-invalid-date' }
+      ]);
+
+      left.index = [null, undefined, Symbol('k'), new Date('invalid-left')];
+      right.index = [null, undefined, Symbol('k'), new Date('invalid-right')];
+
+      const out = left.join(right, { how: 'inner' });
+      const records = out.toRecords();
+
+      if (out.len() !== 3) {
+        throw new Error(`Unexpected index join row count: ${out.len()}`);
+      }
+
+      if (out.index[0] !== null) {
+        throw new Error(`Expected first index label null, got ${String(out.index[0])}`);
+      }
+
+      if (out.index[1] !== undefined) {
+        throw new Error(`Expected second index label undefined, got ${String(out.index[1])}`);
+      }
+
+      if (!(out.index[2] instanceof Date) || !Number.isNaN(out.index[2].getTime())) {
+        throw new Error(`Expected third index label to be Invalid Date, got ${String(out.index[2])}`);
+      }
+
+      if (
+        records[0].left_value !== 'L-null'
+        || records[0].right_value !== 'R-null'
+        || records[1].left_value !== 'L-undef'
+        || records[1].right_value !== 'R-undef'
+        || records[2].left_value !== 'L-invalid-date'
+        || records[2].right_value !== 'R-invalid-date'
+      ) {
+        throw new Error(`Unexpected index-label join records: ${JSON.stringify(records)}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.melt() should unpivot with custom var/value names',
     test: () => {
       const df = DataFrame.fromRecords([
