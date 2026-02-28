@@ -2547,6 +2547,9 @@ var Series = class Series {
   }
 };
 
+const AST_SERIES_SYMBOL_KEY_MAP = new Map();
+let AST_SERIES_SYMBOL_KEY_COUNTER = 0;
+
 function astSeriesBuildLike(series, values, index = null) {
   return new Series(
     values,
@@ -2856,7 +2859,7 @@ function astSeriesBuildIndexLookup(index, verifyIntegrity, methodName) {
       continue;
     }
 
-    const existing = bucket.find(entry => Object.is(entry.label, label));
+    const existing = bucket.find(entry => astSeriesAreIndexLabelsEqual(entry.label, label));
     if (existing) {
       if (verifyIntegrity) {
         throw new Error(
@@ -2881,7 +2884,7 @@ function astSeriesLookupIndexPosition(lookup, label) {
   }
 
   for (let idx = 0; idx < bucket.length; idx++) {
-    if (Object.is(bucket[idx].label, label)) {
+    if (astSeriesAreIndexLabelsEqual(bucket[idx].label, label)) {
       return bucket[idx].positions[0];
     }
   }
@@ -2916,7 +2919,7 @@ function astSeriesTakeNextIndexPosition(lookup, state, label) {
 
   for (let idx = 0; idx < bucket.length; idx++) {
     const entry = bucket[idx];
-    if (!Object.is(entry.label, label)) {
+    if (!astSeriesAreIndexLabelsEqual(entry.label, label)) {
       continue;
     }
 
@@ -2942,6 +2945,7 @@ function astSeriesBuildLabelLookupKey(label) {
   if (typeof label === 'string') return `string:${label}`;
   if (typeof label === 'boolean') return `boolean:${label}`;
   if (typeof label === 'bigint') return `bigint:${String(label)}`;
+  if (typeof label === 'symbol') return `symbol:${astSeriesFormatSymbolForKey(label)}`;
   if (label instanceof Date) return `date:${astSeriesFormatDateForKey(label)}`;
   return `${typeof label}:${astSeriesLabelToStableText(label)}`;
 }
@@ -2950,12 +2954,48 @@ function astSeriesLabelToStableText(label) {
   if (label === null) return 'null';
   if (label === undefined) return 'undefined';
   if (typeof label === 'number' && Number.isNaN(label)) return 'NaN';
+  if (typeof label === 'symbol') return String(label);
   if (label instanceof Date) return astSeriesFormatDateForKey(label);
   try {
     return JSON.stringify(label);
   } catch (_error) {
     return String(label);
   }
+}
+
+function astSeriesFormatSymbolForKey(value) {
+  const globalKey = Symbol.keyFor(value);
+  if (globalKey != null) {
+    return `global:${globalKey}`;
+  }
+
+  const existing = AST_SERIES_SYMBOL_KEY_MAP.get(value);
+  if (existing) {
+    return existing;
+  }
+
+  AST_SERIES_SYMBOL_KEY_COUNTER += 1;
+  const description = value.description == null ? '' : String(value.description);
+  const next = `local:${description}:${AST_SERIES_SYMBOL_KEY_COUNTER}`;
+  AST_SERIES_SYMBOL_KEY_MAP.set(value, next);
+  return next;
+}
+
+function astSeriesAreIndexLabelsEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
+      return true;
+    }
+    return leftTime === rightTime;
+  }
+
+  return false;
 }
 
 function astSeriesFormatDateForKey(value) {

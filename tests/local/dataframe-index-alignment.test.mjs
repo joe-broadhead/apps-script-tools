@@ -67,6 +67,12 @@ test('Series.reindex validates unknown labels and supports deterministic fill be
     () => duplicateIndex.reindex(['same'], { verifyIntegrity: true }),
     /duplicate index label/
   );
+
+  const dateSeries = new context.Series([42], 'dates', null, [new Date('2026-01-01T00:00:00.000Z')]);
+  const dateReindexed = dateSeries.reindex([new Date('2026-01-01T00:00:00.000Z')], {
+    allowMissingLabels: false
+  });
+  assertJsonEqual(dateReindexed.array, [42]);
 });
 
 test('Series.align supports inner/outer/left/right joins with disjoint labels', () => {
@@ -134,6 +140,16 @@ test('DataFrame.setIndex supports single and multi-column keys with integrity ch
   });
   const specialIndexed = specialKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
   assert.equal(new Set(specialIndexed.index).size, 4);
+
+  const symbolA1 = Symbol('k');
+  const symbolA2 = Symbol('k');
+  const symbolKeys = context.DataFrame.fromColumns({
+    k1: [symbolA1, symbolA2],
+    k2: ['x', 'x'],
+    v: [10, 20]
+  });
+  const symbolIndexed = symbolKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
+  assert.equal(new Set(symbolIndexed.index).size, 2);
 
   const dateKeys = context.DataFrame.fromColumns({
     d: [new Date('invalid-date'), new Date('2026-01-01T00:00:00.000Z')],

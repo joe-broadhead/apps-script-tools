@@ -1551,6 +1551,9 @@ var DataFrame = class DataFrame {
   }
 };
 
+const AST_DATAFRAME_SYMBOL_KEY_MAP = new Map();
+let AST_DATAFRAME_SYMBOL_KEY_COUNTER = 0;
+
 function __astDataFrameIsPlainObject(value) {
   return value != null
     && typeof value === 'object'
@@ -1815,7 +1818,7 @@ function __astBuildDataFrameIndexLookup(index, verifyIntegrity, methodName) {
       continue;
     }
 
-    const existing = bucket.find(entry => Object.is(entry.label, label));
+    const existing = bucket.find(entry => __astAreDataFrameIndexLabelsEqual(entry.label, label));
     if (existing) {
       if (verifyIntegrity) {
         throw new Error(
@@ -1840,7 +1843,7 @@ function __astLookupDataFrameIndexPosition(lookup, label) {
   }
 
   for (let idx = 0; idx < bucket.length; idx++) {
-    if (Object.is(bucket[idx].label, label)) {
+    if (__astAreDataFrameIndexLabelsEqual(bucket[idx].label, label)) {
       return bucket[idx].positions[0];
     }
   }
@@ -1875,7 +1878,7 @@ function __astTakeNextDataFrameIndexPosition(lookup, state, label) {
 
   for (let idx = 0; idx < bucket.length; idx++) {
     const entry = bucket[idx];
-    if (!Object.is(entry.label, label)) {
+    if (!__astAreDataFrameIndexLabelsEqual(entry.label, label)) {
       continue;
     }
 
@@ -1901,6 +1904,7 @@ function __astBuildDataFrameLabelLookupKey(label) {
   if (typeof label === 'string') return `string:${label}`;
   if (typeof label === 'boolean') return `boolean:${label}`;
   if (typeof label === 'bigint') return `bigint:${String(label)}`;
+  if (typeof label === 'symbol') return `symbol:${__astFormatDataFrameSymbolForKey(label)}`;
   if (label instanceof Date) return `date:${__astFormatDataFrameDateForKey(label)}`;
   return `${typeof label}:${__astDataFrameLabelToStableText(label)}`;
 }
@@ -1917,6 +1921,7 @@ function __astDataFrameLabelToStableText(label) {
   if (label === null) return 'null';
   if (label === undefined) return 'undefined';
   if (typeof label === 'number' && Number.isNaN(label)) return 'NaN';
+  if (typeof label === 'symbol') return String(label);
   if (label instanceof Date) return __astFormatDataFrameDateForKey(label);
   try {
     return JSON.stringify(label);
@@ -1925,12 +1930,47 @@ function __astDataFrameLabelToStableText(label) {
   }
 }
 
+function __astFormatDataFrameSymbolForKey(value) {
+  const globalKey = Symbol.keyFor(value);
+  if (globalKey != null) {
+    return `global:${globalKey}`;
+  }
+
+  const existing = AST_DATAFRAME_SYMBOL_KEY_MAP.get(value);
+  if (existing) {
+    return existing;
+  }
+
+  AST_DATAFRAME_SYMBOL_KEY_COUNTER += 1;
+  const description = value.description == null ? '' : String(value.description);
+  const next = `local:${description}:${AST_DATAFRAME_SYMBOL_KEY_COUNTER}`;
+  AST_DATAFRAME_SYMBOL_KEY_MAP.set(value, next);
+  return next;
+}
+
 function __astFormatDataFrameDateForKey(value) {
   const time = value.getTime();
   if (Number.isNaN(time)) {
     return 'Invalid Date';
   }
   return value.toISOString();
+}
+
+function __astAreDataFrameIndexLabelsEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
+      return true;
+    }
+    return leftTime === rightTime;
+  }
+
+  return false;
 }
 
 function __astFormatDataFrameLabel(label) {
