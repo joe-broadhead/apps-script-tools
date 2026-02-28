@@ -60,6 +60,10 @@ test('Series replace supports scalar/list targets and map modes', () => {
   const objectMap = series.replace({ null: 'nil', NaN: 'nan' });
   assert.equal(JSON.stringify(objectMap.array), JSON.stringify([1, 2, 2, 'nan', 'nil', 'x']));
 
+  const objectMapWithUndefinedValue = series.replace({ x: 'X' }, undefined, {});
+  assert.equal(JSON.stringify(objectMapWithUndefinedValue.array), JSON.stringify([1, 2, 2, null, null, 'X']));
+  assert.equal(Number.isNaN(objectMapWithUndefinedValue.array[3]), true);
+
   const mapMode = series.replace(new Map([[2, 'two'], [Number.NaN, 'nan'], [null, 'nil']]));
   assert.equal(JSON.stringify(mapMode.array), JSON.stringify([1, 'two', 'two', 'nan', 'nil', 'x']));
 });
@@ -166,6 +170,15 @@ test('DataFrame replace supports scalar/list, global map, and column map', () =>
     { a: 2, b: 'X' },
     { a: 'nil', b: 'z' },
     { a: 'nan', b: 'X' }
+  ]));
+
+  const scopedObjectMap = df.replace({ x: 'X' }, undefined, { columns: ['b'] });
+  assert.equal(JSON.stringify(scopedObjectMap.toRecords()), JSON.stringify([
+    { a: 1, b: 'X' },
+    { a: 2, b: 'y' },
+    { a: 2, b: 'X' },
+    { a: null, b: 'z' },
+    { a: Number.NaN, b: 'X' }
   ]));
 
   const columnMap = df.replace({

@@ -471,7 +471,10 @@ var DataFrame = class DataFrame {
    * @returns {DataFrame}
    */
   replace(toReplace, value, options = {}) {
-    const hasReplacementValue = arguments.length >= 2;
+    const mapMode = value === undefined && (
+      __astDataFrameIsMapLike(toReplace) || __astDataFrameIsPlainObject(toReplace)
+    );
+    const hasReplacementValue = arguments.length >= 2 && !mapMode;
     const normalized = __astNormalizeDataFrameReplaceInputs(
       this,
       toReplace,

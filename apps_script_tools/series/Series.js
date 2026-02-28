@@ -692,15 +692,18 @@ var Series = class Series {
    */
   replace(toReplace, value, options = {}) {
     astSeriesValidateReplaceOptions(options, 'replace');
-    const hasReplacementValue = arguments.length >= 2;
+    const mapMode = value === undefined && (
+      astSeriesIsMapLike(toReplace) || astSeriesIsPlainObject(toReplace)
+    );
+    const hasReplacementValue = arguments.length >= 2 && !mapMode;
     let replaced;
 
-    if (!hasReplacementValue && astSeriesIsMapLike(toReplace)) {
+    if (mapMode && astSeriesIsMapLike(toReplace)) {
       replaced = this.array.map(current => astSeriesReplaceFromMap(current, toReplace));
       return astSeriesBuildLike(this, replaced);
     }
 
-    if (!hasReplacementValue && astSeriesIsPlainObject(toReplace)) {
+    if (mapMode && astSeriesIsPlainObject(toReplace)) {
       replaced = this.array.map(current => astSeriesReplaceFromObjectMap(current, toReplace));
       return astSeriesBuildLike(this, replaced);
     }
