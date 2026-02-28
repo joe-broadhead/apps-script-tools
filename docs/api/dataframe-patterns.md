@@ -18,6 +18,32 @@ function patternSelectAssignSort(ASTX) {
 }
 ```
 
+## Inspect, sample, and copy
+
+```javascript
+function patternInspectSampleCopy(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { id: 1, region: 'east', amount: 10, weight: 1 },
+    { id: 2, region: 'west', amount: 20, weight: 3 },
+    { id: 3, region: 'north', amount: 30, weight: 2 },
+    { id: 4, region: 'south', amount: 40, weight: 4 }
+  ]);
+
+  const firstTwo = df.head(2);
+  const lastTwo = df.tail(2);
+  const deterministicSample = df.sample({
+    n: 2,
+    randomState: 42,
+    weights: 'weight'
+  });
+
+  const deepCopy = df.copy(); // independent Series arrays
+  const shallowCopy = df.copy({ deep: false }); // shared Series references
+
+  return { firstTwo, lastTwo, deterministicSample, deepCopy, shallowCopy };
+}
+```
+
 ## Single-pass projection with `selectExpr`
 
 ```javascript

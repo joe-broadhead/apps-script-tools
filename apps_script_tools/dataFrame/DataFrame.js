@@ -271,6 +271,126 @@ var DataFrame = class DataFrame {
     return this.len() === 0;
   }
 
+  /**
+   * Return the first `n` rows from the DataFrame.
+   *
+   * @param {number} [n=5]
+   * @returns {DataFrame}
+   */
+  head(n = 5) {
+    const count = __astNormalizeDataFrameHeadTailCount(n, 'head');
+    if (count === 0 || this.len() === 0) {
+      return this.take([]);
+    }
+
+    const takeCount = Math.min(count, this.len());
+    const rowIndexes = new Array(takeCount);
+    for (let idx = 0; idx < takeCount; idx++) {
+      rowIndexes[idx] = idx;
+    }
+
+    return this.take(rowIndexes);
+  }
+
+  /**
+   * Return the last `n` rows from the DataFrame.
+   *
+   * @param {number} [n=5]
+   * @returns {DataFrame}
+   */
+  tail(n = 5) {
+    const count = __astNormalizeDataFrameHeadTailCount(n, 'tail');
+    if (count === 0 || this.len() === 0) {
+      return this.take([]);
+    }
+
+    const takeCount = Math.min(count, this.len());
+    const start = this.len() - takeCount;
+    const rowIndexes = new Array(takeCount);
+    for (let idx = 0; idx < takeCount; idx++) {
+      rowIndexes[idx] = start + idx;
+    }
+
+    return this.take(rowIndexes);
+  }
+
+  /**
+   * Return rows by positional indexes.
+   *
+   * @param {number[]} indexes
+   * @param {Object} [options={}]
+   * @param {boolean} [options.preserveIndex=true]
+   * @returns {DataFrame}
+   */
+  take(indexes, options = {}) {
+    if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('DataFrame.take options must be an object');
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(options, 'preserveIndex')
+      && typeof options.preserveIndex !== 'boolean'
+    ) {
+      throw new Error('DataFrame.take option preserveIndex must be boolean');
+    }
+
+    const preserveIndex = options.preserveIndex !== false;
+    const normalizedIndexes = __astNormalizeDataFrameTakeIndexes(indexes, this.len(), 'take');
+    return this._buildFromRowIndexes(normalizedIndexes, preserveIndex);
+  }
+
+  /**
+   * Randomly sample rows from the DataFrame.
+   *
+   * @param {Object} [options={}]
+   * @param {number} [options.n]
+   * @param {number} [options.frac]
+   * @param {boolean} [options.replace=false]
+   * @param {number[]|Series|string} [options.weights]
+   * @param {number|string} [options.randomState]
+   * @returns {DataFrame}
+   */
+  sample(options = {}) {
+    const sampleIndexes = __astResolveDataFrameSampleIndexes(this, options, 'sample');
+    return this.take(sampleIndexes, { preserveIndex: true });
+  }
+
+  /**
+   * Create a deep or shallow copy of the DataFrame.
+   *
+   * `deep=true` copies Series values and index values.
+   * `deep=false` reuses Series references while returning a new DataFrame instance.
+   *
+   * @param {Object} [options={}]
+   * @param {boolean} [options.deep=true]
+   * @returns {DataFrame}
+   */
+  copy(options = {}) {
+    if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('DataFrame.copy options must be an object');
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(options, 'deep')
+      && typeof options.deep !== 'boolean'
+    ) {
+      throw new Error('DataFrame.copy option deep must be boolean');
+    }
+    const deep = options.deep !== false;
+
+    if (deep) {
+      return __astCloneDataFrame(this);
+    }
+
+    const shallowData = {};
+    for (let idx = 0; idx < this.columns.length; idx++) {
+      const column = this.columns[idx];
+      shallowData[column] = this.data[column];
+    }
+
+    return new DataFrame(shallowData, [...this.index]);
+  }
+
   rename(names) {
     const renamed = Object.entries(this.data).reduce((acc, [key, value]) => {
       if (Object.prototype.hasOwnProperty.call(names, key)) {
@@ -1126,6 +1246,255 @@ var DataFrame = class DataFrame {
     return DataFrame.fromColumns(columns, { copy: false, index: nextIndex, typeMap });
   }
 };
+
+function __astNormalizeDataFrameHeadTailCount(value, methodName) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`DataFrame.${methodName} requires a non-negative integer n`);
+  }
+  return value;
+}
+
+function __astNormalizeDataFrameTakeIndexes(indexes, length, methodName) {
+  if (!Array.isArray(indexes)) {
+    throw new Error(`DataFrame.${methodName} requires an array of positional indexes`);
+  }
+
+  const normalized = new Array(indexes.length);
+  for (let idx = 0; idx < indexes.length; idx++) {
+    const value = indexes[idx];
+    if (!Number.isInteger(value)) {
+      throw new Error(`DataFrame.${methodName} received a non-integer index at position ${idx}`);
+    }
+
+    if (value < 0 || value >= length) {
+      throw new Error(`DataFrame.${methodName} index ${value} is out of bounds for length ${length}`);
+    }
+
+    normalized[idx] = value;
+  }
+
+  return normalized;
+}
+
+function __astResolveDataFrameSampleIndexes(dataframe, options = {}, methodName = 'sample') {
+  if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const hasN = options.n !== undefined && options.n !== null;
+  const hasFrac = options.frac !== undefined && options.frac !== null;
+
+  if (hasN && hasFrac) {
+    throw new Error(`DataFrame.${methodName} cannot include both n and frac`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'replace')
+    && typeof options.replace !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option replace must be boolean`);
+  }
+
+  const replace = options.replace === true;
+  const n = hasN ? __astNormalizeDataFrameSampleN(options.n, methodName) : null;
+  const frac = hasFrac ? __astNormalizeDataFrameSampleFrac(options.frac, methodName) : null;
+
+  if (!replace && frac != null && frac > 1) {
+    throw new Error(`DataFrame.${methodName} frac cannot be greater than 1 when replace is false`);
+  }
+
+  let sampleSize = 1;
+  if (n != null) {
+    sampleSize = n;
+  } else if (frac != null) {
+    sampleSize = Math.round(frac * dataframe.len());
+  }
+
+  if (!replace && sampleSize > dataframe.len()) {
+    throw new Error(`DataFrame.${methodName} n cannot be greater than DataFrame length when replace is false`);
+  }
+
+  if (sampleSize === 0) {
+    return [];
+  }
+
+  if (dataframe.len() === 0) {
+    throw new Error(`DataFrame.${methodName} cannot sample from an empty DataFrame`);
+  }
+
+  const weights = __astNormalizeDataFrameSampleWeights(dataframe, options.weights, methodName);
+  const random = __astCreateDataFrameSeededRandom(options.randomState, methodName);
+
+  if (replace) {
+    return __astSampleDataFrameIndexesWithReplacement(dataframe.len(), sampleSize, random, weights);
+  }
+
+  return __astSampleDataFrameIndexesWithoutReplacement(dataframe.len(), sampleSize, random, weights);
+}
+
+function __astNormalizeDataFrameSampleN(value, methodName) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`DataFrame.${methodName} option n must be a non-negative integer`);
+  }
+  return value;
+}
+
+function __astNormalizeDataFrameSampleFrac(value, methodName) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`DataFrame.${methodName} option frac must be a non-negative number`);
+  }
+  return value;
+}
+
+function __astNormalizeDataFrameSampleWeights(dataframe, weights, methodName) {
+  if (weights == null) {
+    return null;
+  }
+
+  let source = weights;
+  if (typeof weights === 'string') {
+    if (!dataframe.columns.includes(weights)) {
+      throw new Error(`DataFrame.${methodName} weights column '${weights}' was not found`);
+    }
+    source = dataframe.data[weights].array;
+  } else if (weights instanceof Series) {
+    source = weights.array;
+  }
+
+  if (!Array.isArray(source)) {
+    throw new Error(`DataFrame.${methodName} option weights must be an array, Series, or column name`);
+  }
+
+  if (source.length !== dataframe.len()) {
+    throw new Error(`DataFrame.${methodName} option weights length must match DataFrame length`);
+  }
+
+  const normalized = new Array(source.length);
+  let total = 0;
+  for (let idx = 0; idx < source.length; idx++) {
+    const numeric = Number(source[idx]);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      throw new Error(`DataFrame.${methodName} option weights must contain finite non-negative numbers`);
+    }
+
+    normalized[idx] = numeric;
+    total += numeric;
+  }
+
+  if (total <= 0) {
+    throw new Error(`DataFrame.${methodName} option weights must contain at least one positive value`);
+  }
+
+  return normalized;
+}
+
+function __astSampleDataFrameIndexesWithReplacement(length, sampleSize, random, weights) {
+  const output = new Array(sampleSize);
+
+  if (!weights) {
+    for (let idx = 0; idx < sampleSize; idx++) {
+      output[idx] = Math.floor(random() * length);
+    }
+    return output;
+  }
+
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  for (let idx = 0; idx < sampleSize; idx++) {
+    output[idx] = __astPickDataFrameWeightedPosition(weights, totalWeight, random);
+  }
+
+  return output;
+}
+
+function __astSampleDataFrameIndexesWithoutReplacement(length, sampleSize, random, weights) {
+  if (!weights) {
+    const pool = new Array(length);
+    for (let idx = 0; idx < length; idx++) {
+      pool[idx] = idx;
+    }
+
+    for (let idx = pool.length - 1; idx > 0; idx--) {
+      const swapIdx = Math.floor(random() * (idx + 1));
+      const temp = pool[idx];
+      pool[idx] = pool[swapIdx];
+      pool[swapIdx] = temp;
+    }
+
+    return pool.slice(0, sampleSize);
+  }
+
+  const availableIndexes = new Array(length);
+  for (let idx = 0; idx < length; idx++) {
+    availableIndexes[idx] = idx;
+  }
+
+  const availableWeights = [...weights];
+  const output = new Array(sampleSize);
+
+  for (let drawIdx = 0; drawIdx < sampleSize; drawIdx++) {
+    const totalWeight = availableWeights.reduce((sum, value) => sum + value, 0);
+    if (totalWeight <= 0) {
+      throw new Error('DataFrame.sample weights are exhausted before completing a no-replacement sample');
+    }
+
+    const pickedPosition = __astPickDataFrameWeightedPosition(availableWeights, totalWeight, random);
+    output[drawIdx] = availableIndexes[pickedPosition];
+    availableIndexes.splice(pickedPosition, 1);
+    availableWeights.splice(pickedPosition, 1);
+  }
+
+  return output;
+}
+
+function __astPickDataFrameWeightedPosition(weights, totalWeight, random) {
+  const target = random() * totalWeight;
+  let cumulative = 0;
+
+  for (let idx = 0; idx < weights.length; idx++) {
+    cumulative += weights[idx];
+    if (target < cumulative) {
+      return idx;
+    }
+  }
+
+  return weights.length - 1;
+}
+
+function __astCreateDataFrameSeededRandom(randomState, methodName = 'sample') {
+  if (randomState === undefined || randomState === null) {
+    return Math.random;
+  }
+
+  const seed = __astResolveDataFrameRandomSeed(randomState, methodName);
+  let state = seed >>> 0;
+  if (state === 0) {
+    state = 0x6D2B79F5;
+  }
+
+  return function __astDataFrameSeededRandom() {
+    state = (state + 0x6D2B79F5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function __astResolveDataFrameRandomSeed(randomState, methodName) {
+  if (typeof randomState === 'number' && Number.isFinite(randomState)) {
+    return Math.trunc(randomState) >>> 0;
+  }
+
+  if (typeof randomState === 'string' && randomState.length > 0) {
+    let hash = 2166136261;
+    for (let idx = 0; idx < randomState.length; idx++) {
+      hash ^= randomState.charCodeAt(idx);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  throw new Error(`DataFrame.${methodName} option randomState must be a finite number or non-empty string`);
+}
 
 const __astDataFrameRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astDataFrameRoot.DataFrame = DataFrame;

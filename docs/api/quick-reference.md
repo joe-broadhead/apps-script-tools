@@ -51,6 +51,11 @@ ASTX.DataFrame.enforceSchema(dataFrame, schema, options)
 
 ```javascript
 df.select(columns)
+df.head(n)
+df.tail(n)
+df.take(indexes, options)
+df.sample(options)
+df.copy(options)
 df.selectExpr(map, options)
 df.selectExprDsl(map, options)
 df.assign(map)
@@ -78,6 +83,10 @@ ASTX.Series.fromRange(start, end, step, name)
 ```
 
 ```javascript
+series.head(n)
+series.tail(n)
+series.take(indexes)
+series.sample(options)
 series.query((s, value, i) => boolean) // function predicate only
 series.filter(predicate)
 series.apply(fn)
