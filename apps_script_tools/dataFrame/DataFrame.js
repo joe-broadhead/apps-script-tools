@@ -2172,9 +2172,9 @@ function __astNormalizeDataFrameJoinOptions(leftDf, rightDf, options, methodName
     );
   }
 
-  const hasOn = Object.prototype.hasOwnProperty.call(source, 'on');
-  const hasLeftOn = Object.prototype.hasOwnProperty.call(source, 'leftOn');
-  const hasRightOn = Object.prototype.hasOwnProperty.call(source, 'rightOn');
+  const hasOn = __astDataFrameHasDefinedJoinOption(source, 'on');
+  const hasLeftOn = __astDataFrameHasDefinedJoinOption(source, 'leftOn');
+  const hasRightOn = __astDataFrameHasDefinedJoinOption(source, 'rightOn');
 
   if (hasOn && (hasLeftOn || hasRightOn)) {
     throw new Error(`DataFrame.${methodName} cannot combine option on with leftOn/rightOn`);
@@ -2221,6 +2221,15 @@ function __astNormalizeDataFrameJoinOptions(leftDf, rightDf, options, methodName
     rsuffix,
     validate
   };
+}
+
+function __astDataFrameHasDefinedJoinOption(source, optionName) {
+  if (!Object.prototype.hasOwnProperty.call(source, optionName)) {
+    return false;
+  }
+
+  const value = source[optionName];
+  return value !== undefined && value !== null;
 }
 
 function __astNormalizeDataFrameJoinSharedColumns(leftDf, rightDf, columns, methodName) {

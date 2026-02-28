@@ -79,6 +79,36 @@ test('DataFrame.join rejects overlapping columns when suffixes are identical', (
   );
 });
 
+test('DataFrame.join treats undefined key options as omitted and defaults to index join', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { id: 1, left_value: 'L1' },
+    { id: 2, left_value: 'L2' }
+  ]);
+  left.index = ['i1', 'i2'];
+
+  const right = context.DataFrame.fromRecords([
+    { id: 10, right_value: 'R1' },
+    { id: 20, right_value: 'R2' }
+  ]);
+  right.index = ['i1', 'i3'];
+
+  const out = left.join(right, {
+    on: undefined,
+    leftOn: undefined,
+    rightOn: undefined,
+    lsuffix: '_l',
+    rsuffix: '_r'
+  });
+
+  assert.equal(JSON.stringify(out.index), JSON.stringify(['i1', 'i2']));
+  assert.deepEqual(JSON.parse(JSON.stringify(out.toRecords())), [
+    { id_l: 1, left_value: 'L1', id_r: 10, right_value: 'R1' },
+    { id_l: 2, left_value: 'L2', id_r: null, right_value: null }
+  ]);
+});
+
 test('DataFrame.melt supports idVars/valueVars and can retain source index as a column', () => {
   const context = createContext();
 

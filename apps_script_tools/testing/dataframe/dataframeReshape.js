@@ -60,6 +60,57 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should treat undefined key options as omitted and default to index join',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { id: 1, left_value: 'L1' },
+        { id: 2, left_value: 'L2' }
+      ]);
+      left.index = ['i1', 'i2'];
+
+      const right = DataFrame.fromRecords([
+        { id: 10, right_value: 'R1' },
+        { id: 20, right_value: 'R2' }
+      ]);
+      right.index = ['i1', 'i3'];
+
+      const out = left.join(right, {
+        on: undefined,
+        leftOn: undefined,
+        rightOn: undefined,
+        lsuffix: '_l',
+        rsuffix: '_r'
+      });
+
+      if (JSON.stringify(out.index) !== JSON.stringify(['i1', 'i2'])) {
+        throw new Error(`Unexpected join index: ${JSON.stringify(out.index)}`);
+      }
+
+      const records = out.toRecords();
+      if (records.length !== 2) {
+        throw new Error(`Unexpected undefined-key join row count: ${records.length}`);
+      }
+
+      if (
+        records[0].id_l !== 1 ||
+        records[0].left_value !== 'L1' ||
+        records[0].id_r !== 10 ||
+        records[0].right_value !== 'R1'
+      ) {
+        throw new Error(`Unexpected undefined-key join first row: ${JSON.stringify(records[0])}`);
+      }
+
+      if (
+        records[1].id_l !== 2 ||
+        records[1].left_value !== 'L2' ||
+        records[1].id_r !== null ||
+        records[1].right_value !== null
+      ) {
+        throw new Error(`Unexpected undefined-key join second row: ${JSON.stringify(records[1])}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.melt() should unpivot with custom var/value names',
     test: () => {
       const df = DataFrame.fromRecords([
