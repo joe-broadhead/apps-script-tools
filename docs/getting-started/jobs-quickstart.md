@@ -12,9 +12,9 @@ const ASTX = ASTLib.AST || ASTLib;
 function configureJobsRuntime() {
   const ASTX = ASTLib.AST || ASTLib;
   ASTX.Jobs.configure({
-    JOBS_PROPERTY_PREFIX: 'jobs_v1',
-    JOBS_MAX_RUNTIME_MS: 240000,
-    JOBS_MAX_ATTEMPTS: 3
+    AST_JOBS_PROPERTY_PREFIX: 'jobs_v1',
+    AST_JOBS_DEFAULT_MAX_RUNTIME_MS: 240000,
+    AST_JOBS_DEFAULT_MAX_RETRIES: 3
   });
 }
 ```

@@ -29,7 +29,11 @@ function telemetrySpanExample() {
     feature: 'quickstart'
   });
 
-  ASTX.Telemetry.recordEvent(spanId, 'step.complete', { step: 'load' });
+  ASTX.Telemetry.recordEvent({
+    spanId: spanId,
+    name: 'step.complete',
+    payload: { step: 'load' }
+  });
   ASTX.Telemetry.endSpan(spanId, { status: 'ok' });
 }
 ```
