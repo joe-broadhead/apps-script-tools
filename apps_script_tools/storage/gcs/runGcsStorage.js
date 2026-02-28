@@ -218,6 +218,15 @@ function astGcsBuildWritePreconditions({ request, accessToken }) {
     throw astGcsBuildPreconditionFailedError(request, 'ifNoneMatch');
   }
 
+  // For non-generation ifNoneMatch tokens (e.g. etag), enforce the check atomically by
+  // pinning the subsequent write to the generation we observed.
+  if (!currentGeneration) {
+    throw new AstStorageCapabilityError('GCS object generation is required for conditional write checks', {
+      uri: request.uri
+    });
+  }
+
+  query.ifGenerationMatch = currentGeneration;
   return query;
 }
 
