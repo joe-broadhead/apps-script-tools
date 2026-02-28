@@ -141,6 +141,14 @@ test('DataFrame.setIndex supports single and multi-column keys with integrity ch
   const specialIndexed = specialKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
   assert.equal(new Set(specialIndexed.index).size, 4);
 
+  const signedZeroKeys = context.DataFrame.fromColumns({
+    k1: [-0, 0],
+    k2: ['x', 'x'],
+    v: [11, 22]
+  });
+  const signedZeroIndexed = signedZeroKeys.setIndex(['k1', 'k2'], { drop: false, verifyIntegrity: true });
+  assert.equal(new Set(signedZeroIndexed.index).size, 2);
+
   const symbolA1 = Symbol('k');
   const symbolA2 = Symbol('k');
   const symbolKeys = context.DataFrame.fromColumns({
@@ -205,6 +213,17 @@ test('DataFrame.sortIndex sorts by index labels and preserves stable order for d
   symbolDf.index = [Symbol('b'), Symbol('a')];
   const symbolSorted = symbolDf.sortIndex();
   assert.equal(symbolSorted.index.length, 2);
+
+  const signedZeroDf = context.DataFrame.fromRecords([
+    { id: 1 },
+    { id: 2 },
+    { id: 3 }
+  ]);
+  signedZeroDf.index = [0, -0, 1];
+  const signedZeroSorted = signedZeroDf.sortIndex();
+  assert.equal(Object.is(signedZeroSorted.index[0], 0), true);
+  assert.equal(Object.is(signedZeroSorted.index[1], -0), true);
+  assert.equal(signedZeroSorted.index[2], 1);
 });
 
 test('DataFrame.reindex enforces strict unknown-label handling and supports fill values', () => {

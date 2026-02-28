@@ -1778,6 +1778,9 @@ function __astCompareDataFrameIndexLabels(left, right) {
     if (Number.isNaN(right)) {
       return -1;
     }
+    if (left === right) {
+      return 0;
+    }
     return left < right ? -1 : 1;
   }
 
@@ -1899,7 +1902,9 @@ function __astBuildDataFrameLabelLookupKey(label) {
   if (label === null) return 'null:null';
   if (label === undefined) return 'undefined:undefined';
   if (typeof label === 'number') {
-    return Number.isNaN(label) ? 'number:NaN' : `number:${label}`;
+    if (Number.isNaN(label)) return 'number:NaN';
+    if (Object.is(label, -0)) return 'number:-0';
+    return `number:${label}`;
   }
   if (typeof label === 'string') return `string:${label}`;
   if (typeof label === 'boolean') return `boolean:${label}`;
