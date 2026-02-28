@@ -84,6 +84,10 @@ test('DataFrame.nunique supports columns and rows axis with dropna behavior', ()
   const byRows = df.nunique({ axis: 'rows' });
   assert.equal(JSON.stringify(byRows.index), JSON.stringify(['r1', 'r2', 'r3']));
   assert.equal(JSON.stringify(byRows.array), JSON.stringify([1, 3, 1]));
+
+  // pandas-compatible numeric aliases
+  assert.equal(JSON.stringify(df.nunique({ axis: 0 }).array), JSON.stringify(byColumns.array));
+  assert.equal(JSON.stringify(df.nunique({ axis: 1 }).array), JSON.stringify(byRows.array));
 });
 
 test('DataFrame.valueCounts returns sorted combination counts and supports normalize', () => {
@@ -143,6 +147,28 @@ test('DataFrame.agg supports strings/functions and returns Series/DataFrame dete
   assert.throws(() => df.agg({ a: ['sum', 'sum'] }), /duplicate aggregation label/);
 });
 
+test('DataFrame.agg handles __proto__-labeled custom aggregations without row corruption', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
+  ]);
+
+  function __proto__(series) {
+    return series.sum();
+  }
+
+  const out = df.agg({
+    a: [__proto__],
+    b: [__proto__]
+  });
+
+  assert.ok(out instanceof context.Series);
+  assert.equal(out.name, 'proto');
+  assert.equal(JSON.stringify(out.index), JSON.stringify(['a', 'b']));
+  assert.equal(JSON.stringify(out.array), JSON.stringify([3, 30]));
+});
+
 test('DataFrame.transform preserves row shape and supports function/object transformers', () => {
   const context = createContext();
   const df = context.DataFrame.fromRecords([
@@ -169,4 +195,18 @@ test('DataFrame.transform preserves row shape and supports function/object trans
 
   assert.throws(() => df.transform({ a: [1] }), /must have length 2/);
   assert.throws(() => df.transform({ unknown: 1 }), /unknown columns/);
+});
+
+test('DataFrame.valueCounts rejects dangerous countColumn prototype keys', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1 },
+    { a: 1 },
+    { a: 2 }
+  ]);
+
+  assert.throws(
+    () => df.valueCounts({ subset: ['a'], countColumn: '__proto__' }),
+    /must not be one of/
+  );
 });

@@ -1541,7 +1541,7 @@ var DataFrame = class DataFrame {
   agg(aggregations, options = {}) {
     const normalized = __astNormalizeDataFrameAggOptions(this, aggregations, options, 'agg');
     const rowLabels = [];
-    const rowValuesByLabel = {};
+    const rowValuesByLabel = new Map();
 
     for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
       const column = normalized.columns[colIdx];
@@ -1558,17 +1558,17 @@ var DataFrame = class DataFrame {
           value = spec.fn(series, column, this);
         }
 
-        if (!Object.prototype.hasOwnProperty.call(rowValuesByLabel, spec.label)) {
-          rowValuesByLabel[spec.label] = {};
+        if (!rowValuesByLabel.has(spec.label)) {
+          rowValuesByLabel.set(spec.label, Object.create(null));
           rowLabels.push(spec.label);
         }
 
-        rowValuesByLabel[spec.label][column] = value;
+        rowValuesByLabel.get(spec.label)[column] = value;
       }
     }
 
     if (rowLabels.length === 1) {
-      const row = rowValuesByLabel[rowLabels[0]];
+      const row = rowValuesByLabel.get(rowLabels[0]) || Object.create(null);
       const output = new Array(normalized.columns.length);
       for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
         output[colIdx] = row[normalized.columns[colIdx]];
@@ -1584,7 +1584,7 @@ var DataFrame = class DataFrame {
 
     for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
       const label = rowLabels[rowIdx];
-      const row = rowValuesByLabel[label];
+      const row = rowValuesByLabel.get(label) || Object.create(null);
       for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
         const column = normalized.columns[colIdx];
         if (Object.prototype.hasOwnProperty.call(row, column)) {
@@ -2504,6 +2504,10 @@ function __astDataFrameIsMissingValue(value) {
   return value == null || (typeof value === 'number' && Number.isNaN(value));
 }
 
+function __astDataFrameIsDangerousObjectKey(value) {
+  return value === '__proto__' || value === 'prototype' || value === 'constructor';
+}
+
 function __astBuildDataFrameMissingMask(dataframe, invert = false) {
   const nextColumns = {};
 
@@ -2604,7 +2608,7 @@ function __astNormalizeDataFrameNuniqueOptions(dataframe, options, methodName) {
   }
 
   const axis = Object.prototype.hasOwnProperty.call(options, 'axis')
-    ? __astNormalizeDataFrameAxis(options.axis, methodName)
+    ? __astNormalizeDataFrameNuniqueAxis(options.axis, methodName)
     : 'columns';
   const columns = Object.prototype.hasOwnProperty.call(options, 'columns')
     ? __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
@@ -2622,6 +2626,18 @@ function __astNormalizeDataFrameNuniqueOptions(dataframe, options, methodName) {
     columns,
     dropna: options.dropna !== false
   };
+}
+
+function __astNormalizeDataFrameNuniqueAxis(axis, methodName) {
+  if (axis === undefined || axis === null || axis === 'columns' || axis === 'column' || axis === 'cols' || axis === 0 || axis === '0') {
+    return 'columns';
+  }
+
+  if (axis === 'rows' || axis === 'row' || axis === 'index' || axis === 1 || axis === '1') {
+    return 'rows';
+  }
+
+  throw new Error(`DataFrame.${methodName} option axis must be one of columns|rows|0|1|index`);
 }
 
 function __astNormalizeDataFrameValueCountsOptions(dataframe, options, methodName) {
@@ -2650,6 +2666,9 @@ function __astNormalizeDataFrameValueCountsOptions(dataframe, options, methodNam
 
   if (normalized.countColumn.trim().length === 0) {
     throw new Error(`DataFrame.${methodName} option countColumn must be a non-empty string`);
+  }
+  if (__astDataFrameIsDangerousObjectKey(normalized.countColumn)) {
+    throw new Error(`DataFrame.${methodName} option countColumn must not be one of: __proto__, prototype, constructor`);
   }
   if (subset.includes(normalized.countColumn)) {
     throw new Error(`DataFrame.${methodName} option countColumn must not collide with subset columns`);
@@ -3432,7 +3451,7 @@ function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
 
   const rowPairs = __astBuildDataFrameIndexJoinPairs(leftDf.index, rightDf.index, leftLookup, rightLookup, how);
   const rowCount = rowPairs.length;
-  const outputColumns = {};
+    const outputColumns = Object.create(null);
   const outputIndex = new Array(rowCount);
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
