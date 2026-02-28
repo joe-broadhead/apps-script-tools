@@ -44,6 +44,16 @@ test('Series.map supports Series-based lookup by index label', () => {
   assert.equal(JSON.stringify(out.array), JSON.stringify(['H', 'L', '?']));
 });
 
+test('Series.map with Series mapper matches keys by identity, not string coercion', () => {
+  const context = createContext();
+  const source = new context.Series([1, '1', true, 'true'], 'keys');
+  const mapper = new context.Series(['num-one', 'bool-true'], 'lookup', null, [1, true]);
+
+  const out = source.map(mapper, { defaultValue: 'missing' });
+
+  assert.equal(JSON.stringify(out.array), JSON.stringify(['num-one', 'missing', 'bool-true', 'missing']));
+});
+
 test('Series.map supports naAction=ignore', () => {
   const context = createContext();
   const series = new context.Series([1, null, Number.NaN, 2], 'values');

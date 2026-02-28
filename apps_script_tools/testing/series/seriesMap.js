@@ -44,6 +44,19 @@ SERIES_MAP_TESTS = [
     }
   },
   {
+    description: 'Series.map() should match Series mapper keys by identity (no string coercion)',
+    test: () => {
+      const source = new Series([1, '1', true, 'true'], 'keys');
+      const mapper = new Series(['num-one', 'bool-true'], 'lookup', null, [1, true]);
+
+      const result = source.map(mapper, { defaultValue: 'missing' });
+
+      if (JSON.stringify(result.array) !== JSON.stringify(['num-one', 'missing', 'bool-true', 'missing'])) {
+        throw new Error(`Unexpected identity-mapped output: ${JSON.stringify(result.array)}`);
+      }
+    }
+  },
+  {
     description: 'Series.map() should support naAction=ignore',
     test: () => {
       const series = new Series([1, null, NaN, 2], 'values');

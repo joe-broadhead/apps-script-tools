@@ -2668,7 +2668,6 @@ function astSeriesPrepareMapLookup(mapper, mapperType) {
   }
 
   const byIdentity = new Map();
-  const byString = Object.create(null);
 
   for (let idx = 0; idx < mapper.array.length; idx++) {
     const key = mapper.index[idx];
@@ -2676,14 +2675,9 @@ function astSeriesPrepareMapLookup(mapper, mapperType) {
     if (!byIdentity.has(key)) {
       byIdentity.set(key, value);
     }
-
-    const stringKey = astSeriesStringifyReplaceKey(key);
-    if (!Object.prototype.hasOwnProperty.call(byString, stringKey)) {
-      byString[stringKey] = value;
-    }
   }
 
-  return { byIdentity, byString };
+  return { byIdentity };
 }
 
 function astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value) {
@@ -2698,9 +2692,6 @@ function astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value) {
   if (mapperType === 'series') {
     if (mapperLookup && mapperLookup.byIdentity.has(value)) {
       return { found: true, value: mapperLookup.byIdentity.get(value) };
-    }
-    if (mapperLookup && Object.prototype.hasOwnProperty.call(mapperLookup.byString, key)) {
-      return { found: true, value: mapperLookup.byString[key] };
     }
     return { found: false, value: undefined };
   }
