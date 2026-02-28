@@ -44,6 +44,34 @@ function patternInspectSampleCopy(ASTX) {
 }
 ```
 
+## Missing data cleanup and conditional replacement
+
+```javascript
+function patternMissingData(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { id: 1, amount: 10, region: null },
+    { id: 2, amount: undefined, region: 'west' },
+    { id: 3, amount: Number.NaN, region: 'east' }
+  ]);
+
+  const dropped = df.dropNulls({ subset: ['amount'] });
+  const filled = df.fillNulls({ amount: 0, region: 'unknown' });
+  const replaced = filled.replace({ region: { unknown: 'unassigned' } });
+
+  const whereAmountKnown = df.where(
+    row => row.amount != null && !Number.isNaN(row.amount),
+    { amount: 0 }
+  );
+
+  const maskWest = replaced.mask(
+    row => row.region === 'west',
+    { region: 'w-region' }
+  );
+
+  return { dropped, filled, replaced, whereAmountKnown, maskWest };
+}
+```
+
 ## Single-pass projection with `selectExpr`
 
 ```javascript
