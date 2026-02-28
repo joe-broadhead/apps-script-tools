@@ -161,6 +161,40 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should preserve right overlaps when using leftOn/rightOn keys',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { id: 1, left_value: 'L1' },
+        { id: 2, left_value: 'L2' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { user_id: 1, id: 'RID1', right_value: 'R1' },
+        { user_id: 2, id: 'RID2', right_value: 'R2' }
+      ]);
+
+      const out = left.join(right, {
+        how: 'inner',
+        leftOn: 'id',
+        rightOn: 'user_id',
+        lsuffix: '_l',
+        rsuffix: '_r'
+      });
+      const records = out.toRecords();
+
+      if (records.length !== 2) {
+        throw new Error(`Unexpected leftOn/rightOn join row count: ${records.length}`);
+      }
+
+      if (records[0].id_l !== 1 || records[0].id_r !== 'RID1' || records[0].user_id !== 1) {
+        throw new Error(`Unexpected leftOn/rightOn join first row: ${JSON.stringify(records[0])}`);
+      }
+
+      if (records[1].id_l !== 2 || records[1].id_r !== 'RID2' || records[1].user_id !== 2) {
+        throw new Error(`Unexpected leftOn/rightOn join second row: ${JSON.stringify(records[1])}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.melt() should unpivot with custom var/value names',
     test: () => {
       const df = DataFrame.fromRecords([

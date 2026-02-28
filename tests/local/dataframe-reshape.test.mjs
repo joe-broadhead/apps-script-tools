@@ -146,6 +146,32 @@ test('DataFrame.join index semantics distinguish null/undefined/symbol and suppo
   ]);
 });
 
+test('DataFrame.join preserves right-side overlaps when using leftOn/rightOn keys', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { id: 1, left_value: 'L1' },
+    { id: 2, left_value: 'L2' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { user_id: 1, id: 'RID1', right_value: 'R1' },
+    { user_id: 2, id: 'RID2', right_value: 'R2' }
+  ]);
+
+  const out = left.join(right, {
+    how: 'inner',
+    leftOn: 'id',
+    rightOn: 'user_id',
+    lsuffix: '_l',
+    rsuffix: '_r'
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(out.toRecords())), [
+    { left_value: 'L1', id_l: 1, id_r: 'RID1', user_id: 1, right_value: 'R1' },
+    { left_value: 'L2', id_l: 2, id_r: 'RID2', user_id: 2, right_value: 'R2' }
+  ]);
+});
+
 test('DataFrame.melt supports idVars/valueVars and can retain source index as a column', () => {
   const context = createContext();
 

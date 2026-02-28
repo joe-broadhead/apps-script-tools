@@ -535,10 +535,11 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     rightColumnMap[rightColumns[idx]] = rightDf.data[rightColumns[idx]].array;
   }
 
-  const joinColumns = how === 'cross' ? [] : leftKeys.slice();
-  const overlapColumns = leftColumns.filter(col => !joinColumns.includes(col) && rightColumns.includes(col));
-  const leftOnlyColumns = leftColumns.filter(col => !joinColumns.includes(col) && !rightColumns.includes(col));
-  const rightOnlyColumns = rightColumns.filter(col => !joinColumns.includes(col) && !leftColumns.includes(col));
+  const joinColumnPairs = __astResolveJoinColumnPairs(how, leftKeys, rightKeys);
+  const joinColumnNames = new Set(joinColumnPairs.map(pair => pair.name));
+  const overlapColumns = leftColumns.filter(col => !joinColumnNames.has(col) && rightColumns.includes(col));
+  const leftOnlyColumns = leftColumns.filter(col => !joinColumnNames.has(col) && !rightColumns.includes(col));
+  const rightOnlyColumns = rightColumns.filter(col => !joinColumnNames.has(col) && !leftColumns.includes(col));
 
   const leftJoinColumns = leftKeys.map(key => leftColumnMap[key] || null);
   const rightJoinColumns = rightKeys.map(key => rightColumnMap[key] || null);
@@ -602,8 +603,8 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   const out = {};
   const rowCount = rowPairs.length;
 
-  for (let idx = 0; idx < joinColumns.length; idx++) {
-    out[joinColumns[idx]] = new Array(rowCount);
+  for (let idx = 0; idx < joinColumnPairs.length; idx++) {
+    out[joinColumnPairs[idx].name] = new Array(rowCount);
   }
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
@@ -622,13 +623,12 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
     const [leftSourceIdx, rightSourceIdx] = rowPairs[rowIdx];
 
-    for (let keyIdx = 0; keyIdx < joinColumns.length; keyIdx++) {
-      const leftJoinCol = joinColumns[keyIdx];
-      const rightJoinCol = rightKeys[keyIdx];
-      const leftValue = __astReadColumnValue(leftColumnMap, leftJoinCol, leftSourceIdx);
-      const rightValue = __astReadColumnValue(rightColumnMap, rightJoinCol, rightSourceIdx);
+    for (let keyIdx = 0; keyIdx < joinColumnPairs.length; keyIdx++) {
+      const joinPair = joinColumnPairs[keyIdx];
+      const leftValue = __astReadColumnValue(leftColumnMap, joinPair.left, leftSourceIdx);
+      const rightValue = __astReadColumnValue(rightColumnMap, joinPair.right, rightSourceIdx);
 
-      out[leftJoinCol][rowIdx] = leftValue != null
+      out[joinPair.name][rowIdx] = leftValue != null
         ? leftValue
         : (rightValue != null ? rightValue : null);
     }
@@ -651,6 +651,25 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   }
 
   return DataFrame.fromColumns(out, { copy: false });
+}
+
+function __astResolveJoinColumnPairs(how, leftKeys, rightKeys) {
+  if (how === 'cross') {
+    return [];
+  }
+
+  const pairs = [];
+  for (let idx = 0; idx < leftKeys.length; idx++) {
+    if (leftKeys[idx] === rightKeys[idx]) {
+      pairs.push({
+        name: leftKeys[idx],
+        left: leftKeys[idx],
+        right: rightKeys[idx]
+      });
+    }
+  }
+
+  return pairs;
 }
 
 var AstDataFrameWindowColumn = class AstDataFrameWindowColumn {
