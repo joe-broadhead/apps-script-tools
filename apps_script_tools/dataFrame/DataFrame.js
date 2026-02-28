@@ -356,6 +356,136 @@ var DataFrame = class DataFrame {
   }
 
   /**
+   * Shift values by positional periods on rows or columns.
+   *
+   * @param {number} [periods=1]
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|0|1|'index'} [options.axis='rows']
+   * @param {*} [options.fillValue=null]
+   * @returns {DataFrame}
+   */
+  shift(periods = 1, options = {}) {
+    const normalized = __astNormalizeDataFrameShiftOptions(periods, options, 'shift');
+
+    if (this.len() === 0 || this.columns.length === 0 || normalized.periods === 0) {
+      return __astCloneDataFrame(this);
+    }
+
+    if (normalized.axis === 'rows') {
+      return __astShiftDataFrameRows(this, normalized.periods, normalized.fillValue);
+    }
+
+    return __astShiftDataFrameColumns(this, normalized.periods, normalized.fillValue);
+  }
+
+  /**
+   * Compute first discrete difference relative to shifted values.
+   *
+   * @param {number} [periods=1]
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|0|1|'index'} [options.axis='rows']
+   * @returns {DataFrame}
+   */
+  diff(periods = 1, options = {}) {
+    const normalized = __astNormalizeDataFrameDeltaOptions(periods, options, 'diff');
+    const baseline = this.shift(normalized.periods, {
+      axis: normalized.axis,
+      fillValue: null
+    });
+
+    const nextColumns = {};
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const column = this.columns[colIdx];
+      const current = this.data[column].array;
+      const previous = baseline.data[column].array;
+      const output = new Array(this.len());
+
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        if (__astDataFrameIsMissingValue(current[rowIdx]) || __astDataFrameIsMissingValue(previous[rowIdx])) {
+          output[rowIdx] = null;
+          continue;
+        }
+
+        output[rowIdx] = subtractValues(current[rowIdx], previous[rowIdx]);
+      }
+
+      nextColumns[column] = output;
+    }
+
+    return DataFrame.fromColumns(nextColumns, {
+      copy: false,
+      index: [...this.index]
+    });
+  }
+
+  /**
+   * Compute percentage change relative to shifted values.
+   *
+   * @param {number} [periods=1]
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|0|1|'index'} [options.axis='rows']
+   * @param {'null'|'infinity'|'error'} [options.zeroDivision='null']
+   * @returns {DataFrame}
+   */
+  pctChange(periods = 1, options = {}) {
+    const normalized = __astNormalizeDataFramePctChangeOptions(periods, options, 'pctChange');
+    const baseline = this.shift(normalized.periods, {
+      axis: normalized.axis,
+      fillValue: null
+    });
+
+    const nextColumns = {};
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const column = this.columns[colIdx];
+      const current = this.data[column].array;
+      const previous = baseline.data[column].array;
+      const output = new Array(this.len());
+
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        const currentValue = current[rowIdx];
+        const previousValue = previous[rowIdx];
+
+        if (__astDataFrameIsMissingValue(currentValue) || __astDataFrameIsMissingValue(previousValue)) {
+          output[rowIdx] = null;
+          continue;
+        }
+
+        const numerator = subtractValues(currentValue, previousValue);
+        if (__astDataFrameIsMissingValue(numerator)) {
+          output[rowIdx] = null;
+          continue;
+        }
+
+        const denominator = normalizeValues(previousValue);
+        if (denominator == null) {
+          output[rowIdx] = null;
+          continue;
+        }
+
+        if (denominator === 0) {
+          output[rowIdx] = __astResolveDataFramePctZeroDivisionValue(
+            'DataFrame.pctChange',
+            rowIdx,
+            column,
+            numerator,
+            normalized.zeroDivision
+          );
+          continue;
+        }
+
+        output[rowIdx] = numerator / denominator;
+      }
+
+      nextColumns[column] = output;
+    }
+
+    return DataFrame.fromColumns(nextColumns, {
+      copy: false,
+      index: [...this.index]
+    });
+  }
+
+  /**
    * Create a deep or shallow copy of the DataFrame.
    *
    * `deep=true` copies Series values and index values.
@@ -3561,6 +3691,157 @@ function __astNormalizeDataFrameHeadTailCount(value, methodName) {
     throw new Error(`DataFrame.${methodName} requires a non-negative integer n`);
   }
   return value;
+}
+
+function __astNormalizeDataFramePeriods(periods, methodName) {
+  if (!Number.isInteger(periods)) {
+    throw new Error(`DataFrame.${methodName} option periods must be an integer`);
+  }
+  return periods;
+}
+
+function __astNormalizeDataFrameShiftOptions(periods, options, methodName) {
+  if (options == null) {
+    return {
+      periods: __astNormalizeDataFramePeriods(periods, methodName),
+      axis: 'rows',
+      fillValue: null
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  return {
+    periods: __astNormalizeDataFramePeriods(periods, methodName),
+    axis: __astNormalizeDataFrameAxis(options.axis, methodName),
+    fillValue: Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null
+  };
+}
+
+function __astNormalizeDataFrameDeltaOptions(periods, options, methodName) {
+  if (options == null) {
+    return {
+      periods: __astNormalizeDataFramePeriods(periods, methodName),
+      axis: 'rows'
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  return {
+    periods: __astNormalizeDataFramePeriods(periods, methodName),
+    axis: __astNormalizeDataFrameAxis(options.axis, methodName)
+  };
+}
+
+function __astNormalizeDataFramePctChangeOptions(periods, options, methodName) {
+  if (options == null) {
+    return {
+      periods: __astNormalizeDataFramePeriods(periods, methodName),
+      axis: 'rows',
+      zeroDivision: 'null'
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const zeroDivision = options.zeroDivision == null ? 'null' : options.zeroDivision;
+  if (!['null', 'infinity', 'error'].includes(zeroDivision)) {
+    throw new Error(`DataFrame.${methodName} option zeroDivision must be one of null|infinity|error`);
+  }
+
+  return {
+    periods: __astNormalizeDataFramePeriods(periods, methodName),
+    axis: __astNormalizeDataFrameAxis(options.axis, methodName),
+    zeroDivision
+  };
+}
+
+function __astShiftDataFrameRows(dataframe, periods, fillValue) {
+  const nextColumns = {};
+  for (let colIdx = 0; colIdx < dataframe.columns.length; colIdx++) {
+    const column = dataframe.columns[colIdx];
+    nextColumns[column] = __astShiftDataFrameValues(dataframe.data[column].array, periods, fillValue);
+  }
+
+  return DataFrame.fromColumns(nextColumns, {
+    copy: false,
+    index: [...dataframe.index]
+  });
+}
+
+function __astShiftDataFrameColumns(dataframe, periods, fillValue) {
+  const rowCount = dataframe.len();
+  const columnCount = dataframe.columns.length;
+  const sourceColumns = dataframe.columns.map(column => dataframe.data[column].array);
+  const nextColumns = {};
+
+  for (let colIdx = 0; colIdx < columnCount; colIdx++) {
+    const output = new Array(rowCount);
+    const sourceColumnIndex = colIdx - periods;
+
+    for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+      if (sourceColumnIndex < 0 || sourceColumnIndex >= columnCount) {
+        output[rowIdx] = fillValue;
+      } else {
+        output[rowIdx] = sourceColumns[sourceColumnIndex][rowIdx];
+      }
+    }
+
+    nextColumns[dataframe.columns[colIdx]] = output;
+  }
+
+  return DataFrame.fromColumns(nextColumns, {
+    copy: false,
+    index: [...dataframe.index]
+  });
+}
+
+function __astShiftDataFrameValues(values, periods, fillValue) {
+  const length = values.length;
+  if (length === 0 || periods === 0) {
+    return [...values];
+  }
+
+  const output = new Array(length);
+  for (let idx = 0; idx < length; idx++) {
+    output[idx] = fillValue;
+  }
+
+  if (periods > 0) {
+    for (let idx = periods; idx < length; idx++) {
+      output[idx] = values[idx - periods];
+    }
+  } else {
+    const offset = Math.abs(periods);
+    const limit = length - offset;
+    for (let idx = 0; idx < limit; idx++) {
+      output[idx] = values[idx + offset];
+    }
+  }
+
+  return output;
+}
+
+function __astResolveDataFramePctZeroDivisionValue(methodLabel, rowPosition, columnName, numerator, zeroDivision) {
+  if (zeroDivision === 'error') {
+    throw new Error(`${methodLabel} division by zero at row ${rowPosition} for column '${columnName}'`);
+  }
+
+  if (zeroDivision === 'infinity') {
+    if (numerator === 0) {
+      return null;
+    }
+    return numerator > 0 ? Infinity : -Infinity;
+  }
+
+  return null;
 }
 
 function __astNormalizeDataFrameTakeIndexes(indexes, length, methodName) {
