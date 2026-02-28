@@ -77,6 +77,10 @@
 - `AST.Runtime.configureFromProps(...)` now forwards explicit ScriptProperties handle and config snapshot controls (`scriptProperties`, `disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.
 - Local/perf test suites now include DBT manifest coverage and performance thresholds.
 - Local/perf test suites now include DBT artifact/diff/impact coverage and deterministic diff benchmark thresholds.
+- Data docs and perf gate coverage for pandas-parity methods:
+  - new docs page: `docs/api/pandas-compatibility-matrix.md`
+  - expanded API docs/examples for `sample`, `join`, `pivotTable`, `apply`, delta methods, and statistical selectors
+  - new perf checks: `dataframe.sample_n1000_100000`, `dataframe.join_inner_on_100000`, `dataframe.apply_rows_20000`, `dataframe.pivotTable_sum_50000`
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 
 ## v0.0.4 - 2026-02-25

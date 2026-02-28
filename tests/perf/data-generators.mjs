@@ -63,3 +63,17 @@ export function generateGroupByRecords(rows) {
 
   return records;
 }
+
+export function generatePivotRecords(rows) {
+  const records = new Array(rows);
+
+  for (let idx = 0; idx < rows; idx++) {
+    records[idx] = {
+      bucket: `b_${idx % 100}`,
+      segment: `s_${idx % 12}`,
+      amount: (idx % 250) + 1
+    };
+  }
+
+  return records;
+}

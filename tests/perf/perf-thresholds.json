@@ -7,6 +7,10 @@
       "dataframe.merge_inner_100000": 2600,
       "dataframe.groupBy_agg_100000": 900,
       "dataframe.toRecords_100000_10": 1400,
+      "dataframe.sample_n1000_100000": 900,
+      "dataframe.join_inner_on_100000": 3000,
+      "dataframe.apply_rows_20000": 2600,
+      "dataframe.pivotTable_sum_50000": 1800,
       "dbt.load_index_medium": 1200,
       "dbt.search_top20": 120,
       "dbt.getEntity_avg": 5,
@@ -24,6 +28,10 @@
       "dataframe.merge_inner_100000": 220000000,
       "dataframe.groupBy_agg_100000": 120000000,
       "dataframe.toRecords_100000_10": 180000000,
+      "dataframe.sample_n1000_100000": 180000000,
+      "dataframe.join_inner_on_100000": 240000000,
+      "dataframe.apply_rows_20000": 140000000,
+      "dataframe.pivotTable_sum_50000": 180000000,
       "dbt.load_index_medium": 180000000,
       "dbt.search_top20": 60000000,
       "dbt.getEntity_avg": 30000000,
@@ -41,6 +49,9 @@
         "toRecords": 1
       },
       "dataframe.merge_inner_100000": {
+        "toRecords": 0
+      },
+      "dataframe.join_inner_on_100000": {
         "toRecords": 0
       },
       "github.cache_profile": {

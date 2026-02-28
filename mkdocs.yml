@@ -134,6 +134,7 @@ nav:
     - Triggers Contracts: api/triggers-contracts.md
     - Telemetry Contracts: api/telemetry-contracts.md
     - DataFrame Patterns: api/dataframe-patterns.md
+    - Pandas Compatibility Matrix: api/pandas-compatibility-matrix.md
   - Performance:
     - Architecture: performance/architecture.md
     - Benchmarks: performance/benchmarks.md

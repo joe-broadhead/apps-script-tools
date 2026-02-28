@@ -15,8 +15,10 @@ Use `Series` for one-dimensional transforms and aggregations.
 Key capabilities:
 
 - Element-wise transforms: `apply`, arithmetic methods, comparisons.
-- Filtering: `filter`, `query`.
-- Stats: `sum`, `mean`, `median`, `mode`, `std`, `var`.
+- Filtering: `filter`, `query`, `where`, `mask`.
+- Missing-data handling: `dropNulls`, `fillNulls`, `replace`.
+- Index/delta helpers: `sortIndex`, `reindex`, `align`, `shift`, `diff`, `pctChange`.
+- Stats/selectors: `sum`, `mean`, `median`, `mode`, `std`, `var`, `quantile`, `idxMax`, `idxMin`, `cummax`, `cummin`, `cumproduct`.
 - String/date namespaces: `series.str.*`, `series.dt.*`.
 
 Important contract:
@@ -38,6 +40,8 @@ Complexity notes:
 
 `DataFrame` is the primary tabular abstraction.
 
+Compatibility status for pandas-inspired APIs is tracked in [Pandas Compatibility Matrix](pandas-compatibility-matrix.md).
+
 Creation:
 
 - `fromRecords(records)`
@@ -48,7 +52,12 @@ Creation:
 
 Transform:
 
-- `select`, `selectExpr`, `selectExprDsl`, `drop`, `rename`, `assign`, `merge`, `sort`, `pivot`, `groupBy`, `window`.
+- shape/selection: `head`, `tail`, `take`, `sample`, `copy`, `select`, `selectExpr`, `selectExprDsl`.
+- missing/conditional: `dropNulls`, `fillNulls`, `replace`, `where`, `mask`.
+- index/alignment: `setIndex`, `sortIndex`, `reindex`.
+- transformation: `assign`, `apply`, `applyMap`, `sort`, `shift`, `diff`, `pctChange`.
+- relational/reshape: `merge`, `join`, `melt`, `explode`, `pivot`, `pivotTable`, `groupBy`, `window`.
+- selectors/stats: `quantile`, `describe`, `nlargest`, `nsmallest`.
 - `dropDuplicates(subset = [])` with explicit subset semantics.
 
 Output:
@@ -66,6 +75,17 @@ const df = ASTX.DataFrame.fromColumns({
 });
 
 const out = df.assign({ amount_x2: frame => frame.amount.multiply(2) });
+```
+
+```javascript
+const df = ASTX.DataFrame.fromColumns({
+  id: [1, 2, 3],
+  amount: [10, 25, 40]
+});
+
+const withDelta = df.pctChange(1, { columns: ['amount'] });
+const topRows = df.nlargest(5, ['amount']);
+const summary = df.describe({ columns: ['amount'] });
 ```
 
 Window and expression projection examples:

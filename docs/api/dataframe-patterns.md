@@ -278,6 +278,83 @@ function patternOutput(ASTX) {
 }
 ```
 
+## Join, melt, explode, and pivotTable
+
+```javascript
+function patternReshape(ASTX) {
+  const events = ASTX.DataFrame.fromRecords([
+    { id: 1, region: 'east', tags: ['new', 'promo'], metric_a: 10, metric_b: 12 },
+    { id: 2, region: 'west', tags: ['promo'], metric_a: 7, metric_b: 9 }
+  ]);
+
+  const owners = ASTX.DataFrame.fromRecords([
+    { id: 1, owner: 'alice' },
+    { id: 2, owner: 'bob' }
+  ]);
+
+  const joined = events.join(owners, { how: 'left', on: 'id' });
+  const exploded = joined.explode('tags');
+  const melted = joined.melt({
+    idVars: ['id', 'region'],
+    valueVars: ['metric_a', 'metric_b'],
+    varName: 'metric_name',
+    valueName: 'metric_value'
+  });
+  const pivot = melted.pivotTable({
+    index: ['region'],
+    columns: 'metric_name',
+    values: ['metric_value'],
+    aggFunc: 'sum',
+    fillValue: 0
+  });
+
+  return { joined, exploded, melted, pivot };
+}
+```
+
+## Delta and comparative methods
+
+```javascript
+function patternDelta(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { day: '2026-01-01', amount: 100 },
+    { day: '2026-01-02', amount: 120 },
+    { day: '2026-01-03', amount: 90 }
+  ]);
+
+  return {
+    shifted: df.shift(1, { fillValue: 0 }),
+    absoluteDelta: df.diff(1, { columns: ['amount'] }),
+    percentDelta: df.pctChange(1, { columns: ['amount'] })
+  };
+}
+```
+
+## Statistical selectors and summaries
+
+```javascript
+function patternStats(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { id: 1, amount: 10, score: 80 },
+    { id: 2, amount: 40, score: 92 },
+    { id: 3, amount: 25, score: 88 },
+    { id: 4, amount: 70, score: 91 }
+  ]);
+
+  const s = new ASTX.Series([10, 40, 25, 70], 'amount');
+
+  return {
+    dataframeQuantile: df.quantile([0.25, 0.5, 0.75], { columns: ['amount', 'score'] }),
+    dataframeDescribe: df.describe({ columns: ['amount', 'score'] }),
+    topAmounts: df.nlargest(2, ['amount']),
+    lowScores: df.nsmallest(2, ['score']),
+    seriesQuantile: s.quantile(0.9),
+    seriesIdxMax: s.idxMax(),
+    seriesCummax: s.cummax()
+  };
+}
+```
+
 ## Large dataset checklist
 
 For large workloads:
