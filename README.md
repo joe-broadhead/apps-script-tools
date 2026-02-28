@@ -26,71 +26,31 @@
      Practical data workflows for Google Apps Script.
 ```
 
-`apps-script-tools` provides a unified `AST` namespace for:
+`apps-script-tools` is a production-focused toolkit for Google Apps Script with a unified `AST` namespace.
 
-- `AST.Series`: typed series operations
-- `AST.DataFrame`: tabular transformations and IO
-- `AST.GroupBy`: grouped aggregation/apply workflows
-- `AST.Sheets` + `AST.Drive`: workspace helpers
-- `AST.Storage`: object storage CRUD for GCS, S3, and DBFS
-- `AST.Secrets`: secure secret resolution across script properties and Google Secret Manager
-- `AST.Cache`: backend-agnostic caching (memory, Drive JSON, script properties, Storage URI) with single-key ops, tag invalidation, and stats
-- `AST.Config`: script-properties snapshot helpers for runtime bootstrap
-- `AST.Runtime`: one-shot runtime config hydration across namespaces
-- `AST.GitHub`: GitHub REST + GraphQL automation with dry-run and cache/ETag support
-- `AST.Telemetry`: trace spans/events with redaction and sink controls
-- `AST.TelemetryHelpers`: safe span/event wrappers for app workflows
-- `AST.Jobs`: script-properties checkpointed multi-step job orchestration with retry/resume semantics
-- `AST.Triggers`: declarative time-based trigger lifecycle with optional `AST.Jobs` dispatch
-- `AST.Chat`: durable user-scoped thread state store for chat apps
-- `AST.AI`: unified AI providers, structured outputs, tools, and image flows
-- `AST.RAG`: Drive indexing, retrieval, and grounded Q&A with citations
-- `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`), search, lineage, diff, and impact helpers
-- `AST.Sql`: Databricks/BigQuery execution with prepared statements + status/cancel controls
-- `AST.Utils`: utility helpers like `arraySum`, `dateAdd`, `toSnakeCase`
-- Global utility structures: `Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`
+Core surfaces:
 
-Current release state:
+- Data: `AST.Series`, `AST.DataFrame`, `AST.GroupBy`
+- Workspace and SQL: `AST.Sheets`, `AST.Drive`, `AST.Sql`
+- Platform: `AST.Storage`, `AST.Secrets`, `AST.Cache`, `AST.Config`, `AST.Runtime`
+- Automation and observability: `AST.Jobs`, `AST.Triggers`, `AST.Telemetry`, `AST.TelemetryHelpers`
+- AI stack: `AST.AI`, `AST.RAG`, `AST.Chat`
+- Metadata and external APIs: `AST.DBT`, `AST.GitHub`
+- Utilities and structures: `AST.Utils` plus global structures (`Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`)
 
-- Published: `v0.0.4`
-- Next release target on `master`: `v0.0.5` (unreleased)
+Release notes and version details:
 
-`v0.0.5` (in progress) highlights:
+- `CHANGELOG.md`
+- GitHub releases: <https://github.com/joe-broadhead/apps-script-tools/releases>
 
-- New `AST.GitHub` module with:
-  - broad REST operations for repositories, branches, commits, files, issues, PRs, releases/tags, and search.
-  - GraphQL support through `AST.GitHub.graphql(...)`.
-  - strict typed errors and deterministic request validation.
-  - mutation dry-run planning (`options.dryRun=true`) for safe preview workflows.
-  - optional read caching + ETag revalidation with stale-on-error fallback.
-  - runtime/script-property config resolution for PAT auth, retries, timeouts, and cache policy.
-
-- New `AST.DBT` module with:
-  - `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
-  - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
-  - `diffEntities` and `impact` helpers for deterministic snapshot comparison and lineage overlays
-  - provider loading via `drive://file/<id>`, `drive://path/<folderId>/<fileName>`, `gcs://`, `s3://`, and `dbfs:/`
-  - strict/basic/off v12 validation modes
-  - preindexed manifest bundle for fast repeated lookup/search
-- New `AST.Secrets` module with:
-  - `get`, `set`, `delete`, and `resolveValue` helpers
-  - providers: `script_properties` and `secret_manager`
-  - optional `secret://...` config references for `AST.AI`, `AST.RAG`, and `AST.Storage`
-- New `AST.Triggers` module with:
-  - `upsert`, `list`, `delete`, and `runNow` APIs for idempotent trigger lifecycle control
-  - time-based schedule contracts (`every_minutes`, `every_hours`, `every_days`, `every_weeks`)
-  - optional dispatch routing into `AST.Jobs` (`dispatch.mode='jobs'`) for resilient queued execution
-
-Released highlights are tracked in `CHANGELOG.md` under `v0.0.4`.
-
-## Install As Apps Script Library
+## Install as Apps Script library
 
 1. In your Apps Script project, open **Libraries**.
 2. Add script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`.
-3. Select the latest published version from this repo's release notes.
-4. Use identifier: `AST`.
+3. Select the latest published version.
+4. Use identifier: `AST` (or your preferred alias).
 
-## Quickstart
+## Quick start
 
 ```javascript
 function demoAstLibrary() {
@@ -106,171 +66,34 @@ function demoAstLibrary() {
   });
 
   Logger.log(enriched.toMarkdown());
-
-  // Utility helpers are also available
-  const total = ASTX.Utils.arraySum([1, 2, 3, 4]);
-  Logger.log(total); // 10
-}
-```
-
-```javascript
-function demoAstAi() {
-  const ASTX = ASTLib.AST || ASTLib;
-  ASTX.Runtime.configureFromProps({
-    modules: ['AI'],
-    scriptProperties: PropertiesService.getScriptProperties()
-  });
-
-  const response = ASTX.AI.stream({
-    provider: 'openai',
-    input: 'Write a one-line project status update.',
-    onEvent: event => {
-      if (event.type === 'token') {
-        Logger.log(`delta: ${event.delta}`);
-      }
-    }
-  });
-
-  Logger.log(response.output.text);
-}
-```
-
-```javascript
-function demoAstTelemetryHelpers() {
-  const ASTX = ASTLib.AST || ASTLib;
-
-  const result = ASTX.TelemetryHelpers.withSpan(
-    'demo.telemetry.helper',
-    { feature: 'quickstart' },
-    () => ASTX.Utils.arraySum([1, 2, 3, 4]),
-    { includeResult: true }
-  );
-
-  Logger.log(result); // 10
-}
-```
-
-```javascript
-function demoAstRagAnswer() {
-  const ASTX = ASTLib.AST || ASTLib;
-
-  const response = ASTX.RAG.answer({
-    indexFileId: 'YOUR_INDEX_FILE_ID',
-    question: 'What are the open risks?',
-    generation: { provider: 'openai' },
-    options: { requireCitations: true }
-  });
-
-  Logger.log(response.status);
-  Logger.log(response.answer);
-  Logger.log(response.citations);
-}
-```
-
-```javascript
-function demoAstStorageRead() {
-  const ASTX = ASTLib.AST || ASTLib;
-
-  const out = ASTX.Storage.read({
-    uri: 'gcs://my-bucket/project/config.json'
-  });
-
-  Logger.log(out.output.data.json || out.output.data.text);
-}
-```
-
-```javascript
-function demoAstDbtManifestSearch() {
-  const ASTX = ASTLib.AST || ASTLib;
-
-  const loaded = ASTX.DBT.loadManifest({
-    uri: 'gcs://my-bucket/dbt-artifacts/manifest.json',
-    options: { validate: 'strict', schemaVersion: 'v12', buildIndex: true }
-  });
-
-  const search = ASTX.DBT.search({
-    bundle: loaded.bundle,
-    target: 'all',
-    query: 'orders',
-    filters: {
-      resourceTypes: ['model'],
-      column: { namesAny: ['order_id'] }
-    },
-    include: { meta: true, columns: 'summary' }
-  });
-
-  Logger.log(search.items);
-}
-```
-
-```javascript
-function demoAstDbtImpact() {
-  const ASTX = ASTLib.AST || ASTLib;
-
-  const manifest = ASTX.DBT.loadManifest({
-    uri: 'gcs://my-bucket/dbt-artifacts/manifest.json',
-    options: { validate: 'strict', schemaVersion: 'v12', buildIndex: true }
-  });
-
-  const runResults = ASTX.DBT.loadArtifact({
-    artifactType: 'run_results',
-    uri: 'gcs://my-bucket/dbt-artifacts/run_results.json',
-    options: { validate: 'strict' }
-  });
-
-  const impact = ASTX.DBT.impact({
-    bundle: manifest.bundle,
-    uniqueId: 'model.analytics.orders',
-    direction: 'downstream',
-    depth: 2,
-    artifacts: {
-      run_results: { bundle: runResults.bundle }
-    }
-  });
-
-  Logger.log(impact.nodes);
-}
-```
-
-```javascript
-function demoAstStructures() {
-  // These classes are available globally after the library loads.
-  const queue = new Queue();
-  queue.enqueue('a');
-  queue.enqueue('b');
-  Logger.log(queue.dequeue()); // a
-
-  const ds = new DisjointSet(['u1', 'u2', 'u3']);
-  ds.union('u1', 'u2');
-  Logger.log(ds.connected('u1', 'u2')); // true
-
-  const cache = new LruCache(2);
-  cache.set('k1', { ok: true });
-  cache.set('k2', { ok: true });
-  cache.get('k1');
-  cache.set('k3', { ok: true }); // evicts k2
-  Logger.log(cache.get('k2')); // null
 }
 ```
 
 ## Documentation
 
-Project docs are built with MkDocs and published to GitHub Pages:
+- Docs site: <https://joe-broadhead.github.io/apps-script-tools/>
+- Installation: <https://joe-broadhead.github.io/apps-script-tools/getting-started/installation/>
+- Quick Start: <https://joe-broadhead.github.io/apps-script-tools/getting-started/quickstart/>
+- API Quick Reference: <https://joe-broadhead.github.io/apps-script-tools/api/quick-reference/>
+- Tools index: <https://joe-broadhead.github.io/apps-script-tools/api/tools/>
 
-- Site: <https://joe-broadhead.github.io/apps-script-tools/>
-- Getting started guides:
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/secrets-quickstart/>
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/cache-quickstart/>
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/jobs-quickstart/>
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/triggers-quickstart/>
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
-  - <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
-- Config: `mkdocs.yml`
-- Content: `docs/`
+Module quickstarts:
 
-## Cookbooks (Separate `clasp` Projects)
+- AI: <https://joe-broadhead.github.io/apps-script-tools/getting-started/ai-quickstart/>
+- RAG: <https://joe-broadhead.github.io/apps-script-tools/getting-started/rag-quickstart/>
+- DBT: <https://joe-broadhead.github.io/apps-script-tools/getting-started/dbt-manifest-quickstart/>
+- Storage: <https://joe-broadhead.github.io/apps-script-tools/getting-started/storage-quickstart/>
+- GitHub: <https://joe-broadhead.github.io/apps-script-tools/getting-started/github-quickstart/>
+- Secrets: <https://joe-broadhead.github.io/apps-script-tools/getting-started/secrets-quickstart/>
+- Cache: <https://joe-broadhead.github.io/apps-script-tools/getting-started/cache-quickstart/>
+- Jobs: <https://joe-broadhead.github.io/apps-script-tools/getting-started/jobs-quickstart/>
+- Triggers: <https://joe-broadhead.github.io/apps-script-tools/getting-started/triggers-quickstart/>
+- Chat: <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
+- Telemetry: <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
 
-Use `cookbooks/` for project-specific Apps Script apps so the core library code in `apps_script_tools/` stays clean.
+## Cookbooks
+
+Use `cookbooks/` for project-specific Apps Script apps so core library code in `apps_script_tools/` stays clean.
 
 Quick start:
 
@@ -293,15 +116,8 @@ Notes:
 - Local checks: `npm run lint && npm run test:local`
 - Security check: `npm run test:security`
 - Docs check: `mkdocs build --strict`
-- Apps Script integration checks: `.github/workflows/integration-gas.yml`
-- Security workflows:
-  - `.github/workflows/security-codeql.yml`
-  - `.github/workflows/security-dependency-review.yml`
-  - `.github/workflows/security-secret-scan.yml`
-- Optional live AI smoke checks: `.github/workflows/integration-ai-live.yml`
-- Naming convention and contribution rules: `CONTRIBUTING.md`
-- Optional live GitHub API smoke checks: `.github/workflows/integration-github-live.yml`
+- Full contributor guide: `CONTRIBUTING.md`
 
 ## Release
 
-See `RELEASE.md` for full release and `clasp` publishing steps.
+See `RELEASE.md` for release and `clasp` publishing steps.
