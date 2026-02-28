@@ -1668,6 +1668,151 @@ var DataFrame = class DataFrame {
     return new GroupBy(this, normalizedKeys);
   }
 
+  /**
+   * Compute per-column quantiles for numeric data.
+   *
+   * @param {number|number[]} [q=0.5]
+   * @param {Object} [options={}]
+   * @param {string[]|string} [options.columns]
+   * @param {boolean} [options.numericOnly=true]
+   * @param {string} [options.interpolation='linear']
+   * @param {string} [options.nonNumeric='ignore']
+   * @returns {Series|DataFrame}
+   */
+  quantile(q = 0.5, options = {}) {
+    const normalized = __astNormalizeDataFrameQuantileOptions(this, q, options, 'quantile');
+    const targetColumns = __astResolveDataFrameNumericColumns(this, normalized.columns, normalized.numericOnly);
+
+    if (normalized.quantiles.length === 1) {
+      if (targetColumns.length === 0) {
+        return new Series([], `quantile_${normalized.quantiles[0]}`, null, [], { skipTypeCoercion: true });
+      }
+
+      const output = new Array(targetColumns.length);
+      for (let idx = 0; idx < targetColumns.length; idx++) {
+        const column = targetColumns[idx];
+        output[idx] = this.data[column].quantile(normalized.quantiles[0], {
+          interpolation: normalized.interpolation,
+          nonNumeric: normalized.nonNumeric
+        });
+      }
+
+      return new Series(output, `quantile_${normalized.quantiles[0]}`, null, [...targetColumns], { skipTypeCoercion: true });
+    }
+
+    if (targetColumns.length === 0) {
+      return DataFrame.fromColumns({});
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < targetColumns.length; colIdx++) {
+      const column = targetColumns[colIdx];
+      const values = new Array(normalized.quantiles.length);
+      for (let qIdx = 0; qIdx < normalized.quantiles.length; qIdx++) {
+        values[qIdx] = this.data[column].quantile(normalized.quantiles[qIdx], {
+          interpolation: normalized.interpolation,
+          nonNumeric: normalized.nonNumeric
+        });
+      }
+      outputColumns[column] = values;
+    }
+
+    return DataFrame.fromColumns(outputColumns, {
+      copy: false,
+      index: [...normalized.quantiles]
+    });
+  }
+
+  /**
+   * Produce column-level descriptive statistics for numeric columns.
+   *
+   * @param {Object} [options={}]
+   * @param {string[]|string} [options.columns]
+   * @param {number[]} [options.percentiles=[0.25, 0.5, 0.75]]
+   * @param {boolean} [options.numericOnly=true]
+   * @param {string} [options.interpolation='linear']
+   * @param {string} [options.nonNumeric='ignore']
+   * @returns {DataFrame}
+   */
+  describe(options = {}) {
+    const normalized = __astNormalizeDataFrameDescribeOptions(this, options, 'describe');
+    const targetColumns = __astResolveDataFrameNumericColumns(this, normalized.columns, normalized.numericOnly);
+    const statsIndex = __astBuildDataFrameDescribeIndex(normalized.percentiles);
+
+    if (targetColumns.length === 0) {
+      return DataFrame.fromColumns({});
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < targetColumns.length; colIdx++) {
+      const column = targetColumns[colIdx];
+      const numericValues = __astCollectDataFrameSortedNumericValues(
+        this.data[column].array,
+        normalized.nonNumeric,
+        `describe(${column})`
+      );
+
+      const values = new Array(statsIndex.length).fill(null);
+      if (numericValues.length > 0) {
+        let sum = 0;
+        for (let idx = 0; idx < numericValues.length; idx++) {
+          sum += numericValues[idx];
+        }
+
+        const mean = sum / numericValues.length;
+        values[0] = numericValues.length;
+        values[1] = mean;
+        values[2] = numericValues.length > 1
+          ? __astComputeDataFrameSampleStdDev(numericValues, mean)
+          : null;
+        values[3] = numericValues[0];
+
+        for (let pIdx = 0; pIdx < normalized.percentiles.length; pIdx++) {
+          values[4 + pIdx] = __astComputeDataFrameQuantileValue(
+            numericValues,
+            normalized.percentiles[pIdx],
+            normalized.interpolation
+          );
+        }
+
+        values[statsIndex.length - 1] = numericValues[numericValues.length - 1];
+      } else {
+        values[0] = 0;
+      }
+
+      outputColumns[column] = values;
+    }
+
+    return DataFrame.fromColumns(outputColumns, {
+      copy: false,
+      index: statsIndex
+    });
+  }
+
+  /**
+   * Return the top n rows ordered by the specified numeric columns descending.
+   *
+   * @param {number} n
+   * @param {string|string[]} columns
+   * @returns {DataFrame}
+   */
+  nlargest(n, columns) {
+    const normalized = __astNormalizeDataFrameExtremeSelectorArgs(this, n, columns, 'nlargest');
+    return __astDataFrameSelectExtremeRows(this, normalized.n, normalized.columns, 'desc');
+  }
+
+  /**
+   * Return the top n rows ordered by the specified numeric columns ascending.
+   *
+   * @param {number} n
+   * @param {string|string[]} columns
+   * @returns {DataFrame}
+   */
+  nsmallest(n, columns) {
+    const normalized = __astNormalizeDataFrameExtremeSelectorArgs(this, n, columns, 'nsmallest');
+    return __astDataFrameSelectExtremeRows(this, normalized.n, normalized.columns, 'asc');
+  }
+
   window(spec = {}) {
     return new AstDataFrameWindow(this, spec);
   }
@@ -2045,6 +2190,274 @@ function __astNormalizeDataFrameApplyOptions(options, methodName) {
   }
 
   return { axis, resultName };
+}
+
+function __astNormalizeDataFrameQuantileOptions(dataframe, q, options, methodName) {
+  const normalizedOptions = __astNormalizeDataFrameStatsOptions(dataframe, options, methodName);
+  const quantiles = __astNormalizeDataFrameQuantileValues(q, methodName);
+  return {
+    columns: normalizedOptions.columns,
+    interpolation: normalizedOptions.interpolation,
+    nonNumeric: normalizedOptions.nonNumeric,
+    numericOnly: normalizedOptions.numericOnly,
+    quantiles
+  };
+}
+
+function __astNormalizeDataFrameDescribeOptions(dataframe, options, methodName) {
+  const normalizedOptions = __astNormalizeDataFrameStatsOptions(dataframe, options, methodName);
+  const percentilesSource = normalizedOptions.percentiles == null
+    ? [0.25, 0.5, 0.75]
+    : normalizedOptions.percentiles;
+
+  const percentiles = __astNormalizeDataFrameQuantileValues(percentilesSource, `${methodName} percentiles`);
+  const unique = Array.from(new Set(percentiles)).sort((left, right) => left - right);
+
+  return {
+    columns: normalizedOptions.columns,
+    interpolation: normalizedOptions.interpolation,
+    nonNumeric: normalizedOptions.nonNumeric,
+    numericOnly: normalizedOptions.numericOnly,
+    percentiles: unique
+  };
+}
+
+function __astNormalizeDataFrameStatsOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const columns = Object.prototype.hasOwnProperty.call(options, 'columns')
+    ? __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+    : [...dataframe.columns];
+
+  const interpolation = options.interpolation == null ? 'linear' : String(options.interpolation).toLowerCase();
+  const allowedInterpolations = ['linear', 'lower', 'higher', 'nearest', 'midpoint'];
+  if (!allowedInterpolations.includes(interpolation)) {
+    throw new Error(`DataFrame.${methodName} option interpolation must be one of: ${allowedInterpolations.join(', ')}`);
+  }
+
+  const nonNumeric = options.nonNumeric == null ? 'ignore' : String(options.nonNumeric).toLowerCase();
+  if (nonNumeric !== 'ignore' && nonNumeric !== 'error') {
+    throw new Error(`DataFrame.${methodName} option nonNumeric must be one of: ignore, error`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'numericOnly')
+    && typeof options.numericOnly !== 'boolean'
+  ) {
+    throw new Error(`DataFrame.${methodName} option numericOnly must be boolean`);
+  }
+
+  return {
+    columns,
+    interpolation,
+    nonNumeric,
+    numericOnly: options.numericOnly !== false,
+    percentiles: options.percentiles
+  };
+}
+
+function __astNormalizeDataFrameQuantileValues(q, methodLabel) {
+  const source = Array.isArray(q) ? q : [q];
+  if (source.length === 0) {
+    throw new Error(`DataFrame.${methodLabel} requires at least one quantile value`);
+  }
+
+  const quantiles = new Array(source.length);
+  for (let idx = 0; idx < source.length; idx++) {
+    const value = source[idx];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error(`DataFrame.${methodLabel} quantile values must be finite numbers between 0 and 1`);
+    }
+    quantiles[idx] = value;
+  }
+  return quantiles;
+}
+
+function __astResolveDataFrameNumericColumns(dataframe, columns, numericOnly) {
+  if (!numericOnly) {
+    return [...columns];
+  }
+
+  const output = [];
+  for (let idx = 0; idx < columns.length; idx++) {
+    const column = columns[idx];
+    if (__astDataFrameSeriesHasNumericValues(dataframe.data[column])) {
+      output.push(column);
+    }
+  }
+  return output;
+}
+
+function __astDataFrameSeriesHasNumericValues(series) {
+  if (!(series instanceof Series)) {
+    return false;
+  }
+
+  for (let idx = 0; idx < series.array.length; idx++) {
+    if (__astNormalizeDataFrameFiniteNumber(series.array[idx]) != null) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function __astCollectDataFrameSortedNumericValues(array, nonNumeric, methodLabel) {
+  const output = [];
+  for (let idx = 0; idx < array.length; idx++) {
+    const value = array[idx];
+    const numeric = __astNormalizeDataFrameFiniteNumber(value);
+    if (numeric == null) {
+      if (nonNumeric === 'error' && !__astDataFrameIsMissingValue(value)) {
+        throw new Error(`DataFrame.${methodLabel} encountered non-numeric value at row ${idx}`);
+      }
+      continue;
+    }
+    output.push(numeric);
+  }
+
+  output.sort((left, right) => left - right);
+  return output;
+}
+
+function __astNormalizeDataFrameFiniteNumber(value) {
+  const numeric = normalizeValues(value);
+  if (typeof numeric !== 'number' || !Number.isFinite(numeric)) {
+    return null;
+  }
+  return numeric;
+}
+
+function __astComputeDataFrameQuantileValue(sortedValues, quantile, interpolation) {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) {
+    return null;
+  }
+
+  const lastIndex = sortedValues.length - 1;
+  const position = quantile * lastIndex;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const lower = sortedValues[lowerIndex];
+  const upper = sortedValues[upperIndex];
+
+  if (lowerIndex === upperIndex) {
+    return lower;
+  }
+
+  switch (interpolation) {
+    case 'lower':
+      return lower;
+    case 'higher':
+      return upper;
+    case 'nearest':
+      return (position - lowerIndex) <= (upperIndex - position) ? lower : upper;
+    case 'midpoint':
+      return (lower + upper) / 2;
+    case 'linear':
+    default: {
+      const weight = position - lowerIndex;
+      return lower + ((upper - lower) * weight);
+    }
+  }
+}
+
+function __astComputeDataFrameSampleStdDev(values, mean) {
+  if (!Array.isArray(values) || values.length <= 1) {
+    return null;
+  }
+
+  let squaredDeltaSum = 0;
+  for (let idx = 0; idx < values.length; idx++) {
+    const delta = values[idx] - mean;
+    squaredDeltaSum += delta * delta;
+  }
+
+  return Math.sqrt(squaredDeltaSum / (values.length - 1));
+}
+
+function __astBuildDataFrameDescribeIndex(percentiles) {
+  const labels = ['count', 'mean', 'std', 'min'];
+  for (let idx = 0; idx < percentiles.length; idx++) {
+    labels.push(__astFormatDataFramePercentileLabel(percentiles[idx]));
+  }
+  labels.push('max');
+  return labels;
+}
+
+function __astFormatDataFramePercentileLabel(value) {
+  const percent = value * 100;
+  const rounded = Math.round(percent * 100) / 100;
+  return `${rounded}%`;
+}
+
+function __astNormalizeDataFrameExtremeSelectorArgs(dataframe, n, columns, methodName) {
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`DataFrame.${methodName} requires n to be a non-negative integer`);
+  }
+
+  const normalizedColumns = __astNormalizeDataFrameColumnList(dataframe, columns, 'columns', methodName);
+  if (normalizedColumns.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one column`);
+  }
+
+  return {
+    n,
+    columns: normalizedColumns
+  };
+}
+
+function __astDataFrameSelectExtremeRows(dataframe, n, columns, direction) {
+  if (n === 0 || dataframe.empty()) {
+    return dataframe._buildFromRowIndexes([], true);
+  }
+
+  const candidates = [];
+  for (let rowIdx = 0; rowIdx < dataframe.len(); rowIdx++) {
+    const numericValues = new Array(columns.length);
+    let valid = true;
+
+    for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+      const column = columns[colIdx];
+      const numeric = __astNormalizeDataFrameFiniteNumber(dataframe.data[column].array[rowIdx]);
+      if (numeric == null) {
+        valid = false;
+        break;
+      }
+      numericValues[colIdx] = numeric;
+    }
+
+    if (valid) {
+      candidates.push({ rowIdx, numericValues });
+    }
+  }
+
+  candidates.sort((left, right) => {
+    for (let idx = 0; idx < left.numericValues.length; idx++) {
+      if (left.numericValues[idx] === right.numericValues[idx]) {
+        continue;
+      }
+
+      if (direction === 'desc') {
+        return left.numericValues[idx] > right.numericValues[idx] ? -1 : 1;
+      }
+
+      return left.numericValues[idx] < right.numericValues[idx] ? -1 : 1;
+    }
+
+    return left.rowIdx - right.rowIdx;
+  });
+
+  const takeCount = Math.min(n, candidates.length);
+  const rowIndexes = new Array(takeCount);
+  for (let idx = 0; idx < takeCount; idx++) {
+    rowIndexes[idx] = candidates[idx].rowIdx;
+  }
+
+  return dataframe._buildFromRowIndexes(rowIndexes, true);
 }
 
 function __astBuildDataFrameRowSeries(dataframe, rowIndex) {

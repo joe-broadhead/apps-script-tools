@@ -1495,6 +1495,168 @@ var Series = class Series {
   }
 
   /**
+   * @function quantile
+   * @description Returns quantile value(s) computed from finite numeric values in the Series.
+   *              Non-numeric values are ignored by default.
+   * @memberof Series
+   * @param {Number|Number[]} [q=0.5] - Quantile between 0 and 1 (inclusive), or an array of quantiles.
+   * @param {Object} [options={}] - Quantile options.
+   * @param {String} [options.interpolation='linear'] - Interpolation method: linear|lower|higher|nearest|midpoint.
+   * @param {String} [options.nonNumeric='ignore'] - Non-numeric handling: ignore|error.
+   * @returns {Number|Series} A scalar when q is a number, or a Series indexed by quantile when q is an array.
+   */
+  quantile(q = 0.5, options = {}) {
+    const normalized = astSeriesNormalizeQuantileOptions(q, options, 'quantile');
+    const values = astSeriesCollectSortedNumericValues(this, normalized.nonNumeric, 'quantile');
+
+    if (normalized.quantiles.length === 1) {
+      return astSeriesComputeQuantileValue(values, normalized.quantiles[0], normalized.interpolation);
+    }
+
+    const output = new Array(normalized.quantiles.length);
+    for (let idx = 0; idx < normalized.quantiles.length; idx++) {
+      output[idx] = astSeriesComputeQuantileValue(values, normalized.quantiles[idx], normalized.interpolation);
+    }
+
+    return new Series(output, `${this.name}_quantile`, null, [...normalized.quantiles], { skipTypeCoercion: true });
+  }
+
+  /**
+   * @function idxMax
+   * @description Returns the index label of the maximum finite numeric value.
+   *              Ties are resolved by first appearance.
+   * @memberof Series
+   * @returns {*|null} Index label of the max value, or null when no finite numeric values exist.
+   */
+  idxMax() {
+    let found = false;
+    let bestValue = null;
+    let bestLabel = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric == null) {
+        continue;
+      }
+
+      if (!found || numeric > bestValue) {
+        found = true;
+        bestValue = numeric;
+        bestLabel = this.index[idx];
+      }
+    }
+
+    return found ? bestLabel : null;
+  }
+
+  /**
+   * @function idxMin
+   * @description Returns the index label of the minimum finite numeric value.
+   *              Ties are resolved by first appearance.
+   * @memberof Series
+   * @returns {*|null} Index label of the min value, or null when no finite numeric values exist.
+   */
+  idxMin() {
+    let found = false;
+    let bestValue = null;
+    let bestLabel = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric == null) {
+        continue;
+      }
+
+      if (!found || numeric < bestValue) {
+        found = true;
+        bestValue = numeric;
+        bestLabel = this.index[idx];
+      }
+    }
+
+    return found ? bestLabel : null;
+  }
+
+  /**
+   * @function cummax
+   * @description Computes the cumulative maximum over finite numeric values in order.
+   *              Non-numeric values do not advance the cumulative state.
+   * @memberof Series
+   * @returns {Series}
+   */
+  cummax() {
+    const output = new Array(this.len());
+    let hasValue = false;
+    let running = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric != null) {
+        if (!hasValue || numeric > running) {
+          running = numeric;
+        }
+        hasValue = true;
+      }
+
+      output[idx] = hasValue ? running : null;
+    }
+
+    return new Series(output, this.name, null, [...this.index], { skipTypeCoercion: true });
+  }
+
+  /**
+   * @function cummin
+   * @description Computes the cumulative minimum over finite numeric values in order.
+   *              Non-numeric values do not advance the cumulative state.
+   * @memberof Series
+   * @returns {Series}
+   */
+  cummin() {
+    const output = new Array(this.len());
+    let hasValue = false;
+    let running = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric != null) {
+        if (!hasValue || numeric < running) {
+          running = numeric;
+        }
+        hasValue = true;
+      }
+
+      output[idx] = hasValue ? running : null;
+    }
+
+    return new Series(output, this.name, null, [...this.index], { skipTypeCoercion: true });
+  }
+
+  /**
+   * @function cumproduct
+   * @description Computes the cumulative product over finite numeric values in order.
+   *              Non-numeric values do not advance the cumulative state.
+   * @memberof Series
+   * @returns {Series}
+   */
+  cumproduct() {
+    const output = new Array(this.len());
+    let hasValue = false;
+    let running = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric != null) {
+        running = hasValue ? running * numeric : numeric;
+        hasValue = true;
+      }
+
+      output[idx] = hasValue ? running : null;
+    }
+
+    return new Series(output, this.name, null, [...this.index], { skipTypeCoercion: true });
+  }
+
+  /**
    * @function clip
    * @description Clips the elements of the `Series` to a specified range by capping values below the lower bound 
    *              to the lower bound and values above the upper bound to the upper bound. Handles numeric elements and 
@@ -3401,6 +3563,104 @@ function astSeriesNormalizeTakeIndexes(indexes, length, methodName) {
   }
 
   return normalized;
+}
+
+function astSeriesNormalizeQuantileOptions(q, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const interpolation = options.interpolation == null ? 'linear' : String(options.interpolation).toLowerCase();
+  const allowedInterpolations = ['linear', 'lower', 'higher', 'nearest', 'midpoint'];
+  if (!allowedInterpolations.includes(interpolation)) {
+    throw new Error(`Series.${methodName} option interpolation must be one of: ${allowedInterpolations.join(', ')}`);
+  }
+
+  const nonNumeric = options.nonNumeric == null ? 'ignore' : String(options.nonNumeric).toLowerCase();
+  if (nonNumeric !== 'ignore' && nonNumeric !== 'error') {
+    throw new Error(`Series.${methodName} option nonNumeric must be one of: ignore, error`);
+  }
+
+  const source = Array.isArray(q) ? q : [q];
+  if (!Array.isArray(source) || source.length === 0) {
+    throw new Error(`Series.${methodName} requires at least one quantile`);
+  }
+
+  const quantiles = new Array(source.length);
+  for (let idx = 0; idx < source.length; idx++) {
+    const value = source[idx];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error(`Series.${methodName} quantile values must be finite numbers between 0 and 1`);
+    }
+    quantiles[idx] = value;
+  }
+
+  return { quantiles, interpolation, nonNumeric };
+}
+
+function astSeriesCollectSortedNumericValues(series, nonNumeric, methodName) {
+  const output = [];
+
+  for (let idx = 0; idx < series.len(); idx++) {
+    const value = series.array[idx];
+    const numeric = astSeriesNormalizeFiniteNumber(value);
+
+    if (numeric == null) {
+      if (nonNumeric === 'error' && !astSeriesIsMissingValue(value)) {
+        throw new Error(`Series.${methodName} encountered non-numeric value at position ${idx}`);
+      }
+      continue;
+    }
+
+    output.push(numeric);
+  }
+
+  output.sort((left, right) => left - right);
+  return output;
+}
+
+function astSeriesNormalizeFiniteNumber(value) {
+  const numeric = normalizeValues(value);
+  if (typeof numeric !== 'number' || !Number.isFinite(numeric)) {
+    return null;
+  }
+  return numeric;
+}
+
+function astSeriesComputeQuantileValue(sortedValues, quantile, interpolation) {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) {
+    return null;
+  }
+
+  const lastIndex = sortedValues.length - 1;
+  const position = quantile * lastIndex;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const lower = sortedValues[lowerIndex];
+  const upper = sortedValues[upperIndex];
+
+  if (lowerIndex === upperIndex) {
+    return lower;
+  }
+
+  switch (interpolation) {
+    case 'lower':
+      return lower;
+    case 'higher':
+      return upper;
+    case 'nearest':
+      return (position - lowerIndex) <= (upperIndex - position) ? lower : upper;
+    case 'midpoint':
+      return (lower + upper) / 2;
+    case 'linear':
+    default: {
+      const weight = position - lowerIndex;
+      return lower + ((upper - lower) * weight);
+    }
+  }
 }
 
 function astSeriesResolveSampleIndexes(length, options = {}, methodName = 'sample') {
