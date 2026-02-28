@@ -238,6 +238,29 @@ test('DataFrame.join column-based join rejects suffix-expanded output name colli
   );
 });
 
+test('DataFrame.merge right join preserves coalesced key values for leftOn/rightOn rows from right', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { id: 1, left_value: 'L1' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { user_id: 1, right_value: 'R1' },
+    { user_id: 2, right_value: 'R2' }
+  ]);
+
+  const out = left.merge(right, 'right', {
+    leftOn: 'id',
+    rightOn: 'user_id'
+  });
+  const records = JSON.parse(JSON.stringify(out.toRecords()));
+  const rightOnlyRow = records.find(row => row.user_id === 2);
+
+  assert.ok(rightOnlyRow);
+  assert.equal(rightOnlyRow.id, 2);
+  assert.equal(rightOnlyRow.right_value, 'R2');
+});
+
 test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date values deterministically', () => {
   const context = createContext();
 

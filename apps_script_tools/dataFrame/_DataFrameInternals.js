@@ -505,7 +505,8 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     rightOn = null,
     suffixes = ['_x', '_y'],
     validate = null,
-    methodName = 'merge'
+    methodName = 'merge',
+    joinKeyMode = 'left_preferred'
   } = options;
 
   if (!Array.isArray(suffixes) || suffixes.length !== 2) {
@@ -536,11 +537,26 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     rightColumnMap[rightColumns[idx]] = rightDf.data[rightColumns[idx]].array;
   }
 
-  const joinColumnPairs = __astResolveJoinColumnPairs(how, leftKeys, rightKeys);
-  const joinColumnNames = new Set(joinColumnPairs.map(pair => pair.name));
-  const overlapColumns = leftColumns.filter(col => !joinColumnNames.has(col) && rightColumns.includes(col));
-  const leftOnlyColumns = leftColumns.filter(col => !joinColumnNames.has(col) && !rightColumns.includes(col));
-  const rightOnlyColumns = rightColumns.filter(col => !joinColumnNames.has(col) && !leftColumns.includes(col));
+  const joinColumnPairs = __astResolveJoinColumnPairs(how, leftKeys, rightKeys, joinKeyMode);
+  const consumedLeftJoinColumns = new Set(joinColumnPairs.map(pair => pair.left));
+  const consumedRightJoinColumns = new Set(
+    joinColumnPairs
+      .filter(pair => pair.consumeRightColumn === true)
+      .map(pair => pair.right)
+  );
+
+  const overlapColumns = leftColumns.filter(col => {
+    if (!rightColumns.includes(col)) {
+      return false;
+    }
+    return !(consumedLeftJoinColumns.has(col) && consumedRightJoinColumns.has(col));
+  });
+  const leftOnlyColumns = leftColumns.filter(
+    col => !rightColumns.includes(col) && !consumedLeftJoinColumns.has(col)
+  );
+  const rightOnlyColumns = rightColumns.filter(
+    col => !leftColumns.includes(col) && !consumedRightJoinColumns.has(col)
+  );
 
   const leftJoinColumns = leftKeys.map(key => leftColumnMap[key] || null);
   const rightJoinColumns = rightKeys.map(key => rightColumnMap[key] || null);
@@ -665,9 +681,13 @@ function __astInitializeMergeOutputColumn(outputColumns, outputName, rowCount, m
   outputColumns[outputName] = new Array(rowCount);
 }
 
-function __astResolveJoinColumnPairs(how, leftKeys, rightKeys) {
+function __astResolveJoinColumnPairs(how, leftKeys, rightKeys, joinKeyMode = 'left_preferred') {
   if (how === 'cross') {
     return [];
+  }
+
+  if (joinKeyMode !== 'left_preferred' && joinKeyMode !== 'shared_only') {
+    throw new Error(`Unsupported joinKeyMode: ${joinKeyMode}`);
   }
 
   const pairs = [];
@@ -676,7 +696,15 @@ function __astResolveJoinColumnPairs(how, leftKeys, rightKeys) {
       pairs.push({
         name: leftKeys[idx],
         left: leftKeys[idx],
-        right: rightKeys[idx]
+        right: rightKeys[idx],
+        consumeRightColumn: true
+      });
+    } else if (joinKeyMode === 'left_preferred') {
+      pairs.push({
+        name: leftKeys[idx],
+        left: leftKeys[idx],
+        right: rightKeys[idx],
+        consumeRightColumn: false
       });
     }
   }

@@ -279,6 +279,33 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.merge() right join should preserve coalesced key values for leftOn/rightOn rows from right',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { id: 1, left_value: 'L1' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { user_id: 1, right_value: 'R1' },
+        { user_id: 2, right_value: 'R2' }
+      ]);
+
+      const out = left.merge(right, 'right', {
+        leftOn: 'id',
+        rightOn: 'user_id'
+      });
+      const records = out.toRecords();
+      const rightOnlyRow = records.find(row => row.user_id === 2);
+
+      if (!rightOnlyRow) {
+        throw new Error(`Expected right-only row for user_id=2, got: ${JSON.stringify(records)}`);
+      }
+
+      if (rightOnlyRow.id !== 2 || rightOnlyRow.right_value !== 'R2') {
+        throw new Error(`Unexpected coalesced merge row: ${JSON.stringify(rightOnlyRow)}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.pivotTable() min aggregation should prefer valid Date over Invalid Date',
     test: () => {
       const df = DataFrame.fromRecords([

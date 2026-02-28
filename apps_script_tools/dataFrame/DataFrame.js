@@ -1177,7 +1177,8 @@ var DataFrame = class DataFrame {
 
     return __astMergeDataFramesColumnar(this, other, how, {
       ...options,
-      methodName: 'merge'
+      methodName: 'merge',
+      joinKeyMode: 'left_preferred'
     });
   }
 
@@ -1200,7 +1201,8 @@ var DataFrame = class DataFrame {
     const mergeOptions = {
       suffixes: [normalized.lsuffix, normalized.rsuffix],
       validate: normalized.validate,
-      methodName: 'join'
+      methodName: 'join',
+      joinKeyMode: 'shared_only'
     };
 
     if (normalized.useIndexJoin) {
