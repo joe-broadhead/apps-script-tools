@@ -26,7 +26,11 @@ npm run test:perf:check
 | `DataFrame.sort` (single numeric key) | <= 1800 ms |
 | `DataFrame.dropDuplicates` (subset keys) | <= 1600 ms |
 | `DataFrame.merge` (inner, 100k x 100k) | <= 2600 ms |
+| `DataFrame.join` (inner, on key, 100k x 100k) | <= 3000 ms |
 | `DataFrame.groupBy().agg()` | <= 900 ms |
+| `DataFrame.sample` (`n=1000`, 100k rows) | <= 900 ms |
+| `DataFrame.apply` (rows axis, 20k rows) | <= 2600 ms |
+| `DataFrame.pivotTable` (sum, 50k rows) | <= 1800 ms |
 | `DataFrame.toRecords` (100k x 10) | <= 1400 ms |
 | `Series.multiply` (100k) | <= 120 ms |
 

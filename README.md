@@ -76,6 +76,7 @@ function demoAstLibrary() {
 - Quick Start: <https://joe-broadhead.github.io/apps-script-tools/getting-started/quickstart/>
 - API Quick Reference: <https://joe-broadhead.github.io/apps-script-tools/api/quick-reference/>
 - Tools index: <https://joe-broadhead.github.io/apps-script-tools/api/tools/>
+- Pandas compatibility matrix: <https://joe-broadhead.github.io/apps-script-tools/api/pandas-compatibility-matrix/>
 
 Module quickstarts:
 
