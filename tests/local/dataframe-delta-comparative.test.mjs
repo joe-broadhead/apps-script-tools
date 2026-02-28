@@ -38,7 +38,10 @@ test('Series.diff and Series.pctChange cover periods, mixed values, and zero div
 
   const zeroBase = new context.Series([0, 5, 10], 'zero');
   assert.equal(JSON.stringify(zeroBase.pctChange(1).array), JSON.stringify([null, null, 1]));
-  assert.equal(JSON.stringify(zeroBase.pctChange(1, { zeroDivision: 'infinity' }).array), JSON.stringify([null, Infinity, 1]));
+  const zeroBaseInfinity = zeroBase.pctChange(1, { zeroDivision: 'infinity' }).array;
+  assert.equal(zeroBaseInfinity[0], null);
+  assert.equal(zeroBaseInfinity[1], Infinity);
+  assert.equal(zeroBaseInfinity[2], 1);
   assert.throws(() => zeroBase.pctChange(1, { zeroDivision: 'error' }), /division by zero/);
 
   const mixed = new context.Series([10, 'x', 20], 'mixed');
