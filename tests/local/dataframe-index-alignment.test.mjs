@@ -92,6 +92,10 @@ test('Series.align supports inner/outer/left/right joins with disjoint labels', 
   const dupAligned = dupLeft.align(dupRight, { join: 'left', fillValue: null });
   assertJsonEqual(dupAligned.left.array, [1, 2]);
   assertJsonEqual(dupAligned.right.array, [10, 20]);
+
+  const uniqueRight = new context.Series([99], 'unique-right', null, ['dup']);
+  const dupAgainstUnique = dupLeft.align(uniqueRight, { join: 'left', fillValue: null });
+  assertJsonEqual(dupAgainstUnique.right.array, [99, 99]);
 });
 
 test('DataFrame.setIndex supports single and multi-column keys with integrity checks', () => {
@@ -198,6 +202,18 @@ test('DataFrame.reindex enforces strict unknown-label handling and supports fill
   assertJsonEqual(duplicateReindexed.toRecords(), [
     { a: 1, b: 10 },
     { a: 2, b: 20 }
+  ]);
+
+  const uniqueFrame = context.DataFrame.fromRecords([{ a: 7, b: 70 }]);
+  uniqueFrame.index = ['row'];
+  const uniqueReindexed = uniqueFrame.reindex({
+    index: ['row', 'row'],
+    allowMissingLabels: true,
+    fillValue: null
+  });
+  assertJsonEqual(uniqueReindexed.toRecords(), [
+    { a: 7, b: 70 },
+    { a: 7, b: 70 }
   ]);
 
   const duplicateIndex = context.DataFrame.fromRecords([

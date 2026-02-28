@@ -1873,11 +1873,11 @@ function __astTakeNextDataFrameIndexPosition(lookup, state, label) {
     }
 
     const cursorState = bucketState[idx];
-    if (cursorState.cursor >= entry.positions.length) {
+    if (entry.positions.length === 0) {
       return -1;
     }
 
-    const position = entry.positions[cursorState.cursor];
+    const position = entry.positions[cursorState.cursor % entry.positions.length];
     cursorState.cursor += 1;
     return position;
   }
