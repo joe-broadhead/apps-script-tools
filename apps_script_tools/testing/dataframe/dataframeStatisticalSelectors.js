@@ -69,5 +69,30 @@ DATAFRAME_STATISTICAL_SELECTORS_TESTS = [
         }
       }
     }
+  },
+  {
+    description: 'DataFrame.quantile()/describe() return empty frames when no numeric columns are eligible',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { label: 'a' },
+        { label: 'b' }
+      ]);
+
+      const q = df.quantile([0.25, 0.5, 0.75]);
+      const d = df.describe();
+
+      if (JSON.stringify(q.columns) !== JSON.stringify([])) {
+        throw new Error(`Expected empty quantile columns, got ${JSON.stringify(q.columns)}`);
+      }
+      if (JSON.stringify(q.toRecords()) !== JSON.stringify([])) {
+        throw new Error(`Expected empty quantile records, got ${JSON.stringify(q.toRecords())}`);
+      }
+      if (JSON.stringify(d.columns) !== JSON.stringify([])) {
+        throw new Error(`Expected empty describe columns, got ${JSON.stringify(d.columns)}`);
+      }
+      if (JSON.stringify(d.toRecords()) !== JSON.stringify([])) {
+        throw new Error(`Expected empty describe records, got ${JSON.stringify(d.toRecords())}`);
+      }
+    }
   }
 ];

@@ -1684,6 +1684,10 @@ var DataFrame = class DataFrame {
     const targetColumns = __astResolveDataFrameNumericColumns(this, normalized.columns, normalized.numericOnly);
 
     if (normalized.quantiles.length === 1) {
+      if (targetColumns.length === 0) {
+        return new Series([], `quantile_${normalized.quantiles[0]}`, null, [], { skipTypeCoercion: true });
+      }
+
       const output = new Array(targetColumns.length);
       for (let idx = 0; idx < targetColumns.length; idx++) {
         const column = targetColumns[idx];
@@ -1694,6 +1698,10 @@ var DataFrame = class DataFrame {
       }
 
       return new Series(output, `quantile_${normalized.quantiles[0]}`, null, [...targetColumns], { skipTypeCoercion: true });
+    }
+
+    if (targetColumns.length === 0) {
+      return DataFrame.fromColumns({});
     }
 
     const outputColumns = {};
@@ -1732,9 +1740,7 @@ var DataFrame = class DataFrame {
     const statsIndex = __astBuildDataFrameDescribeIndex(normalized.percentiles);
 
     if (targetColumns.length === 0) {
-      return DataFrame.fromColumns({}, {
-        index: statsIndex
-      });
+      return DataFrame.fromColumns({});
     }
 
     const outputColumns = {};
@@ -1770,6 +1776,8 @@ var DataFrame = class DataFrame {
         }
 
         values[statsIndex.length - 1] = numericValues[numericValues.length - 1];
+      } else {
+        values[0] = 0;
       }
 
       outputColumns[column] = values;

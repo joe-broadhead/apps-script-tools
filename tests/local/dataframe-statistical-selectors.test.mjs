@@ -107,3 +107,20 @@ test('DataFrame statistical selectors validate inputs strictly', () => {
     /requires at least one column/
   );
 });
+
+test('DataFrame quantile/describe return empty DataFrame when no numeric columns are eligible', () => {
+  const context = createContext();
+  const df = context.DataFrame.fromRecords([
+    { label: 'a' },
+    { label: 'b' }
+  ]);
+
+  const q = df.quantile([0.25, 0.5, 0.75]);
+  const d = df.describe();
+
+  assert.equal(JSON.stringify(q.columns), JSON.stringify([]));
+  assert.equal(JSON.stringify(q.toRecords()), JSON.stringify([]));
+
+  assert.equal(JSON.stringify(d.columns), JSON.stringify([]));
+  assert.equal(JSON.stringify(d.toRecords()), JSON.stringify([]));
+});

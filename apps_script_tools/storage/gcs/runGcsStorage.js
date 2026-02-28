@@ -1,5 +1,5 @@
 function astGcsEncodeObjectKey(key) {
-  return encodeURIComponent(String(key || '')).replace(/%2F/g, '%2F');
+  return encodeURIComponent(String(key || ''));
 }
 
 function astGcsBuildMetadataUrl(bucket, key) {
