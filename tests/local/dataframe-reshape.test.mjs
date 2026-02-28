@@ -126,6 +126,19 @@ test('DataFrame.melt defaults valueVars to non-id columns and preserves sparse v
   assert.equal(records[2].value, null);
 });
 
+test('DataFrame.melt rejects varName collisions with idVars', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { variable: 'keep', one: 1 }
+  ]);
+
+  assert.throws(
+    () => df.melt({ idVars: 'variable' }),
+    /conflict on 'variable'/
+  );
+});
+
 test('DataFrame.explode preserves non-target columns and index semantics', () => {
   const context = createContext();
 
@@ -236,4 +249,44 @@ test('DataFrame.pivotTable supports no index columns (global aggregation)', () =
   assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([
     { string_q1_sales: 15, string_q2_sales: 2 }
   ]));
+});
+
+test('DataFrame.pivotTable returns zero rows for empty inputs when index columns are provided', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromColumns({
+    region: [],
+    quarter: [],
+    sales: []
+  });
+
+  const out = df.pivotTable({
+    index: 'region',
+    columns: 'quarter',
+    values: 'sales',
+    aggFunc: 'sum',
+    fillValue: 0
+  });
+
+  assert.equal(out.len(), 0);
+  assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([]));
+});
+
+test('DataFrame.pivotTable rejects duplicate output column names after normalization', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { region: 'EU', quarter: 'A-B', sales: 10 },
+    { region: 'EU', quarter: 'A_B', sales: 20 }
+  ]);
+
+  assert.throws(
+    () => df.pivotTable({
+      index: 'region',
+      columns: 'quarter',
+      values: 'sales',
+      aggFunc: 'sum'
+    }),
+    /duplicate output column name/
+  );
 });

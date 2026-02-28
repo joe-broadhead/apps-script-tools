@@ -1374,7 +1374,7 @@ var DataFrame = class DataFrame {
       }
     }
 
-    if (indexEntries.length === 0) {
+    if (indexEntries.length === 0 && normalized.index.length === 0) {
       indexEntries.push({ key: __astEncodeDataFrameIndexTuple([]), values: [] });
     }
 
@@ -1389,6 +1389,11 @@ var DataFrame = class DataFrame {
       for (let valueIdx = 0; valueIdx < normalized.values.length; valueIdx++) {
         const valueColumn = normalized.values[valueIdx];
         const outputName = __astBuildDataFramePivotTableOutputColumnName(pivotEntry.key, valueColumn);
+        if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+          throw new Error(
+            `DataFrame.pivotTable produced duplicate output column name '${outputName}' after normalization`
+          );
+        }
         outputColumnSpecs.push({
           outputName,
           pivotKey: pivotEntry.key,
@@ -2286,6 +2291,9 @@ function __astNormalizeDataFrameMeltOptions(dataframe, options, methodName) {
   }
 
   const reserved = new Set(idVars);
+  if (reserved.has(varName)) {
+    throw new Error(`DataFrame.${methodName} output column names must be unique (conflict on '${varName}')`);
+  }
   reserved.add(varName);
   if (reserved.has(valueName)) {
     throw new Error(`DataFrame.${methodName} output column names must be unique (conflict on '${valueName}')`);

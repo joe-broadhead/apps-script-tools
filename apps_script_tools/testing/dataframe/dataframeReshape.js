@@ -85,6 +85,25 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.melt() should reject varName collisions with idVars',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { variable: 'keep', one: 1 }
+      ]);
+
+      let threw = false;
+      try {
+        df.melt({ idVars: 'variable' });
+      } catch (error) {
+        threw = /conflict on 'variable'/.test(error.message);
+      }
+
+      if (!threw) {
+        throw new Error('Expected varName/idVars collision error');
+      }
+    }
+  },
+  {
     description: 'DataFrame.explode() should expand arrays and preserve empty/null semantics',
     test: () => {
       const df = DataFrame.fromRecords([
@@ -153,6 +172,52 @@ DATAFRAME_RESHAPE_TESTS = [
         { region: 'EU', string_q1_sales: 20, string_q1_units: 2 }
       ])) {
         throw new Error(`Unexpected pivotTable agg map output: ${JSON.stringify(out.toRecords())}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.pivotTable() should return empty result for indexed empty input',
+    test: () => {
+      const df = DataFrame.fromColumns({
+        region: [],
+        quarter: [],
+        sales: []
+      });
+
+      const out = df.pivotTable({
+        index: 'region',
+        columns: 'quarter',
+        values: 'sales',
+        aggFunc: 'sum'
+      });
+
+      if (out.len() !== 0) {
+        throw new Error(`Expected empty result, got len=${out.len()}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.pivotTable() should reject duplicate output names after normalization',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { region: 'EU', quarter: 'A-B', sales: 10 },
+        { region: 'EU', quarter: 'A_B', sales: 20 }
+      ]);
+
+      let threw = false;
+      try {
+        df.pivotTable({
+          index: 'region',
+          columns: 'quarter',
+          values: 'sales',
+          aggFunc: 'sum'
+        });
+      } catch (error) {
+        threw = /duplicate output column name/.test(error.message);
+      }
+
+      if (!threw) {
+        throw new Error('Expected duplicate pivot output column name error');
       }
     }
   }
