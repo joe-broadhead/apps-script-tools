@@ -195,6 +195,65 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.join() should reject identical suffixes for leftOn/rightOn overlap cases',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { id: 1, left_value: 'L1' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { user_id: 1, id: 'RID1', right_value: 'R1' }
+      ]);
+
+      let threw = false;
+      try {
+        left.join(right, {
+          how: 'inner',
+          leftOn: 'id',
+          rightOn: 'user_id',
+          lsuffix: '_dup',
+          rsuffix: '_dup'
+        });
+      } catch (error) {
+        threw = /requires different lsuffix\/rsuffix/.test(error.message);
+      }
+
+      if (!threw) {
+        throw new Error('Expected identical suffix collision error for leftOn/rightOn overlap');
+      }
+    }
+  },
+  {
+    description: 'DataFrame.pivotTable() min aggregation should prefer valid Date over Invalid Date',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { group: 'g1', bucket: 'b1', event_date: new Date('invalid') },
+        { group: 'g1', bucket: 'b1', event_date: new Date('2024-01-01T00:00:00Z') }
+      ]);
+
+      const out = df.pivotTable({
+        index: ['group'],
+        columns: 'bucket',
+        values: ['event_date'],
+        aggFunc: 'min'
+      });
+
+      const valueColumn = out.columns.find(column => column !== 'group');
+      const minValue = out.toRecords()[0][valueColumn];
+
+      if (!(minValue instanceof Date)) {
+        throw new Error(`Expected Date output for pivot min, got ${String(minValue)}`);
+      }
+
+      if (Number.isNaN(minValue.getTime())) {
+        throw new Error('Expected valid Date for pivot min with mixed valid/invalid Date values');
+      }
+
+      if (minValue.toISOString() !== '2024-01-01T00:00:00.000Z') {
+        throw new Error(`Unexpected pivot min date: ${minValue.toISOString()}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.melt() should unpivot with custom var/value names',
     test: () => {
       const df = DataFrame.fromRecords([

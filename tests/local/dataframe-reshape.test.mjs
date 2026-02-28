@@ -172,6 +172,51 @@ test('DataFrame.join preserves right-side overlaps when using leftOn/rightOn key
   ]);
 });
 
+test('DataFrame.join validates identical suffixes for leftOn/rightOn overlap cases', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { id: 1, left_value: 'L1' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { user_id: 1, id: 'RID1', right_value: 'R1' }
+  ]);
+
+  assert.throws(
+    () => left.join(right, {
+      how: 'inner',
+      leftOn: 'id',
+      rightOn: 'user_id',
+      lsuffix: '_dup',
+      rsuffix: '_dup'
+    }),
+    /requires different lsuffix\/rsuffix/
+  );
+});
+
+test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date values deterministically', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { group: 'g1', bucket: 'b1', event_date: new Date('invalid') },
+    { group: 'g1', bucket: 'b1', event_date: new Date('2024-01-01T00:00:00Z') }
+  ]);
+
+  const out = df.pivotTable({
+    index: ['group'],
+    columns: 'bucket',
+    values: ['event_date'],
+    aggFunc: 'min'
+  });
+
+  const valueColumn = out.columns.find(column => column !== 'group');
+  const minValue = out.toRecords()[0][valueColumn];
+
+  assert.equal(minValue instanceof Date, true);
+  assert.equal(Number.isNaN(minValue.getTime()), false);
+  assert.equal(minValue.toISOString(), '2024-01-01T00:00:00.000Z');
+});
+
 test('DataFrame.melt supports idVars/valueVars and can retain source index as a column', () => {
   const context = createContext();
 

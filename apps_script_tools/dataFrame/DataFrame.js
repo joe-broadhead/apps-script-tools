@@ -2180,8 +2180,10 @@ function __astNormalizeDataFrameJoinOptions(leftDf, rightDf, options, methodName
     useIndexJoin = how !== 'cross';
   }
 
-  const joinColumns = on.length > 0 ? on : leftOn;
-  const overlap = leftDf.columns.filter(column => !joinColumns.includes(column) && rightDf.columns.includes(column));
+  const reservedJoinColumns = __astResolveDataFrameJoinReservedColumns(on, leftOn, rightOn);
+  const overlap = leftDf.columns.filter(
+    column => !reservedJoinColumns.has(column) && rightDf.columns.includes(column)
+  );
   if (overlap.length > 0 && lsuffix === rsuffix) {
     throw new Error(`DataFrame.${methodName} requires different lsuffix/rsuffix when overlapping columns exist`);
   }
@@ -2205,6 +2207,22 @@ function __astDataFrameHasDefinedJoinOption(source, optionName) {
 
   const value = source[optionName];
   return value !== undefined && value !== null;
+}
+
+function __astResolveDataFrameJoinReservedColumns(on, leftOn, rightOn) {
+  if (Array.isArray(on) && on.length > 0) {
+    return new Set(on);
+  }
+
+  const reserved = new Set();
+  const pairCount = Math.min(leftOn.length, rightOn.length);
+  for (let idx = 0; idx < pairCount; idx++) {
+    if (leftOn[idx] === rightOn[idx]) {
+      reserved.add(leftOn[idx]);
+    }
+  }
+
+  return reserved;
 }
 
 function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
@@ -2676,6 +2694,12 @@ function __astCompareDataFramePivotValue(left, right) {
     const rightTime = right.getTime();
     if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
       return 0;
+    }
+    if (Number.isNaN(leftTime)) {
+      return 1;
+    }
+    if (Number.isNaN(rightTime)) {
+      return -1;
     }
     return leftTime < rightTime ? -1 : 1;
   }
