@@ -622,11 +622,11 @@ var Series = class Series {
 
   /**
    * @function fillNulls
-   * @description Replaces `null` or `undefined` values in the `Series` with a specified value. Returns a new `Series` instance
+   * @description Replaces missing values (`null`, `undefined`, `NaN`) in the `Series` with a specified value. Returns a new `Series` instance
    *              with the modified data.
    * @memberof Series
-   * @param {*} fillValue - The value to replace `null` or `undefined` values with.
-   * @returns {Series} A new `Series` instance where all `null` or `undefined` values have been replaced with `fillValue`.
+   * @param {*} fillValue - The value to replace missing values with.
+   * @returns {Series} A new `Series` instance where all missing values have been replaced with `fillValue`.
    * @example
    * // Filling null and undefined values in a Series
    * const series = new Series([1, null, 2, undefined, 3], "numbers");
@@ -639,7 +639,117 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new `Series` instance is created with the transformed data.
    */
   fillNulls(fillValue) {
-    return this.apply(value => (value === null || value === undefined ? fillValue : value));
+    return this.where((series, value) => !astSeriesIsMissingValue(value), fillValue);
+  }
+
+  /**
+   * Drop rows where values are missing (`null`, `undefined`, `NaN`).
+   *
+   * @param {Object} [options={}]
+   * @param {'any'|'all'} [options.how='any']
+   * @param {number} [options.thresh]
+   * @returns {Series}
+   */
+  dropNulls(options = {}) {
+    const normalized = astSeriesNormalizeDropNullOptions(options, 'dropNulls');
+    const keepIndexes = [];
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const nonMissingCount = astSeriesIsMissingValue(this.array[idx]) ? 0 : 1;
+
+      if (normalized.thresh != null) {
+        if (nonMissingCount >= normalized.thresh) {
+          keepIndexes.push(idx);
+        }
+        continue;
+      }
+
+      if (normalized.how === 'all') {
+        if (nonMissingCount > 0) {
+          keepIndexes.push(idx);
+        }
+      } else if (nonMissingCount === 1) {
+        keepIndexes.push(idx);
+      }
+    }
+
+    return this.take(keepIndexes);
+  }
+
+  /**
+   * Replace matching values in the Series.
+   *
+   * Supported forms:
+   * - `replace(oldValue, newValue)`
+   * - `replace([oldA, oldB], newValue)`
+   * - `replace(mappingObject)` where keys are stringified values
+   * - `replace(mappingMap)` where keys are matched with `Object.is`
+   *
+   * @param {*} toReplace
+   * @param {*} value
+   * @param {Object} [options={}]
+   * @returns {Series}
+   */
+  replace(toReplace, value, options = {}) {
+    astSeriesValidateReplaceOptions(options, 'replace');
+    const hasReplacementValue = arguments.length >= 2;
+    let replaced;
+
+    if (!hasReplacementValue && astSeriesIsMapLike(toReplace)) {
+      replaced = this.array.map(current => astSeriesReplaceFromMap(current, toReplace));
+      return astSeriesBuildLike(this, replaced);
+    }
+
+    if (!hasReplacementValue && astSeriesIsPlainObject(toReplace)) {
+      replaced = this.array.map(current => astSeriesReplaceFromObjectMap(current, toReplace));
+      return astSeriesBuildLike(this, replaced);
+    }
+
+    if (!hasReplacementValue) {
+      throw new Error('Series.replace requires a replacement value unless map mode is used');
+    }
+
+    const targets = astSeriesNormalizeReplaceTargets(toReplace, 'replace');
+    replaced = this.array.map(current => (astSeriesValueMatchesAny(current, targets) ? value : current));
+    return astSeriesBuildLike(this, replaced);
+  }
+
+  /**
+   * Keep original values where `condition` is true; otherwise use `other`.
+   *
+   * @param {Function|Series|boolean[]} condition
+   * @param {*} [other=null]
+   * @returns {Series}
+   */
+  where(condition, other = null) {
+    const mask = astSeriesResolveConditionMask(this, condition, 'where');
+    const otherValues = astSeriesResolveOtherValues(this, other, 'where');
+    const output = new Array(this.len());
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      output[idx] = mask[idx] ? this.array[idx] : otherValues[idx];
+    }
+
+    return astSeriesBuildLike(this, output);
+  }
+
+  /**
+   * Replace values where `condition` is true; keep original values where false.
+   *
+   * @param {Function|Series|boolean[]} condition
+   * @param {*} [other=null]
+   * @returns {Series}
+   */
+  mask(condition, other = null) {
+    const mask = astSeriesResolveConditionMask(this, condition, 'mask');
+    const otherValues = astSeriesResolveOtherValues(this, other, 'mask');
+    const output = new Array(this.len());
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      output[idx] = mask[idx] ? otherValues[idx] : this.array[idx];
+    }
+
+    return astSeriesBuildLike(this, output);
   }
 
   /**
@@ -1839,7 +1949,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   isNull() {
-    return this.apply(value => value === null || value === undefined);
+    return this.apply(value => astSeriesIsMissingValue(value));
   }
 
   /**
@@ -1865,7 +1975,7 @@ var Series = class Series {
    * - Space Complexity: O(n), as a new array is created for the boolean results.
    */
   notNull() {
-    return this.apply(value => value !== null && value !== undefined);
+    return this.apply(value => !astSeriesIsMissingValue(value));
   }
 
   /**
@@ -2321,6 +2431,179 @@ var Series = class Series {
     return trie;
   }
 };
+
+function astSeriesBuildLike(series, values) {
+  return new Series(
+    values,
+    series.name,
+    null,
+    [...series.index],
+    {
+      useUTC: series.useUTC,
+      allowComplexValues: true
+    }
+  );
+}
+
+function astSeriesIsMissingValue(value) {
+  return value == null || (typeof value === 'number' && Number.isNaN(value));
+}
+
+function astSeriesIsPlainObject(value) {
+  return value != null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && !(value instanceof Date)
+    && !(value instanceof Series)
+    && !astSeriesIsMapLike(value);
+}
+
+function astSeriesIsMapLike(value) {
+  return value != null
+    && Object.prototype.toString.call(value) === '[object Map]'
+    && typeof value.entries === 'function';
+}
+
+function astSeriesNormalizeDropNullOptions(options, methodName) {
+  if (options == null) {
+    return { how: 'any', thresh: null };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const how = options.how == null ? 'any' : options.how;
+  if (!['any', 'all'].includes(how)) {
+    throw new Error(`Series.${methodName} option how must be 'any' or 'all'`);
+  }
+
+  let thresh = null;
+  if (options.thresh != null) {
+    if (!Number.isInteger(options.thresh) || options.thresh < 0) {
+      throw new Error(`Series.${methodName} option thresh must be a non-negative integer`);
+    }
+    thresh = options.thresh;
+  }
+
+  return { how, thresh };
+}
+
+function astSeriesValidateReplaceOptions(options, methodName) {
+  if (options == null) {
+    return;
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+}
+
+function astSeriesNormalizeReplaceTargets(toReplace, methodName) {
+  const source = toReplace instanceof Series
+    ? toReplace.array
+    : (Array.isArray(toReplace) ? toReplace : [toReplace]);
+
+  if (!Array.isArray(source) || source.length === 0) {
+    throw new Error(`Series.${methodName} requires at least one target value`);
+  }
+
+  return source;
+}
+
+function astSeriesValueMatchesAny(value, targets) {
+  for (let idx = 0; idx < targets.length; idx++) {
+    if (Object.is(value, targets[idx])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function astSeriesStringifyReplaceKey(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'number' && Number.isNaN(value)) return 'NaN';
+  return String(value);
+}
+
+function astSeriesReplaceFromMap(current, mapping) {
+  for (const [fromValue, toValue] of mapping.entries()) {
+    if (Object.is(current, fromValue)) {
+      return toValue;
+    }
+  }
+  return current;
+}
+
+function astSeriesReplaceFromObjectMap(current, mapping) {
+  const key = astSeriesStringifyReplaceKey(current);
+  return Object.prototype.hasOwnProperty.call(mapping, key)
+    ? mapping[key]
+    : current;
+}
+
+function astSeriesResolveConditionMask(series, condition, methodName) {
+  const length = series.len();
+  const mask = new Array(length);
+
+  if (typeof condition === 'function') {
+    for (let idx = 0; idx < length; idx++) {
+      const resolved = condition(series, series.array[idx], idx);
+      if (typeof resolved !== 'boolean') {
+        throw new Error(`Series.${methodName} condition function must return boolean values`);
+      }
+      mask[idx] = resolved;
+    }
+    return mask;
+  }
+
+  const source = condition instanceof Series ? condition.array : condition;
+  if (!Array.isArray(source)) {
+    throw new Error(`Series.${methodName} condition must be a function, Series, or boolean array`);
+  }
+
+  if (source.length !== length) {
+    throw new Error(`Series.${methodName} condition length must match Series length`);
+  }
+
+  for (let idx = 0; idx < length; idx++) {
+    if (typeof source[idx] !== 'boolean') {
+      throw new Error(`Series.${methodName} condition values must be boolean`);
+    }
+    mask[idx] = source[idx];
+  }
+
+  return mask;
+}
+
+function astSeriesResolveOtherValues(series, other, methodName) {
+  const length = series.len();
+
+  if (other instanceof Series) {
+    if (other.len() !== length) {
+      throw new Error(`Series.${methodName} other Series length must match Series length`);
+    }
+    return [...other.array];
+  }
+
+  if (Array.isArray(other)) {
+    if (other.length !== length) {
+      throw new Error(`Series.${methodName} other array length must match Series length`);
+    }
+    return [...other];
+  }
+
+  if (typeof other === 'function') {
+    const computed = new Array(length);
+    for (let idx = 0; idx < length; idx++) {
+      computed[idx] = other(series, series.array[idx], idx);
+    }
+    return computed;
+  }
+
+  return new Array(length).fill(other);
+}
 
 function astSeriesNormalizeHeadTailCount(value, methodName) {
   if (!Number.isInteger(value) || value < 0) {

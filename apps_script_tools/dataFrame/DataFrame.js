@@ -391,6 +391,152 @@ var DataFrame = class DataFrame {
     return new DataFrame(shallowData, [...this.index]);
   }
 
+  /**
+   * Drop rows or columns with missing values (`null`, `undefined`, `NaN`).
+   *
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|0|1|'index'} [options.axis='rows']
+   * @param {'any'|'all'} [options.how='any']
+   * @param {number} [options.thresh]
+   * @param {string|string[]} [options.subset]
+   * @returns {DataFrame}
+   */
+  dropNulls(options = {}) {
+    const normalized = __astNormalizeDataFrameDropNullOptions(this, options, 'dropNulls');
+    if (normalized.axis === 'rows') {
+      return __astDataFrameDropNullRows(this, normalized);
+    }
+
+    return __astDataFrameDropNullColumns(this, normalized);
+  }
+
+  /**
+   * Fill missing values (`null`, `undefined`, `NaN`).
+   *
+   * @param {*} values - Scalar fill value or per-column object map.
+   * @param {Object} [options={}]
+   * @param {string|string[]} [options.columns]
+   * @returns {DataFrame}
+   */
+  fillNulls(values, options = {}) {
+    const normalized = __astNormalizeDataFrameFillNullInputs(this, values, options, 'fillNulls');
+    const nextColumns = {};
+
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const column = this.columns[colIdx];
+      const source = this.data[column].array;
+      const output = new Array(source.length);
+
+      for (let rowIdx = 0; rowIdx < source.length; rowIdx++) {
+        const current = source[rowIdx];
+        if (!__astDataFrameIsMissingValue(current) || !normalized.targetColumns.has(column)) {
+          output[rowIdx] = current;
+          continue;
+        }
+
+        if (normalized.mode === 'scalar') {
+          output[rowIdx] = normalized.scalar;
+          continue;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(normalized.map, column)) {
+          output[rowIdx] = normalized.map[column];
+        } else {
+          output[rowIdx] = current;
+        }
+      }
+
+      nextColumns[column] = output;
+    }
+
+    return DataFrame.fromColumns(nextColumns, {
+      copy: false,
+      index: [...this.index]
+    });
+  }
+
+  /**
+   * Replace matching values in the DataFrame.
+   *
+   * Supported forms:
+   * - `replace(oldValue, newValue, options)`
+   * - `replace([oldA, oldB], newValue, options)`
+   * - `replace(mappingObject, undefined, options)` (global map)
+   * - `replace(mappingMap, undefined, options)` (global map with `Object.is`)
+   * - `replace({ col: { from: to } }, undefined, options)` (per-column maps)
+   *
+   * @param {*} toReplace
+   * @param {*} value
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
+  replace(toReplace, value, options = {}) {
+    const hasReplacementValue = arguments.length >= 2;
+    const normalized = __astNormalizeDataFrameReplaceInputs(
+      this,
+      toReplace,
+      value,
+      options,
+      hasReplacementValue,
+      'replace'
+    );
+
+    const nextColumns = {};
+
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const column = this.columns[colIdx];
+      const source = this.data[column].array;
+
+      if (!normalized.targetColumns.has(column)) {
+        nextColumns[column] = [...source];
+        continue;
+      }
+
+      const resolver = normalized.columnResolvers[column] || normalized.defaultResolver;
+      if (typeof resolver !== 'function') {
+        nextColumns[column] = [...source];
+        continue;
+      }
+
+      const output = new Array(source.length);
+      for (let rowIdx = 0; rowIdx < source.length; rowIdx++) {
+        output[rowIdx] = resolver(source[rowIdx], rowIdx, column);
+      }
+      nextColumns[column] = output;
+    }
+
+    return DataFrame.fromColumns(nextColumns, {
+      copy: false,
+      index: [...this.index]
+    });
+  }
+
+  /**
+   * Keep original values where condition is true; replace where false.
+   *
+   * @param {Function|Series|boolean[]|DataFrame} condition
+   * @param {*} [other=null]
+   * @returns {DataFrame}
+   */
+  where(condition, other = null) {
+    const predicate = __astResolveDataFrameConditionPredicate(this, condition, 'where');
+    const otherResolver = __astResolveDataFrameOtherResolver(this, other, 'where');
+    return __astApplyDataFrameConditional(this, predicate, otherResolver, false);
+  }
+
+  /**
+   * Replace values where condition is true; keep original where false.
+   *
+   * @param {Function|Series|boolean[]|DataFrame} condition
+   * @param {*} [other=null]
+   * @returns {DataFrame}
+   */
+  mask(condition, other = null) {
+    const predicate = __astResolveDataFrameConditionPredicate(this, condition, 'mask');
+    const otherResolver = __astResolveDataFrameOtherResolver(this, other, 'mask');
+    return __astApplyDataFrameConditional(this, predicate, otherResolver, true);
+  }
+
   rename(names) {
     const renamed = Object.entries(this.data).reduce((acc, [key, value]) => {
       if (Object.prototype.hasOwnProperty.call(names, key)) {
@@ -1246,6 +1392,461 @@ var DataFrame = class DataFrame {
     return DataFrame.fromColumns(columns, { copy: false, index: nextIndex, typeMap });
   }
 };
+
+function __astDataFrameIsPlainObject(value) {
+  return value != null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && !(value instanceof Date)
+    && !__astDataFrameIsMapLike(value)
+    && !(value instanceof Series)
+    && !(value instanceof DataFrame);
+}
+
+function __astDataFrameIsMapLike(value) {
+  return value != null
+    && Object.prototype.toString.call(value) === '[object Map]'
+    && typeof value.entries === 'function';
+}
+
+function __astDataFrameIsMissingValue(value) {
+  return value == null || (typeof value === 'number' && Number.isNaN(value));
+}
+
+function __astNormalizeDataFrameAxis(axis, methodName) {
+  if (axis === undefined || axis === null || axis === 'rows' || axis === 'row' || axis === 'index' || axis === 0 || axis === '0') {
+    return 'rows';
+  }
+
+  if (axis === 'columns' || axis === 'column' || axis === 'cols' || axis === 1 || axis === '1') {
+    return 'columns';
+  }
+
+  throw new Error(`DataFrame.${methodName} option axis must be one of rows|columns|0|1|index`);
+}
+
+function __astNormalizeDataFrameColumnList(dataframe, columns, optionName, methodName) {
+  if (columns === undefined || columns === null) {
+    return [...dataframe.columns];
+  }
+
+  const rawList = Array.isArray(columns) ? columns : [columns];
+  if (rawList.length === 0) {
+    return [];
+  }
+
+  const normalized = rawList.map((value, idx) => {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new Error(`DataFrame.${methodName} option ${optionName} must contain non-empty strings (invalid at index ${idx})`);
+    }
+    return value;
+  });
+
+  const unique = Array.from(new Set(normalized));
+  const missing = unique.filter(column => !dataframe.columns.includes(column));
+  if (missing.length > 0) {
+    throw new Error(`DataFrame.${methodName} option ${optionName} contains unknown columns: ${missing.join(', ')}`);
+  }
+
+  return unique;
+}
+
+function __astNormalizeDataFrameDropNullOptions(dataframe, options, methodName) {
+  if (options == null) {
+    return { axis: 'rows', how: 'any', thresh: null, subset: [...dataframe.columns] };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const axis = __astNormalizeDataFrameAxis(options.axis, methodName);
+  const how = options.how == null ? 'any' : options.how;
+  if (!['any', 'all'].includes(how)) {
+    throw new Error(`DataFrame.${methodName} option how must be 'any' or 'all'`);
+  }
+
+  let thresh = null;
+  if (options.thresh != null) {
+    if (!Number.isInteger(options.thresh) || options.thresh < 0) {
+      throw new Error(`DataFrame.${methodName} option thresh must be a non-negative integer`);
+    }
+    thresh = options.thresh;
+  }
+
+  const subset = __astNormalizeDataFrameColumnList(dataframe, options.subset, 'subset', methodName);
+  if (axis === 'columns' && options.subset != null) {
+    throw new Error(`DataFrame.${methodName} option subset is only supported when axis='rows'`);
+  }
+
+  return { axis, how, thresh, subset };
+}
+
+function __astDataFrameDropNullRows(dataframe, options) {
+  const candidateColumns = options.subset;
+  const keepRows = [];
+
+  if (candidateColumns.length === 0) {
+    if (options.thresh != null && options.thresh > 0) {
+      return dataframe.take([]);
+    }
+    return __astCloneDataFrame(dataframe);
+  }
+
+  for (let rowIdx = 0; rowIdx < dataframe.len(); rowIdx++) {
+    let nonMissingCount = 0;
+
+    for (let colIdx = 0; colIdx < candidateColumns.length; colIdx++) {
+      const column = candidateColumns[colIdx];
+      if (!__astDataFrameIsMissingValue(dataframe.data[column].array[rowIdx])) {
+        nonMissingCount += 1;
+      }
+    }
+
+    if (options.thresh != null) {
+      if (nonMissingCount >= options.thresh) {
+        keepRows.push(rowIdx);
+      }
+      continue;
+    }
+
+    if (options.how === 'all') {
+      if (nonMissingCount > 0) {
+        keepRows.push(rowIdx);
+      }
+    } else if (nonMissingCount === candidateColumns.length) {
+      keepRows.push(rowIdx);
+    }
+  }
+
+  return dataframe.take(keepRows, { preserveIndex: true });
+}
+
+function __astDataFrameDropNullColumns(dataframe, options) {
+  if (dataframe.len() === 0 && options.thresh == null) {
+    return __astCloneDataFrame(dataframe);
+  }
+
+  const keepColumns = [];
+  for (let colIdx = 0; colIdx < dataframe.columns.length; colIdx++) {
+    const column = dataframe.columns[colIdx];
+    const values = dataframe.data[column].array;
+    let nonMissingCount = 0;
+
+    for (let rowIdx = 0; rowIdx < values.length; rowIdx++) {
+      if (!__astDataFrameIsMissingValue(values[rowIdx])) {
+        nonMissingCount += 1;
+      }
+    }
+
+    if (options.thresh != null) {
+      if (nonMissingCount >= options.thresh) {
+        keepColumns.push(column);
+      }
+      continue;
+    }
+
+    if (options.how === 'all') {
+      if (nonMissingCount > 0 || values.length === 0) {
+        keepColumns.push(column);
+      }
+    } else if (nonMissingCount === values.length) {
+      keepColumns.push(column);
+    }
+  }
+
+  return dataframe.select(keepColumns);
+}
+
+function __astNormalizeDataFrameFillNullInputs(dataframe, values, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const targetColumns = new Set(
+    __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+  );
+
+  if (__astDataFrameIsPlainObject(values)) {
+    const map = values;
+    const invalidColumns = Object.keys(map).filter(column => !dataframe.columns.includes(column));
+    if (invalidColumns.length > 0) {
+      throw new Error(`DataFrame.${methodName} values map contains unknown columns: ${invalidColumns.join(', ')}`);
+    }
+
+    return {
+      mode: 'map',
+      map,
+      targetColumns
+    };
+  }
+
+  return {
+    mode: 'scalar',
+    scalar: values,
+    targetColumns
+  };
+}
+
+function __astNormalizeDataFrameReplaceInputs(dataframe, toReplace, value, options, hasReplacementValue, methodName) {
+  if (options == null) {
+    options = {};
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const targetColumns = new Set(
+    __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName)
+  );
+
+  if (!hasReplacementValue && __astDataFrameIsMapLike(toReplace)) {
+    return {
+      targetColumns,
+      columnResolvers: {},
+      defaultResolver: current => __astDataFrameReplaceFromMap(current, toReplace)
+    };
+  }
+
+  if (!hasReplacementValue && __astDataFrameIsPlainObject(toReplace)) {
+    const keys = Object.keys(toReplace);
+    const isColumnMap = keys.length > 0
+      && keys.every(column => dataframe.columns.includes(column))
+      && keys.every(column => {
+        const spec = toReplace[column];
+        return __astDataFrameIsMapLike(spec) || __astDataFrameIsPlainObject(spec);
+      });
+
+    if (isColumnMap) {
+      const columnResolvers = {};
+      const scopedTargets = new Set();
+
+      for (let idx = 0; idx < keys.length; idx++) {
+        const column = keys[idx];
+        if (!targetColumns.has(column)) {
+          continue;
+        }
+
+        const mapping = toReplace[column];
+        columnResolvers[column] = __astDataFrameIsMapLike(mapping)
+          ? (current => __astDataFrameReplaceFromMap(current, mapping))
+          : (current => __astDataFrameReplaceFromObjectMap(current, mapping));
+        scopedTargets.add(column);
+      }
+
+      return {
+        targetColumns: scopedTargets,
+        columnResolvers,
+        defaultResolver: null
+      };
+    }
+
+    return {
+      targetColumns,
+      columnResolvers: {},
+      defaultResolver: current => __astDataFrameReplaceFromObjectMap(current, toReplace)
+    };
+  }
+
+  if (!hasReplacementValue) {
+    throw new Error(`DataFrame.${methodName} requires a replacement value unless map mode is used`);
+  }
+
+  const targets = __astNormalizeDataFrameReplaceTargets(toReplace, methodName);
+  return {
+    targetColumns,
+    columnResolvers: {},
+    defaultResolver: current => (__astDataFrameValueMatchesAny(current, targets) ? value : current)
+  };
+}
+
+function __astNormalizeDataFrameReplaceTargets(toReplace, methodName) {
+  const source = toReplace instanceof Series
+    ? toReplace.array
+    : (Array.isArray(toReplace) ? toReplace : [toReplace]);
+
+  if (!Array.isArray(source) || source.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one target value`);
+  }
+
+  return source;
+}
+
+function __astDataFrameValueMatchesAny(value, targets) {
+  for (let idx = 0; idx < targets.length; idx++) {
+    if (Object.is(value, targets[idx])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function __astStringifyDataFrameReplaceKey(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'number' && Number.isNaN(value)) return 'NaN';
+  return String(value);
+}
+
+function __astDataFrameReplaceFromMap(current, mapping) {
+  for (const [fromValue, toValue] of mapping.entries()) {
+    if (Object.is(current, fromValue)) {
+      return toValue;
+    }
+  }
+  return current;
+}
+
+function __astDataFrameReplaceFromObjectMap(current, mapping) {
+  const key = __astStringifyDataFrameReplaceKey(current);
+  return Object.prototype.hasOwnProperty.call(mapping, key)
+    ? mapping[key]
+    : current;
+}
+
+function __astResolveDataFrameConditionPredicate(dataframe, condition, methodName) {
+  if (typeof condition === 'function') {
+    const rowDecisions = new Array(dataframe.len());
+    const rowResolved = new Array(dataframe.len()).fill(false);
+
+    return function astDataFrameConditionFromFunction(rowIdx) {
+      if (!rowResolved[rowIdx]) {
+        const rowDecision = condition(dataframe.at(rowIdx), rowIdx, dataframe);
+        if (typeof rowDecision !== 'boolean') {
+          throw new Error(`DataFrame.${methodName} condition function must return boolean values`);
+        }
+        rowDecisions[rowIdx] = rowDecision;
+        rowResolved[rowIdx] = true;
+      }
+      return rowDecisions[rowIdx];
+    };
+  }
+
+  if (condition instanceof DataFrame) {
+    if (condition.len() !== dataframe.len()) {
+      throw new Error(`DataFrame.${methodName} condition DataFrame length must match base DataFrame length`);
+    }
+
+    const missingColumns = dataframe.columns.filter(column => !condition.columns.includes(column));
+    if (missingColumns.length > 0) {
+      throw new Error(`DataFrame.${methodName} condition DataFrame is missing columns: ${missingColumns.join(', ')}`);
+    }
+
+    return function astDataFrameConditionFromFrame(rowIdx, column) {
+      const current = condition.data[column].array[rowIdx];
+      if (typeof current !== 'boolean') {
+        throw new Error(`DataFrame.${methodName} condition DataFrame must contain only boolean values`);
+      }
+      return current;
+    };
+  }
+
+  const rowMask = __astNormalizeDataFrameRowMask(dataframe, condition, methodName);
+  return function astDataFrameConditionFromRowMask(rowIdx) {
+    return rowMask[rowIdx];
+  };
+}
+
+function __astNormalizeDataFrameRowMask(dataframe, condition, methodName) {
+  const source = condition instanceof Series ? condition.array : condition;
+  if (!Array.isArray(source)) {
+    throw new Error(`DataFrame.${methodName} condition must be a function, DataFrame, Series, or boolean array`);
+  }
+
+  if (source.length !== dataframe.len()) {
+    throw new Error(`DataFrame.${methodName} condition length must match DataFrame length`);
+  }
+
+  const output = new Array(source.length);
+  for (let idx = 0; idx < source.length; idx++) {
+    if (typeof source[idx] !== 'boolean') {
+      throw new Error(`DataFrame.${methodName} condition mask values must be boolean`);
+    }
+    output[idx] = source[idx];
+  }
+  return output;
+}
+
+function __astResolveDataFrameOtherResolver(dataframe, other, methodName) {
+  if (other instanceof DataFrame) {
+    if (other.len() !== dataframe.len()) {
+      throw new Error(`DataFrame.${methodName} other DataFrame length must match base DataFrame length`);
+    }
+
+    const missingColumns = dataframe.columns.filter(column => !other.columns.includes(column));
+    if (missingColumns.length > 0) {
+      throw new Error(`DataFrame.${methodName} other DataFrame is missing columns: ${missingColumns.join(', ')}`);
+    }
+
+    return function astDataFrameOtherFromFrame(rowIdx, column) {
+      return other.data[column].array[rowIdx];
+    };
+  }
+
+  if (other instanceof Series || Array.isArray(other)) {
+    const source = other instanceof Series ? other.array : other;
+    if (source.length !== dataframe.len()) {
+      throw new Error(`DataFrame.${methodName} other row array length must match DataFrame length`);
+    }
+
+    return function astDataFrameOtherFromRowArray(rowIdx) {
+      return source[rowIdx];
+    };
+  }
+
+  if (__astDataFrameIsPlainObject(other)) {
+    return function astDataFrameOtherFromMap(_rowIdx, column, current) {
+      if (Object.prototype.hasOwnProperty.call(other, column)) {
+        return other[column];
+      }
+      return current;
+    };
+  }
+
+  if (typeof other === 'function') {
+    return function astDataFrameOtherFromFunction(rowIdx, column, current) {
+      return other(current, rowIdx, column, dataframe.at(rowIdx), dataframe);
+    };
+  }
+
+  return function astDataFrameOtherScalar() {
+    return other;
+  };
+}
+
+function __astApplyDataFrameConditional(dataframe, predicate, otherResolver, invert) {
+  const nextColumns = {};
+
+  for (let colIdx = 0; colIdx < dataframe.columns.length; colIdx++) {
+    const column = dataframe.columns[colIdx];
+    const source = dataframe.data[column].array;
+    const output = new Array(source.length);
+
+    for (let rowIdx = 0; rowIdx < source.length; rowIdx++) {
+      const conditionResult = predicate(rowIdx, column, source[rowIdx]);
+      if (typeof conditionResult !== 'boolean') {
+        throw new Error('DataFrame conditional predicate produced a non-boolean value');
+      }
+
+      const shouldReplace = invert ? conditionResult : !conditionResult;
+      output[rowIdx] = shouldReplace
+        ? otherResolver(rowIdx, column, source[rowIdx])
+        : source[rowIdx];
+    }
+
+    nextColumns[column] = output;
+  }
+
+  return DataFrame.fromColumns(nextColumns, {
+    copy: false,
+    index: [...dataframe.index]
+  });
+}
 
 function __astNormalizeDataFrameHeadTailCount(value, methodName) {
   if (!Number.isInteger(value) || value < 0) {
