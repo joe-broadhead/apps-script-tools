@@ -84,8 +84,12 @@ Module quickstarts:
 - DBT: <https://joe-broadhead.github.io/apps-script-tools/getting-started/dbt-manifest-quickstart/>
 - Storage: <https://joe-broadhead.github.io/apps-script-tools/getting-started/storage-quickstart/>
 - GitHub: <https://joe-broadhead.github.io/apps-script-tools/getting-started/github-quickstart/>
-- Secrets / Cache / Jobs / Triggers / Chat / Telemetry:
-  <https://joe-broadhead.github.io/apps-script-tools/getting-started/>
+- Secrets: <https://joe-broadhead.github.io/apps-script-tools/getting-started/secrets-quickstart/>
+- Cache: <https://joe-broadhead.github.io/apps-script-tools/getting-started/cache-quickstart/>
+- Jobs: <https://joe-broadhead.github.io/apps-script-tools/getting-started/jobs-quickstart/>
+- Triggers: <https://joe-broadhead.github.io/apps-script-tools/getting-started/triggers-quickstart/>
+- Chat: <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
+- Telemetry: <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
 
 ## Cookbooks
 
