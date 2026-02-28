@@ -288,6 +288,95 @@ var Series = class Series {
   }
 
   /**
+   * Return the first `n` rows from the Series.
+   *
+   * @param {number} [n=5]
+   * @returns {Series}
+   */
+  head(n = 5) {
+    const count = astSeriesNormalizeHeadTailCount(n, 'head');
+    if (count === 0 || this.len() === 0) {
+      return this.take([]);
+    }
+
+    const takeCount = Math.min(count, this.len());
+    const rowIndexes = new Array(takeCount);
+    for (let idx = 0; idx < takeCount; idx++) {
+      rowIndexes[idx] = idx;
+    }
+
+    return this.take(rowIndexes);
+  }
+
+  /**
+   * Return the last `n` rows from the Series.
+   *
+   * @param {number} [n=5]
+   * @returns {Series}
+   */
+  tail(n = 5) {
+    const count = astSeriesNormalizeHeadTailCount(n, 'tail');
+    if (count === 0 || this.len() === 0) {
+      return this.take([]);
+    }
+
+    const takeCount = Math.min(count, this.len());
+    const start = this.len() - takeCount;
+    const rowIndexes = new Array(takeCount);
+    for (let idx = 0; idx < takeCount; idx++) {
+      rowIndexes[idx] = start + idx;
+    }
+
+    return this.take(rowIndexes);
+  }
+
+  /**
+   * Return rows by positional indexes.
+   *
+   * @param {number[]} indexes
+   * @returns {Series}
+   */
+  take(indexes) {
+    const normalizedIndexes = astSeriesNormalizeTakeIndexes(indexes, this.len(), 'take');
+    const values = new Array(normalizedIndexes.length);
+    const outputIndex = new Array(normalizedIndexes.length);
+
+    for (let idx = 0; idx < normalizedIndexes.length; idx++) {
+      const rowIndex = normalizedIndexes[idx];
+      values[idx] = this.array[rowIndex];
+      outputIndex[idx] = this.index[rowIndex];
+    }
+
+    return new Series(
+      values,
+      this.name,
+      this.type,
+      outputIndex,
+      {
+        useUTC: this.useUTC,
+        allowComplexValues: true,
+        skipTypeCoercion: true
+      }
+    );
+  }
+
+  /**
+   * Randomly sample rows from the Series.
+   *
+   * @param {Object} [options={}]
+   * @param {number} [options.n]
+   * @param {number} [options.frac]
+   * @param {boolean} [options.replace=false]
+   * @param {number[]|Series} [options.weights]
+   * @param {number|string} [options.randomState]
+   * @returns {Series}
+   */
+  sample(options = {}) {
+    const sampleIndexes = astSeriesResolveSampleIndexes(this.len(), options, 'sample');
+    return this.take(sampleIndexes);
+  }
+
+  /**
    * @function rename
    * @description Creates a new `Series` instance with the same data but a different name. The new name must be a non-empty string.
    * @memberof Series
@@ -2232,6 +2321,249 @@ var Series = class Series {
     return trie;
   }
 };
+
+function astSeriesNormalizeHeadTailCount(value, methodName) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Series.${methodName} requires a non-negative integer n`);
+  }
+  return value;
+}
+
+function astSeriesNormalizeTakeIndexes(indexes, length, methodName) {
+  if (!Array.isArray(indexes)) {
+    throw new Error(`Series.${methodName} requires an array of positional indexes`);
+  }
+
+  const normalized = new Array(indexes.length);
+  for (let idx = 0; idx < indexes.length; idx++) {
+    const value = indexes[idx];
+    if (!Number.isInteger(value)) {
+      throw new Error(`Series.${methodName} received a non-integer index at position ${idx}`);
+    }
+
+    if (value < 0 || value >= length) {
+      throw new Error(`Series.${methodName} index ${value} is out of bounds for length ${length}`);
+    }
+
+    normalized[idx] = value;
+  }
+
+  return normalized;
+}
+
+function astSeriesResolveSampleIndexes(length, options = {}, methodName = 'sample') {
+  if (options == null || typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const hasN = options.n !== undefined && options.n !== null;
+  const hasFrac = options.frac !== undefined && options.frac !== null;
+
+  if (hasN && hasFrac) {
+    throw new Error(`Series.${methodName} cannot include both n and frac`);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'replace')
+    && typeof options.replace !== 'boolean'
+  ) {
+    throw new Error(`Series.${methodName} option replace must be boolean`);
+  }
+
+  const replace = options.replace === true;
+  const n = hasN ? astSeriesNormalizeSampleN(options.n, methodName) : null;
+  const frac = hasFrac ? astSeriesNormalizeSampleFrac(options.frac, methodName) : null;
+
+  if (!replace && frac != null && frac > 1) {
+    throw new Error(`Series.${methodName} frac cannot be greater than 1 when replace is false`);
+  }
+
+  let sampleSize = 1;
+  if (n != null) {
+    sampleSize = n;
+  } else if (frac != null) {
+    sampleSize = Math.round(frac * length);
+  }
+
+  if (!replace && sampleSize > length) {
+    throw new Error(`Series.${methodName} n cannot be greater than Series length when replace is false`);
+  }
+
+  if (sampleSize === 0) {
+    return [];
+  }
+
+  if (length === 0) {
+    throw new Error(`Series.${methodName} cannot sample from an empty Series`);
+  }
+
+  const weights = astSeriesNormalizeSampleWeights(options.weights, length, methodName);
+  const random = astSeriesCreateSeededRandom(options.randomState, methodName);
+
+  if (replace) {
+    return astSeriesSampleIndexesWithReplacement(length, sampleSize, random, weights);
+  }
+
+  return astSeriesSampleIndexesWithoutReplacement(length, sampleSize, random, weights);
+}
+
+function astSeriesNormalizeSampleN(value, methodName) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Series.${methodName} option n must be a non-negative integer`);
+  }
+  return value;
+}
+
+function astSeriesNormalizeSampleFrac(value, methodName) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Series.${methodName} option frac must be a non-negative number`);
+  }
+  return value;
+}
+
+function astSeriesNormalizeSampleWeights(weights, length, methodName) {
+  if (weights == null) {
+    return null;
+  }
+
+  const source = weights instanceof Series ? weights.array : weights;
+  if (!Array.isArray(source)) {
+    throw new Error(`Series.${methodName} option weights must be an array or Series`);
+  }
+
+  if (source.length !== length) {
+    throw new Error(`Series.${methodName} option weights length must match Series length`);
+  }
+
+  const normalized = new Array(length);
+  let total = 0;
+  for (let idx = 0; idx < source.length; idx++) {
+    const numeric = Number(source[idx]);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      throw new Error(`Series.${methodName} option weights must contain finite non-negative numbers`);
+    }
+    normalized[idx] = numeric;
+    total += numeric;
+  }
+
+  if (total <= 0) {
+    throw new Error(`Series.${methodName} option weights must contain at least one positive value`);
+  }
+
+  return normalized;
+}
+
+function astSeriesSampleIndexesWithReplacement(length, sampleSize, random, weights) {
+  const output = new Array(sampleSize);
+
+  if (!weights) {
+    for (let idx = 0; idx < sampleSize; idx++) {
+      output[idx] = Math.floor(random() * length);
+    }
+    return output;
+  }
+
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  for (let idx = 0; idx < sampleSize; idx++) {
+    output[idx] = astSeriesPickWeightedIndex(weights, totalWeight, random);
+  }
+
+  return output;
+}
+
+function astSeriesSampleIndexesWithoutReplacement(length, sampleSize, random, weights) {
+  if (!weights) {
+    const pool = new Array(length);
+    for (let idx = 0; idx < length; idx++) {
+      pool[idx] = idx;
+    }
+
+    for (let idx = pool.length - 1; idx > 0; idx--) {
+      const swapIdx = Math.floor(random() * (idx + 1));
+      const temp = pool[idx];
+      pool[idx] = pool[swapIdx];
+      pool[swapIdx] = temp;
+    }
+
+    return pool.slice(0, sampleSize);
+  }
+
+  const availableIndexes = new Array(length);
+  for (let idx = 0; idx < length; idx++) {
+    availableIndexes[idx] = idx;
+  }
+  const availableWeights = [...weights];
+  const output = new Array(sampleSize);
+
+  for (let drawIdx = 0; drawIdx < sampleSize; drawIdx++) {
+    const totalWeight = availableWeights.reduce((sum, value) => sum + value, 0);
+    if (totalWeight <= 0) {
+      throw new Error('Series.sample weights are exhausted before completing a no-replacement sample');
+    }
+
+    const pickedPosition = astSeriesPickWeightedPosition(availableWeights, totalWeight, random);
+    output[drawIdx] = availableIndexes[pickedPosition];
+    availableIndexes.splice(pickedPosition, 1);
+    availableWeights.splice(pickedPosition, 1);
+  }
+
+  return output;
+}
+
+function astSeriesPickWeightedIndex(weights, totalWeight, random) {
+  const position = astSeriesPickWeightedPosition(weights, totalWeight, random);
+  return position;
+}
+
+function astSeriesPickWeightedPosition(weights, totalWeight, random) {
+  const target = random() * totalWeight;
+  let cumulative = 0;
+
+  for (let idx = 0; idx < weights.length; idx++) {
+    cumulative += weights[idx];
+    if (target < cumulative) {
+      return idx;
+    }
+  }
+
+  return weights.length - 1;
+}
+
+function astSeriesCreateSeededRandom(randomState, methodName = 'sample') {
+  if (randomState === undefined || randomState === null) {
+    return Math.random;
+  }
+
+  const seed = astSeriesResolveRandomSeed(randomState, methodName);
+  let state = seed >>> 0;
+  if (state === 0) {
+    state = 0x6D2B79F5;
+  }
+
+  return function astSeriesSeededRandom() {
+    state = (state + 0x6D2B79F5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function astSeriesResolveRandomSeed(randomState, methodName) {
+  if (typeof randomState === 'number' && Number.isFinite(randomState)) {
+    return Math.trunc(randomState) >>> 0;
+  }
+
+  if (typeof randomState === 'string' && randomState.length > 0) {
+    let hash = 2166136261;
+    for (let idx = 0; idx < randomState.length; idx++) {
+      hash ^= randomState.charCodeAt(idx);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  throw new Error(`Series.${methodName} option randomState must be a finite number or non-empty string`);
+}
 
 const __astSeriesRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astSeriesRoot.Series = Series;
