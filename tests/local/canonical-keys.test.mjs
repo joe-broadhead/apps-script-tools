@@ -59,3 +59,30 @@ test('merge aligns null and undefined join keys', () => {
   assert.equal(joined.length, 4);
   assert.equal(JSON.stringify(joined.map(row => row.id)), JSON.stringify(['L1', 'L1', 'L2', 'L2']));
 });
+
+test('merge supports Invalid Date join keys without throwing', () => {
+  const context = createGasContext({
+    astLoadDatabricksTable: () => {},
+    astLoadBigQueryTable: () => {}
+  });
+
+  loadCoreDataContext(context);
+
+  const left = context.DataFrame.fromRecords([
+    { key: new Date('invalid-left'), left_value: 'L-invalid' },
+    { key: new Date('2024-01-01T00:00:00Z'), left_value: 'L-valid' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { key: new Date('invalid-right'), right_value: 'R-invalid' },
+    { key: new Date('2024-01-01T00:00:00Z'), right_value: 'R-valid' }
+  ]);
+
+  const joined = left.merge(right, 'inner', { on: 'key' }).toRecords();
+  assert.equal(joined.length, 2);
+  assert.equal(Number.isNaN(joined[0].key.getTime()), true);
+  assert.equal(joined[0].left_value, 'L-invalid');
+  assert.equal(joined[0].right_value, 'R-invalid');
+  assert.equal(joined[1].key.toISOString(), '2024-01-01T00:00:00.000Z');
+  assert.equal(joined[1].left_value, 'L-valid');
+  assert.equal(joined[1].right_value, 'R-valid');
+});

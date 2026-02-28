@@ -12,6 +12,10 @@ function astCanonicalizeValue(value) {
   }
 
   if (value instanceof Date) {
+    const timestamp = value.getTime();
+    if (Number.isNaN(timestamp)) {
+      return { __ast_type: 'invalid_date' };
+    }
     return { __ast_type: 'date', value: value.toISOString() };
   }
 

@@ -504,7 +504,9 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     leftOn = null,
     rightOn = null,
     suffixes = ['_x', '_y'],
-    validate = null
+    validate = null,
+    methodName = 'merge',
+    joinKeyMode = 'left_preferred'
   } = options;
 
   if (!Array.isArray(suffixes) || suffixes.length !== 2) {
@@ -535,10 +537,26 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
     rightColumnMap[rightColumns[idx]] = rightDf.data[rightColumns[idx]].array;
   }
 
-  const joinColumns = how === 'cross' ? [] : leftKeys.slice();
-  const overlapColumns = leftColumns.filter(col => !joinColumns.includes(col) && rightColumns.includes(col));
-  const leftOnlyColumns = leftColumns.filter(col => !joinColumns.includes(col) && !rightColumns.includes(col));
-  const rightOnlyColumns = rightColumns.filter(col => !joinColumns.includes(col) && !leftColumns.includes(col));
+  const joinColumnPairs = __astResolveJoinColumnPairs(how, leftKeys, rightKeys, joinKeyMode);
+  const consumedLeftJoinColumns = new Set(joinColumnPairs.map(pair => pair.left));
+  const consumedRightJoinColumns = new Set(
+    joinColumnPairs
+      .filter(pair => pair.consumeRightColumn === true)
+      .map(pair => pair.right)
+  );
+
+  const overlapColumns = leftColumns.filter(col => {
+    if (!rightColumns.includes(col)) {
+      return false;
+    }
+    return !(consumedLeftJoinColumns.has(col) && consumedRightJoinColumns.has(col));
+  });
+  const leftOnlyColumns = leftColumns.filter(
+    col => !rightColumns.includes(col) && !consumedLeftJoinColumns.has(col)
+  );
+  const rightOnlyColumns = rightColumns.filter(
+    col => !leftColumns.includes(col) && !consumedRightJoinColumns.has(col)
+  );
 
   const leftJoinColumns = leftKeys.map(key => leftColumnMap[key] || null);
   const rightJoinColumns = rightKeys.map(key => rightColumnMap[key] || null);
@@ -602,33 +620,32 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   const out = {};
   const rowCount = rowPairs.length;
 
-  for (let idx = 0; idx < joinColumns.length; idx++) {
-    out[joinColumns[idx]] = new Array(rowCount);
+  for (let idx = 0; idx < joinColumnPairs.length; idx++) {
+    __astInitializeMergeOutputColumn(out, joinColumnPairs[idx].name, rowCount, methodName);
   }
 
   for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
-    out[leftOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, leftOnlyColumns[idx], rowCount, methodName);
   }
 
   for (let idx = 0; idx < overlapColumns.length; idx++) {
-    out[`${overlapColumns[idx]}${leftSuffix}`] = new Array(rowCount);
-    out[`${overlapColumns[idx]}${rightSuffix}`] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, `${overlapColumns[idx]}${leftSuffix}`, rowCount, methodName);
+    __astInitializeMergeOutputColumn(out, `${overlapColumns[idx]}${rightSuffix}`, rowCount, methodName);
   }
 
   for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
-    out[rightOnlyColumns[idx]] = new Array(rowCount);
+    __astInitializeMergeOutputColumn(out, rightOnlyColumns[idx], rowCount, methodName);
   }
 
   for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
     const [leftSourceIdx, rightSourceIdx] = rowPairs[rowIdx];
 
-    for (let keyIdx = 0; keyIdx < joinColumns.length; keyIdx++) {
-      const leftJoinCol = joinColumns[keyIdx];
-      const rightJoinCol = rightKeys[keyIdx];
-      const leftValue = __astReadColumnValue(leftColumnMap, leftJoinCol, leftSourceIdx);
-      const rightValue = __astReadColumnValue(rightColumnMap, rightJoinCol, rightSourceIdx);
+    for (let keyIdx = 0; keyIdx < joinColumnPairs.length; keyIdx++) {
+      const joinPair = joinColumnPairs[keyIdx];
+      const leftValue = __astReadColumnValue(leftColumnMap, joinPair.left, leftSourceIdx);
+      const rightValue = __astReadColumnValue(rightColumnMap, joinPair.right, rightSourceIdx);
 
-      out[leftJoinCol][rowIdx] = leftValue != null
+      out[joinPair.name][rowIdx] = leftValue != null
         ? leftValue
         : (rightValue != null ? rightValue : null);
     }
@@ -651,6 +668,48 @@ function __astMergeDataFramesColumnar(leftDf, rightDf, how = 'inner', options = 
   }
 
   return DataFrame.fromColumns(out, { copy: false });
+}
+
+function __astInitializeMergeOutputColumn(outputColumns, outputName, rowCount, methodName) {
+  if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+    throw new Error(
+      `DataFrame.${methodName} produced duplicate output column name '${outputName}'. ` +
+      'Adjust lsuffix/rsuffix to avoid collisions with existing columns.'
+    );
+  }
+
+  outputColumns[outputName] = new Array(rowCount);
+}
+
+function __astResolveJoinColumnPairs(how, leftKeys, rightKeys, joinKeyMode = 'left_preferred') {
+  if (how === 'cross') {
+    return [];
+  }
+
+  if (joinKeyMode !== 'left_preferred' && joinKeyMode !== 'shared_only') {
+    throw new Error(`Unsupported joinKeyMode: ${joinKeyMode}`);
+  }
+
+  const pairs = [];
+  for (let idx = 0; idx < leftKeys.length; idx++) {
+    if (leftKeys[idx] === rightKeys[idx]) {
+      pairs.push({
+        name: leftKeys[idx],
+        left: leftKeys[idx],
+        right: rightKeys[idx],
+        consumeRightColumn: true
+      });
+    } else if (joinKeyMode === 'left_preferred') {
+      pairs.push({
+        name: leftKeys[idx],
+        left: leftKeys[idx],
+        right: rightKeys[idx],
+        consumeRightColumn: false
+      });
+    }
+  }
+
+  return pairs;
 }
 
 var AstDataFrameWindowColumn = class AstDataFrameWindowColumn {

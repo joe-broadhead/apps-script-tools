@@ -1175,7 +1175,241 @@ var DataFrame = class DataFrame {
       throw new Error('`other` must be a DataFrame');
     }
 
-    return __astMergeDataFramesColumnar(this, other, how, options);
+    return __astMergeDataFramesColumnar(this, other, how, {
+      ...options,
+      methodName: 'merge',
+      joinKeyMode: 'left_preferred'
+    });
+  }
+
+  /**
+   * Join this DataFrame with another DataFrame.
+   *
+   * By default, joins on index labels. Column-based joins are supported with
+   * `on`, or paired `leftOn`/`rightOn`.
+   *
+   * @param {DataFrame} right
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
+  join(right, options = {}) {
+    if (!(right instanceof DataFrame)) {
+      throw new Error('DataFrame.join requires right to be a DataFrame');
+    }
+
+    const normalized = __astNormalizeDataFrameJoinOptions(this, right, options, 'join');
+    const mergeOptions = {
+      suffixes: [normalized.lsuffix, normalized.rsuffix],
+      validate: normalized.validate,
+      methodName: 'join',
+      joinKeyMode: 'shared_only'
+    };
+
+    if (normalized.useIndexJoin) {
+      if (normalized.how === 'cross') {
+        return __astMergeDataFramesColumnar(this, right, normalized.how, mergeOptions);
+      }
+
+      return __astJoinDataFramesOnIndex(this, right, normalized.how, mergeOptions);
+    }
+
+    if (normalized.on.length > 0) {
+      mergeOptions.on = normalized.on;
+    } else {
+      mergeOptions.leftOn = normalized.leftOn;
+      mergeOptions.rightOn = normalized.rightOn;
+    }
+
+    return __astMergeDataFramesColumnar(this, right, normalized.how, mergeOptions);
+  }
+
+  /**
+   * Unpivot DataFrame from wide to long format.
+   *
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
+  melt(options = {}) {
+    const normalized = __astNormalizeDataFrameMeltOptions(this, options, 'melt');
+    const rowCount = this.len();
+    const valueVarCount = normalized.valueVars.length;
+    const outputRowCount = rowCount * valueVarCount;
+    const outputColumns = {};
+
+    if (!normalized.ignoreIndex) {
+      outputColumns[normalized.indexName] = new Array(outputRowCount);
+    }
+
+    for (let idx = 0; idx < normalized.idVars.length; idx++) {
+      outputColumns[normalized.idVars[idx]] = new Array(outputRowCount);
+    }
+
+    outputColumns[normalized.varName] = new Array(outputRowCount);
+    outputColumns[normalized.valueName] = new Array(outputRowCount);
+
+    let outPos = 0;
+    for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+      for (let valueIdx = 0; valueIdx < valueVarCount; valueIdx++) {
+        if (!normalized.ignoreIndex) {
+          outputColumns[normalized.indexName][outPos] = this.index[rowIdx];
+        }
+
+        for (let idIdx = 0; idIdx < normalized.idVars.length; idIdx++) {
+          const idColumn = normalized.idVars[idIdx];
+          outputColumns[idColumn][outPos] = this.data[idColumn].array[rowIdx];
+        }
+
+        const valueColumn = normalized.valueVars[valueIdx];
+        outputColumns[normalized.varName][outPos] = valueColumn;
+        outputColumns[normalized.valueName][outPos] = this.data[valueColumn].array[rowIdx];
+        outPos += 1;
+      }
+    }
+
+    return DataFrame.fromColumns(outputColumns, { copy: false });
+  }
+
+  /**
+   * Explode list-like values in a column into multiple rows.
+   *
+   * @param {string} column
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
+  explode(column, options = {}) {
+    const normalized = __astNormalizeDataFrameExplodeOptions(this, column, options, 'explode');
+    const outputColumns = {};
+
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      outputColumns[this.columns[colIdx]] = [];
+    }
+
+    const outputIndex = [];
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const baseValue = this.data[normalized.column].array[rowIdx];
+      const expandedValues = __astResolveDataFrameExplodeValues(baseValue, normalized);
+
+      for (let expandIdx = 0; expandIdx < expandedValues.length; expandIdx++) {
+        for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+          const columnName = this.columns[colIdx];
+          if (columnName === normalized.column) {
+            outputColumns[columnName].push(expandedValues[expandIdx]);
+          } else {
+            outputColumns[columnName].push(this.data[columnName].array[rowIdx]);
+          }
+        }
+
+        outputIndex.push(this.index[rowIdx]);
+      }
+    }
+
+    return DataFrame.fromColumns(outputColumns, {
+      copy: false,
+      index: normalized.ignoreIndex ? null : outputIndex
+    });
+  }
+
+  /**
+   * Build a pivot table with aggregation and missing-fill behavior.
+   *
+   * @param {Object} [options={}]
+   * @returns {DataFrame}
+   */
+  pivotTable(options = {}) {
+    const normalized = __astNormalizeDataFramePivotTableOptions(this, options, 'pivotTable');
+    const grouped = new Map();
+    const indexEntries = [];
+    const indexSeen = new Set();
+    const pivotEntries = [];
+    const pivotSeen = new Set();
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const indexValues = normalized.index.map(column => this.data[column].array[rowIdx]);
+      const pivotValue = this.data[normalized.columns].array[rowIdx];
+      const indexKey = __astEncodeDataFrameIndexTuple(indexValues);
+      const pivotKey = __astBuildDataFrameLabelLookupKey(pivotValue);
+      const groupKey = JSON.stringify([indexKey, pivotKey]);
+
+      if (!indexSeen.has(indexKey)) {
+        indexSeen.add(indexKey);
+        indexEntries.push({ key: indexKey, values: indexValues });
+      }
+
+      if (!pivotSeen.has(pivotKey)) {
+        pivotSeen.add(pivotKey);
+        pivotEntries.push({ key: pivotKey, value: pivotValue });
+      }
+
+      if (!grouped.has(groupKey)) {
+        const valuesByColumn = {};
+        for (let valueIdx = 0; valueIdx < normalized.values.length; valueIdx++) {
+          valuesByColumn[normalized.values[valueIdx]] = [];
+        }
+        grouped.set(groupKey, valuesByColumn);
+      }
+
+      const groupValues = grouped.get(groupKey);
+      for (let valueIdx = 0; valueIdx < normalized.values.length; valueIdx++) {
+        const valueColumn = normalized.values[valueIdx];
+        groupValues[valueColumn].push(this.data[valueColumn].array[rowIdx]);
+      }
+    }
+
+    if (indexEntries.length === 0 && normalized.index.length === 0) {
+      indexEntries.push({ key: __astEncodeDataFrameIndexTuple([]), values: [] });
+    }
+
+    const outputColumns = {};
+    for (let idx = 0; idx < normalized.index.length; idx++) {
+      outputColumns[normalized.index[idx]] = new Array(indexEntries.length);
+    }
+
+    const outputColumnSpecs = [];
+    for (let pivotIdx = 0; pivotIdx < pivotEntries.length; pivotIdx++) {
+      const pivotEntry = pivotEntries[pivotIdx];
+      for (let valueIdx = 0; valueIdx < normalized.values.length; valueIdx++) {
+        const valueColumn = normalized.values[valueIdx];
+        const outputName = __astBuildDataFramePivotTableOutputColumnName(pivotEntry.key, valueColumn);
+        if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+          throw new Error(
+            `DataFrame.pivotTable produced duplicate output column name '${outputName}' after normalization`
+          );
+        }
+        outputColumnSpecs.push({
+          outputName,
+          pivotKey: pivotEntry.key,
+          valueColumn
+        });
+        outputColumns[outputName] = new Array(indexEntries.length);
+      }
+    }
+
+    for (let rowIdx = 0; rowIdx < indexEntries.length; rowIdx++) {
+      const indexEntry = indexEntries[rowIdx];
+
+      for (let indexColIdx = 0; indexColIdx < normalized.index.length; indexColIdx++) {
+        outputColumns[normalized.index[indexColIdx]][rowIdx] = indexEntry.values[indexColIdx];
+      }
+
+      for (let specIdx = 0; specIdx < outputColumnSpecs.length; specIdx++) {
+        const spec = outputColumnSpecs[specIdx];
+        const groupKey = JSON.stringify([indexEntry.key, spec.pivotKey]);
+        const groupedValues = grouped.get(groupKey);
+
+        if (!groupedValues) {
+          outputColumns[spec.outputName][rowIdx] = normalized.fillValue;
+          continue;
+        }
+
+        const values = groupedValues[spec.valueColumn];
+        const aggregated = normalized.aggByColumn[spec.valueColumn](values);
+        outputColumns[spec.outputName][rowIdx] = aggregated === undefined
+          ? normalized.fillValue
+          : aggregated;
+      }
+    }
+
+    return DataFrame.fromColumns(outputColumns, { copy: false });
   }
 
   generateSurrogateKey(columns, delimiter = '-') {
@@ -1889,6 +2123,637 @@ function __astFinalizeDataFrameApplyResult(dataframe, axis, labels, results, opt
   }
 
   return __astFinalizeDataFrameApplyDataFrameColumns(dataframe, labels, results, 'apply');
+}
+
+function __astNormalizeDataFrameJoinOptions(leftDf, rightDf, options, methodName) {
+  if (options != null && (typeof options !== 'object' || Array.isArray(options))) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const source = options || {};
+  const how = source.how == null ? 'left' : source.how;
+  const allowedHow = ['left', 'right', 'inner', 'outer', 'cross'];
+  if (!allowedHow.includes(how)) {
+    throw new Error(`DataFrame.${methodName} option how must be one of: ${allowedHow.join(', ')}`);
+  }
+
+  const lsuffix = source.lsuffix == null ? '_x' : source.lsuffix;
+  const rsuffix = source.rsuffix == null ? '_y' : source.rsuffix;
+  if (typeof lsuffix !== 'string' || typeof rsuffix !== 'string') {
+    throw new Error(`DataFrame.${methodName} options lsuffix and rsuffix must be strings`);
+  }
+
+  const validate = source.validate == null ? null : source.validate;
+  if (
+    validate != null
+    && !['one_to_one', 'one_to_many', 'many_to_one', 'many_to_many'].includes(validate)
+  ) {
+    throw new Error(
+      `DataFrame.${methodName} option validate must be one of: one_to_one, one_to_many, many_to_one, many_to_many`
+    );
+  }
+
+  const hasOn = __astDataFrameHasDefinedJoinOption(source, 'on');
+  const hasLeftOn = __astDataFrameHasDefinedJoinOption(source, 'leftOn');
+  const hasRightOn = __astDataFrameHasDefinedJoinOption(source, 'rightOn');
+
+  if (hasOn && (hasLeftOn || hasRightOn)) {
+    throw new Error(`DataFrame.${methodName} cannot combine option on with leftOn/rightOn`);
+  }
+
+  if (how === 'cross' && (hasOn || hasLeftOn || hasRightOn)) {
+    throw new Error(`DataFrame.${methodName} with how='cross' does not accept on/leftOn/rightOn`);
+  }
+
+  let on = [];
+  let leftOn = [];
+  let rightOn = [];
+  let useIndexJoin = false;
+
+  if (hasOn) {
+    on = __astNormalizeDataFrameJoinSharedColumns(leftDf, rightDf, source.on, methodName);
+  } else if (hasLeftOn || hasRightOn) {
+    if (!hasLeftOn || !hasRightOn) {
+      throw new Error(`DataFrame.${methodName} requires both leftOn and rightOn when one is provided`);
+    }
+
+    leftOn = __astNormalizeDataFrameColumnList(leftDf, source.leftOn, 'leftOn', methodName);
+    rightOn = __astNormalizeDataFrameColumnList(rightDf, source.rightOn, 'rightOn', methodName);
+    if (leftOn.length === 0 || rightOn.length === 0 || leftOn.length !== rightOn.length) {
+      throw new Error(`DataFrame.${methodName} leftOn and rightOn must be non-empty and equal-length`);
+    }
+  } else {
+    useIndexJoin = how !== 'cross';
+  }
+
+  const reservedJoinColumns = __astResolveDataFrameJoinReservedColumns(on, leftOn, rightOn);
+  const overlap = leftDf.columns.filter(
+    column => !reservedJoinColumns.has(column) && rightDf.columns.includes(column)
+  );
+  if (overlap.length > 0 && lsuffix === rsuffix) {
+    throw new Error(`DataFrame.${methodName} requires different lsuffix/rsuffix when overlapping columns exist`);
+  }
+
+  return {
+    how,
+    on,
+    leftOn,
+    rightOn,
+    useIndexJoin,
+    lsuffix,
+    rsuffix,
+    validate
+  };
+}
+
+function __astDataFrameHasDefinedJoinOption(source, optionName) {
+  if (!Object.prototype.hasOwnProperty.call(source, optionName)) {
+    return false;
+  }
+
+  const value = source[optionName];
+  return value !== undefined && value !== null;
+}
+
+function __astResolveDataFrameJoinReservedColumns(on, leftOn, rightOn) {
+  if (Array.isArray(on) && on.length > 0) {
+    return new Set(on);
+  }
+
+  const reserved = new Set();
+  const pairCount = Math.min(leftOn.length, rightOn.length);
+  for (let idx = 0; idx < pairCount; idx++) {
+    if (leftOn[idx] === rightOn[idx]) {
+      reserved.add(leftOn[idx]);
+    }
+  }
+
+  return reserved;
+}
+
+function __astJoinDataFramesOnIndex(leftDf, rightDf, how, options = {}) {
+  const leftColumns = leftDf.columns;
+  const rightColumns = rightDf.columns;
+  const leftColumnMap = leftDf.toColumns({ copy: false });
+  const rightColumnMap = rightDf.toColumns({ copy: false });
+
+  const suffixes = Array.isArray(options.suffixes) && options.suffixes.length === 2
+    ? options.suffixes
+    : ['_x', '_y'];
+  const [leftSuffix, rightSuffix] = suffixes;
+
+  const overlapColumns = leftColumns.filter(column => rightColumns.includes(column));
+  const leftOnlyColumns = leftColumns.filter(column => !rightColumns.includes(column));
+  const rightOnlyColumns = rightColumns.filter(column => !leftColumns.includes(column));
+
+  const leftLookup = __astBuildDataFrameIndexLookup(leftDf.index, false, 'join');
+  const rightLookup = __astBuildDataFrameIndexLookup(rightDf.index, false, 'join');
+  __astValidateDataFrameIndexJoinCardinality(options.validate || null, leftLookup, rightLookup);
+
+  const rowPairs = __astBuildDataFrameIndexJoinPairs(leftDf.index, rightDf.index, leftLookup, rightLookup, how);
+  const rowCount = rowPairs.length;
+  const outputColumns = {};
+  const outputIndex = new Array(rowCount);
+
+  for (let idx = 0; idx < leftOnlyColumns.length; idx++) {
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, leftOnlyColumns[idx], rowCount, 'join');
+  }
+
+  for (let idx = 0; idx < overlapColumns.length; idx++) {
+    const leftOutput = `${overlapColumns[idx]}${leftSuffix}`;
+    const rightOutput = `${overlapColumns[idx]}${rightSuffix}`;
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, leftOutput, rowCount, 'join');
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, rightOutput, rowCount, 'join');
+  }
+
+  for (let idx = 0; idx < rightOnlyColumns.length; idx++) {
+    __astInitializeDataFrameJoinOutputColumn(outputColumns, rightOnlyColumns[idx], rowCount, 'join');
+  }
+
+  for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+    const [leftSourceIdx, rightSourceIdx] = rowPairs[rowIdx];
+
+    for (let colIdx = 0; colIdx < leftOnlyColumns.length; colIdx++) {
+      const columnName = leftOnlyColumns[colIdx];
+      outputColumns[columnName][rowIdx] = __astReadDataFrameJoinColumnValue(leftColumnMap, columnName, leftSourceIdx);
+    }
+
+    for (let colIdx = 0; colIdx < overlapColumns.length; colIdx++) {
+      const columnName = overlapColumns[colIdx];
+      outputColumns[`${columnName}${leftSuffix}`][rowIdx] = __astReadDataFrameJoinColumnValue(
+        leftColumnMap,
+        columnName,
+        leftSourceIdx
+      );
+      outputColumns[`${columnName}${rightSuffix}`][rowIdx] = __astReadDataFrameJoinColumnValue(
+        rightColumnMap,
+        columnName,
+        rightSourceIdx
+      );
+    }
+
+    for (let colIdx = 0; colIdx < rightOnlyColumns.length; colIdx++) {
+      const columnName = rightOnlyColumns[colIdx];
+      outputColumns[columnName][rowIdx] = __astReadDataFrameJoinColumnValue(rightColumnMap, columnName, rightSourceIdx);
+    }
+
+    outputIndex[rowIdx] = leftSourceIdx != null
+      ? leftDf.index[leftSourceIdx]
+      : rightDf.index[rightSourceIdx];
+  }
+
+  return DataFrame.fromColumns(outputColumns, {
+    copy: false,
+    index: outputIndex
+  });
+}
+
+function __astInitializeDataFrameJoinOutputColumn(outputColumns, outputName, rowCount, methodName) {
+  if (Object.prototype.hasOwnProperty.call(outputColumns, outputName)) {
+    throw new Error(
+      `DataFrame.${methodName} produced duplicate output column name '${outputName}'. ` +
+      'Adjust lsuffix/rsuffix to avoid collisions with existing columns.'
+    );
+  }
+
+  outputColumns[outputName] = new Array(rowCount);
+}
+
+function __astBuildDataFrameIndexJoinPairs(leftIndex, rightIndex, leftLookup, rightLookup, how) {
+  const rowPairs = [];
+
+  if (how === 'inner' || how === 'left' || how === 'outer') {
+    const matchedRight = new Set();
+
+    for (let leftIdx = 0; leftIdx < leftIndex.length; leftIdx++) {
+      const rightMatches = __astLookupDataFrameIndexPositions(rightLookup, leftIndex[leftIdx]);
+      if (rightMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < rightMatches.length; matchIdx++) {
+          const rightIdx = rightMatches[matchIdx];
+          rowPairs.push([leftIdx, rightIdx]);
+          matchedRight.add(rightIdx);
+        }
+      } else if (how === 'left' || how === 'outer') {
+        rowPairs.push([leftIdx, null]);
+      }
+    }
+
+    if (how === 'outer') {
+      for (let rightIdx = 0; rightIdx < rightIndex.length; rightIdx++) {
+        if (!matchedRight.has(rightIdx)) {
+          rowPairs.push([null, rightIdx]);
+        }
+      }
+    }
+
+    return rowPairs;
+  }
+
+  if (how === 'right') {
+    for (let rightIdx = 0; rightIdx < rightIndex.length; rightIdx++) {
+      const leftMatches = __astLookupDataFrameIndexPositions(leftLookup, rightIndex[rightIdx]);
+      if (leftMatches.length > 0) {
+        for (let matchIdx = 0; matchIdx < leftMatches.length; matchIdx++) {
+          rowPairs.push([leftMatches[matchIdx], rightIdx]);
+        }
+      } else {
+        rowPairs.push([null, rightIdx]);
+      }
+    }
+
+    return rowPairs;
+  }
+
+  throw new Error(`Unknown join type: ${how}`);
+}
+
+function __astLookupDataFrameIndexPositions(lookup, label) {
+  const key = __astBuildDataFrameLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  if (!bucket) {
+    return [];
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    if (__astAreDataFrameIndexLabelsEqual(bucket[idx].label, label)) {
+      return bucket[idx].positions;
+    }
+  }
+
+  return [];
+}
+
+function __astValidateDataFrameIndexJoinCardinality(validate, leftLookup, rightLookup) {
+  if (!validate) {
+    return;
+  }
+
+  const multiLeft = __astHasDataFrameDuplicateIndexBuckets(leftLookup);
+  const multiRight = __astHasDataFrameDuplicateIndexBuckets(rightLookup);
+
+  let actual;
+  if (!multiLeft && !multiRight) {
+    actual = 'one_to_one';
+  } else if (!multiLeft && multiRight) {
+    actual = 'one_to_many';
+  } else if (multiLeft && !multiRight) {
+    actual = 'many_to_one';
+  } else {
+    actual = 'many_to_many';
+  }
+
+  if (actual !== validate) {
+    throw new Error(`Validate failed: expected ${validate} but got ${actual}`);
+  }
+}
+
+function __astHasDataFrameDuplicateIndexBuckets(lookup) {
+  for (const bucket of lookup.values()) {
+    for (let idx = 0; idx < bucket.length; idx++) {
+      if (bucket[idx].positions.length > 1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function __astReadDataFrameJoinColumnValue(columnMap, columnName, rowIdx) {
+  if (rowIdx == null) {
+    return null;
+  }
+  return columnMap[columnName][rowIdx];
+}
+
+function __astNormalizeDataFrameJoinSharedColumns(leftDf, rightDf, columns, methodName) {
+  const normalized = __astNormalizeDataFrameColumnList(leftDf, columns, 'on', methodName);
+  const missingOnRight = normalized.filter(column => !rightDf.columns.includes(column));
+  if (missingOnRight.length > 0) {
+    throw new Error(`DataFrame.${methodName} option on contains columns missing on right DataFrame: ${missingOnRight.join(', ')}`);
+  }
+  return normalized;
+}
+
+function __astNormalizeDataFrameMeltOptions(dataframe, options, methodName) {
+  if (options != null && (typeof options !== 'object' || Array.isArray(options))) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const source = options || {};
+  const idVars = source.idVars == null
+    ? []
+    : __astNormalizeDataFrameColumnList(dataframe, source.idVars, 'idVars', methodName);
+  const valueVars = source.valueVars == null
+    ? dataframe.columns.filter(column => !idVars.includes(column))
+    : __astNormalizeDataFrameColumnList(dataframe, source.valueVars, 'valueVars', methodName);
+
+  if (valueVars.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one value variable`);
+  }
+
+  const varName = source.varName == null ? 'variable' : source.varName;
+  const valueName = source.valueName == null ? 'value' : source.valueName;
+  const indexName = source.indexName == null ? 'index' : source.indexName;
+
+  if (typeof varName !== 'string' || varName.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} option varName must be a non-empty string`);
+  }
+  if (typeof valueName !== 'string' || valueName.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} option valueName must be a non-empty string`);
+  }
+  if (typeof indexName !== 'string' || indexName.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} option indexName must be a non-empty string`);
+  }
+  if (varName === valueName) {
+    throw new Error(`DataFrame.${methodName} options varName and valueName must be different`);
+  }
+
+  const ignoreIndex = source.ignoreIndex == null ? true : source.ignoreIndex;
+  if (typeof ignoreIndex !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option ignoreIndex must be boolean`);
+  }
+
+  const reserved = new Set(idVars);
+  if (reserved.has(varName)) {
+    throw new Error(`DataFrame.${methodName} output column names must be unique (conflict on '${varName}')`);
+  }
+  reserved.add(varName);
+  if (reserved.has(valueName)) {
+    throw new Error(`DataFrame.${methodName} output column names must be unique (conflict on '${valueName}')`);
+  }
+  if (!ignoreIndex && (reserved.has(indexName) || valueName === indexName)) {
+    throw new Error(`DataFrame.${methodName} output column names must be unique (conflict on '${indexName}')`);
+  }
+
+  return {
+    idVars,
+    valueVars,
+    varName,
+    valueName,
+    ignoreIndex,
+    indexName
+  };
+}
+
+function __astNormalizeDataFrameExplodeOptions(dataframe, column, options, methodName) {
+  if (typeof column !== 'string' || column.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} requires column to be a non-empty string`);
+  }
+  if (!dataframe.columns.includes(column)) {
+    throw new Error(`DataFrame.${methodName} received unknown column: ${column}`);
+  }
+  if (options != null && (typeof options !== 'object' || Array.isArray(options))) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const source = options || {};
+  const ignoreIndex = source.ignoreIndex == null ? false : source.ignoreIndex;
+  if (typeof ignoreIndex !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option ignoreIndex must be boolean`);
+  }
+
+  const preserveEmpty = source.preserveEmpty == null ? true : source.preserveEmpty;
+  if (typeof preserveEmpty !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option preserveEmpty must be boolean`);
+  }
+
+  return {
+    column,
+    ignoreIndex,
+    preserveEmpty,
+    emptyValue: Object.prototype.hasOwnProperty.call(source, 'emptyValue') ? source.emptyValue : null
+  };
+}
+
+function __astResolveDataFrameExplodeValues(value, options) {
+  let expanded = null;
+
+  if (Array.isArray(value)) {
+    expanded = value;
+  } else if (value instanceof Series) {
+    expanded = value.array;
+  } else if (value != null && typeof value !== 'string' && typeof value[Symbol.iterator] === 'function') {
+    expanded = Array.from(value);
+  }
+
+  if (!expanded) {
+    return [value];
+  }
+
+  if (expanded.length === 0) {
+    return options.preserveEmpty ? [options.emptyValue] : [];
+  }
+
+  return expanded;
+}
+
+function __astNormalizeDataFramePivotTableOptions(dataframe, options, methodName) {
+  if (options != null && (typeof options !== 'object' || Array.isArray(options))) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const source = options || {};
+  const index = source.index == null
+    ? []
+    : __astNormalizeDataFrameColumnList(dataframe, source.index, 'index', methodName);
+
+  if (typeof source.columns !== 'string' || source.columns.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} option columns must be a non-empty string`);
+  }
+  if (!dataframe.columns.includes(source.columns)) {
+    throw new Error(`DataFrame.${methodName} option columns contains unknown column: ${source.columns}`);
+  }
+  if (index.includes(source.columns)) {
+    throw new Error(`DataFrame.${methodName} option columns must not overlap with index columns`);
+  }
+
+  const values = source.values == null
+    ? dataframe.columns.filter(column => column !== source.columns && !index.includes(column))
+    : __astNormalizeDataFrameColumnList(dataframe, source.values, 'values', methodName);
+  if (values.length === 0) {
+    throw new Error(`DataFrame.${methodName} requires at least one value column`);
+  }
+  if (values.includes(source.columns)) {
+    throw new Error(`DataFrame.${methodName} option values must not include columns pivot key '${source.columns}'`);
+  }
+
+  const aggByColumn = __astResolveDataFramePivotTableAggregations(values, source.aggFunc, methodName);
+
+  return {
+    index,
+    columns: source.columns,
+    values,
+    aggByColumn,
+    fillValue: Object.prototype.hasOwnProperty.call(source, 'fillValue') ? source.fillValue : null
+  };
+}
+
+function __astResolveDataFramePivotTableAggregations(valueColumns, aggFunc, methodName) {
+  const aggregations = {};
+  const isMap = __astDataFrameIsPlainObject(aggFunc);
+
+  for (let idx = 0; idx < valueColumns.length; idx++) {
+    const columnName = valueColumns[idx];
+    const entry = isMap
+      ? (Object.prototype.hasOwnProperty.call(aggFunc, columnName) ? aggFunc[columnName] : (aggFunc.default == null ? 'first' : aggFunc.default))
+      : (aggFunc == null ? 'first' : aggFunc);
+    aggregations[columnName] = __astResolveDataFramePivotAggregator(entry, columnName, methodName);
+  }
+
+  return aggregations;
+}
+
+function __astResolveDataFramePivotAggregator(aggEntry, columnName, methodName) {
+  if (typeof aggEntry === 'function') {
+    return values => {
+      const output = aggEntry([...values], columnName);
+      if (output && typeof output.then === 'function') {
+        throw new Error(`DataFrame.${methodName} does not support async aggregation functions`);
+      }
+      return output;
+    };
+  }
+
+  const aggName = aggEntry == null ? 'first' : String(aggEntry).toLowerCase();
+  if (aggName === 'first') {
+    return values => values.length > 0 ? values[0] : null;
+  }
+  if (aggName === 'last') {
+    return values => values.length > 0 ? values[values.length - 1] : null;
+  }
+  if (aggName === 'count') {
+    return values => values.filter(value => !__astDataFrameIsMissingValue(value)).length;
+  }
+  if (aggName === 'sum') {
+    return values => {
+      let sum = 0;
+      let count = 0;
+      for (let idx = 0; idx < values.length; idx++) {
+        const coerced = __astCoerceDataFramePivotNumeric(values[idx], columnName, aggName, methodName);
+        if (coerced == null) {
+          continue;
+        }
+        sum += coerced;
+        count += 1;
+      }
+      return count === 0 ? null : sum;
+    };
+  }
+  if (aggName === 'mean' || aggName === 'avg') {
+    return values => {
+      let sum = 0;
+      let count = 0;
+      for (let idx = 0; idx < values.length; idx++) {
+        const coerced = __astCoerceDataFramePivotNumeric(values[idx], columnName, aggName, methodName);
+        if (coerced == null) {
+          continue;
+        }
+        sum += coerced;
+        count += 1;
+      }
+      return count === 0 ? null : (sum / count);
+    };
+  }
+  if (aggName === 'min') {
+    return values => {
+      const filtered = values.filter(
+        value => !__astDataFrameIsMissingValue(value) && !__astDataFrameIsInvalidDateValue(value)
+      );
+      if (filtered.length === 0) {
+        return null;
+      }
+      let current = filtered[0];
+      for (let idx = 1; idx < filtered.length; idx++) {
+        if (__astCompareDataFramePivotValue(filtered[idx], current) < 0) {
+          current = filtered[idx];
+        }
+      }
+      return current;
+    };
+  }
+  if (aggName === 'max') {
+    return values => {
+      const filtered = values.filter(
+        value => !__astDataFrameIsMissingValue(value) && !__astDataFrameIsInvalidDateValue(value)
+      );
+      if (filtered.length === 0) {
+        return null;
+      }
+      let current = filtered[0];
+      for (let idx = 1; idx < filtered.length; idx++) {
+        if (__astCompareDataFramePivotValue(filtered[idx], current) > 0) {
+          current = filtered[idx];
+        }
+      }
+      return current;
+    };
+  }
+
+  throw new Error(`DataFrame.${methodName} received unsupported aggFunc '${aggEntry}' for column '${columnName}'`);
+}
+
+function __astCoerceDataFramePivotNumeric(value, columnName, aggName, methodName) {
+  if (__astDataFrameIsMissingValue(value)) {
+    return null;
+  }
+
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw new Error(
+      `DataFrame.${methodName} aggFunc '${aggName}' requires numeric values (column '${columnName}' received '${value}')`
+    );
+  }
+
+  return numeric;
+}
+
+function __astDataFrameIsInvalidDateValue(value) {
+  return value instanceof Date && Number.isNaN(value.getTime());
+}
+
+function __astCompareDataFramePivotValue(left, right) {
+  if (Object.is(left, right)) {
+    return 0;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
+      return 0;
+    }
+    if (Number.isNaN(leftTime)) {
+      return 1;
+    }
+    if (Number.isNaN(rightTime)) {
+      return -1;
+    }
+    return leftTime < rightTime ? -1 : 1;
+  }
+
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left < right ? -1 : 1;
+  }
+
+  const leftText = __astDataFrameLabelToStableText(left);
+  const rightText = __astDataFrameLabelToStableText(right);
+  if (leftText === rightText) {
+    return 0;
+  }
+  return leftText < rightText ? -1 : 1;
+}
+
+function __astBuildDataFramePivotTableOutputColumnName(pivotKey, valueColumn) {
+  const raw = `${pivotKey}_${valueColumn}`;
+  if (typeof toSnakeCase === 'function') {
+    return toSnakeCase(raw);
+  }
+
+  return raw
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
 }
 
 function __astNormalizeDataFrameColumnList(dataframe, columns, optionName, methodName) {
