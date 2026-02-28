@@ -261,6 +261,30 @@ test('DataFrame.merge right join preserves coalesced key values for leftOn/right
   assert.equal(rightOnlyRow.right_value, 'R2');
 });
 
+test('DataFrame.merge leftOn/rightOn preserves overlapping non-key right columns', () => {
+  const context = createContext();
+
+  const left = context.DataFrame.fromRecords([
+    { id: 1, left_value: 'L1' }
+  ]);
+  const right = context.DataFrame.fromRecords([
+    { user_id: 1, id: 'RID1', right_value: 'R1' }
+  ]);
+
+  const out = left.merge(right, 'inner', {
+    leftOn: 'id',
+    rightOn: 'user_id',
+    suffixes: ['_l', '_r']
+  });
+  const row = JSON.parse(JSON.stringify(out.toRecords()))[0];
+
+  assert.equal(row.id, 1);
+  assert.equal(row.id_l, 1);
+  assert.equal(row.id_r, 'RID1');
+  assert.equal(row.user_id, 1);
+  assert.equal(row.right_value, 'R1');
+});
+
 test('DataFrame.pivotTable min aggregation handles mixed valid/invalid Date values deterministically', () => {
   const context = createContext();
 

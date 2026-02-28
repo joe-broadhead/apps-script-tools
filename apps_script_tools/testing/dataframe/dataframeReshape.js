@@ -306,6 +306,34 @@ DATAFRAME_RESHAPE_TESTS = [
     }
   },
   {
+    description: 'DataFrame.merge() leftOn/rightOn should preserve overlapping non-key right columns',
+    test: () => {
+      const left = DataFrame.fromRecords([
+        { id: 1, left_value: 'L1' }
+      ]);
+      const right = DataFrame.fromRecords([
+        { user_id: 1, id: 'RID1', right_value: 'R1' }
+      ]);
+
+      const out = left.merge(right, 'inner', {
+        leftOn: 'id',
+        rightOn: 'user_id',
+        suffixes: ['_l', '_r']
+      });
+      const row = out.toRecords()[0];
+
+      if (
+        row.id !== 1
+        || row.id_l !== 1
+        || row.id_r !== 'RID1'
+        || row.user_id !== 1
+        || row.right_value !== 'R1'
+      ) {
+        throw new Error(`Unexpected merge overlap-preservation row: ${JSON.stringify(row)}`);
+      }
+    }
+  },
+  {
     description: 'DataFrame.pivotTable() min aggregation should prefer valid Date over Invalid Date',
     test: () => {
       const df = DataFrame.fromRecords([
