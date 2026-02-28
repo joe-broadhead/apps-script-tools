@@ -32,7 +32,7 @@ function secretsGetExample() {
     key: 'OPENAI_API_KEY'
   });
 
-  Logger.log(out.output.value);
+  Logger.log(out.value);
 }
 ```
 
@@ -56,11 +56,11 @@ function secretsSetExample() {
 function secretsResolveValueExample() {
   const ASTX = ASTLib.AST || ASTLib;
 
-  const out = ASTX.Secrets.resolveValue({
-    value: 'secret://script_properties/OPENAI_API_KEY'
-  });
+  const resolved = ASTX.Secrets.resolveValue(
+    'secret://script_properties/OPENAI_API_KEY'
+  );
 
-  Logger.log(out.output.value);
+  Logger.log(resolved);
 }
 ```
 

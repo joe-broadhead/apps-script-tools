@@ -78,7 +78,7 @@ function triggersListAndDeleteExample() {
   const ASTX = ASTLib.AST || ASTLib;
 
   Logger.log(JSON.stringify(ASTX.Triggers.list()));
-  Logger.log(JSON.stringify(ASTX.Triggers.delete('daily_sync')));
+  Logger.log(JSON.stringify(ASTX.Triggers.delete({ id: 'daily_sync' })));
 }
 ```
 
