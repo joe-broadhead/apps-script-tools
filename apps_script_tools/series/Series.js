@@ -425,12 +425,13 @@ var Series = class Series {
     const targetIndex = astSeriesNormalizeTargetIndex(index, 'reindex');
     const normalized = astSeriesNormalizeReindexOptions(options, 'reindex');
     const lookup = astSeriesBuildIndexLookup(this.index, normalized.verifyIntegrity, 'reindex');
+    const reindexState = astSeriesBuildReindexState(lookup);
     const values = new Array(targetIndex.length);
     const missing = [];
 
     for (let idx = 0; idx < targetIndex.length; idx++) {
       const label = targetIndex[idx];
-      const sourcePos = astSeriesLookupIndexPosition(lookup, label);
+      const sourcePos = astSeriesTakeNextIndexPosition(lookup, reindexState, label);
       if (sourcePos >= 0) {
         values[idx] = this.array[sourcePos];
       } else if (normalized.allowMissingLabels) {
@@ -2847,7 +2848,7 @@ function astSeriesBuildIndexLookup(index, verifyIntegrity, methodName) {
     const bucket = lookup.get(key);
 
     if (bucket == null) {
-      lookup.set(key, [{ label, idx }]);
+      lookup.set(key, [{ label, positions: [idx] }]);
       continue;
     }
 
@@ -2858,10 +2859,11 @@ function astSeriesBuildIndexLookup(index, verifyIntegrity, methodName) {
           `Series.${methodName} found duplicate index label '${astSeriesFormatLabel(label)}'`
         );
       }
+      existing.positions.push(idx);
       continue;
     }
 
-    bucket.push({ label, idx });
+    bucket.push({ label, positions: [idx] });
   }
 
   return lookup;
@@ -2876,8 +2878,52 @@ function astSeriesLookupIndexPosition(lookup, label) {
 
   for (let idx = 0; idx < bucket.length; idx++) {
     if (Object.is(bucket[idx].label, label)) {
-      return bucket[idx].idx;
+      return bucket[idx].positions[0];
     }
+  }
+
+  return -1;
+}
+
+function astSeriesBuildReindexState(lookup) {
+  const state = new Map();
+
+  for (const [key, bucket] of lookup.entries()) {
+    const bucketState = [];
+    for (let idx = 0; idx < bucket.length; idx++) {
+      bucketState.push({
+        label: bucket[idx].label,
+        cursor: 0
+      });
+    }
+    state.set(key, bucketState);
+  }
+
+  return state;
+}
+
+function astSeriesTakeNextIndexPosition(lookup, state, label) {
+  const key = astSeriesBuildLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  const bucketState = state.get(key);
+  if (!bucket || !bucketState) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    const entry = bucket[idx];
+    if (!Object.is(entry.label, label)) {
+      continue;
+    }
+
+    const cursorState = bucketState[idx];
+    if (cursorState.cursor >= entry.positions.length) {
+      return -1;
+    }
+
+    const position = entry.positions[cursorState.cursor];
+    cursorState.cursor += 1;
+    return position;
   }
 
   return -1;
@@ -2923,61 +2969,37 @@ function astSeriesResolveJoinIndex(leftIndex, rightIndex, join, methodName) {
     throw new Error(`Series.${methodName} option join must be one of inner|outer|left|right`);
   }
 
-  const leftUnique = astSeriesUniqueLabels(leftIndex);
-  const rightUnique = astSeriesUniqueLabels(rightIndex);
+  const leftAll = [...leftIndex];
+  const rightAll = [...rightIndex];
+  const leftLookup = astSeriesBuildIndexLookup(leftAll, false, methodName);
+  const rightLookup = astSeriesBuildIndexLookup(rightAll, false, methodName);
 
   if (join === 'left') {
-    return leftUnique;
+    return leftAll;
   }
 
   if (join === 'right') {
-    return rightUnique;
+    return rightAll;
   }
 
   if (join === 'inner') {
-    const rightLookup = astSeriesBuildIndexLookup(rightUnique, false, methodName);
     const output = [];
-    for (let idx = 0; idx < leftUnique.length; idx++) {
-      if (astSeriesLookupIndexPosition(rightLookup, leftUnique[idx]) >= 0) {
-        output.push(leftUnique[idx]);
+    for (let idx = 0; idx < leftAll.length; idx++) {
+      if (astSeriesLookupIndexPosition(rightLookup, leftAll[idx]) >= 0) {
+        output.push(leftAll[idx]);
       }
     }
     return output;
   }
 
-  const output = [...leftUnique];
-  const outputLookup = astSeriesBuildIndexLookup(output, false, methodName);
-  for (let idx = 0; idx < rightUnique.length; idx++) {
-    const label = rightUnique[idx];
-    if (astSeriesLookupIndexPosition(outputLookup, label) >= 0) {
+  const output = [...leftAll];
+  for (let idx = 0; idx < rightAll.length; idx++) {
+    const label = rightAll[idx];
+    if (astSeriesLookupIndexPosition(leftLookup, label) >= 0) {
       continue;
     }
     output.push(label);
-    const key = astSeriesBuildLabelLookupKey(label);
-    const bucket = outputLookup.get(key);
-    if (bucket) {
-      bucket.push({ label, idx: output.length - 1 });
-    } else {
-      outputLookup.set(key, [{ label, idx: output.length - 1 }]);
-    }
   }
-  return output;
-}
-
-function astSeriesUniqueLabels(index) {
-  const lookup = astSeriesBuildIndexLookup(index, false, 'align');
-  const output = [];
-
-  for (let idx = 0; idx < index.length; idx++) {
-    const label = index[idx];
-    const firstPos = astSeriesLookupIndexPosition(lookup, label);
-    if (firstPos !== idx) {
-      continue;
-    }
-
-    output.push(label);
-  }
-
   return output;
 }
 

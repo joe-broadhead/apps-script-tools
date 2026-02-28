@@ -46,6 +46,13 @@ test('Series.reindex validates unknown labels and supports deterministic fill be
   assertJsonEqual(reindexed.index, ['y', 'z', 'x']);
   assertJsonEqual(reindexed.array, [2, 0, 1]);
 
+  const duplicateReindex = new context.Series([10, 20], 'dup-values', null, ['dup', 'dup']);
+  const duplicateReindexed = duplicateReindex.reindex(['dup', 'dup'], {
+    allowMissingLabels: true,
+    fillValue: null
+  });
+  assertJsonEqual(duplicateReindexed.array, [10, 20]);
+
   const duplicateIndex = new context.Series([10, 20], 'dup', null, ['same', 'same']);
   assert.throws(
     () => duplicateIndex.reindex(['same'], { verifyIntegrity: true }),
@@ -79,6 +86,12 @@ test('Series.align supports inner/outer/left/right joins with disjoint labels', 
   assertJsonEqual(rightJoin.right.array, [10, 30]);
 
   assert.throws(() => left.align(right, { join: 'cross' }), /join must be one of inner\|outer\|left\|right/);
+
+  const dupLeft = new context.Series([1, 2], 'dup-left', null, ['dup', 'dup']);
+  const dupRight = new context.Series([10, 20], 'dup-right', null, ['dup', 'dup']);
+  const dupAligned = dupLeft.align(dupRight, { join: 'left', fillValue: null });
+  assertJsonEqual(dupAligned.left.array, [1, 2]);
+  assertJsonEqual(dupAligned.right.array, [10, 20]);
 });
 
 test('DataFrame.setIndex supports single and multi-column keys with integrity checks', () => {
@@ -111,6 +124,12 @@ test('DataFrame.setIndex supports single and multi-column keys with integrity ch
   );
 
   assert.throws(() => df.setIndex([]), /requires at least one key column/);
+
+  const singleColumn = context.DataFrame.fromRecords([{ only: 1 }, { only: 2 }]);
+  assert.throws(
+    () => singleColumn.setIndex('only'),
+    /cannot drop all columns/
+  );
 });
 
 test('DataFrame.sortIndex sorts by index labels and preserves stable order for duplicates', () => {
@@ -164,6 +183,21 @@ test('DataFrame.reindex enforces strict unknown-label handling and supports fill
     { b: 20, c: 0, a: 2 },
     { b: 0, c: 0, a: 0 },
     { b: 10, c: 0, a: 1 }
+  ]);
+
+  const duplicateFrame = context.DataFrame.fromRecords([
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
+  ]);
+  duplicateFrame.index = ['dup', 'dup'];
+  const duplicateReindexed = duplicateFrame.reindex({
+    index: ['dup', 'dup'],
+    allowMissingLabels: true,
+    fillValue: null
+  });
+  assertJsonEqual(duplicateReindexed.toRecords(), [
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
   ]);
 
   const duplicateIndex = context.DataFrame.fromRecords([

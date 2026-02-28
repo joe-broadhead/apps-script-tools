@@ -628,6 +628,9 @@ var DataFrame = class DataFrame {
     const outputColumns = normalized.drop
       ? this.columns.filter(column => !normalizedKeys.includes(column))
       : [...this.columns];
+    if (outputColumns.length === 0 && this.len() > 0) {
+      throw new Error('DataFrame.setIndex cannot drop all columns for a non-empty DataFrame; use drop=false or keep at least one non-index column');
+    }
 
     const result = this.select(outputColumns);
     result.index = nextIndex;
@@ -890,12 +893,13 @@ var DataFrame = class DataFrame {
     }
 
     const sourceLookup = __astBuildDataFrameIndexLookup(this.index, false, 'reindex');
+    const reindexState = __astBuildDataFrameReindexState(sourceLookup);
     const rowPositions = new Array(normalized.index.length);
     const missingRowLabels = [];
 
     for (let rowIdx = 0; rowIdx < normalized.index.length; rowIdx++) {
       const label = normalized.index[rowIdx];
-      const sourcePos = __astLookupDataFrameIndexPosition(sourceLookup, label);
+      const sourcePos = __astTakeNextDataFrameIndexPosition(sourceLookup, reindexState, label);
       rowPositions[rowIdx] = sourcePos;
       if (sourcePos < 0) {
         missingRowLabels.push(label);
@@ -1800,7 +1804,7 @@ function __astBuildDataFrameIndexLookup(index, verifyIntegrity, methodName) {
     const bucket = lookup.get(key);
 
     if (bucket == null) {
-      lookup.set(key, [{ label, idx }]);
+      lookup.set(key, [{ label, positions: [idx] }]);
       continue;
     }
 
@@ -1811,10 +1815,11 @@ function __astBuildDataFrameIndexLookup(index, verifyIntegrity, methodName) {
           `DataFrame.${methodName} found duplicate index label '${__astFormatDataFrameLabel(label)}'`
         );
       }
+      existing.positions.push(idx);
       continue;
     }
 
-    bucket.push({ label, idx });
+    bucket.push({ label, positions: [idx] });
   }
 
   return lookup;
@@ -1829,8 +1834,52 @@ function __astLookupDataFrameIndexPosition(lookup, label) {
 
   for (let idx = 0; idx < bucket.length; idx++) {
     if (Object.is(bucket[idx].label, label)) {
-      return bucket[idx].idx;
+      return bucket[idx].positions[0];
     }
+  }
+
+  return -1;
+}
+
+function __astBuildDataFrameReindexState(lookup) {
+  const state = new Map();
+
+  for (const [key, bucket] of lookup.entries()) {
+    const bucketState = [];
+    for (let idx = 0; idx < bucket.length; idx++) {
+      bucketState.push({
+        label: bucket[idx].label,
+        cursor: 0
+      });
+    }
+    state.set(key, bucketState);
+  }
+
+  return state;
+}
+
+function __astTakeNextDataFrameIndexPosition(lookup, state, label) {
+  const key = __astBuildDataFrameLabelLookupKey(label);
+  const bucket = lookup.get(key);
+  const bucketState = state.get(key);
+  if (!bucket || !bucketState) {
+    return -1;
+  }
+
+  for (let idx = 0; idx < bucket.length; idx++) {
+    const entry = bucket[idx];
+    if (!Object.is(entry.label, label)) {
+      continue;
+    }
+
+    const cursorState = bucketState[idx];
+    if (cursorState.cursor >= entry.positions.length) {
+      return -1;
+    }
+
+    const position = entry.positions[cursorState.cursor];
+    cursorState.cursor += 1;
+    return position;
   }
 
   return -1;
