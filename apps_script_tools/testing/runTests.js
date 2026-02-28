@@ -28,6 +28,7 @@ async function runAllTests() {
     // dataFrame/DataFrame Tests
 
     ...DATAFRAME_ASSIGN_TESTS,
+    ...DATAFRAME_APPLY_TESTS,
     ...DATAFRAME_AS_TYPE_TESTS,
     ...DATAFRAME_AT_TESTS,
     ...DATAFRAME_CONCAT_TESTS,
@@ -113,6 +114,7 @@ async function runAllTests() {
     ...SERIES_NOT_NULL_TESTS,
     ...SERIES_DUPLICATED_TESTS,
     ...SERIES_ISIN_TESTS,
+    ...SERIES_MAP_TESTS,
     ...SERIES_CASE_WHEN_TESTS,
     ...SERIES_ENCRYPT_DECRYPT_TESTS,
     ...SERIES_COMBINE_TESTS,

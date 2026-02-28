@@ -1604,6 +1604,45 @@ var Series = class Series {
   }
 
   /**
+   * @function map
+   * @description Maps Series values using either a callback, `Map`, plain object, or another `Series`.
+   * @memberof Series
+   * @param {Function|Map|Object|Series} mapper - Mapping definition.
+   * @param {Object} [options={}] - Mapping options.
+   * @param {'ignore'} [options.naAction] - When set to `ignore`, missing values (`null`, `undefined`, `NaN`) are returned unchanged.
+   * @param {*} [options.defaultValue] - Default value for key-based mappers when no match is found.
+   * @returns {Series}
+   */
+  map(mapper, options = {}) {
+    const normalizedOptions = astSeriesNormalizeMapOptions(options);
+    const mapperType = astSeriesResolveMapMapperType(mapper);
+    const mapperLookup = astSeriesPrepareMapLookup(mapper, mapperType);
+    const result = new Array(this.len());
+    const hasDefaultValue = Object.prototype.hasOwnProperty.call(normalizedOptions, 'defaultValue');
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const value = this.array[idx];
+
+      if (normalizedOptions.naAction === 'ignore' && astSeriesIsMissingValue(value)) {
+        result[idx] = value;
+        continue;
+      }
+
+      if (mapperType === 'function') {
+        result[idx] = mapper(value, this.index[idx], idx, this);
+        continue;
+      }
+
+      const mappedValue = astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value);
+      result[idx] = mappedValue.found
+        ? mappedValue.value
+        : (hasDefaultValue ? normalizedOptions.defaultValue : undefined);
+    }
+
+    return astSeriesBuildLike(this, result);
+  }
+
+  /**
    * @function apply
    * @description Applies a given function to each element in the `Series`, optionally passing additional arguments to the function.
    *              Returns a new `Series` instance containing the transformed elements.
@@ -1637,7 +1676,7 @@ var Series = class Series {
    */
   apply(func = elem => elem, ...args) {
     const applied = arrayApply(this.array, [[func, ...args]]);
-    return new Series(applied, this.name);
+    return astSeriesBuildLike(this, applied);
   }
 
   /**
@@ -2580,6 +2619,97 @@ function astSeriesIsMapLike(value) {
   return value != null
     && Object.prototype.toString.call(value) === '[object Map]'
     && typeof value.entries === 'function';
+}
+
+function astSeriesNormalizeMapOptions(options) {
+  if (options == null) {
+    return {};
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error('Series.map options must be an object');
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(options, 'naAction')
+    && options.naAction !== 'ignore'
+  ) {
+    throw new Error("Series.map option naAction must be 'ignore' when provided");
+  }
+
+  return {
+    ...options
+  };
+}
+
+function astSeriesResolveMapMapperType(mapper) {
+  if (typeof mapper === 'function') {
+    return 'function';
+  }
+
+  if (mapper instanceof Series) {
+    return 'series';
+  }
+
+  if (astSeriesIsMapLike(mapper)) {
+    return 'map';
+  }
+
+  if (astSeriesIsPlainObject(mapper)) {
+    return 'object';
+  }
+
+  throw new Error('Series.map mapper must be a function, Map, plain object, or Series');
+}
+
+function astSeriesPrepareMapLookup(mapper, mapperType) {
+  if (mapperType !== 'series') {
+    return null;
+  }
+
+  const byIdentity = new Map();
+  const byString = Object.create(null);
+
+  for (let idx = 0; idx < mapper.array.length; idx++) {
+    const key = mapper.index[idx];
+    const value = mapper.array[idx];
+    if (!byIdentity.has(key)) {
+      byIdentity.set(key, value);
+    }
+
+    const stringKey = astSeriesStringifyReplaceKey(key);
+    if (!Object.prototype.hasOwnProperty.call(byString, stringKey)) {
+      byString[stringKey] = value;
+    }
+  }
+
+  return { byIdentity, byString };
+}
+
+function astSeriesResolveMappedValue(mapper, mapperType, mapperLookup, value) {
+  if (mapperType === 'map') {
+    return mapper.has(value)
+      ? { found: true, value: mapper.get(value) }
+      : { found: false, value: undefined };
+  }
+
+  const key = astSeriesStringifyReplaceKey(value);
+
+  if (mapperType === 'series') {
+    if (mapperLookup && mapperLookup.byIdentity.has(value)) {
+      return { found: true, value: mapperLookup.byIdentity.get(value) };
+    }
+    if (mapperLookup && Object.prototype.hasOwnProperty.call(mapperLookup.byString, key)) {
+      return { found: true, value: mapperLookup.byString[key] };
+    }
+    return { found: false, value: undefined };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(mapper, key)) {
+    return { found: true, value: mapper[key] };
+  }
+
+  return { found: false, value: undefined };
 }
 
 function astSeriesNormalizeDropNullOptions(options, methodName) {

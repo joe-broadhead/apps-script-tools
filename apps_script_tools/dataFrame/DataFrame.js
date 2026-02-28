@@ -1080,6 +1080,78 @@ var DataFrame = class DataFrame {
     return result;
   }
 
+  /**
+   * Apply a callback over row or column slices.
+   *
+   * Callback signature:
+   * - axis=`rows`: `(rowSeries, rowLabel, rowPosition, frame) => result`
+   * - axis=`columns`: `(columnSeries, columnName, columnPosition, frame) => result`
+   *
+   * Deterministic result-shape rules:
+   * - scalar results -> `Series`
+   * - plain-object or `Series` results -> `DataFrame` (one row per slice)
+   * - `DataFrame` results:
+   *   - axis=`rows`: each callback must return a single-row DataFrame; output stacks rows.
+   *   - axis=`columns`: each callback must return a DataFrame aligned to source index; output columns are namespaced as `<sourceColumn>_<outputColumn>`.
+   *
+   * @param {Function} fn
+   * @param {Object} [options={}]
+   * @param {'rows'|'columns'|'index'|0|1} [options.axis='rows']
+   * @param {string} [options.resultName='apply']
+   * @returns {Series|DataFrame}
+   */
+  apply(fn, options = {}) {
+    if (typeof fn !== 'function') {
+      throw new Error('DataFrame.apply requires fn to be a function');
+    }
+
+    const normalized = __astNormalizeDataFrameApplyOptions(options, 'apply');
+    const axis = normalized.axis;
+    const labels = axis === 'rows' ? [...this.index] : [...this.columns];
+    const results = new Array(labels.length);
+
+    for (let pos = 0; pos < labels.length; pos++) {
+      if (axis === 'rows') {
+        const rowSeries = __astBuildDataFrameRowSeries(this, pos);
+        results[pos] = fn(rowSeries, labels[pos], pos, this);
+      } else {
+        const columnSeries = __astBuildDataFrameColumnSeries(this, this.columns[pos]);
+        results[pos] = fn(columnSeries, this.columns[pos], pos, this);
+      }
+    }
+
+    return __astFinalizeDataFrameApplyResult(this, axis, labels, results, normalized);
+  }
+
+  /**
+   * Apply an element-wise transform across all cells.
+   *
+   * Callback signature: `(value, rowLabel, columnName, rowPosition, columnPosition, frame) => nextValue`
+   *
+   * @param {Function} fn
+   * @returns {DataFrame}
+   */
+  applyMap(fn) {
+    if (typeof fn !== 'function') {
+      throw new Error('DataFrame.applyMap requires fn to be a function');
+    }
+
+    const nextColumns = {};
+    for (let colIdx = 0; colIdx < this.columns.length; colIdx++) {
+      const columnName = this.columns[colIdx];
+      const source = this.data[columnName].array;
+      const mapped = new Array(this.len());
+
+      for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+        mapped[rowIdx] = fn(source[rowIdx], this.index[rowIdx], columnName, rowIdx, colIdx, this);
+      }
+
+      nextColumns[columnName] = mapped;
+    }
+
+    return DataFrame.fromColumns(nextColumns, { copy: false, index: [...this.index] });
+  }
+
   pipe(...funcs) {
     return funcs.reduce((df, func) => {
       const result = func(df);
@@ -1584,6 +1656,239 @@ function __astNormalizeDataFrameAxis(axis, methodName) {
   }
 
   throw new Error(`DataFrame.${methodName} option axis must be one of rows|columns|0|1|index`);
+}
+
+function __astNormalizeDataFrameApplyOptions(options, methodName) {
+  if (options == null) {
+    return {
+      axis: 'rows',
+      resultName: 'apply'
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const axis = __astNormalizeDataFrameAxis(options.axis, methodName);
+  let resultName = 'apply';
+
+  if (Object.prototype.hasOwnProperty.call(options, 'resultName')) {
+    if (typeof options.resultName !== 'string' || options.resultName.trim().length === 0) {
+      throw new Error(`DataFrame.${methodName} option resultName must be a non-empty string`);
+    }
+    resultName = options.resultName;
+  }
+
+  return { axis, resultName };
+}
+
+function __astBuildDataFrameRowSeries(dataframe, rowIndex) {
+  const values = new Array(dataframe.columns.length);
+  for (let colIdx = 0; colIdx < dataframe.columns.length; colIdx++) {
+    const columnName = dataframe.columns[colIdx];
+    values[colIdx] = dataframe.data[columnName].array[rowIndex];
+  }
+
+  return new Series(
+    values,
+    String(dataframe.index[rowIndex]),
+    null,
+    [...dataframe.columns],
+    {
+      allowComplexValues: true,
+      skipTypeCoercion: true
+    }
+  );
+}
+
+function __astBuildDataFrameColumnSeries(dataframe, columnName) {
+  const source = dataframe.data[columnName];
+  return new Series(
+    [...source.array],
+    source.name,
+    source.type,
+    [...dataframe.index],
+    {
+      useUTC: source.useUTC,
+      allowComplexValues: true,
+      skipTypeCoercion: true
+    }
+  );
+}
+
+function __astResolveDataFrameApplyResultType(value) {
+  if (value instanceof DataFrame) {
+    return 'dataframe';
+  }
+
+  if (value instanceof Series) {
+    return 'series';
+  }
+
+  if (__astDataFrameIsPlainObject(value)) {
+    return 'object';
+  }
+
+  return 'scalar';
+}
+
+function __astDetectDataFrameApplyResultType(results, methodName) {
+  if (!Array.isArray(results) || results.length === 0) {
+    return 'empty';
+  }
+
+  let detected = null;
+  for (let idx = 0; idx < results.length; idx++) {
+    const currentType = __astResolveDataFrameApplyResultType(results[idx]);
+    if (detected == null) {
+      detected = currentType;
+      continue;
+    }
+
+    if (currentType !== detected) {
+      throw new Error(
+        `DataFrame.${methodName} requires a consistent callback return type across slices. Expected ${detected}, got ${currentType} at position ${idx}`
+      );
+    }
+  }
+
+  return detected;
+}
+
+function __astResolveDataFrameApplySeriesKey(series, idx) {
+  const indexValue = series.index[idx];
+  if (typeof indexValue === 'string' && indexValue.trim().length > 0) {
+    return indexValue;
+  }
+
+  if (typeof indexValue === 'number' && Number.isFinite(indexValue)) {
+    return String(indexValue);
+  }
+
+  if (indexValue != null && indexValue !== '') {
+    return String(indexValue);
+  }
+
+  return `value_${idx}`;
+}
+
+function __astDataFrameApplySeriesToObject(series, methodName, position) {
+  const row = {};
+  for (let idx = 0; idx < series.array.length; idx++) {
+    const key = __astResolveDataFrameApplySeriesKey(series, idx);
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      throw new Error(
+        `DataFrame.${methodName} callback returned duplicate Series index key '${key}' at position ${position}`
+      );
+    }
+    row[key] = series.array[idx];
+  }
+  return row;
+}
+
+function __astDataFrameApplyNormalizeTabularRows(results, methodName) {
+  const rows = new Array(results.length);
+  for (let idx = 0; idx < results.length; idx++) {
+    const value = results[idx];
+    if (value instanceof Series) {
+      rows[idx] = __astDataFrameApplySeriesToObject(value, methodName, idx);
+      continue;
+    }
+
+    rows[idx] = { ...value };
+  }
+  return rows;
+}
+
+function __astFinalizeDataFrameApplyDataFrameRows(labels, results, methodName) {
+  for (let idx = 0; idx < results.length; idx++) {
+    if (results[idx].len() !== 1) {
+      throw new Error(
+        `DataFrame.${methodName} with axis='rows' requires callback DataFrame results to have exactly 1 row (position ${idx} returned ${results[idx].len()})`
+      );
+    }
+  }
+
+  const combined = DataFrame.concat(results);
+  combined.index = [...labels];
+  return combined;
+}
+
+function __astFinalizeDataFrameApplyDataFrameColumns(dataframe, labels, results, methodName) {
+  const columns = {};
+
+  for (let idx = 0; idx < results.length; idx++) {
+    const sourceColumnLabel = String(labels[idx]);
+    const piece = results[idx];
+
+    if (piece.len() !== dataframe.len()) {
+      throw new Error(
+        `DataFrame.${methodName} with axis='columns' requires callback DataFrame results to match source row count ${dataframe.len()} (position ${idx} returned ${piece.len()})`
+      );
+    }
+
+    if (piece.index.length !== dataframe.index.length) {
+      throw new Error(
+        `DataFrame.${methodName} with axis='columns' requires callback DataFrame index length to match source index length ${dataframe.index.length}`
+      );
+    }
+
+    for (let indexPos = 0; indexPos < dataframe.index.length; indexPos++) {
+      if (!Object.is(piece.index[indexPos], dataframe.index[indexPos])) {
+        throw new Error(
+          `DataFrame.${methodName} with axis='columns' requires callback DataFrame index values to align with source index (mismatch at source column ${sourceColumnLabel}, index position ${indexPos})`
+        );
+      }
+    }
+
+    for (let colPos = 0; colPos < piece.columns.length; colPos++) {
+      const outputColumn = piece.columns[colPos];
+      const namespacedColumn = `${sourceColumnLabel}_${outputColumn}`;
+      if (Object.prototype.hasOwnProperty.call(columns, namespacedColumn)) {
+        throw new Error(
+          `DataFrame.${methodName} generated duplicate output column '${namespacedColumn}'. Ensure callback DataFrame columns are unique per source column`
+        );
+      }
+      columns[namespacedColumn] = [...piece.data[outputColumn].array];
+    }
+  }
+
+  return DataFrame.fromColumns(columns, { copy: false, index: [...dataframe.index] });
+}
+
+function __astFinalizeDataFrameApplyResult(dataframe, axis, labels, results, options) {
+  const resultType = __astDetectDataFrameApplyResultType(results, 'apply');
+
+  if (resultType === 'empty') {
+    return new Series([], options.resultName, null, []);
+  }
+
+  if (resultType === 'scalar') {
+    return new Series(
+      [...results],
+      options.resultName,
+      null,
+      [...labels],
+      {
+        allowComplexValues: true,
+        skipTypeCoercion: true
+      }
+    );
+  }
+
+  if (resultType === 'series' || resultType === 'object') {
+    const rows = __astDataFrameApplyNormalizeTabularRows(results, 'apply');
+    const output = DataFrame.fromRecords(rows);
+    output.index = [...labels];
+    return output;
+  }
+
+  if (axis === 'rows') {
+    return __astFinalizeDataFrameApplyDataFrameRows(labels, results, 'apply');
+  }
+
+  return __astFinalizeDataFrameApplyDataFrameColumns(dataframe, labels, results, 'apply');
 }
 
 function __astNormalizeDataFrameColumnList(dataframe, columns, optionName, methodName) {

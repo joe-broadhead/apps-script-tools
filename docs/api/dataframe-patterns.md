@@ -18,6 +18,49 @@ function patternSelectAssignSort(ASTX) {
 }
 ```
 
+## Slice-level apply and cell-level applyMap
+
+```javascript
+function patternApply(ASTX) {
+  const df = ASTX.DataFrame.fromRecords([
+    { id: 1, amount: 10, score: 2 },
+    { id: 2, amount: 25, score: 3 }
+  ]);
+
+  const rowTotals = df.apply(row => row.at(1) + row.at(2), {
+    axis: 'rows',
+    resultName: 'row_total'
+  });
+
+  const columnStats = df.apply(column => ({
+    min: column.min(),
+    max: column.max()
+  }), {
+    axis: 'columns'
+  });
+
+  const normalized = df.applyMap((value, rowLabel, columnName) => {
+    if (columnName === 'amount') return value / 10;
+    return value;
+  });
+
+  return { rowTotals, columnStats, normalized };
+}
+```
+
+```javascript
+function patternSeriesMap(ASTX) {
+  const status = new ASTX.Series(['ok', 'warn', 'unknown'], 'status');
+
+  return status.map({
+    ok: 'green',
+    warn: 'amber'
+  }, {
+    defaultValue: 'gray'
+  });
+}
+```
+
 ## Inspect, sample, and copy
 
 ```javascript

@@ -66,6 +66,10 @@
 - `AST.Runtime.configureFromProps(...)` now supports module `DBT`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Secrets`.
 - `AST.Runtime.configureFromProps(...)` now supports module `Triggers`.
+- Added transformation ergonomics:
+  - `Series.map(mapper, options)` with callback / object / `Map` / `Series` mapper support.
+  - `DataFrame.apply(fn, options)` with explicit axis handling and deterministic scalar/tabular/DataFrame return-shape contracts.
+  - `DataFrame.applyMap(fn)` for element-wise non-mutating transforms.
 - `DataFrame` now rejects column names that collide with reserved DataFrame members (for example `sort`, `len`, `columns`, `data`, `index`) to prevent method/property shadowing on instances.
 - `GroupBy.agg(...)` and `GroupBy.apply(...)` now return deterministic empty `DataFrame` results for zero-row inputs instead of throwing via `DataFrame.concat([])`.
 - `Series.dt.toDateString()` now honors `useUTC` consistently, and `Series` now constructs `DateMethods` with the normalized single-argument constructor (`new DateMethods(this)`).
