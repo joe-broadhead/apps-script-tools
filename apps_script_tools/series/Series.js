@@ -377,6 +377,121 @@ var Series = class Series {
   }
 
   /**
+   * Shift values by positional periods.
+   *
+   * Positive periods shift values downward (toward larger row indexes).
+   * Negative periods shift values upward.
+   *
+   * @param {number} [periods=1]
+   * @param {*} [fillValue=null]
+   * @returns {Series}
+   */
+  shift(periods = 1, fillValue = null) {
+    const normalizedPeriods = astSeriesNormalizeShiftPeriods(periods, 'shift');
+    const length = this.len();
+
+    if (length === 0 || normalizedPeriods === 0) {
+      return astSeriesBuildLike(this, [...this.array]);
+    }
+
+    const output = new Array(length);
+    for (let idx = 0; idx < length; idx++) {
+      output[idx] = fillValue;
+    }
+
+    if (normalizedPeriods > 0) {
+      for (let idx = normalizedPeriods; idx < length; idx++) {
+        output[idx] = this.array[idx - normalizedPeriods];
+      }
+    } else {
+      const offset = Math.abs(normalizedPeriods);
+      const limit = length - offset;
+      for (let idx = 0; idx < limit; idx++) {
+        output[idx] = this.array[idx + offset];
+      }
+    }
+
+    return astSeriesBuildLike(this, output);
+  }
+
+  /**
+   * Compute first discrete difference relative to shifted values.
+   *
+   * @param {number} [periods=1]
+   * @returns {Series}
+   */
+  diff(periods = 1) {
+    const normalizedPeriods = astSeriesNormalizeShiftPeriods(periods, 'diff');
+    const baseline = this.shift(normalizedPeriods, null);
+    const output = new Array(this.len());
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const current = this.array[idx];
+      const previous = baseline.array[idx];
+
+      if (astSeriesIsMissingValue(current) || astSeriesIsMissingValue(previous)) {
+        output[idx] = null;
+        continue;
+      }
+
+      output[idx] = subtractValues(current, previous);
+    }
+
+    return astSeriesBuildLike(this, output);
+  }
+
+  /**
+   * Compute percentage change relative to shifted values.
+   *
+   * @param {number} [periods=1]
+   * @param {Object} [options={}]
+   * @param {'null'|'infinity'|'error'} [options.zeroDivision='null']
+   * @returns {Series}
+   */
+  pctChange(periods = 1, options = {}) {
+    const normalizedPeriods = astSeriesNormalizeShiftPeriods(periods, 'pctChange');
+    const normalizedOptions = astSeriesNormalizePctChangeOptions(options, 'pctChange');
+    const baseline = this.shift(normalizedPeriods, null);
+    const output = new Array(this.len());
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const current = this.array[idx];
+      const previous = baseline.array[idx];
+
+      if (astSeriesIsMissingValue(current) || astSeriesIsMissingValue(previous)) {
+        output[idx] = null;
+        continue;
+      }
+
+      const numerator = subtractValues(current, previous);
+      if (astSeriesIsMissingValue(numerator)) {
+        output[idx] = null;
+        continue;
+      }
+
+      const denominator = normalizeValues(previous);
+      if (denominator == null) {
+        output[idx] = null;
+        continue;
+      }
+
+      if (denominator === 0) {
+        output[idx] = astSeriesResolvePctZeroDivisionValue(
+          'Series.pctChange',
+          idx,
+          numerator,
+          normalizedOptions.zeroDivision
+        );
+        continue;
+      }
+
+      output[idx] = numerator / denominator;
+    }
+
+    return astSeriesBuildLike(this, output);
+  }
+
+  /**
    * Sort values by index labels.
    *
    * @param {boolean} [ascending=true]
@@ -3221,6 +3336,49 @@ function astSeriesNormalizeHeadTailCount(value, methodName) {
     throw new Error(`Series.${methodName} requires a non-negative integer n`);
   }
   return value;
+}
+
+function astSeriesNormalizeShiftPeriods(periods, methodName) {
+  if (!Number.isInteger(periods)) {
+    throw new Error(`Series.${methodName} option periods must be an integer`);
+  }
+  return periods;
+}
+
+function astSeriesNormalizePctChangeOptions(options, methodName) {
+  if (options == null) {
+    return {
+      zeroDivision: 'null'
+    };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const zeroDivision = options.zeroDivision == null ? 'null' : options.zeroDivision;
+  if (!['null', 'infinity', 'error'].includes(zeroDivision)) {
+    throw new Error(`Series.${methodName} option zeroDivision must be one of null|infinity|error`);
+  }
+
+  return {
+    zeroDivision
+  };
+}
+
+function astSeriesResolvePctZeroDivisionValue(methodLabel, rowPosition, numerator, zeroDivision) {
+  if (zeroDivision === 'error') {
+    throw new Error(`${methodLabel} division by zero at row ${rowPosition}`);
+  }
+
+  if (zeroDivision === 'infinity') {
+    if (numerator === 0) {
+      return null;
+    }
+    return numerator > 0 ? Infinity : -Infinity;
+  }
+
+  return null;
 }
 
 function astSeriesNormalizeTakeIndexes(indexes, length, methodName) {
