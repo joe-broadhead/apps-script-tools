@@ -160,7 +160,7 @@ function astConfigNormalizeSchemaFieldDefinition(key, definition) {
       );
     }
 
-    const seen = {};
+    const seen = new Set();
     const values = [];
     const normalizedValues = [];
 
@@ -174,14 +174,14 @@ function astConfigNormalizeSchemaFieldDefinition(key, definition) {
       }
 
       const identity = field.caseInsensitive ? value.toLowerCase() : value;
-      if (seen[identity]) {
+      if (seen.has(identity)) {
         throw astConfigBuildSchemaValidationError(
           `AST.Config.schema enum field '${key}' contains duplicate value '${value}'`,
           { key, value }
         );
       }
 
-      seen[identity] = true;
+      seen.add(identity);
       values.push(value);
       normalizedValues.push(identity);
     }
@@ -405,22 +405,30 @@ function astConfigSchema(definition = {}) {
     );
   }
 
-  const schemaKeys = Object.keys(definition)
-    .map(key => astConfigNormalizeString(key, ''))
-    .filter(Boolean)
-    .sort();
-  const fields = {};
-
-  for (let idx = 0; idx < schemaKeys.length; idx += 1) {
-    const key = schemaKeys[idx];
-    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+  const fieldDefinitions = new Map();
+  const rawKeys = Object.keys(definition);
+  for (let idx = 0; idx < rawKeys.length; idx += 1) {
+    const rawKey = rawKeys[idx];
+    const key = astConfigNormalizeString(rawKey, '');
+    if (!key) {
+      continue;
+    }
+    if (fieldDefinitions.has(key)) {
       throw astConfigBuildSchemaValidationError(
         `AST.Config.schema contains duplicate key '${key}'`,
         { key }
       );
     }
+    fieldDefinitions.set(key, definition[rawKey]);
+  }
 
-    const field = astConfigNormalizeSchemaFieldDefinition(key, definition[key]);
+  const schemaKeys = Array.from(fieldDefinitions.keys()).sort();
+  const fields = Object.create(null);
+
+  for (let idx = 0; idx < schemaKeys.length; idx += 1) {
+    const key = schemaKeys[idx];
+
+    const field = astConfigNormalizeSchemaFieldDefinition(key, fieldDefinitions.get(key));
     if (field.hasDefault) {
       field.defaultValue = astConfigCoerceSchemaValue(field.defaultValue, field, 'default');
       if (field.defaultValue != null && typeof field.defaultValue === 'object') {
@@ -455,7 +463,7 @@ function astConfigResolveBindPrecedence(options = {}) {
     ? options.precedence
     : AST_CONFIG_BIND_DEFAULT_PRECEDENCE;
   const output = [];
-  const seen = {};
+  const seen = new Set();
 
   for (let idx = 0; idx < rawPrecedence.length; idx += 1) {
     const normalized = astConfigNormalizeString(rawPrecedence[idx], '')
@@ -473,10 +481,10 @@ function astConfigResolveBindPrecedence(options = {}) {
       );
     }
 
-    if (seen[resolved]) {
+    if (seen.has(resolved)) {
       continue;
     }
-    seen[resolved] = true;
+    seen.add(resolved);
     output.push(resolved);
   }
 
@@ -567,8 +575,8 @@ function astConfigBind(definitionOrSchema, options = {}) {
     : astConfigSchema(definitionOrSchema);
   const precedence = astConfigResolveBindPrecedence(options);
   const sourceMaps = astConfigResolveBindSourceMaps(schema, options, precedence);
-  const output = {};
-  const sourceByKey = {};
+  const output = Object.create(null);
+  const sourceByKey = Object.create(null);
 
   for (let idx = 0; idx < schema.keys.length; idx += 1) {
     const key = schema.keys[idx];

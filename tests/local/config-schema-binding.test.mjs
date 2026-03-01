@@ -219,3 +219,29 @@ test('AST.Config.schema rejects unsupported field types', () => {
     )
   );
 });
+
+test('AST.Config schema/bind supports prototype-like keys safely', () => {
+  const context = loadConfigContext();
+
+  const definition = {
+    ['__proto__']: { type: 'string', default: 'proto-default' },
+    constructor: { type: 'string', default: 'ctor-default' },
+    MODE: { type: 'enum', values: ['__proto__', 'safe'], default: '__proto__' }
+  };
+
+  const schema = context.AST.Config.schema(definition);
+  assert.equal(schema.fields['__proto__'].type, 'string');
+  assert.equal(schema.fields.constructor.type, 'string');
+
+  const bound = context.AST.Config.bind(schema, {
+    request: {
+      ['__proto__']: 'proto-value',
+      constructor: 'ctor-value',
+      MODE: '__proto__'
+    }
+  });
+
+  assert.equal(bound['__proto__'], 'proto-value');
+  assert.equal(bound.constructor, 'ctor-value');
+  assert.equal(bound.MODE, '__proto__');
+});
