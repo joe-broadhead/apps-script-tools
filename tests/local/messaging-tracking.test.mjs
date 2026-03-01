@@ -37,6 +37,20 @@ test('tracking pixel, wrapping, record, and web event handling work with signatu
   assert.equal(wrapped.data.wrappedCount, 1);
   assert.equal(wrapped.data.html.includes('eventType=click'), true);
 
+  const unsafeWrapped = context.AST.Messaging.tracking.wrapLinks({
+    body: {
+      html: '<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">x</a><a href="vbscript:msgbox(1)">y</a><a href="jaVaScRiPt%3Aalert(1)">z</a>',
+      deliveryId: 'delivery_unsafe',
+      trackingHash: 'hash_unsafe'
+    }
+  });
+
+  assert.equal(unsafeWrapped.data.wrappedCount, 0);
+  assert.equal(unsafeWrapped.data.html.includes('eventType=click'), false);
+  assert.equal(unsafeWrapped.data.html.includes('data:text/html;base64'), true);
+  assert.equal(unsafeWrapped.data.html.includes('vbscript:msgbox(1)'), true);
+  assert.equal(unsafeWrapped.data.html.includes('jaVaScRiPt%3Aalert(1)'), true);
+
   const recorded = context.AST.Messaging.tracking.recordEvent({
     body: {
       eventType: 'open',

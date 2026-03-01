@@ -65,6 +65,51 @@ function astMessagingTrackingBuildCanonicalPayload(eventType, deliveryId, target
   return `${eventType}:${deliveryId}:${target}`;
 }
 
+const AST_MESSAGING_TRACKING_NON_TRACKABLE_SCHEMES = Object.freeze([
+  'mailto',
+  'tel',
+  'sms',
+  'cid'
+]);
+
+const AST_MESSAGING_TRACKING_UNSAFE_SCHEMES = Object.freeze([
+  'javascript',
+  'data',
+  'vbscript'
+]);
+
+function astMessagingTrackingSafeDecodeUriComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (_error) {
+    return value;
+  }
+}
+
+function astMessagingTrackingGetUrlScheme(value) {
+  const normalized = astMessagingTrackingNormalizeString(value, '');
+  if (!normalized) {
+    return '';
+  }
+
+  // Canonicalize control/whitespace-obfuscated schemes before scheme extraction.
+  const sanitized = normalized
+    .replace(/^[\s\u0000-\u001F\u007F]+/, '')
+    .replace(/[\s\u0000-\u001F\u007F]+/g, '');
+  const decoded = astMessagingTrackingSafeDecodeUriComponent(sanitized);
+  const lower = decoded.toLowerCase();
+  const match = lower.match(/^([a-z][a-z0-9+.-]*):/);
+  return match ? match[1] : '';
+}
+
+function astMessagingTrackingIsSchemeInList(scheme, values) {
+  return Boolean(
+    scheme
+    && Array.isArray(values)
+    && values.indexOf(scheme) !== -1
+  );
+}
+
 function astMessagingTrackingSignPayload(payload, secret) {
   const normalizedSecret = astMessagingTrackingNormalizeString(secret, null);
   if (!normalizedSecret) {
@@ -168,7 +213,13 @@ function astMessagingWrapLinks(request = {}, resolvedConfig = {}) {
   let wrappedCount = 0;
   const wrappedHtml = html.replace(/href\s*=\s*(["'])([^"']+)\1/gi, (_match, quote, href) => {
     const original = astMessagingTrackingNormalizeString(href, '');
-    if (!original || original.startsWith('#') || original.startsWith('mailto:') || original.startsWith('javascript:')) {
+    const scheme = astMessagingTrackingGetUrlScheme(original);
+    if (
+      !original
+      || original.startsWith('#')
+      || astMessagingTrackingIsSchemeInList(scheme, AST_MESSAGING_TRACKING_NON_TRACKABLE_SCHEMES)
+      || astMessagingTrackingIsSchemeInList(scheme, AST_MESSAGING_TRACKING_UNSAFE_SCHEMES)
+    ) {
       return `href=${quote}${href}${quote}`;
     }
 
