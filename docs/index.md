@@ -19,7 +19,7 @@
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.Http`: shared transport helpers for retries, timeout budgets, and typed request errors.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
-- `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
+- `AST.RAG`: Drive + Storage URI indexing (`gcs://`, `s3://`, `dbfs:/`), retrieval, and grounded answering with citations.
 - `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`) with search, lineage, diff, and impact overlays.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.

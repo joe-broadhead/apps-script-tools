@@ -485,6 +485,76 @@ test('PDF extraction falls back to default Vertex model when generation model is
   assert.equal(extracted.segments[0].page, 1);
 });
 
+test('storage PDF extraction uses base64 payload when reading non-Drive sources', () => {
+  const storage = createStorageRuntime({
+    objects: {
+      's3://bucket/pdfs/spec.pdf': {
+        text: '%PDF-1.4 fake-binary-content',
+        mimeType: MIME_PDF
+      }
+    }
+  });
+
+  const callTracker = {
+    called: false,
+    url: null,
+    payload: null
+  };
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        callTracker.called = true;
+        callTracker.url = String(url || '');
+        callTracker.payload = JSON.parse(options.payload);
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            candidates: [{
+              content: {
+                parts: [{
+                  text: '{"pages":[{"page":1,"text":"Storage PDF page text"}]}'
+                }]
+              }
+            }]
+          })
+        };
+      }
+    },
+    astRunStorageRequest: storage.astRunStorageRequest
+  });
+
+  loadRagScripts(context, { includeAi: false, includeUtilities: false });
+
+  const extracted = context.astRagReadSourceText(
+    {
+      sourceKind: 'storage',
+      provider: 's3',
+      uri: 's3://bucket/pdfs/spec.pdf',
+      fileId: 'storage_pdf_1',
+      fileName: 'spec.pdf',
+      mimeType: MIME_PDF
+    },
+    {
+      vertex_gemini: {
+        projectId: 'project-1',
+        location: 'us-central1',
+        oauthToken: 'token'
+      }
+    }
+  );
+
+  assert.equal(callTracker.called, true);
+  assert.match(callTracker.url, /models\/gemini-2\.0-flash-001:generateContent/);
+  assert.equal(
+    typeof callTracker.payload.contents[0].parts[1].inlineData.data === 'string'
+    && callTracker.payload.contents[0].parts[1].inlineData.data.length > 0,
+    true
+  );
+  assert.equal(extracted.segments.length > 0, true);
+  assert.equal(extracted.segments[0].page, 1);
+});
+
 test('buildIndex + syncIndex update source and chunk counts deterministically', () => {
   const fileA = makeDriveFile({
     id: 'file_a',
@@ -629,6 +699,118 @@ test('buildIndex ingests gcs prefix sources through storage runtime with auth pa
   const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
   assert.equal(loaded.sources.length, 2);
   assert.equal(loaded.sources.every(source => source.sourceKind === 'storage'), true);
+});
+
+test('buildIndex ingests s3 prefix sources through storage runtime', () => {
+  const drive = createDriveRuntime({ files: [] });
+  const storageTracker = {};
+  const storage = createStorageRuntime({
+    objects: {
+      's3://bucket/corpus/a.txt': { text: 'alpha from s3', mimeType: MIME_TEXT },
+      's3://bucket/corpus/b.txt': { text: 'bravo from s3', mimeType: MIME_TEXT }
+    },
+    tracker: storageTracker
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(),
+    astRunStorageRequest: storage.astRunStorageRequest
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      uri: 's3://bucket/corpus/',
+      includeSubfolders: true,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 's3-source-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key',
+      s3: {
+        accessKeyId: 'AKIA_TEST',
+        secretAccessKey: 'secret',
+        region: 'eu-west-1'
+      }
+    }
+  });
+
+  assert.equal(built.sourceCount, 2);
+  assert.equal(storageTracker.calls > 0, true);
+  assert.equal(storageTracker.lastAuth.s3.region, 'eu-west-1');
+  assert.equal(storageTracker.operations.includes('list'), true);
+  assert.equal(storageTracker.operations.includes('read'), true);
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(loaded.sources.length, 2);
+  assert.equal(loaded.sources.every(source => source.provider === 's3'), true);
+});
+
+test('buildIndex ingests dbfs object uri sources through storage runtime', () => {
+  const drive = createDriveRuntime({ files: [] });
+  const storageTracker = {};
+  const storage = createStorageRuntime({
+    objects: {
+      'dbfs:/mnt/rag/notes.txt': { text: 'dbfs content', mimeType: MIME_TEXT }
+    },
+    tracker: storageTracker
+  });
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(),
+    astRunStorageRequest: storage.astRunStorageRequest
+  });
+
+  loadRagScripts(context, { includeAst: true });
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      uri: 'dbfs:/mnt/rag/notes.txt',
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'dbfs-source-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    options: {
+      maxFiles: 20,
+      maxChunks: 200
+    },
+    auth: {
+      apiKey: 'test-openai-key',
+      dbfs: {
+        host: 'https://example.cloud.databricks.com',
+        token: 'dbfs-token'
+      }
+    }
+  });
+
+  assert.equal(built.sourceCount, 1);
+  assert.equal(storageTracker.calls > 0, true);
+  assert.equal(storageTracker.lastAuth.dbfs.host, 'https://example.cloud.databricks.com');
+  assert.equal(storageTracker.operations.includes('list'), false);
+  assert.equal(storageTracker.operations.includes('read'), true);
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.equal(loaded.sources.length, 1);
+  assert.equal(loaded.sources[0].provider, 'dbfs');
+  assert.equal(loaded.sources[0].sourceKind, 'storage');
 });
 
 test('syncIndex supports mixed drive + storage sources and updates changed storage objects', () => {

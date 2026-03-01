@@ -1,6 +1,6 @@
 # RAG Quick Start
 
-This quick start builds a Drive-backed index and asks grounded questions with citations.
+This quick start builds a Drive-backed and/or Storage URI-backed index and asks grounded questions with citations.
 
 ## Setup script properties
 
@@ -50,6 +50,50 @@ function ragBuildIndex() {
       maxFiles: 300,
       maxChunks: 2000,
       skipParseFailures: true
+    }
+  });
+
+  Logger.log(out);
+}
+```
+
+## Build an index from Storage URIs (GCS/S3/DBFS)
+
+```javascript
+function ragBuildIndexFromStorage() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.RAG.buildIndex({
+    source: {
+      uris: [
+        'gcs://my-bucket/rag-corpus/',
+        's3://analytics-corpus/rag/',
+        'dbfs:/mnt/rag-corpus/notes.txt'
+      ],
+      includeSubfolders: true,
+      includeMimeTypes: [
+        'text/plain',
+        'application/pdf'
+      ]
+    },
+    index: {
+      indexName: 'project-rag-index-storage'
+    },
+    embedding: {
+      provider: 'openai'
+    },
+    auth: {
+      apiKey: 'OPENAI_API_KEY',
+      gcs: { accessToken: 'GCS_OAUTH_TOKEN' },
+      s3: {
+        accessKeyId: 'S3_ACCESS_KEY_ID',
+        secretAccessKey: 'S3_SECRET_ACCESS_KEY',
+        region: 'eu-west-1'
+      },
+      dbfs: {
+        host: 'https://<workspace>.cloud.databricks.com',
+        token: 'DATABRICKS_TOKEN'
+      }
     }
   });
 
@@ -110,6 +154,7 @@ function ragSyncIndex() {
   const out = ASTX.RAG.syncIndex({
     source: {
       folderId: 'YOUR_DRIVE_FOLDER_ID',
+      uris: ['gcs://my-bucket/rag-corpus/'],
       includeSubfolders: true
     },
     index: {
