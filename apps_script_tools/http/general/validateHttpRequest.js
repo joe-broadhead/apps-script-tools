@@ -38,15 +38,14 @@ function astHttpValidateRequest(request = {}) {
   const options = astHttpValidateIsPlainObject(request.options) ? request.options : {};
 
   const method = astHttpValidateNormalizeMethod(request.method || options.method || 'GET');
-  const headers = astHttpValidateIsPlainObject(request.headers)
-    ? Object.assign({}, request.headers)
-    : {};
-
-  if (!astHttpValidateIsPlainObject(headers)) {
+  if (request.headers != null && !astHttpValidateIsPlainObject(request.headers)) {
     throw new AstHttpValidationError('HTTP request headers must be an object', {
       field: 'headers'
     });
   }
+  const headers = astHttpValidateIsPlainObject(request.headers)
+    ? Object.assign({}, request.headers)
+    : {};
 
   let payload = typeof request.payload !== 'undefined'
     ? request.payload
@@ -84,7 +83,13 @@ function astHttpValidateRequest(request = {}) {
     });
   }
 
-  const includeRaw = options.includeRaw === true;
+  if (options.includeRaw != null && typeof options.includeRaw !== 'boolean') {
+    throw new AstHttpValidationError('HTTP request options.includeRaw must be a boolean', {
+      field: 'options.includeRaw'
+    });
+  }
+
+  const includeRaw = options.includeRaw;
 
   if (options.parseJson != null && typeof options.parseJson !== 'boolean') {
     throw new AstHttpValidationError('HTTP request options.parseJson must be a boolean', {
@@ -107,6 +112,12 @@ function astHttpValidateRequest(request = {}) {
   if (options.isTransientStatus != null && typeof options.isTransientStatus !== 'function') {
     throw new AstHttpValidationError('HTTP request options.isTransientStatus must be a function', {
       field: 'options.isTransientStatus'
+    });
+  }
+
+  if (options.defaultHeaders != null && !astHttpValidateIsPlainObject(options.defaultHeaders)) {
+    throw new AstHttpValidationError('HTTP request options.defaultHeaders must be an object', {
+      field: 'options.defaultHeaders'
     });
   }
 

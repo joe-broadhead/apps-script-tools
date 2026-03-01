@@ -116,6 +116,9 @@ function astHttpNormalizeRequestEnvelope(normalizedRequest, resolvedConfig) {
   const timeoutMs = normalizedRequest.timeoutMs == null
     ? resolvedConfig.HTTP_TIMEOUT_MS
     : normalizedRequest.timeoutMs;
+  const includeRaw = typeof normalizedRequest.includeRaw === 'boolean'
+    ? normalizedRequest.includeRaw
+    : resolvedConfig.HTTP_INCLUDE_RAW === true;
 
   return {
     url: normalizedRequest.url,
@@ -132,7 +135,7 @@ function astHttpNormalizeRequestEnvelope(normalizedRequest, resolvedConfig) {
     isTransientStatus: typeof normalizedRequest.isTransientStatus === 'function'
       ? normalizedRequest.isTransientStatus
       : astHttpDefaultTransientStatus,
-    includeRaw: normalizedRequest.includeRaw || resolvedConfig.HTTP_INCLUDE_RAW === true
+    includeRaw
   };
 }
 

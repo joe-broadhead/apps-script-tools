@@ -53,6 +53,24 @@ function astHttpNormalizeBoolean(value, fallback = false) {
   return fallback;
 }
 
+function astHttpNormalizeBooleanCandidate(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+
+  return null;
+}
+
 function astHttpCloneObject(value) {
   if (!astHttpIsPlainObject(value)) {
     return {};
@@ -73,6 +91,57 @@ function astHttpParseHeadersFromString(value) {
   } catch (_error) {
     return {};
   }
+}
+
+function astHttpCoerceHeaders(value) {
+  if (astHttpIsPlainObject(value)) {
+    return astHttpCloneObject(value);
+  }
+
+  if (typeof value === 'string') {
+    return astHttpParseHeadersFromString(value);
+  }
+
+  return {};
+}
+
+function astHttpResolveIntegerCandidate(candidates = [], fallback = null, minimum = null) {
+  for (let index = 0; index < candidates.length; index += 1) {
+    const normalized = astHttpNormalizeInteger(candidates[index], null);
+    if (normalized == null) {
+      continue;
+    }
+
+    if (minimum != null && normalized < minimum) {
+      continue;
+    }
+
+    return normalized;
+  }
+
+  return fallback;
+}
+
+function astHttpResolveStringCandidate(candidates = [], fallback = '') {
+  for (let index = 0; index < candidates.length; index += 1) {
+    const normalized = astHttpNormalizeString(candidates[index], '');
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return fallback;
+}
+
+function astHttpResolveBooleanCandidate(candidates = [], fallback = false) {
+  for (let index = 0; index < candidates.length; index += 1) {
+    const normalized = astHttpNormalizeBooleanCandidate(candidates[index]);
+    if (normalized != null) {
+      return normalized;
+    }
+  }
+
+  return fallback;
 }
 
 function astHttpInvalidateConfigCache() {
@@ -109,47 +178,69 @@ function astHttpReadScriptProperties() {
   return astHttpCloneObject(__astHttpScriptConfigCache);
 }
 
-function astHttpNormalizeResolvedConfig(input = {}) {
+function astHttpNormalizeRuntimeConfigInput(input = {}) {
   const source = astHttpIsPlainObject(input) ? input : {};
+  const output = {};
 
-  const timeoutMs = Math.max(1, astHttpNormalizeInteger(
-    source.HTTP_TIMEOUT_MS != null ? source.HTTP_TIMEOUT_MS : source.timeoutMs,
-    AST_HTTP_DEFAULT_TIMEOUT_MS
-  ));
-
-  const retries = Math.max(0, astHttpNormalizeInteger(
-    source.HTTP_RETRIES != null ? source.HTTP_RETRIES : source.retries,
-    AST_HTTP_DEFAULT_RETRIES
-  ));
-
-  const userAgent = astHttpNormalizeString(
-    source.HTTP_USER_AGENT != null ? source.HTTP_USER_AGENT : source.userAgent,
-    AST_HTTP_DEFAULT_USER_AGENT
+  const timeoutRaw = (
+    source.HTTP_TIMEOUT_MS != null
+      ? source.HTTP_TIMEOUT_MS
+      : source.timeoutMs
   );
+  if (timeoutRaw != null) {
+    output.HTTP_TIMEOUT_MS = Math.max(1, astHttpNormalizeInteger(
+      timeoutRaw,
+      AST_HTTP_DEFAULT_TIMEOUT_MS
+    ));
+  }
 
-  const includeRaw = astHttpNormalizeBoolean(
-    source.HTTP_INCLUDE_RAW != null ? source.HTTP_INCLUDE_RAW : source.includeRaw,
-    AST_HTTP_DEFAULT_INCLUDE_RAW
+  const retriesRaw = (
+    source.HTTP_RETRIES != null
+      ? source.HTTP_RETRIES
+      : source.retries
   );
+  if (retriesRaw != null) {
+    output.HTTP_RETRIES = Math.max(0, astHttpNormalizeInteger(
+      retriesRaw,
+      AST_HTTP_DEFAULT_RETRIES
+    ));
+  }
 
-  const defaultHeadersCandidate = source.HTTP_DEFAULT_HEADERS != null
-    ? source.HTTP_DEFAULT_HEADERS
-    : source.defaultHeaders;
-  const defaultHeaders = astHttpIsPlainObject(defaultHeadersCandidate)
-    ? astHttpCloneObject(defaultHeadersCandidate)
-    : astHttpParseHeadersFromString(defaultHeadersCandidate);
+  const userAgentRaw = (
+    source.HTTP_USER_AGENT != null
+      ? source.HTTP_USER_AGENT
+      : source.userAgent
+  );
+  if (userAgentRaw != null) {
+    output.HTTP_USER_AGENT = astHttpNormalizeString(
+      userAgentRaw,
+      AST_HTTP_DEFAULT_USER_AGENT
+    );
+  }
 
-  return {
-    HTTP_TIMEOUT_MS: timeoutMs,
-    HTTP_RETRIES: retries,
-    HTTP_USER_AGENT: userAgent,
-    HTTP_INCLUDE_RAW: includeRaw,
-    HTTP_DEFAULT_HEADERS: defaultHeaders
-  };
+  const includeRawValue = astHttpNormalizeBooleanCandidate(
+    source.HTTP_INCLUDE_RAW != null
+      ? source.HTTP_INCLUDE_RAW
+      : source.includeRaw
+  );
+  if (includeRawValue != null) {
+    output.HTTP_INCLUDE_RAW = includeRawValue;
+  }
+
+  const defaultHeadersCandidate = (
+    source.HTTP_DEFAULT_HEADERS != null
+      ? source.HTTP_DEFAULT_HEADERS
+      : source.defaultHeaders
+  );
+  if (defaultHeadersCandidate != null) {
+    output.HTTP_DEFAULT_HEADERS = astHttpCoerceHeaders(defaultHeadersCandidate);
+  }
+
+  return output;
 }
 
 function astHttpSetRuntimeConfig(config = {}, options = {}) {
-  const normalizedConfig = astHttpNormalizeResolvedConfig(config);
+  const normalizedConfig = astHttpNormalizeRuntimeConfigInput(config);
   const merge = !astHttpIsPlainObject(options) || options.merge !== false;
 
   __astHttpRuntimeConfig = merge
@@ -172,51 +263,60 @@ function astHttpClearRuntimeConfig() {
 
 function astHttpResolveConfig(request = {}) {
   const requestOptions = astHttpIsPlainObject(request.options) ? request.options : {};
-  const fromScriptProps = astHttpNormalizeResolvedConfig(astHttpReadScriptProperties());
-  const fromRuntime = astHttpNormalizeResolvedConfig(__astHttpRuntimeConfig);
-
-  const requestLevel = astHttpNormalizeResolvedConfig({
-    timeoutMs: requestOptions.timeoutMs,
-    retries: requestOptions.retries,
-    includeRaw: requestOptions.includeRaw,
-    userAgent: requestOptions.userAgent,
-    defaultHeaders: requestOptions.defaultHeaders
-  });
+  const fromScriptProps = astHttpReadScriptProperties();
+  const fromRuntime = astHttpIsPlainObject(__astHttpRuntimeConfig)
+    ? astHttpCloneObject(__astHttpRuntimeConfig)
+    : {};
 
   const resolved = {
-    HTTP_TIMEOUT_MS: requestLevel.HTTP_TIMEOUT_MS,
-    HTTP_RETRIES: requestLevel.HTTP_RETRIES,
-    HTTP_USER_AGENT: requestLevel.HTTP_USER_AGENT,
-    HTTP_INCLUDE_RAW: requestLevel.HTTP_INCLUDE_RAW,
-    HTTP_DEFAULT_HEADERS: astHttpCloneObject(fromScriptProps.HTTP_DEFAULT_HEADERS)
+    HTTP_TIMEOUT_MS: astHttpResolveIntegerCandidate([
+      requestOptions.timeoutMs,
+      fromRuntime.HTTP_TIMEOUT_MS,
+      fromRuntime.timeoutMs,
+      fromScriptProps.HTTP_TIMEOUT_MS,
+      fromScriptProps.timeoutMs
+    ], AST_HTTP_DEFAULT_TIMEOUT_MS, 1),
+    HTTP_RETRIES: astHttpResolveIntegerCandidate([
+      requestOptions.retries,
+      fromRuntime.HTTP_RETRIES,
+      fromRuntime.retries,
+      fromScriptProps.HTTP_RETRIES,
+      fromScriptProps.retries
+    ], AST_HTTP_DEFAULT_RETRIES, 0),
+    HTTP_USER_AGENT: astHttpResolveStringCandidate([
+      requestOptions.userAgent,
+      fromRuntime.HTTP_USER_AGENT,
+      fromRuntime.userAgent,
+      fromScriptProps.HTTP_USER_AGENT,
+      fromScriptProps.userAgent
+    ], AST_HTTP_DEFAULT_USER_AGENT),
+    HTTP_INCLUDE_RAW: astHttpResolveBooleanCandidate([
+      requestOptions.includeRaw,
+      fromRuntime.HTTP_INCLUDE_RAW,
+      fromRuntime.includeRaw,
+      fromScriptProps.HTTP_INCLUDE_RAW,
+      fromScriptProps.includeRaw
+    ], AST_HTTP_DEFAULT_INCLUDE_RAW),
+    HTTP_DEFAULT_HEADERS: Object.assign(
+      {},
+      astHttpCoerceHeaders(fromScriptProps.HTTP_DEFAULT_HEADERS != null
+        ? fromScriptProps.HTTP_DEFAULT_HEADERS
+        : fromScriptProps.defaultHeaders),
+      astHttpCoerceHeaders(fromRuntime.HTTP_DEFAULT_HEADERS != null
+        ? fromRuntime.HTTP_DEFAULT_HEADERS
+        : fromRuntime.defaultHeaders),
+      astHttpCoerceHeaders(requestOptions.defaultHeaders)
+    )
   };
 
-  if (fromRuntime.HTTP_TIMEOUT_MS !== AST_HTTP_DEFAULT_TIMEOUT_MS || requestOptions.timeoutMs == null) {
-    resolved.HTTP_TIMEOUT_MS = requestOptions.timeoutMs != null
-      ? requestLevel.HTTP_TIMEOUT_MS
-      : fromRuntime.HTTP_TIMEOUT_MS;
-  }
-
-  if (fromRuntime.HTTP_RETRIES !== AST_HTTP_DEFAULT_RETRIES || requestOptions.retries == null) {
-    resolved.HTTP_RETRIES = requestOptions.retries != null
-      ? requestLevel.HTTP_RETRIES
-      : fromRuntime.HTTP_RETRIES;
-  }
-
-  if (requestOptions.userAgent == null) {
-    resolved.HTTP_USER_AGENT = fromRuntime.HTTP_USER_AGENT || fromScriptProps.HTTP_USER_AGENT;
-  }
-
-  if (requestOptions.includeRaw == null) {
-    resolved.HTTP_INCLUDE_RAW = fromRuntime.HTTP_INCLUDE_RAW;
-  }
-
-  resolved.HTTP_DEFAULT_HEADERS = Object.assign(
-    {},
-    fromScriptProps.HTTP_DEFAULT_HEADERS,
-    fromRuntime.HTTP_DEFAULT_HEADERS,
-    requestLevel.HTTP_DEFAULT_HEADERS
-  );
-
-  return astHttpNormalizeResolvedConfig(resolved);
+  return {
+    HTTP_TIMEOUT_MS: Math.max(1, astHttpNormalizeInteger(resolved.HTTP_TIMEOUT_MS, AST_HTTP_DEFAULT_TIMEOUT_MS)),
+    HTTP_RETRIES: Math.max(0, astHttpNormalizeInteger(resolved.HTTP_RETRIES, AST_HTTP_DEFAULT_RETRIES)),
+    HTTP_USER_AGENT: astHttpNormalizeString(resolved.HTTP_USER_AGENT, AST_HTTP_DEFAULT_USER_AGENT),
+    HTTP_INCLUDE_RAW: astHttpNormalizeBoolean(resolved.HTTP_INCLUDE_RAW, AST_HTTP_DEFAULT_INCLUDE_RAW),
+    HTTP_DEFAULT_HEADERS: Object.assign(
+      {},
+      astHttpCoerceHeaders(resolved.HTTP_DEFAULT_HEADERS)
+    )
+  };
 }
