@@ -92,6 +92,27 @@ function astMessagingHttpThrowForStatus(response, requestContext = {}) {
   throw new AstMessagingProviderError(`Messaging provider request failed with status ${statusCode}`, details);
 }
 
+function astMessagingHttpCanRetryError(error) {
+  if (!error) {
+    return false;
+  }
+
+  if (
+    error instanceof AstMessagingValidationError
+    || error instanceof AstMessagingAuthError
+    || error instanceof AstMessagingNotFoundError
+  ) {
+    return false;
+  }
+
+  const statusCode = Number(error.details && error.details.statusCode);
+  if (Number.isFinite(statusCode) && statusCode > 0) {
+    return astMessagingHttpShouldRetryStatus(statusCode);
+  }
+
+  return true;
+}
+
 function astMessagingHttpThrowTimeout(requestContext = {}, timeoutMs = null, startedAtMs = 0) {
   throw new AstMessagingProviderError('Messaging provider request timed out', {
     method: requestContext.method,
@@ -196,7 +217,7 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
       });
     } catch (error) {
       lastError = error;
-      if (attempt < retries && !(error instanceof AstMessagingValidationError) && !(error instanceof AstMessagingAuthError)) {
+      if (attempt < retries && astMessagingHttpCanRetryError(error)) {
         if (timeoutMs !== null && astMessagingHttpElapsedMs(startedAtMs) >= timeoutMs) {
           astMessagingHttpThrowTimeout({
             method: method.toUpperCase(),

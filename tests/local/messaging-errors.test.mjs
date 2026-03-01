@@ -39,6 +39,31 @@ test('http request maps auth/not-found/rate-limit/provider errors', () => {
   );
 });
 
+test('http request does not retry deterministic non-transient status codes', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return {
+          getResponseCode: () => 404,
+          getContentText: () => JSON.stringify({ error: 'missing' }),
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingHttpRequest('https://example.com/resource', { method: 'get' }, { retries: 3 }),
+    error => error.name === 'AstMessagingNotFoundError'
+  );
+
+  assert.equal(fetchCalls, 1);
+});
+
 test('http request enforces timeoutMs budget across retries', () => {
   let fetchCalls = 0;
 
