@@ -791,6 +791,80 @@ function astDbtValidateImpactRequest(request = {}) {
   };
 }
 
+function astDbtNormalizeOwnerPaths(value, fallback = ['owner.team', 'owner']) {
+  const source = Array.isArray(value) ? value : fallback;
+  const normalized = astDbtNormalizeStringArray(source);
+
+  if (normalized.length === 0) {
+    throw new AstDbtValidationError('ownerPaths must contain at least one path');
+  }
+
+  return normalized;
+}
+
+function astDbtValidateQualityReportRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('qualityReport request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+  const includeDisabled = astDbtNormalizeBoolean(request.includeDisabled, false);
+
+  return {
+    operation: 'quality_report',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    filters: astDbtNormalizeSearchFilters(request.filters || {}),
+    includeDisabled,
+    ownerPaths: astDbtNormalizeOwnerPaths(request.ownerPaths, ['owner.team', 'owner']),
+    unassignedOwnerLabel: astDbtNormalizeString(request.unassignedOwnerLabel, 'unassigned'),
+    topK: astDbtNormalizePositiveInt(request.topK, 100, 1, 1000),
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
+function astDbtValidateTestCoverageRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('testCoverage request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+
+  return {
+    operation: 'test_coverage',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    filters: astDbtNormalizeSearchFilters(request.filters || {}),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    uncoveredOnly: astDbtNormalizeBoolean(request.uncoveredOnly, false),
+    topK: astDbtNormalizePositiveInt(request.topK, 500, 1, 5000),
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
+function astDbtValidateOwnersRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('owners request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+
+  return {
+    operation: 'owners',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    filters: astDbtNormalizeSearchFilters(request.filters || {}),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    ownerPaths: astDbtNormalizeOwnerPaths(request.ownerPaths, ['owner.team', 'owner']),
+    unassignedOwnerLabel: astDbtNormalizeString(request.unassignedOwnerLabel, 'unassigned'),
+    topK: astDbtNormalizePositiveInt(request.topK, 100, 1, 1000),
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
 function astDbtValidateRunRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('DBT run request must be an object');
@@ -823,6 +897,12 @@ function astDbtValidateRunRequest(request = {}) {
       return astDbtValidateDiffEntitiesRequest(request);
     case 'impact':
       return astDbtValidateImpactRequest(request);
+    case 'quality_report':
+      return astDbtValidateQualityReportRequest(request);
+    case 'test_coverage':
+      return astDbtValidateTestCoverageRequest(request);
+    case 'owners':
+      return astDbtValidateOwnersRequest(request);
     default:
       throw new AstDbtValidationError(`Unsupported operation '${operation}'`);
   }

@@ -254,6 +254,9 @@ ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
 ASTX.DBT.diffEntities(request)
 ASTX.DBT.impact(request)
+ASTX.DBT.qualityReport(request)
+ASTX.DBT.testCoverage(request)
+ASTX.DBT.owners(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -568,6 +571,9 @@ ASTX.GitHub.clearConfig()
 - `ASTX.DBT.lineage(...)` traverses `parent_map`/`child_map` with `depends_on.nodes` fallback when lineage maps are missing.
 - `ASTX.DBT.diffEntities(...)` compares two manifest snapshots deterministically with stable pagination and change typing (`added|removed|modified|unchanged`).
 - `ASTX.DBT.impact(...)` overlays lineage nodes with `run_results`, `catalog`, and `sources` artifact status when bundles/artifacts are supplied.
+- `ASTX.DBT.qualityReport(...)` returns documentation/ownership/test-coverage readiness metrics and top gap lists.
+- `ASTX.DBT.testCoverage(...)` reports per-entity test coverage with `uncoveredOnly` filtering.
+- `ASTX.DBT.owners(...)` groups entities by owner meta paths with an explicit unassigned bucket.
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
 - RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.

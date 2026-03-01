@@ -15,6 +15,9 @@ ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
 ASTX.DBT.diffEntities(request)
 ASTX.DBT.impact(request)
+ASTX.DBT.qualityReport(request)
+ASTX.DBT.testCoverage(request)
+ASTX.DBT.owners(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -79,7 +82,7 @@ ASTX.DBT.clearConfig()
 }
 ```
 
-`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, and `impact`.
+`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
 
 ## `loadArtifact(...)` request
 
@@ -181,6 +184,73 @@ Response is deterministic and pagination-safe:
 ```
 
 `impact(...)` returns lineage plus optional artifact overlays per node (`runResults`, `catalog`, `sources`).
+
+## Governance/report operations
+
+### `qualityReport(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  filters: { resourceTypes, sections, packageNames, pathPrefix, tagsAny, tagsAll, uniqueIds, dependsOnUniqueIds, meta, column },
+  ownerPaths: ['owner.team', 'owner'], // default
+  includeDisabled: false,
+  unassignedOwnerLabel: 'unassigned',
+  topK: 100
+}
+```
+
+Response includes readiness metrics and top gap lists:
+
+```javascript
+{
+  status: 'ok',
+  scope: { includeDisabled, ownerPaths, filters },
+  summary: {
+    entityCount,
+    columnCount,
+    readinessScore,
+    coverage: { entityDocumentationPct, columnDocumentationPct, ownershipPct, testedEntitiesPct },
+    counts: { documentedEntities, undocumentedEntities, documentedColumns, undocumentedColumns, ownedEntities, unownedEntities, testedEntities, untestedEntities }
+  },
+  gaps: {
+    undocumentedEntities: [],
+    undocumentedColumns: [],
+    unownedEntities: [],
+    untestedEntities: []
+  },
+  stats
+}
+```
+
+### `testCoverage(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  filters: { ...searchFilters },
+  includeDisabled: false,
+  uncoveredOnly: false,
+  topK: 500
+}
+```
+
+Returns summary counts plus per-entity `covered` / `testsCount`.
+
+### `owners(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  filters: { ...searchFilters },
+  ownerPaths: ['owner.team', 'owner'],
+  includeDisabled: false,
+  unassignedOwnerLabel: 'unassigned',
+  topK: 100
+}
+```
+
+Returns owner groups with entity counts and resource/package breakdowns.
 
 ## Typed errors
 
