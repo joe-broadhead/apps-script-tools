@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { createGasContext, loadCoreDataContext } from '../local/helpers.mjs';
+import { runCachePerf } from './cache-batch.perf.test.mjs';
 import { loadDbtScripts } from '../local/dbt-helpers.mjs';
 import { runDataFramePerf } from './dataframe.perf.test.mjs';
 import { runDbtManifestPerf } from './dbt-manifest.perf.test.mjs';
@@ -182,12 +183,13 @@ function runAllBenchmarks(options) {
 
   const dataframeResults = runDataFramePerf(context, { rows: options.rows, samples: options.samples });
   const dbtResults = runDbtManifestPerf(context, { samples: options.samples });
+  const cacheResults = runCachePerf(context, { rows: options.rows, samples: options.samples });
   const seriesResults = runSeriesPerf(context, { rows: options.rows, samples: options.samples });
   const utilityResults = runUtilitiesPerf(context, { rows: options.rows, samples: options.samples });
   const githubResults = runGithubPerf(context, { rows: options.rows, samples: options.samples });
   const messagingResults = runMessagingPerf(context, { rows: options.rows, samples: options.samples });
 
-  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults, ...githubResults, ...messagingResults];
+  return [...dataframeResults, ...dbtResults, ...cacheResults, ...seriesResults, ...utilityResults, ...githubResults, ...messagingResults];
 }
 
 function main() {

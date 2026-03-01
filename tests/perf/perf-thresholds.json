@@ -16,6 +16,7 @@
       "dbt.getEntity_avg": 5,
       "dbt.diff_entities_medium": 650,
       "dbt.getColumn_avg": 5,
+      "cache.batch_profile": 1200,
       "series.multiply_100000": 120,
       "utilities.removeDuplicates_records_100000": 1600,
       "utilities.joinRecords_inner_100000": 2600,
@@ -62,6 +63,10 @@
       "messaging.send_profile": {
         "warmRelativePct": 40,
         "dryRunRelativePct": 40
+      },
+      "cache.batch_profile": {
+        "setManyRelativePct": 90,
+        "getManyRelativePct": 90
       }
     }
   }

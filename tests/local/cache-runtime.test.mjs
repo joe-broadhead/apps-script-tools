@@ -298,6 +298,61 @@ function setInternalCacheEntry(context, {
   };
 }
 
+function createBatchBackendContext(backend) {
+  if (backend === 'memory') {
+    const context = createGasContext();
+    loadCacheScripts(context, { includeAst: true });
+    return { context };
+  }
+
+  if (backend === 'drive_json') {
+    const drive = createDriveMock();
+    const context = createGasContext({
+      DriveApp: drive.DriveApp,
+      LockService: {
+        getScriptLock: () => ({
+          tryLock: () => true,
+          releaseLock: () => {}
+        })
+      }
+    });
+    loadCacheScripts(context, { includeAst: true });
+    return { context, drive };
+  }
+
+  if (backend === 'script_properties') {
+    const properties = createPropertiesService();
+    const context = createGasContext({
+      PropertiesService: properties.service,
+      LockService: {
+        getScriptLock: () => ({
+          tryLock: () => true,
+          releaseLock: () => {}
+        })
+      }
+    });
+    loadCacheScripts(context, { includeAst: true });
+    return { context, properties };
+  }
+
+  if (backend === 'storage_json') {
+    const storage = createStorageRunnerMock();
+    const context = createGasContext({
+      astRunStorageRequest: storage.astRunStorageRequest,
+      LockService: {
+        getScriptLock: () => ({
+          tryLock: () => true,
+          releaseLock: () => {}
+        })
+      }
+    });
+    loadCacheScripts(context, { includeAst: true });
+    return { context, storage };
+  }
+
+  throw new Error(`unsupported backend: ${backend}`);
+}
+
 test('AST exposes Cache surface and backend helpers', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });
@@ -305,8 +360,12 @@ test('AST exposes Cache surface and backend helpers', () => {
   const methods = [
     'get',
     'set',
+    'getMany',
+    'setMany',
     'fetch',
+    'fetchMany',
     'delete',
+    'deleteMany',
     'invalidateByTag',
     'stats',
     'backends',
@@ -325,6 +384,198 @@ test('AST exposes Cache surface and backend helpers', () => {
     JSON.stringify(context.AST.Cache.backends()),
     JSON.stringify(['memory', 'drive_json', 'script_properties', 'storage_json'])
   );
+  const memoryCapabilities = context.AST.Cache.capabilities('memory');
+  assert.equal(memoryCapabilities.getMany, true);
+  assert.equal(memoryCapabilities.setMany, true);
+  assert.equal(memoryCapabilities.fetchMany, true);
+  assert.equal(memoryCapabilities.deleteMany, true);
+});
+
+['memory', 'drive_json', 'script_properties', 'storage_json'].forEach(backend => {
+  test(`cache batch APIs support mixed hit/miss flows for ${backend}`, () => {
+    const setup = createBatchBackendContext(backend);
+    const context = setup.context;
+
+    context.AST.Cache.clearConfig();
+    const configurePayload = {
+      backend,
+      namespace: `cache_batch_${backend}_${Date.now()}`
+    };
+    if (backend === 'drive_json') {
+      configurePayload.driveFileName = `cache-batch-${Date.now()}.json`;
+    }
+    if (backend === 'storage_json') {
+      configurePayload.storageUri = `gcs://cache-bucket/batch-${Date.now()}/cache.json`;
+    }
+    context.AST.Cache.configure(configurePayload);
+
+    const setMany = context.AST.Cache.setMany([
+      { key: 'k1', value: { id: 1 } },
+      { key: 'k2', value: { id: 2 }, ttlSec: 60 },
+      { key: 'k3', value: { id: 3 }, options: { ttlSec: 60, tags: ['entry-tag'] } },
+      { key: 'kNull', value: null }
+    ], {
+      ttlSec: 120,
+      tags: ['batch-tag']
+    });
+
+    assert.equal(setMany.operation, 'set_many');
+    assert.equal(setMany.stats.set, 4);
+    assert.equal(setMany.items.length, 4);
+    assert.equal(setMany.items[0].status, 'set');
+
+    const getMany = context.AST.Cache.getMany(['k1', 'missing', 'k2', 'kNull']);
+    assert.equal(getMany.operation, 'get_many');
+    assert.equal(getMany.stats.hits, 3);
+    assert.equal(getMany.stats.misses, 1);
+    assert.equal(getMany.items.length, 4);
+    assert.equal(getMany.items[0].status, 'hit');
+    assert.equal(getMany.items[1].status, 'miss');
+    assert.equal(
+      JSON.stringify(getMany.items[2].value),
+      JSON.stringify({ id: 2 })
+    );
+    assert.equal(getMany.items[3].status, 'hit');
+    assert.equal(getMany.items[3].value, null);
+
+    const resolverCalls = [];
+    const fetchMany = context.AST.Cache.fetchMany(['k1', 'k4'], payload => {
+      resolverCalls.push(payload.requestedKey);
+      return { generatedFor: payload.requestedKey };
+    }, {
+      ttlSec: 60,
+      staleTtlSec: 60
+    });
+
+    assert.equal(fetchMany.operation, 'fetch_many');
+    assert.equal(fetchMany.stats.hits, 1);
+    assert.equal(fetchMany.stats.misses, 1);
+    assert.equal(fetchMany.items[0].status, 'hit');
+    assert.equal(fetchMany.items[1].status, 'miss');
+    assert.equal(
+      JSON.stringify(fetchMany.items[1].value),
+      JSON.stringify({ generatedFor: 'k4' })
+    );
+    assert.equal(JSON.stringify(resolverCalls), JSON.stringify(['k4']));
+
+    const deleteMany = context.AST.Cache.deleteMany(['k2', 'k4', 'missing']);
+    assert.equal(deleteMany.operation, 'delete_many');
+    assert.equal(deleteMany.stats.deleted, 2);
+    assert.equal(deleteMany.stats.notFound, 1);
+    assert.equal(deleteMany.items.length, 3);
+    assert.equal(deleteMany.items[0].status, 'deleted');
+    assert.equal(deleteMany.items[2].status, 'not_found');
+  });
+});
+
+test('cache setMany tags remain compatible with invalidateByTag', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_batch_invalidation'
+  });
+
+  context.AST.Cache.setMany([
+    { key: 'batch:a', value: { id: 'a' } },
+    { key: 'batch:b', value: { id: 'b' }, options: { tags: ['other'] } },
+    { key: 'batch:c', value: { id: 'c' } }
+  ], {
+    tags: ['batch']
+  });
+
+  assert.equal(context.AST.Cache.invalidateByTag('batch'), 2);
+  assert.equal(context.AST.Cache.get('batch:a'), null);
+  assert.equal(context.AST.Cache.get('batch:c'), null);
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('batch:b')),
+    JSON.stringify({ id: 'b' })
+  );
+});
+
+test('cache batch APIs validate request contracts', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_batch_validation'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.getMany('not-array');
+  }, /must be an array/);
+
+  assert.throws(() => {
+    context.AST.Cache.setMany([{ value: 1 }]);
+  }, /require key/);
+
+  assert.throws(() => {
+    context.AST.Cache.setMany([{ key: 'k', value: 1, options: 'bad' }]);
+  }, /entry options must be an object/);
+
+  assert.throws(() => {
+    context.AST.Cache.deleteMany(null);
+  }, /must be an array/);
+
+  assert.throws(() => {
+    context.AST.Cache.fetchMany(['k'], null);
+  }, /resolver must be a function/);
+});
+
+test('cache fetchMany returns per-key error items when failFast is false', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_many_partial_errors'
+  });
+
+  context.AST.Cache.set('ok-hit', { id: 'hit' });
+
+  const resolverCalls = [];
+  const out = context.AST.Cache.fetchMany(['ok-hit', 'explode', 'fresh'], payload => {
+    resolverCalls.push(payload.requestedKey);
+    if (payload.requestedKey === 'explode') {
+      throw new Error('resolver exploded');
+    }
+    return { fromResolver: payload.requestedKey };
+  });
+
+  assert.equal(out.operation, 'fetch_many');
+  assert.equal(out.stats.hits, 1);
+  assert.equal(out.stats.misses, 1);
+  assert.equal(out.stats.errors, 1);
+  assert.equal(out.items.length, 3);
+  assert.equal(out.items[0].status, 'hit');
+  assert.equal(out.items[1].status, 'error');
+  assert.equal(out.items[1].error.message, 'resolver exploded');
+  assert.equal(out.items[2].status, 'miss');
+  assert.equal(JSON.stringify(resolverCalls), JSON.stringify(['explode', 'fresh']));
+});
+
+test('cache fetchMany failFast=true throws resolver errors', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_many_fail_fast'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.fetchMany(['explode'], () => {
+      throw new Error('boom');
+    }, {
+      failFast: true
+    });
+  }, /boom/);
 });
 
 test('memory backend supports set/get/delete/tag invalidation and stats', () => {
