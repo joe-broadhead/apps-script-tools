@@ -239,3 +239,41 @@ function githubChecksExample() {
   Logger.log(JSON.stringify(createPlan.dryRun.plannedRequest, null, 2));
 }
 ```
+
+## Projects v2 examples
+
+```javascript
+function githubProjectsV2Example() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const projects = ASTX.GitHub.listProjectsV2({
+    owner: 'octocat',
+    options: { perPage: 20 }
+  });
+
+  const firstProject = projects.data.items[0];
+  if (!firstProject) return;
+
+  const items = ASTX.GitHub.listProjectV2Items({
+    projectId: firstProject.id,
+    options: { perPage: 50 }
+  });
+
+  const firstItem = items.data.items[0];
+  if (!firstItem) return;
+
+  const updatePlan = ASTX.GitHub.updateProjectV2FieldValue({
+    projectId: firstProject.id,
+    itemId: firstItem.id,
+    fieldId: 'PVTSSF_example_field_id',
+    body: {
+      value: { text: 'In progress' }
+    },
+    options: { dryRun: true }
+  });
+
+  Logger.log(projects.data.totalCount);
+  Logger.log(items.data.totalCount);
+  Logger.log(JSON.stringify(updatePlan.dryRun.plannedRequest, null, 2));
+}
+```
