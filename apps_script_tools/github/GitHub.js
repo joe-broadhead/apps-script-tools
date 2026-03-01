@@ -238,6 +238,18 @@ function astGitHubListCommitStatuses(request = {}) {
   return astGitHubRunOperation('list_commit_statuses', request);
 }
 
+function astGitHubListProjectsV2(request = {}) {
+  return astGitHubListProjectsV2Helper(request);
+}
+
+function astGitHubListProjectV2Items(request = {}) {
+  return astGitHubListProjectV2ItemsHelper(request);
+}
+
+function astGitHubUpdateProjectV2FieldValue(request = {}) {
+  return astGitHubUpdateProjectV2FieldValueHelper(request);
+}
+
 function astGitHubSearchRepositories(request = {}) {
   return astGitHubRunOperation('search_repositories', request);
 }
@@ -342,6 +354,9 @@ const AST_GITHUB = Object.freeze({
   createCheckRun: astGitHubCreateCheckRun,
   updateCheckRun: astGitHubUpdateCheckRun,
   listCommitStatuses: astGitHubListCommitStatuses,
+  listProjectsV2: astGitHubListProjectsV2,
+  listProjectV2Items: astGitHubListProjectV2Items,
+  updateProjectV2FieldValue: astGitHubUpdateProjectV2FieldValue,
   searchRepositories: astGitHubSearchRepositories,
   searchUsers: astGitHubSearchUsers,
   searchCode: astGitHubSearchCode,

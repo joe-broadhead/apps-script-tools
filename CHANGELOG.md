@@ -97,6 +97,10 @@
   - new helpers: `listCheckRuns`, `getCheckRun`, `createCheckRun`, `updateCheckRun`, `listCommitStatuses`
   - operation group: `checks` in `AST.GitHub.capabilities(...)`
   - checks mutations support dry-run planning (`options.dryRun=true`)
+- GitHub Projects v2 helper additions (GraphQL-backed):
+  - new helpers: `listProjectsV2`, `listProjectV2Items`, `updateProjectV2FieldValue`
+  - typed request validation for project/item/field IDs and mutation value shapes
+  - typed parse errors for malformed GraphQL envelopes
 - Messaging chat transport expansion:
   - new transports: `slack_webhook`, `slack_api`, and `teams_webhook`
   - added config keys: `MESSAGING_SLACK_WEBHOOK_URL`, `MESSAGING_SLACK_BOT_TOKEN`, `MESSAGING_SLACK_CHANNEL`, `MESSAGING_SLACK_API_BASE_URL`, `MESSAGING_TEAMS_WEBHOOK_URL`

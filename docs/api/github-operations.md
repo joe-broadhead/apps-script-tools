@@ -94,6 +94,12 @@ Use `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(groupOrOperation)` 
 - `update_check_run`
 - `list_commit_statuses`
 
+### Projects v2 (GraphQL-backed helpers)
+
+- `listProjectsV2(request)` lists organization/user Projects v2 boards
+- `listProjectV2Items(request)` lists items for a specific project
+- `updateProjectV2FieldValue(request)` updates a single field value on a project item
+
 ### Search
 
 - `search_repositories`

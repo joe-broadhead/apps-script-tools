@@ -250,5 +250,59 @@ GITHUB_CONTRACT_TESTS = [
         AST.GitHub.clearConfig();
       }
     }
+  },
+  {
+    description: 'AST.GitHub.listProjectsV2 should execute GraphQL owner projects query',
+    test: () => {
+      AST.GitHub.clearConfig();
+      AST.GitHub.configure({
+        GITHUB_TOKEN: 'gas-test-token',
+        GITHUB_CACHE_ENABLED: false
+      });
+
+      const originalFetch = UrlFetchApp.fetch;
+      let calledUrl = null;
+      let payload = null;
+      UrlFetchApp.fetch = (url, options) => {
+        calledUrl = url;
+        payload = options && options.payload ? JSON.parse(options.payload) : null;
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            data: {
+              organization: {
+                __typename: 'Organization',
+                login: 'octocat',
+                projectsV2: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  totalCount: 0
+                }
+              },
+              user: null
+            }
+          }),
+          getAllHeaders: () => ({})
+        };
+      };
+
+      try {
+        const response = AST.GitHub.listProjectsV2({
+          owner: 'octocat'
+        });
+        if (!calledUrl || calledUrl.indexOf('/graphql') === -1) {
+          throw new Error(`Expected GraphQL URL, got: ${calledUrl}`);
+        }
+        if (!payload || !payload.query || payload.query.indexOf('projectsV2') === -1) {
+          throw new Error(`Expected projectsV2 GraphQL query, got: ${JSON.stringify(payload)}`);
+        }
+        if (!response || response.status !== 'ok') {
+          throw new Error(`Unexpected listProjectsV2 response: ${JSON.stringify(response)}`);
+        }
+      } finally {
+        UrlFetchApp.fetch = originalFetch;
+        AST.GitHub.clearConfig();
+      }
+    }
   }
 ];
