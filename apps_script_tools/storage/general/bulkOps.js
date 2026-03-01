@@ -399,6 +399,7 @@ function astStorageBulkListObjectStore({
       location: endpoint.location,
       auth: request.auth,
       options: {
+        recursive: options.recursive,
         pageSize: options.pageSize,
         pageToken,
         maxItems: options.pageSize,

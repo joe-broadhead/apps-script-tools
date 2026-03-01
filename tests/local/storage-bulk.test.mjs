@@ -35,7 +35,19 @@ function buildStorageRuntime(context, seed = {}) {
       if (!prefix) {
         return true;
       }
-      return key === prefix || key.startsWith(`${prefix.replace(/\/+$/, '')}/`);
+      const normalizedPrefix = prefix.replace(/\/+$/, '');
+      if (!(key === prefix || key.startsWith(`${normalizedPrefix}/`))) {
+        return false;
+      }
+
+      if (options.recursive === false) {
+        const relative = key === normalizedPrefix || key === prefix
+          ? ''
+          : key.slice(`${normalizedPrefix}/`.length);
+        return !relative.includes('/');
+      }
+
+      return true;
     });
 
     const pageSize = Number.isInteger(options.pageSize) && options.pageSize > 0 ? options.pageSize : 1000;
@@ -274,6 +286,30 @@ test('AST.Storage.walk returns deterministic filtered results', () => {
   assert.equal(out.operation, 'walk');
   assert.equal(out.output.items.length, 1);
   assert.equal(out.output.items[0].relativePath, 'keep/c.txt');
+});
+
+test('AST.Storage.walk forwards recursive option for object-store list requests', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  buildStorageRuntime(context, {
+    'gcs://bucket/src/a.txt': { text: 'A' },
+    'gcs://bucket/src/nested/b.txt': { text: 'B' },
+    'gcs://bucket/src/nested/c.txt': { text: 'C' },
+    'gcs://bucket/src/nested/d.txt': { text: 'D' }
+  });
+
+  const out = context.AST.Storage.walk({
+    uri: 'gcs://bucket/src/',
+    options: {
+      recursive: false,
+      pageSize: 1,
+      maxObjects: 20
+    }
+  });
+
+  assert.equal(out.output.items.length, 1);
+  assert.equal(out.output.items[0].relativePath, 'a.txt');
+  assert.equal(out.usage.requestCount, 1);
 });
 
 test('AST.Storage.copyPrefix and deletePrefix support dryRun and execution modes', () => {
