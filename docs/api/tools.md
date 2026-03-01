@@ -915,6 +915,8 @@ Primary methods:
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
+- `ASTX.RAG.evaluate(...)` for deterministic retrieval/grounding/end-to-end scorecards.
+- `ASTX.RAG.compareRuns(...)` for baseline vs candidate metric deltas.
 - `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.
 - `ASTX.RAG.buildRetrievalCacheKey(...)`, `putRetrievalPayload(...)`, `getRetrievalPayload(...)`, `deleteRetrievalPayload(...)` for retrieval payload interop.
 - `ASTX.RAG.Citations.*` for inline citation normalization/filtering/url mapping.

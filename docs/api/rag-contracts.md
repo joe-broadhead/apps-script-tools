@@ -17,6 +17,8 @@ ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
+ASTX.RAG.evaluate(request)
+ASTX.RAG.compareRuns(request)
 ASTX.RAG.inspectIndex(request)
 ASTX.RAG.buildRetrievalCacheKey(args)
 ASTX.RAG.putRetrievalPayload(key, payload, options)
@@ -269,6 +271,51 @@ Notes:
       namespace: 'ast_rag_retrieval',
       storageUri: 'optional'
     }
+  }
+}
+```
+
+## `evaluate(request)`
+
+```javascript
+{
+  indexFileId: 'required',
+  mode: 'retrieval' | 'grounding' | 'end_to_end',
+  dataset: [
+    {
+      id: 'optional',
+      question: 'required',
+      expectedSources: ['optional fileId/sourceUri/fileName labels'],
+      expectedFacts: ['optional grounded fact snippets'],
+      expectedAnswerable: true // optional
+    }
+  ],
+  retrieval: { ...same contract as search/answer... },
+  generation: { ...same provider contract as answer... }, // ignored in retrieval mode
+  options: {
+    maxItems: 100,
+    continueOnError: true,
+    includeItemOutputs: false,
+    order: 'input' | 'seeded',
+    fixedSeed: 'ast-rag-eval-v1',
+    enforceAccessControl: true,
+    maxRetrievalMs: null
+  },
+  cache: { ...optional cache config... },
+  auth: {}
+}
+```
+
+## `compareRuns(request)`
+
+```javascript
+{
+  baseline: { ...evaluate request... },
+  candidate: { ...evaluate request... },
+  options: {
+    includeItems: false,
+    includeBaseline: true,
+    includeCandidate: true
   }
 }
 ```

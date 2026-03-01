@@ -3536,6 +3536,165 @@ test('answer fallback.onRetrievalEmpty can synthesize citation-grounded facts', 
   assert.equal(response.diagnostics.generation.status, 'not_started');
 });
 
+test('AST.RAG exposes evaluate and compareRuns methods', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  assert.equal(typeof context.AST.RAG.evaluate, 'function');
+  assert.equal(typeof context.AST.RAG.compareRuns, 'function');
+});
+
+test('evaluate in retrieval mode reports deterministic hit@k and source metrics', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagSearchCore = request => {
+    if (request.query === 'q1') {
+      return {
+        status: 'ok',
+        results: [{ fileId: 'f1', fileName: 'doc-1.txt', sourceUri: null }],
+        diagnostics: { timings: { retrievalMs: 4 } }
+      };
+    }
+
+    return {
+      status: 'ok',
+      results: [{ fileId: 'f9', fileName: 'doc-9.txt', sourceUri: null }],
+      diagnostics: { timings: { retrievalMs: 6 } }
+    };
+  };
+
+  const out = context.AST.RAG.evaluate({
+    indexFileId: 'idx_eval_retrieval',
+    mode: 'retrieval',
+    dataset: [
+      { id: 'q1', question: 'q1', expectedSources: ['f1'] },
+      { id: 'q2', question: 'q2', expectedSources: ['f2'] }
+    ],
+    retrieval: { topK: 3, minScore: 0 },
+    options: {
+      order: 'input',
+      continueOnError: false
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.mode, 'retrieval');
+  assert.equal(out.stats.total, 2);
+  assert.equal(out.stats.errors, 0);
+  assert.equal(out.metrics.hitAtK, 0.5);
+  assert.equal(out.metrics.sourceRecall, 0.5);
+  assert.equal(out.items.length, 2);
+  assert.equal(out.items[0].id, 'q1');
+  assert.equal(out.items[1].id, 'q2');
+});
+
+test('evaluate in end_to_end mode reports grounding, fact recall, and abstention accuracy', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagAnswerCore = request => {
+    if (request.question === 'answerable') {
+      return {
+        status: 'ok',
+        answer: 'The launch window is April 2026 with phased rollout.',
+        citations: [{ fileId: 'src_1', fileName: 'roadmap.md', sourceUri: null }],
+        diagnostics: { timings: { retrievalMs: 8, generationMs: 12 } }
+      };
+    }
+
+    return {
+      status: 'insufficient_context',
+      answer: 'I do not have enough grounded context to answer that.',
+      citations: [],
+      diagnostics: { timings: { retrievalMs: 5, generationMs: 0 } }
+    };
+  };
+
+  const out = context.AST.RAG.evaluate({
+    indexFileId: 'idx_eval_answer',
+    mode: 'end_to_end',
+    dataset: [
+      {
+        id: 'a1',
+        question: 'answerable',
+        expectedSources: ['src_1'],
+        expectedFacts: ['April 2026'],
+        expectedAnswerable: true
+      },
+      {
+        id: 'a2',
+        question: 'not_answerable',
+        expectedSources: [],
+        expectedFacts: [],
+        expectedAnswerable: false
+      }
+    ],
+    retrieval: { topK: 4, minScore: 0.1 },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' },
+      style: 'concise'
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.mode, 'end_to_end');
+  assert.equal(out.stats.total, 2);
+  assert.equal(out.metrics.hitAtK, 1);
+  assert.equal(out.metrics.factRecall, 1);
+  assert.equal(out.metrics.abstentionAccuracy, 1);
+  assert.equal(out.items[0].metrics.abstentionCorrect, 1);
+  assert.equal(out.items[1].metrics.abstentionCorrect, 1);
+});
+
+test('compareRuns returns deterministic metric deltas between baseline and candidate', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagSearchCore = request => {
+    if (request.indexFileId === 'idx_candidate') {
+      return {
+        status: 'ok',
+        results: [{ fileId: 'f1', fileName: 'doc-1.txt', sourceUri: null }],
+        diagnostics: { timings: { retrievalMs: 4 } }
+      };
+    }
+
+    return {
+      status: 'ok',
+      results: [{ fileId: 'f9', fileName: 'doc-9.txt', sourceUri: null }],
+      diagnostics: { timings: { retrievalMs: 6 } }
+    };
+  };
+
+  const out = context.AST.RAG.compareRuns({
+    baseline: {
+      indexFileId: 'idx_baseline',
+      mode: 'retrieval',
+      dataset: [{ question: 'q1', expectedSources: ['f1'] }],
+      retrieval: { topK: 3, minScore: 0 }
+    },
+    candidate: {
+      indexFileId: 'idx_candidate',
+      mode: 'retrieval',
+      dataset: [{ question: 'q1', expectedSources: ['f1'] }],
+      retrieval: { topK: 3, minScore: 0 }
+    },
+    options: {
+      includeItems: false
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(typeof out.metricsDelta.hitAtK, 'number');
+  assert.equal(out.metricsDelta.hitAtK > 0, true);
+  assert.equal(Array.isArray(out.baseline.items), true);
+  assert.equal(Array.isArray(out.candidate.items), true);
+  assert.equal(out.baseline.items.length, 0);
+  assert.equal(out.candidate.items.length, 0);
+});
+
 test('previewSources returns citation-ready cards and caches retrieval payloads', () => {
   const context = createGasContext();
   loadRagWithCacheScripts(context, { includeAst: true });
