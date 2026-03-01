@@ -13,6 +13,61 @@ function astRagGroupChunksByFileId(chunks) {
   return grouped;
 }
 
+function astRagNormalizeIncrementalJournal(journal, updatedAt = null) {
+  const output = {};
+  const source = astRagIsPlainObject(journal) ? journal : {};
+  const stamp = astRagNormalizeString(updatedAt, null);
+  const keys = Object.keys(source);
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    const entry = source[key];
+    if (!astRagIsPlainObject(entry)) {
+      continue;
+    }
+
+    const fileId = astRagNormalizeString(entry.fileId, null) || astRagNormalizeString(key, null);
+    if (!fileId) {
+      continue;
+    }
+
+    output[fileId] = {
+      sourceId: astRagNormalizeString(entry.sourceId, null),
+      fileId,
+      sourceKind: astRagNormalizeString(entry.sourceKind, 'drive'),
+      sourceUri: astRagNormalizeString(entry.sourceUri, null),
+      provider: astRagNormalizeString(entry.provider, null),
+      modifiedTime: astRagNormalizeString(entry.modifiedTime, null),
+      fingerprint: astRagNormalizeString(entry.fingerprint, null),
+      revisionFingerprint: astRagNormalizeString(entry.revisionFingerprint, null),
+      chunkCount: astRagNormalizePositiveInt(entry.chunkCount, 0, 0),
+      updatedAt: stamp || astRagNormalizeString(entry.updatedAt, null)
+    };
+  }
+
+  return output;
+}
+
+function astRagBuildIncrementalJournalEntryFromSource(source = {}, updatedAt = null) {
+  const fileId = astRagNormalizeString(source.fileId, null);
+  if (!fileId) {
+    return null;
+  }
+
+  return {
+    sourceId: astRagNormalizeString(source.sourceId, null),
+    fileId,
+    sourceKind: astRagNormalizeString(source.sourceKind, 'drive'),
+    sourceUri: astRagNormalizeString(source.sourceUri, null),
+    provider: astRagNormalizeString(source.provider, null),
+    modifiedTime: astRagNormalizeString(source.modifiedTime, null),
+    fingerprint: astRagNormalizeSourceFingerprint(source),
+    revisionFingerprint: astRagNormalizeString(source.revisionFingerprint, null),
+    chunkCount: astRagNormalizePositiveInt(source.chunkCount, 0, 0),
+    updatedAt: astRagNormalizeString(updatedAt, null)
+  };
+}
+
 function astRagEnsureChunkEmbeddingNorm(chunk = {}) {
   if (!chunk || !Array.isArray(chunk.embedding) || chunk.embedding.length === 0) {
     return chunk;
@@ -77,7 +132,7 @@ function astRagTakeReusableChunk(queues, chunkHash) {
   return item;
 }
 
-function astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, chunkCount) {
+function astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, chunkCount, revisionFingerprint) {
   return {
     sourceId,
     fileId: sourceDescriptor.fileId,
@@ -89,6 +144,7 @@ function astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, chunk
     modifiedTime: sourceDescriptor.modifiedTime,
     fingerprint,
     checksum: fingerprint,
+    revisionFingerprint: astRagNormalizeString(revisionFingerprint, null),
     chunkCount
   };
 }
@@ -103,7 +159,8 @@ function astRagCreateSyncSummary({
   addedChunks,
   removedChunks,
   reusedChunks,
-  reembeddedChunks
+  reembeddedChunks,
+  journalSkippedSources
 }) {
   return {
     mode: 'sync',
@@ -116,11 +173,21 @@ function astRagCreateSyncSummary({
     addedChunks,
     removedChunks,
     reusedChunks,
-    reembeddedChunks
+    reembeddedChunks,
+    journalSkippedSources
   };
 }
 
-function astRagBuildSyncedIndexDocument(current, normalizedRequest, nextSources, nextChunks, embedding, now, summary) {
+function astRagBuildSyncedIndexDocument(
+  current,
+  normalizedRequest,
+  nextSources,
+  nextChunks,
+  embedding,
+  now,
+  summary,
+  incrementalJournal
+) {
   const dimensions = nextChunks.length > 0 && Array.isArray(nextChunks[0].embedding)
     ? nextChunks[0].embedding.length
     : 0;
@@ -154,6 +221,7 @@ function astRagBuildSyncedIndexDocument(current, normalizedRequest, nextSources,
     chunks: nextChunks,
     sync: {
       lastSyncAt: now,
+      incrementalJournal: astRagNormalizeIncrementalJournal(incrementalJournal, now),
       lastSyncSummary: summary
     }
   };
@@ -175,12 +243,16 @@ function astRagSyncIndexCore(request = {}) {
       normalizedRequest.index.sharding = astRagCloneObject(current.sharding);
     }
     const dryRun = !!normalizedRequest.options.dryRun;
+    const useFingerprintJournal = normalizedRequest.options.useFingerprintJournal !== false;
 
     const existingSources = Array.isArray(current.sources) ? current.sources : [];
     const existingSourceByFileId = {};
     existingSources.forEach(source => {
       existingSourceByFileId[source.fileId] = source;
     });
+    const existingJournal = astRagNormalizeIncrementalJournal(
+      current && current.sync && current.sync.incrementalJournal
+    );
 
     const existingChunksByFileId = astRagGroupChunksByFileId(current.chunks || []);
 
@@ -198,6 +270,7 @@ function astRagSyncIndexCore(request = {}) {
     const liveFileIds = new Set(sources.map(source => source.fileId));
     const nextSources = [];
     const nextChunks = [];
+    const nextJournal = {};
     const pendingEmbedChunks = [];
     const warnings = [];
 
@@ -209,22 +282,63 @@ function astRagSyncIndexCore(request = {}) {
     let removedChunks = 0;
     let reusedChunks = 0;
     let reembeddedChunks = 0;
+    let journalSkippedSources = 0;
 
     sources.forEach(sourceDescriptor => {
       const existingSource = existingSourceByFileId[sourceDescriptor.fileId] || null;
+      const existingJournalEntry = existingJournal[sourceDescriptor.fileId] || null;
       const sourceId = (existingSource && existingSource.sourceId) || `src_${sourceDescriptor.fileId}`;
       const existingChunks = existingChunksByFileId[sourceDescriptor.fileId] || [];
+      const revisionFingerprint = astRagBuildSourceRevisionFingerprint(sourceDescriptor);
+      const hasRevisionSignals = astRagSourceHasRevisionSignals(sourceDescriptor);
 
       try {
+        const existingRevisionFingerprint = astRagNormalizeString(
+          existingSource && existingSource.revisionFingerprint,
+          null
+        ) || astRagNormalizeString(
+          existingJournalEntry && existingJournalEntry.revisionFingerprint,
+          null
+        );
+
+        if (
+          useFingerprintJournal
+          && existingSource
+          && hasRevisionSignals
+          && existingRevisionFingerprint
+          && existingRevisionFingerprint === revisionFingerprint
+        ) {
+          const reusedSource = astRagCloneObject(existingSource);
+          reusedSource.revisionFingerprint = revisionFingerprint;
+          nextSources.push(reusedSource);
+          existingChunks.forEach(chunk => nextChunks.push(chunk));
+          const journalEntry = astRagBuildIncrementalJournalEntryFromSource(reusedSource);
+          if (journalEntry) {
+            nextJournal[journalEntry.fileId] = journalEntry;
+          }
+          unchangedSources += 1;
+          journalSkippedSources += 1;
+          return;
+        }
+
         const extracted = readSourceFn(sourceDescriptor, normalizedRequest.auth, {
           retries: 2
         });
         const fingerprint = astRagBuildSourceFingerprint(sourceDescriptor, extracted);
-        const existingFingerprint = astRagNormalizeSourceFingerprint(existingSource);
+        const existingFingerprint = astRagNormalizeSourceFingerprint(existingSource)
+          || astRagNormalizeString(existingJournalEntry && existingJournalEntry.fingerprint, null);
 
         if (existingSource && existingFingerprint === fingerprint) {
-          nextSources.push(existingSource);
+          const reusedSource = astRagCloneObject(existingSource);
+          reusedSource.fingerprint = fingerprint;
+          reusedSource.checksum = fingerprint;
+          reusedSource.revisionFingerprint = revisionFingerprint;
+          nextSources.push(reusedSource);
           existingChunks.forEach(chunk => nextChunks.push(chunk));
+          const journalEntry = astRagBuildIncrementalJournalEntryFromSource(reusedSource);
+          if (journalEntry) {
+            nextJournal[journalEntry.fileId] = journalEntry;
+          }
           unchangedSources += 1;
           return;
         }
@@ -274,7 +388,18 @@ function astRagSyncIndexCore(request = {}) {
           nextChunks.push(chunk);
         });
 
-        nextSources.push(astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, rebuiltChunks.length));
+        const syncedSource = astRagCreateSyncedSource(
+          sourceDescriptor,
+          sourceId,
+          fingerprint,
+          rebuiltChunks.length,
+          revisionFingerprint
+        );
+        nextSources.push(syncedSource);
+        const journalEntry = astRagBuildIncrementalJournalEntryFromSource(syncedSource);
+        if (journalEntry) {
+          nextJournal[journalEntry.fileId] = journalEntry;
+        }
 
         const sourceAddedChunks = Math.max(0, rebuiltChunks.length - sourceReusedChunks);
         const sourceRemovedChunks = Math.max(0, existingChunks.length - sourceReusedChunks);
@@ -296,6 +421,10 @@ function astRagSyncIndexCore(request = {}) {
         if (existingSource) {
           nextSources.push(existingSource);
           existingChunks.forEach(chunk => nextChunks.push(chunk));
+          const journalEntry = astRagBuildIncrementalJournalEntryFromSource(existingSource);
+          if (journalEntry) {
+            nextJournal[journalEntry.fileId] = journalEntry;
+          }
           unchangedSources += 1;
         }
 
@@ -360,7 +489,8 @@ function astRagSyncIndexCore(request = {}) {
       addedChunks,
       removedChunks,
       reusedChunks,
-      reembeddedChunks
+      reembeddedChunks,
+      journalSkippedSources
     });
 
     if (dryRun) {
@@ -376,6 +506,7 @@ function astRagSyncIndexCore(request = {}) {
         removedChunks,
         reusedChunks,
         reembeddedChunks,
+        journalSkippedSources,
         currentChunkCount: Array.isArray(current.chunks) ? current.chunks.length : 0,
         nextChunkCount: nextChunks.length,
         updatedAt: now,
@@ -390,6 +521,7 @@ function astRagSyncIndexCore(request = {}) {
         removedSources: result.removedSources,
         addedChunks: result.addedChunks,
         removedChunks: result.removedChunks,
+        journalSkippedSources: result.journalSkippedSources,
         nextChunkCount: result.nextChunkCount,
         warningCount: warnings.length
       });
@@ -403,7 +535,8 @@ function astRagSyncIndexCore(request = {}) {
       nextChunks.map(astRagEnsureChunkEmbeddingNorm),
       embedding,
       now,
-      summary
+      summary,
+      nextJournal
     );
 
     const persisted = astRagPersistIndexDocument(normalizedRequest, nextDocument);
@@ -419,6 +552,7 @@ function astRagSyncIndexCore(request = {}) {
       removedChunks,
       reusedChunks,
       reembeddedChunks,
+      journalSkippedSources,
       updatedAt: now,
       warnings
     };
@@ -433,6 +567,7 @@ function astRagSyncIndexCore(request = {}) {
       removedChunks: result.removedChunks,
       reusedChunks: result.reusedChunks,
       reembeddedChunks: result.reembeddedChunks,
+      journalSkippedSources: result.journalSkippedSources,
       warningCount: warnings.length
     });
     return result;

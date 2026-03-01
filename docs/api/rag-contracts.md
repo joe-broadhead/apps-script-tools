@@ -14,6 +14,7 @@ ASTX.RAG.getConfig()
 ASTX.RAG.clearConfig()
 ASTX.RAG.buildIndex(request)
 ASTX.RAG.syncIndex(request)
+ASTX.RAG.incrementalSync(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
@@ -277,6 +278,26 @@ Notes:
   auth: {}
 }
 ```
+
+## `incrementalSync(request)`
+
+`incrementalSync` uses the same contract as `syncIndex(...)` and defaults `options.useFingerprintJournal=true`.
+
+```javascript
+{
+  ...syncIndexRequest,
+  options: {
+    ...syncIndexRequest.options,
+    useFingerprintJournal: true // optional, default true
+  }
+}
+```
+
+Behavior:
+
+- Reuses existing source chunks without extraction when source revision fingerprint is unchanged.
+- Persists `sync.incrementalJournal` metadata on index documents for deterministic future skip checks.
+- Returns `journalSkippedSources` in sync results/summary.
 
 ## `answerStream(request)`
 

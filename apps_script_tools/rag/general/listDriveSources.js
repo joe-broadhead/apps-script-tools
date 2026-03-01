@@ -68,6 +68,7 @@ function astRagListDriveSources(sourceRequest, options = {}) {
       fileName: file.getName(),
       mimeType,
       modifiedTime: file.getLastUpdated ? file.getLastUpdated().toISOString() : null,
+      sizeBytes: file.getSize ? Number(file.getSize()) : null,
       driveFile: file
     });
   }

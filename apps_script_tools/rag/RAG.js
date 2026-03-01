@@ -25,6 +25,21 @@ function astRagApiSyncIndex(request = {}) {
   return astRagSyncIndexCore(request);
 }
 
+function astRagApiIncrementalSync(request = {}) {
+  astRagEnsureInitialized();
+  const normalizedRequest = astRagIsPlainObject(request) ? astRagCloneObject(request) : request;
+  if (astRagIsPlainObject(normalizedRequest)) {
+    const options = astRagIsPlainObject(normalizedRequest.options)
+      ? astRagCloneObject(normalizedRequest.options)
+      : {};
+    if (typeof options.useFingerprintJournal === 'undefined') {
+      options.useFingerprintJournal = true;
+    }
+    normalizedRequest.options = options;
+  }
+  return astRagSyncIndexCore(normalizedRequest);
+}
+
 function astRagApiSearch(request = {}) {
   astRagEnsureInitialized();
   return astRagSearchCore(request);
@@ -177,6 +192,7 @@ const AST_RAG = Object.freeze({
   clearConfig: astRagApiClearConfig,
   buildIndex: astRagApiBuildIndex,
   syncIndex: astRagApiSyncIndex,
+  incrementalSync: astRagApiIncrementalSync,
   search: astRagApiSearch,
   previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
