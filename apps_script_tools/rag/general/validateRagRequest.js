@@ -848,6 +848,190 @@ function astRagValidateAnswerRequest(request = {}) {
   };
 }
 
+function astRagNormalizeEvalMode(value) {
+  const mode = astRagNormalizeString(value, 'end_to_end').toLowerCase();
+  if (!['retrieval', 'grounding', 'end_to_end'].includes(mode)) {
+    throw new AstRagValidationError('evaluate.mode must be one of: retrieval, grounding, end_to_end');
+  }
+  return mode;
+}
+
+function astRagNormalizeEvalOrder(value) {
+  const order = astRagNormalizeString(value, 'input').toLowerCase();
+  if (!['input', 'seeded'].includes(order)) {
+    throw new AstRagValidationError('evaluate.options.order must be one of: input, seeded');
+  }
+  return order;
+}
+
+function astRagNormalizeEvalDataset(dataset) {
+  if (!Array.isArray(dataset) || dataset.length === 0) {
+    throw new AstRagValidationError('evaluate.dataset must be a non-empty array');
+  }
+
+  return dataset.map((entry, index) => {
+    if (!astRagIsPlainObject(entry)) {
+      throw new AstRagValidationError('evaluate.dataset items must be objects', {
+        index
+      });
+    }
+
+    const question = astRagNormalizeString(entry.question, null);
+    if (!question) {
+      throw new AstRagValidationError('evaluate.dataset[].question is required', {
+        index
+      });
+    }
+
+    const expectedSources = astRagNormalizeStringArray(
+      entry.expectedSources,
+      `evaluate.dataset[${index}].expectedSources`,
+      true
+    );
+    const expectedFacts = astRagNormalizeStringArray(
+      entry.expectedFacts,
+      `evaluate.dataset[${index}].expectedFacts`,
+      true
+    );
+
+    let expectedAnswerable = null;
+    if (typeof entry.expectedAnswerable !== 'undefined' && entry.expectedAnswerable !== null) {
+      if (typeof entry.expectedAnswerable !== 'boolean') {
+        throw new AstRagValidationError('evaluate.dataset[].expectedAnswerable must be boolean when provided', {
+          index
+        });
+      }
+      expectedAnswerable = entry.expectedAnswerable;
+    }
+
+    return {
+      id: astRagNormalizeString(entry.id, `q_${index + 1}`),
+      question,
+      expectedSources,
+      expectedFacts,
+      expectedAnswerable,
+      metadata: astRagIsPlainObject(entry.metadata) ? astRagCloneObject(entry.metadata) : {}
+    };
+  });
+}
+
+function astRagNormalizeEvaluateOptions(options = {}, datasetLength = 1) {
+  if (!astRagIsPlainObject(options)) {
+    throw new AstRagValidationError('evaluate.options must be an object when provided');
+  }
+
+  return {
+    maxItems: Math.min(
+      astRagNormalizePositiveInt(options.maxItems, datasetLength, 1),
+      datasetLength
+    ),
+    continueOnError: astRagNormalizeBoolean(options.continueOnError, true),
+    includeItemOutputs: astRagNormalizeBoolean(options.includeItemOutputs, false),
+    order: astRagNormalizeEvalOrder(options.order),
+    fixedSeed: astRagNormalizeString(options.fixedSeed || options.seed, 'ast-rag-eval-v1'),
+    enforceAccessControl: astRagNormalizeBoolean(options.enforceAccessControl, true),
+    maxRetrievalMs: astRagNormalizeOptionalNonNegativeInt(
+      options.maxRetrievalMs,
+      null,
+      'evaluate.options.maxRetrievalMs',
+      1
+    )
+  };
+}
+
+function astRagNormalizeEvaluateGeneration(generation = {}) {
+  const provider = astRagNormalizeString(generation.provider, 'vertex_gemini');
+  if (!AST_RAG_EMBEDDING_PROVIDERS.includes(provider)) {
+    throw new AstRagValidationError('evaluate.generation.provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
+  }
+
+  const style = astRagNormalizeString(generation.style, 'concise');
+  if (!['chat', 'concise', 'detailed', 'bullets'].includes(style)) {
+    throw new AstRagValidationError('evaluate.generation.style must be one of: chat, concise, detailed, bullets');
+  }
+
+  return {
+    provider,
+    model: astRagNormalizeString(generation.model, null),
+    auth: astRagIsPlainObject(generation.auth) ? astRagCloneObject(generation.auth) : {},
+    providerOptions: astRagIsPlainObject(generation.providerOptions) ? astRagCloneObject(generation.providerOptions) : {},
+    options: astRagIsPlainObject(generation.options) ? astRagCloneObject(generation.options) : {},
+    instructions: astRagNormalizeString(generation.instructions, null),
+    style
+  };
+}
+
+function astRagValidateEvaluateRequest(request = {}) {
+  if (!astRagIsPlainObject(request)) {
+    throw new AstRagValidationError('evaluate request must be an object');
+  }
+
+  const indexFileId = astRagNormalizeString(request.indexFileId, null);
+  if (!indexFileId) {
+    throw new AstRagValidationError('evaluate request requires indexFileId');
+  }
+
+  const mode = astRagNormalizeEvalMode(request.mode);
+  const dataset = astRagNormalizeEvalDataset(request.dataset);
+  const options = astRagNormalizeEvaluateOptions(
+    astRagIsPlainObject(request.options) ? request.options : {},
+    dataset.length
+  );
+
+  const retrievalInput = astRagIsPlainObject(request.retrieval) ? astRagCloneObject(request.retrieval) : {};
+  const defaults = astRagResolveRetrievalDefaults();
+  const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrievalInput, defaults, 'evaluate.retrieval');
+  const normalizedAccess = astRagNormalizeAccessControl(retrievalInput.access, 'evaluate.retrieval.access');
+
+  const retrieval = Object.assign({}, normalizedRetrieval, {
+    filters: {
+      fileIds: astRagNormalizeStringArray((retrievalInput.filters || {}).fileIds, 'evaluate.retrieval.filters.fileIds', true),
+      mimeTypes: astRagNormalizeStringArray((retrievalInput.filters || {}).mimeTypes, 'evaluate.retrieval.filters.mimeTypes', true)
+    },
+    access: normalizedAccess,
+    enforceAccessControl: options.enforceAccessControl
+  });
+
+  return {
+    indexFileId,
+    mode,
+    dataset,
+    retrieval,
+    generation: mode === 'retrieval'
+      ? null
+      : astRagNormalizeEvaluateGeneration(astRagIsPlainObject(request.generation) ? request.generation : {}),
+    cache: astRagNormalizeCacheRequest(request.cache),
+    auth: astRagIsPlainObject(request.auth) ? astRagCloneObject(request.auth) : {},
+    options
+  };
+}
+
+function astRagValidateCompareRunsRequest(request = {}) {
+  if (!astRagIsPlainObject(request)) {
+    throw new AstRagValidationError('compareRuns request must be an object');
+  }
+
+  if (!astRagIsPlainObject(request.baseline)) {
+    throw new AstRagValidationError('compareRuns request requires baseline object');
+  }
+
+  if (!astRagIsPlainObject(request.candidate)) {
+    throw new AstRagValidationError('compareRuns request requires candidate object');
+  }
+
+  const options = astRagIsPlainObject(request.options) ? request.options : {};
+
+  return {
+    baseline: astRagValidateEvaluateRequest(request.baseline),
+    candidate: astRagValidateEvaluateRequest(request.candidate),
+    options: {
+      includeItems: astRagNormalizeBoolean(options.includeItems, false),
+      includeBaseline: astRagNormalizeBoolean(options.includeBaseline, true),
+      includeCandidate: astRagNormalizeBoolean(options.includeCandidate, true)
+    }
+  };
+}
+
 function astRagValidateInspectRequest(request = {}) {
   if (!astRagIsPlainObject(request)) {
     throw new AstRagValidationError('inspectIndex request must be an object');

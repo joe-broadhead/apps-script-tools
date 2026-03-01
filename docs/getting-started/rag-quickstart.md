@@ -169,3 +169,47 @@ function ragSyncIndex() {
   Logger.log(out);
 }
 ```
+
+## Run a deterministic evaluation pass
+
+```javascript
+function ragEvaluate() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.RAG.evaluate({
+    indexFileId: 'YOUR_INDEX_FILE_ID',
+    mode: 'end_to_end',
+    dataset: [
+      {
+        id: 'q1',
+        question: 'What are the project risks?',
+        expectedSources: ['RISK_DOC_FILE_ID'],
+        expectedFacts: ['risk register'],
+        expectedAnswerable: true
+      },
+      {
+        id: 'q2',
+        question: 'What is the launch budget owner?',
+        expectedSources: [],
+        expectedFacts: [],
+        expectedAnswerable: false
+      }
+    ],
+    retrieval: {
+      topK: 8,
+      minScore: 0.2
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'OPENAI_API_KEY' },
+      style: 'concise'
+    },
+    options: {
+      order: 'seeded',
+      fixedSeed: 'release-candidate-1'
+    }
+  });
+
+  Logger.log(JSON.stringify(out.metrics, null, 2));
+}
+```

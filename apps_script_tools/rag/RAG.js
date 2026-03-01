@@ -39,6 +39,16 @@ function astRagApiAnswer(request = {}) {
   return astRagAnswerCore(request);
 }
 
+function astRagApiEvaluate(request = {}) {
+  astRagEnsureInitialized();
+  return astRagEvaluateCore(request);
+}
+
+function astRagApiCompareRuns(request = {}) {
+  astRagEnsureInitialized();
+  return astRagCompareRunsCore(request);
+}
+
 function astRagApiInspectIndex(request = {}) {
   astRagEnsureInitialized();
   const normalized = astRagValidateInspectRequest(request);
@@ -134,6 +144,8 @@ const AST_RAG = Object.freeze({
   search: astRagApiSearch,
   previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
+  evaluate: astRagApiEvaluate,
+  compareRuns: astRagApiCompareRuns,
   inspectIndex: astRagApiInspectIndex,
   buildRetrievalCacheKey: astRagApiBuildRetrievalCacheKey,
   putRetrievalPayload: astRagApiPutRetrievalPayload,
