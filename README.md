@@ -35,7 +35,7 @@ Core surfaces:
 - Platform: `AST.Http`, `AST.Storage`, `AST.Secrets`, `AST.Cache`, `AST.Config`, `AST.Runtime`
 - Automation and observability: `AST.Jobs`, `AST.Triggers`, `AST.Telemetry`, `AST.TelemetryHelpers`
 - AI stack: `AST.AI`, `AST.RAG`, `AST.Chat`
-- Messaging: `AST.Messaging` (Google Email + Chat automation)
+- Messaging: `AST.Messaging` (Google Email + Google Chat/Slack/Teams automation)
 - Metadata and external APIs: `AST.DBT`, `AST.GitHub`
 - Utilities and structures: `AST.Utils` plus global structures (`Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`)
 

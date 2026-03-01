@@ -40,7 +40,10 @@ ASTX.Messaging.clearConfig()
   body: { ... },
   auth: {
     oauthToken: 'optional',
-    chatWebhookUrl: 'optional'
+    chatWebhookUrl: 'optional',
+    slackWebhookUrl: 'optional',
+    slackBotToken: 'optional',
+    teamsWebhookUrl: 'optional'
   },
   options: {
     dryRun: false,
@@ -58,7 +61,7 @@ ASTX.Messaging.clearConfig()
     }
   },
   providerOptions: {
-    transport: 'gmailapp' | 'chat_webhook' | 'chat_api'
+    transport: 'gmailapp' | 'chat_webhook' | 'chat_api' | 'slack_webhook' | 'slack_api' | 'teams_webhook'
   }
 }
 ```
@@ -86,7 +89,7 @@ ASTX.Messaging.clearConfig()
 ## Operation groups
 
 - `email`: send, draft, search, thread/message reads, label updates
-- `chat`: webhook/API sends, message reads
+- `chat`: Google Chat + Slack + Teams sends, Google Chat message reads
 - `tracking`: pixel URL build, link wrapping, event recording, web event handling
 - `logs`: event list/get/delete
 

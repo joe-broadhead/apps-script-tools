@@ -1,6 +1,6 @@
 # Messaging Quick Start
 
-Use `AST.Messaging` for Google email + Google Chat sends with optional tracking and durable delivery logs.
+Use `AST.Messaging` for Google email plus Google Chat/Slack/Teams sends with optional tracking and durable delivery logs.
 
 ## Import pattern
 
@@ -18,6 +18,10 @@ function configureMessaging() {
     MESSAGING_DEFAULT_FROM: 'alerts@example.com',
     MESSAGING_DEFAULT_REPLY_TO: 'support@example.com',
     MESSAGING_CHAT_WEBHOOK_URL: 'https://chat.googleapis.com/v1/spaces/...',
+    MESSAGING_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/...',
+    MESSAGING_SLACK_BOT_TOKEN: 'xoxb-...',
+    MESSAGING_SLACK_CHANNEL: 'C12345678',
+    MESSAGING_TEAMS_WEBHOOK_URL: 'https://outlook.office.com/webhook/...',
     MESSAGING_TRACKING_ENABLED: 'true',
     MESSAGING_TRACKING_OPEN_ENABLED: 'true',
     MESSAGING_TRACKING_CLICK_ENABLED: 'true',
@@ -95,6 +99,49 @@ function sendChatApiExample() {
       thread: {
         threadKey: 'build-123',
         reply: true
+      }
+    }
+  });
+
+  Logger.log(JSON.stringify(out, null, 2));
+}
+```
+
+## Send Slack message
+
+```javascript
+function sendSlackExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Messaging.chat.send({
+    body: {
+      transport: 'slack_api',
+      channel: 'C12345678',
+      message: {
+        text: 'Build completed.'
+      }
+    },
+    auth: {
+      slackBotToken: 'xoxb-...'
+    }
+  });
+
+  Logger.log(JSON.stringify(out, null, 2));
+}
+```
+
+## Send Teams message
+
+```javascript
+function sendTeamsExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Messaging.chat.send({
+    body: {
+      transport: 'teams_webhook',
+      webhookUrl: 'https://outlook.office.com/webhook/...',
+      message: {
+        text: 'Release deployed successfully.'
       }
     }
   });

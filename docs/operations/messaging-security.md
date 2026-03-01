@@ -5,6 +5,8 @@
 - Email operations use `GmailApp` (script/user OAuth context).
 - Chat API operations use `auth.oauthToken` when supplied, otherwise `ScriptApp.getOAuthToken()`.
 - Webhook transport should use restricted room-scoped webhook URLs.
+- Slack API transport uses `auth.slackBotToken` or `MESSAGING_SLACK_BOT_TOKEN`.
+- Slack/Teams webhook transports should use dedicated incoming webhook URLs with least-privilege scopes.
 
 ## Tracking safety
 
@@ -30,6 +32,10 @@
 Recommended keys:
 
 - `MESSAGING_CHAT_WEBHOOK_URL`
+- `MESSAGING_SLACK_WEBHOOK_URL`
+- `MESSAGING_SLACK_BOT_TOKEN`
+- `MESSAGING_SLACK_CHANNEL`
+- `MESSAGING_TEAMS_WEBHOOK_URL`
 - `MESSAGING_TRACKING_BASE_URL`
 - `MESSAGING_TRACKING_SIGNING_SECRET`
 - `MESSAGING_LOG_BACKEND`

@@ -46,4 +46,10 @@ test('AST exposes Messaging namespace with expected public surface', () => {
   logMethods.forEach(method => {
     assert.equal(typeof context.AST.Messaging.logs[method], 'function');
   });
+
+  const capabilities = context.AST.Messaging.capabilities();
+  assert.equal(Array.isArray(capabilities.transports.chat), true);
+  assert.equal(capabilities.transports.chat.includes('slack_webhook'), true);
+  assert.equal(capabilities.transports.chat.includes('slack_api'), true);
+  assert.equal(capabilities.transports.chat.includes('teams_webhook'), true);
 });

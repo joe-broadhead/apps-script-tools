@@ -1,6 +1,6 @@
 # Messaging Chat API
 
-`ASTX.Messaging.chat` supports webhook and Chat API transports.
+`ASTX.Messaging.chat` supports Google Chat, Slack, and Microsoft Teams transports.
 
 ## Methods
 
@@ -52,6 +52,54 @@ ASTX.Messaging.chat.listMessages(request)
 
 If `auth.oauthToken` is omitted, the module uses `ScriptApp.getOAuthToken()`.
 
+### 3) Slack webhook transport
+
+```javascript
+{
+  body: {
+    transport: 'slack_webhook',
+    webhookUrl: 'https://hooks.slack.com/services/...',
+    message: {
+      text: 'hello',
+      blocks: [ ... ]
+    }
+  }
+}
+```
+
+### 4) Slack API transport
+
+```javascript
+{
+  body: {
+    transport: 'slack_api',
+    channel: 'C12345678',
+    message: {
+      text: 'hello'
+    }
+  },
+  auth: {
+    slackBotToken: 'xoxb-...'
+  }
+}
+```
+
+If `body.channel` is omitted, runtime config can provide `MESSAGING_SLACK_CHANNEL`.
+
+### 5) Teams webhook transport
+
+```javascript
+{
+  body: {
+    transport: 'teams_webhook',
+    webhookUrl: 'https://outlook.office.com/webhook/...',
+    message: {
+      text: 'hello'
+    }
+  }
+}
+```
+
 ## Read methods
 
 - `chat.getMessage`: requires `body.messageName` (`spaces/.../messages/...`).
@@ -60,5 +108,5 @@ If `auth.oauthToken` is omitted, the module uses `ScriptApp.getOAuthToken()`.
 ## Notes
 
 - `sendBatch` performs sequential sends.
-- `chat.getMessage` and `chat.listMessages` use Chat API transport only.
+- `chat.getMessage` and `chat.listMessages` use Google Chat API transport only.
 - Non-2xx responses map to typed messaging errors.
