@@ -86,6 +86,14 @@ Use `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(groupOrOperation)` 
 - `list_workflow_run_artifacts`
 - `get_workflow_run_artifact`
 
+### Checks
+
+- `list_check_runs`
+- `get_check_run`
+- `create_check_run`
+- `update_check_run`
+- `list_commit_statuses`
+
 ### Search
 
 - `search_repositories`
@@ -155,3 +163,4 @@ const verified = ASTX.GitHub.verifyWebhook({
 - Cache invalidation runs on mutation tags (`github:all`, repo, group, operation).
 - `push_files` performs sequential file updates and supports dry-run planning.
 - Actions rerun/cancel operations (`rerun_workflow_run`, `cancel_workflow_run`) support dry-run planning.
+- Checks mutations (`create_check_run`, `update_check_run`) support dry-run planning.

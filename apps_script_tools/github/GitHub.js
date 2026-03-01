@@ -218,6 +218,26 @@ function astGitHubGetWorkflowRunArtifact(request = {}) {
   return astGitHubRunOperation('get_workflow_run_artifact', request);
 }
 
+function astGitHubListCheckRuns(request = {}) {
+  return astGitHubRunOperation('list_check_runs', request);
+}
+
+function astGitHubGetCheckRun(request = {}) {
+  return astGitHubRunOperation('get_check_run', request);
+}
+
+function astGitHubCreateCheckRun(request = {}) {
+  return astGitHubRunOperation('create_check_run', request);
+}
+
+function astGitHubUpdateCheckRun(request = {}) {
+  return astGitHubRunOperation('update_check_run', request);
+}
+
+function astGitHubListCommitStatuses(request = {}) {
+  return astGitHubRunOperation('list_commit_statuses', request);
+}
+
 function astGitHubSearchRepositories(request = {}) {
   return astGitHubRunOperation('search_repositories', request);
 }
@@ -317,6 +337,11 @@ const AST_GITHUB = Object.freeze({
   cancelWorkflowRun: astGitHubCancelWorkflowRun,
   listWorkflowRunArtifacts: astGitHubListWorkflowRunArtifacts,
   getWorkflowRunArtifact: astGitHubGetWorkflowRunArtifact,
+  listCheckRuns: astGitHubListCheckRuns,
+  getCheckRun: astGitHubGetCheckRun,
+  createCheckRun: astGitHubCreateCheckRun,
+  updateCheckRun: astGitHubUpdateCheckRun,
+  listCommitStatuses: astGitHubListCommitStatuses,
   searchRepositories: astGitHubSearchRepositories,
   searchUsers: astGitHubSearchUsers,
   searchCode: astGitHubSearchCode,

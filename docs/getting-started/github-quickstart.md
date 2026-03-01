@@ -199,3 +199,43 @@ function githubActionsExample() {
   Logger.log(JSON.stringify(rerunPlan.dryRun.plannedRequest, null, 2));
 }
 ```
+
+## Checks API examples
+
+```javascript
+function githubChecksExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const checkRuns = ASTX.GitHub.listCheckRuns({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'main',
+    body: {
+      status: 'completed'
+    }
+  });
+
+  const statuses = ASTX.GitHub.listCommitStatuses({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'main'
+  });
+
+  const createPlan = ASTX.GitHub.createCheckRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      name: 'ast-ci-check',
+      head_sha: 'abc123',
+      status: 'in_progress'
+    },
+    options: {
+      dryRun: true
+    }
+  });
+
+  Logger.log(checkRuns.data.total_count);
+  Logger.log(statuses.data.length);
+  Logger.log(JSON.stringify(createPlan.dryRun.plannedRequest, null, 2));
+}
+```

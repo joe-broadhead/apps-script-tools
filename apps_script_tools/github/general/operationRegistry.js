@@ -93,6 +93,12 @@ const AST_GITHUB_OPERATION_REGISTRY = Object.freeze({
   list_workflow_run_artifacts: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsRunPath(request, '/artifacts'), read: true, paginated: true, group: 'actions' }),
   get_workflow_run_artifact: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsArtifactPath(request), read: true, paginated: false, group: 'actions' }),
 
+  list_check_runs: Object.freeze({ method: 'get', path: request => astGitHubBuildCommitPath(request, '/check-runs'), read: true, paginated: true, group: 'checks' }),
+  get_check_run: Object.freeze({ method: 'get', path: request => astGitHubBuildCheckRunPath(request), read: true, paginated: false, group: 'checks' }),
+  create_check_run: Object.freeze({ method: 'post', path: request => astGitHubBuildRepoPath(request, '/check-runs'), read: false, paginated: false, group: 'checks', mutation: true }),
+  update_check_run: Object.freeze({ method: 'patch', path: request => astGitHubBuildCheckRunPath(request), read: false, paginated: false, group: 'checks', mutation: true }),
+  list_commit_statuses: Object.freeze({ method: 'get', path: request => astGitHubBuildCommitPath(request, '/statuses'), read: true, paginated: true, group: 'checks' }),
+
   search_repositories: Object.freeze({ method: 'get', path: () => '/search/repositories', read: true, paginated: true, group: 'search' }),
   search_users: Object.freeze({ method: 'get', path: () => '/search/users', read: true, paginated: true, group: 'search' }),
   search_code: Object.freeze({ method: 'get', path: () => '/search/code', read: true, paginated: true, group: 'search' }),

@@ -152,6 +152,13 @@ function astGitHubBuildOperationQuery(request, spec, pagination) {
       return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['exclude_pull_requests']));
     case 'list_workflow_run_artifacts':
       return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['name']));
+    case 'list_check_runs':
+      return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, [
+        'check_name',
+        'status',
+        'filter',
+        'app_id'
+      ]));
     case 'search_pull_requests': {
       const query = astGitHubEnsureSearchQuery(request, 'is:pr');
       return astGitHubMergeQuery(base, astGitHubMergeQuery(

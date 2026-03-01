@@ -212,5 +212,43 @@ GITHUB_CONTRACT_TESTS = [
         AST.GitHub.clearConfig();
       }
     }
+  },
+  {
+    description: 'AST.GitHub.listCheckRuns should call commit check-runs endpoint',
+    test: () => {
+      AST.GitHub.clearConfig();
+      AST.GitHub.configure({
+        GITHUB_TOKEN: 'gas-test-token',
+        GITHUB_CACHE_ENABLED: false
+      });
+
+      const originalFetch = UrlFetchApp.fetch;
+      let calledUrl = null;
+      UrlFetchApp.fetch = url => {
+        calledUrl = url;
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({ total_count: 0, check_runs: [] }),
+          getAllHeaders: () => ({})
+        };
+      };
+
+      try {
+        const response = AST.GitHub.listCheckRuns({
+          owner: 'octocat',
+          repo: 'hello-world',
+          ref: 'abc123'
+        });
+        if (!calledUrl || calledUrl.indexOf('/commits/abc123/check-runs') === -1) {
+          throw new Error(`Expected commit check-runs URL, got: ${calledUrl}`);
+        }
+        if (!response || response.status !== 'ok') {
+          throw new Error(`Unexpected listCheckRuns response: ${JSON.stringify(response)}`);
+        }
+      } finally {
+        UrlFetchApp.fetch = originalFetch;
+        AST.GitHub.clearConfig();
+      }
+    }
   }
 ];

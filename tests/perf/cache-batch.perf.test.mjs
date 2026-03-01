@@ -307,9 +307,20 @@ function runBackendBatchProfile(backend, sampleIdx, keyCount) {
   });
 
   const singleGetMs = measureMs(() => {
+    const singleItems = new Array(keys.length);
     for (let idx = 0; idx < keys.length; idx += 1) {
-      context.AST.Cache.get(keys[idx]);
+      const key = keys[idx];
+      const value = context.AST.Cache.get(key);
+      // Mirror getMany response shaping so ratios compare equivalent work.
+      const normalizedKey = context.astCacheNormalizeKey(key);
+      singleItems[idx] = {
+        key,
+        keyHash: context.astCacheHashKey(normalizedKey),
+        status: value === null ? 'miss' : 'hit',
+        value
+      };
     }
+    return singleItems;
   });
 
   const batchGetMs = measureMs(() => {

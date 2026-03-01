@@ -427,3 +427,84 @@ test('getWorkflowRun validates runId before network request', () => {
   );
   assert.equal(fetchCalls, 0);
 });
+
+test('listCheckRuns uses commit check-runs path and query filters', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { total_count: 0, check_runs: [] });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.listCheckRuns({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'feature/main',
+    body: {
+      status: 'completed',
+      check_name: 'ci'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/commits\/feature%2Fmain\/check-runs/);
+  assert.match(calls[0].url, /status=completed/);
+  assert.match(calls[0].url, /check_name=ci/);
+  assert.equal(response.status, 'ok');
+});
+
+test('listCommitStatuses uses commit statuses path', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, [{ state: 'success' }]);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.listCommitStatuses({
+    owner: 'octocat',
+    repo: 'hello-world',
+    ref: 'abc123'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/commits\/abc123\/statuses(\?|$)/);
+  assert.equal(Array.isArray(response.data), true);
+});
+
+test('getCheckRun resolves check-run metadata endpoint', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { id: 90, name: 'ci' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.getCheckRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    checkRunId: 90
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/check-runs\/90$/);
+  assert.equal(response.data.id, 90);
+});

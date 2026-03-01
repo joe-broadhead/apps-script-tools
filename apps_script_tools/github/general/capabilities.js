@@ -38,6 +38,13 @@ const AST_GITHUB_OPERATION_GROUPS = Object.freeze({
     'list_workflow_run_artifacts',
     'get_workflow_run_artifact'
   ]),
+  checks: Object.freeze([
+    'list_check_runs',
+    'get_check_run',
+    'create_check_run',
+    'update_check_run',
+    'list_commit_statuses'
+  ]),
   search: Object.freeze(['search_repositories', 'search_users', 'search_code', 'search_issues']),
   meta: Object.freeze(['rate_limit']),
   graphql: Object.freeze(['graphql'])

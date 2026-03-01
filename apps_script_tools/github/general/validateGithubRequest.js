@@ -242,6 +242,12 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
   const pullNumber = astGitHubNormalizeInteger(request.pullNumber, 'pullNumber', null, 1);
   const reviewId = astGitHubNormalizeInteger(request.reviewId, 'reviewId', null, 1);
   const commentId = astGitHubNormalizeInteger(request.commentId, 'commentId', null, 1);
+  const checkRunId = astGitHubNormalizeInteger(
+    typeof request.checkRunId !== 'undefined' ? request.checkRunId : request.check_run_id,
+    'checkRunId',
+    null,
+    1
+  );
   const workflowId = astGitHubNormalizeWorkflowId(
     typeof request.workflowId !== 'undefined' ? request.workflowId : request.workflow_id,
     null
@@ -333,6 +339,7 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     pullNumber,
     reviewId,
     commentId,
+    checkRunId,
     workflowId,
     runId,
     artifactId,
