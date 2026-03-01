@@ -11,6 +11,19 @@ function astMessagingHttpNormalizeMethod(value, fallback = 'get') {
   return (normalized || fallback).toLowerCase();
 }
 
+function astMessagingHttpNormalizeTimeoutMs(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.floor(parsed);
+}
+
+function astMessagingHttpElapsedMs(startedAtMs) {
+  const nowMs = Date.now();
+  return Math.max(0, nowMs - startedAtMs);
+}
+
 function astMessagingHttpShouldRetryStatus(statusCode) {
   return [429, 500, 502, 503, 504].includes(Number(statusCode));
 }
@@ -79,6 +92,17 @@ function astMessagingHttpThrowForStatus(response, requestContext = {}) {
   throw new AstMessagingProviderError(`Messaging provider request failed with status ${statusCode}`, details);
 }
 
+function astMessagingHttpThrowTimeout(requestContext = {}, timeoutMs = null, startedAtMs = 0) {
+  throw new AstMessagingProviderError('Messaging provider request timed out', {
+    method: requestContext.method,
+    url: requestContext.url,
+    headers: astMessagingHttpRedactHeaders(requestContext.headers || {}),
+    timeoutMs,
+    elapsedMs: astMessagingHttpElapsedMs(startedAtMs),
+    classification: 'timeout'
+  });
+}
+
 function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}) {
   if (typeof UrlFetchApp === 'undefined' || !UrlFetchApp || typeof UrlFetchApp.fetch !== 'function') {
     throw new AstMessagingCapabilityError('Messaging provider requires UrlFetchApp.fetch()', {
@@ -94,6 +118,8 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
   }
 
   const retries = Number(executionOptions.retries || 0);
+  const timeoutMs = astMessagingHttpNormalizeTimeoutMs(executionOptions.timeoutMs);
+  const startedAtMs = Date.now();
   const method = astMessagingHttpNormalizeMethod(requestOptions.method, 'get');
   const payload = typeof requestOptions.payload === 'undefined'
     ? undefined
@@ -105,6 +131,14 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
   let lastError = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (timeoutMs !== null && astMessagingHttpElapsedMs(startedAtMs) >= timeoutMs) {
+      astMessagingHttpThrowTimeout({
+        method: method.toUpperCase(),
+        url: normalizedUrl,
+        headers
+      }, timeoutMs, startedAtMs);
+    }
+
     try {
       const fetchOptions = {
         method,
@@ -133,10 +167,24 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
       };
 
       if (statusCode >= 200 && statusCode < 300) {
+        if (timeoutMs !== null && astMessagingHttpElapsedMs(startedAtMs) >= timeoutMs) {
+          astMessagingHttpThrowTimeout({
+            method: method.toUpperCase(),
+            url: normalizedUrl,
+            headers
+          }, timeoutMs, startedAtMs);
+        }
         return normalizedResponse;
       }
 
       if (attempt < retries && astMessagingHttpShouldRetryStatus(statusCode)) {
+        if (timeoutMs !== null && astMessagingHttpElapsedMs(startedAtMs) >= timeoutMs) {
+          astMessagingHttpThrowTimeout({
+            method: method.toUpperCase(),
+            url: normalizedUrl,
+            headers
+          }, timeoutMs, startedAtMs);
+        }
         astMessagingHttpSleepBackoff(attempt);
         continue;
       }
@@ -149,6 +197,13 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
     } catch (error) {
       lastError = error;
       if (attempt < retries && !(error instanceof AstMessagingValidationError) && !(error instanceof AstMessagingAuthError)) {
+        if (timeoutMs !== null && astMessagingHttpElapsedMs(startedAtMs) >= timeoutMs) {
+          astMessagingHttpThrowTimeout({
+            method: method.toUpperCase(),
+            url: normalizedUrl,
+            headers
+          }, timeoutMs, startedAtMs);
+        }
         astMessagingHttpSleepBackoff(attempt);
         continue;
       }

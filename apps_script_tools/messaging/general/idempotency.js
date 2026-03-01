@@ -37,6 +37,87 @@ function astMessagingIdempotencyHash(value) {
   return `hash_${source.length}_${source.slice(0, 32)}`;
 }
 
+function astMessagingIdempotencyStableSerialize(value, seen = null) {
+  const seenSet = seen || new Set();
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? String(value)
+      : JSON.stringify('[NonFiniteNumber]');
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+
+  if (typeof value === 'bigint') {
+    return JSON.stringify(String(value));
+  }
+
+  if (typeof value === 'undefined') {
+    return JSON.stringify('[Undefined]');
+  }
+
+  if (typeof value === 'function') {
+    return JSON.stringify('[Function]');
+  }
+
+  if (typeof value !== 'object') {
+    return JSON.stringify(String(value));
+  }
+
+  if (seenSet.has(value)) {
+    return JSON.stringify('[Circular]');
+  }
+
+  seenSet.add(value);
+
+  try {
+    if (Array.isArray(value)) {
+      const items = value.map(item => astMessagingIdempotencyStableSerialize(item, seenSet));
+      return `[${items.join(',')}]`;
+    }
+
+    if (typeof value.toISOString === 'function' && typeof value.getTime === 'function') {
+      try {
+        return JSON.stringify(value.toISOString());
+      } catch (_error) {
+        return JSON.stringify('[InvalidDate]');
+      }
+    }
+
+    const keys = Object.keys(value).sort();
+    const parts = keys.map(key => {
+      let serializedValue = JSON.stringify('[Unreadable]');
+      try {
+        serializedValue = astMessagingIdempotencyStableSerialize(value[key], seenSet);
+      } catch (_error) {
+        // Keep placeholder for unreadable keys.
+      }
+      return `${JSON.stringify(key)}:${serializedValue}`;
+    });
+    return `{${parts.join(',')}}`;
+  } finally {
+    seenSet.delete(value);
+  }
+}
+
+function astMessagingIdempotencySerializeSafely(value) {
+  try {
+    return astMessagingIdempotencyStableSerialize(value);
+  } catch (_error) {
+    return JSON.stringify('[Unserializable]');
+  }
+}
+
 function astMessagingBuildIdempotencyKey(normalizedRequest = {}, resolvedConfig = {}) {
   const explicit = astMessagingIdempotencyNormalizeString(normalizedRequest.options && normalizedRequest.options.idempotencyKey, null)
     || astMessagingIdempotencyNormalizeString(normalizedRequest.body && normalizedRequest.body.idempotencyKey, null)
@@ -54,7 +135,7 @@ function astMessagingBuildIdempotencyKey(normalizedRequest = {}, resolvedConfig 
     return null;
   }
 
-  return astMessagingIdempotencyHash(JSON.stringify({
+  return astMessagingIdempotencyHash(astMessagingIdempotencySerializeSafely({
     operation: normalizedRequest.operation,
     channel: normalizedRequest.channel,
     body: normalizedRequest.body || {},

@@ -38,3 +38,41 @@ test('http request maps auth/not-found/rate-limit/provider errors', () => {
     error => error.name === 'AstMessagingProviderError'
   );
 });
+
+test('http request enforces timeoutMs budget across retries', () => {
+  let fetchCalls = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return {
+          getResponseCode: () => 503,
+          getContentText: () => JSON.stringify({ error: 'temporary' }),
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+
+  let nowTick = 0;
+  const nowValues = [0, 0, 120, 120];
+  context.Date.now = () => {
+    const value = nowValues[Math.min(nowTick, nowValues.length - 1)];
+    nowTick += 1;
+    return value;
+  };
+
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingHttpRequest('https://example.com', { method: 'get' }, { retries: 3, timeoutMs: 100 }),
+    error => {
+      assert.equal(error.name, 'AstMessagingProviderError');
+      assert.equal(error.details.classification, 'timeout');
+      return true;
+    }
+  );
+
+  assert.equal(fetchCalls, 1);
+});

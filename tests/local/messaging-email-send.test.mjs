@@ -59,3 +59,34 @@ test('email send renders template and dispatches GmailApp.sendEmail', () => {
   assert.equal(Array.isArray(response.data.recipients), true);
   assert.equal(response.data.recipients[0], 'user@example.com');
 });
+
+test('email send remains successful when delivery logging fails', () => {
+  const sent = [];
+
+  const context = createGasContext({
+    GmailApp: {
+      sendEmail: (to, subject, textBody, options) => {
+        sent.push({ to, subject, textBody, options });
+      }
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.astMessagingLogWrite = () => {
+    throw new Error('log backend unavailable');
+  };
+
+  const response = context.AST.Messaging.email.send({
+    body: {
+      to: ['user@example.com'],
+      subject: 'Hello',
+      textBody: 'Hi'
+    }
+  });
+
+  assert.equal(sent.length, 1);
+  assert.equal(response.status, 'ok');
+  assert.equal(Array.isArray(response.warnings), true);
+  assert.equal(response.warnings.includes('deliveryLogWriteFailed=true'), true);
+});

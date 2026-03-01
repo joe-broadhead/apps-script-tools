@@ -229,9 +229,15 @@ function astRunMessagingRequest(request = {}) {
       }
     }
 
+    const warnings = [];
     const result = astMessagingDispatchOperation(normalizedRequest, resolvedConfig);
     const tracking = astMessagingBuildTrackingFromResult(result);
-    const log = astMessagingWriteDeliveryLog(normalizedRequest, result, resolvedConfig);
+    let log = {};
+    try {
+      log = astMessagingWriteDeliveryLog(normalizedRequest, result, resolvedConfig);
+    } catch (_logError) {
+      warnings.push('deliveryLogWriteFailed=true');
+    }
 
     const response = astMessagingNormalizeResponse({
       operation: normalizedRequest.operation,
@@ -240,7 +246,7 @@ function astRunMessagingRequest(request = {}) {
       data: result,
       tracking,
       log,
-      warnings: [],
+      warnings,
       includeRaw: normalizedRequest.options.includeRaw,
       raw: result && Object.prototype.hasOwnProperty.call(result, 'raw')
         ? result.raw

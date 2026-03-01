@@ -31,7 +31,72 @@ function astMessagingGenerateEventId() {
 }
 
 function astMessagingCloneSerializable(value) {
-  return JSON.parse(JSON.stringify(value));
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_error) {
+    return astMessagingCloneSerializableFallback(value, new Set(), 0);
+  }
+}
+
+function astMessagingCloneSerializableFallback(value, seen, depth) {
+  if (depth > 12) {
+    return '[MaxDepth]';
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'bigint') {
+    return String(value);
+  }
+
+  if (typeof value === 'undefined') {
+    return null;
+  }
+
+  if (typeof value === 'function') {
+    return '[Function]';
+  }
+
+  if (typeof value !== 'object') {
+    return String(value);
+  }
+
+  if (seen.has(value)) {
+    return '[Circular]';
+  }
+
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map(item => astMessagingCloneSerializableFallback(item, seen, depth + 1));
+    }
+
+    if (typeof value.toISOString === 'function' && typeof value.getTime === 'function') {
+      try {
+        return value.toISOString();
+      } catch (_error) {
+        return '[InvalidDate]';
+      }
+    }
+
+    const output = {};
+    Object.keys(value).forEach(key => {
+      try {
+        output[key] = astMessagingCloneSerializableFallback(value[key], seen, depth + 1);
+      } catch (_error) {
+        output[key] = '[Unreadable]';
+      }
+    });
+    return output;
+  } finally {
+    seen.delete(value);
+  }
 }
 
 function astMessagingResolveLogCacheOptions(logsConfig = {}) {
