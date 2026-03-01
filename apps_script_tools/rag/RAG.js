@@ -40,6 +40,11 @@ function astRagApiAnswer(request = {}) {
   return astRagAnswerCore(request);
 }
 
+function astRagApiAnswerStream(request = {}) {
+  astRagEnsureInitialized();
+  return astRagAnswerStreamCore(request);
+}
+
 function astRagApiRerank(request = {}) {
   astRagEnsureInitialized();
   return astRagRerankCore(request);
@@ -175,6 +180,7 @@ const AST_RAG = Object.freeze({
   search: astRagApiSearch,
   previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
+  answerStream: astRagApiAnswerStream,
   rerank: astRagApiRerank,
   rewriteQuery: astRagApiRewriteQuery,
   decomposeQuestion: astRagApiDecomposeQuestion,

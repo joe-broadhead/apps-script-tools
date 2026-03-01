@@ -1012,6 +1012,26 @@ function astRagValidateAnswerRequest(request = {}) {
   };
 }
 
+function astRagValidateAnswerStreamRequest(request = {}) {
+  const normalized = astRagValidateAnswerRequest(request);
+  const onEvent = typeof request.onEvent === 'function' ? request.onEvent : null;
+  if (!onEvent) {
+    throw new AstRagValidationError('answerStream request requires onEvent callback function');
+  }
+
+  const options = astRagIsPlainObject(request.options) ? request.options : {};
+  const streamChunkSize = astRagNormalizePositiveInt(
+    options.streamChunkSize,
+    24,
+    1
+  );
+
+  return Object.assign({}, normalized, {
+    onEvent,
+    streamChunkSize: Math.min(1024, streamChunkSize)
+  });
+}
+
 function astRagValidateRewriteQueryRequest(request = {}) {
   if (!astRagIsPlainObject(request)) {
     throw new AstRagValidationError('rewriteQuery request must be an object');

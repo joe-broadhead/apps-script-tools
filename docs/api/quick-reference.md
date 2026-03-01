@@ -215,6 +215,7 @@ ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
+ASTX.RAG.answerStream(request)
 ASTX.RAG.rerank(request)
 ASTX.RAG.rewriteQuery(request)
 ASTX.RAG.decomposeQuestion(request)
@@ -592,6 +593,7 @@ ASTX.GitHub.clearConfig()
 - `RAG.answer(...)` prompt controls include `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
 - `RAG.answer(...)` supports prompt context budgets via `generation.maxContextChars` and `generation.maxContextTokensApprox`.
 - `RAG.answer(...)` includes `diagnostics` only when enabled via `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
+- `RAG.answerStream(...)` emits deterministic `start`, `progress`, `token`, `metadata`, `done`, and `error` events via `onEvent`.
 - RAG diagnostics include cache backend metadata and lock timing/contention fields (`cache.backend`, `cache.lockScope`, `timings.lockWaitMs`, `cache.lockContention`).
 - `ASTX.Chat.ThreadStore` persists per-user thread state with lock-aware writes and deterministic thread/turn caps.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.

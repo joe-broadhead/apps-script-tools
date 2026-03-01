@@ -13,6 +13,7 @@ RAG_NAMESPACE_TESTS = [
         'search',
         'previewSources',
         'answer',
+        'answerStream',
         'rerank',
         'rewriteQuery',
         'decomposeQuestion',

@@ -2565,6 +2565,130 @@ test('answer enforces strict citation mapping and abstains on missing grounding'
   assert.equal(abstain.answer, 'Insufficient context.');
 });
 
+test('answerStream emits deterministic token and metadata frames', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true, includeAi: false });
+
+  context.astRagAnswerCore = request => ({
+    status: 'ok',
+    answer: `Summary for ${request.question}`,
+    citations: [
+      {
+        citationId: 'S1',
+        chunkId: 'chunk_stream_1',
+        fileId: 'f_stream_1',
+        fileName: 'stream.txt',
+        mimeType: MIME_TEXT,
+        score: 0.9,
+        snippet: 'Streaming snippet'
+      }
+    ],
+    retrieval: {
+      mode: 'lexical',
+      topK: 1,
+      minScore: 0,
+      returned: 1
+    },
+    usage: {
+      retrieval: { totalTokens: 0 },
+      generation: { totalTokens: 12 }
+    },
+    queryProvenance: {
+      originalQuery: request.question,
+      rewrittenQuery: request.question,
+      transformed: false
+    }
+  });
+
+  const events = [];
+  const response = context.AST.RAG.answerStream({
+    indexFileId: 'index_answer_stream',
+    question: 'project status',
+    options: {
+      streamChunkSize: 8
+    },
+    onEvent: event => events.push(event)
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.answer, 'Summary for project status');
+  assert.deepEqual(events.map(event => event.type), ['start', 'progress', 'progress', 'token', 'token', 'token', 'token', 'metadata', 'done']);
+  assert.equal(events[0].question, 'project status');
+  assert.equal(events[1].phase, 'answer_started');
+  assert.equal(events[2].phase, 'answer_ready');
+  assert.equal(events[2].status, 'ok');
+  assert.equal(events[3].delta, 'Summary ');
+  assert.equal(events[4].delta, 'for proj');
+  assert.equal(events[5].delta, 'ect stat');
+  assert.equal(events[6].delta, 'us');
+  assert.equal(events[6].text, response.answer);
+  assert.equal(events[7].metadata.status, 'ok');
+  assert.equal(events[7].metadata.citations.length, 1);
+  assert.equal(events[7].metadata.citations[0].chunkId, 'chunk_stream_1');
+  assert.equal(events[8].response.answer, response.answer);
+});
+
+test('answerStream emits error frame and throws when answer fails', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true, includeAi: false });
+
+  context.astRagAnswerCore = () => {
+    throw new Error('stream explode');
+  };
+
+  const events = [];
+  assert.throws(
+    () => context.AST.RAG.answerStream({
+      indexFileId: 'index_answer_stream_error',
+      question: 'why',
+      onEvent: event => events.push(event)
+    }),
+    /stream explode/
+  );
+
+  assert.equal(events.length, 3);
+  assert.equal(events[0].type, 'start');
+  assert.equal(events[1].type, 'progress');
+  assert.equal(events[1].phase, 'answer_started');
+  assert.equal(events[2].type, 'error');
+  assert.equal(events[2].error.message, 'stream explode');
+});
+
+test('answerStream requires onEvent callback', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true, includeAi: false });
+
+  assert.throws(
+    () => context.AST.RAG.answerStream({
+      indexFileId: 'index_answer_stream_validate',
+      question: 'any'
+    }),
+    /answerStream request requires onEvent callback function/
+  );
+});
+
+test('answerStream preserves original failure when error-event callback throws', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true, includeAi: false });
+
+  context.astRagAnswerCore = () => {
+    throw new Error('stream explode');
+  };
+
+  assert.throws(
+    () => context.AST.RAG.answerStream({
+      indexFileId: 'index_answer_stream_error_emit',
+      question: 'why',
+      onEvent: event => {
+        if (event.type === 'error') {
+          throw new Error('event explode');
+        }
+      }
+    }),
+    /stream explode/
+  );
+});
+
 test('answer supports lexical retrieval mode without embedding calls', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
