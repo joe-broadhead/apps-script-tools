@@ -41,7 +41,7 @@ function astGitHubProjectsNormalizePageSize(request = {}, fallback = 20) {
   const body = request && typeof request.body === 'object' && request.body && !Array.isArray(request.body)
     ? request.body
     : {};
-  const candidate = options.perPage || body.first;
+  const candidate = options.perPage != null ? options.perPage : body.first;
   if (candidate == null || candidate === '') {
     return fallback;
   }
@@ -61,7 +61,28 @@ function astGitHubProjectsNormalizeCursor(request = {}) {
   const body = request && typeof request.body === 'object' && request.body && !Array.isArray(request.body)
     ? request.body
     : {};
-  return astGitHubProjectsNormalizeString(options.pageToken || body.after, '') || null;
+  const candidate = options.pageToken != null ? options.pageToken : body.after;
+  return astGitHubProjectsNormalizeString(candidate, '') || null;
+}
+
+function astGitHubProjectsResolveOwner(request = {}) {
+  const requestOwner = astGitHubProjectsNormalizeString(
+    request.owner != null ? request.owner : astGitHubProjectsReadBodyField(request, 'owner', ''),
+    ''
+  );
+  if (requestOwner) {
+    return requestOwner;
+  }
+
+  const config = astGitHubResolveConfig(request);
+  const configOwner = astGitHubProjectsNormalizeString(config && config.owner, '');
+  if (configOwner) {
+    return configOwner;
+  }
+
+  throw new AstGitHubValidationError("Missing required GitHub request field 'owner'", {
+    field: 'owner'
+  });
 }
 
 function astGitHubProjectsExtractGraphqlData(response, operation) {
@@ -358,12 +379,7 @@ function astGitHubProjectsNormalizeUpdateResponse(response, projectId, itemId, f
 }
 
 function astGitHubListProjectsV2Helper(request = {}) {
-  const owner = astGitHubProjectsNormalizeString(request.owner || astGitHubProjectsReadBodyField(request, 'owner', ''), '');
-  if (!owner) {
-    throw new AstGitHubValidationError("Missing required GitHub request field 'owner'", {
-      field: 'owner'
-    });
-  }
+  const owner = astGitHubProjectsResolveOwner(request);
 
   const response = astGitHubGraphql({
     query: astGitHubProjectsBuildOwnerQuery(),

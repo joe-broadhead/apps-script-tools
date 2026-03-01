@@ -62,6 +62,44 @@ test('listProjectsV2 sends GraphQL owner query and normalizes response', () => {
   assert.equal(response.data.items.length, 1);
 });
 
+test('listProjectsV2 falls back to configured default owner', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (_url, options) => {
+        calls.push(options);
+        return createResponse(200, {
+          data: {
+            organization: {
+              __typename: 'Organization',
+              login: 'configured-owner',
+              projectsV2: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+                totalCount: 0
+              }
+            },
+            user: null
+          }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({
+    GITHUB_TOKEN: 'token',
+    GITHUB_OWNER: 'configured-owner'
+  });
+
+  const response = context.AST.GitHub.listProjectsV2({});
+
+  assert.equal(calls.length, 1);
+  const payload = parsePayload(calls[0]);
+  assert.equal(payload.variables.owner, 'configured-owner');
+  assert.equal(response.data.owner.login, 'configured-owner');
+});
+
 test('listProjectV2Items sends project node query and normalizes response', () => {
   const calls = [];
   const context = createGasContext({
