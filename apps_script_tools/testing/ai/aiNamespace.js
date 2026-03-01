@@ -11,6 +11,9 @@ AI_NAMESPACE_TESTS = [
         'tools',
         'image',
         'stream',
+        'estimateTokens',
+        'truncateMessages',
+        'renderPromptTemplate',
         'providers',
         'capabilities',
         'configure',
@@ -40,6 +43,35 @@ AI_NAMESPACE_TESTS = [
     test: () => astTestRunWithAssertions(t => {
       const capabilities = AST.AI.capabilities('vertex_gemini');
       t.equal(capabilities.imageGeneration, false, `Expected imageGeneration=false, but got ${JSON.stringify(capabilities)}`);
+    })
+  },
+  {
+    description: 'AST.AI.renderPromptTemplate should render template variables',
+    test: () => astTestRunWithAssertions(t => {
+      const out = AST.AI.renderPromptTemplate({
+        template: 'Hello {{name}}',
+        variables: { name: 'AST' }
+      });
+      t.equal(out.text, 'Hello AST', `Expected rendered template, got ${JSON.stringify(out)}`);
+    })
+  },
+  {
+    description: 'AST.AI.truncateMessages should return bounded message output',
+    test: () => astTestRunWithAssertions(t => {
+      const out = AST.AI.truncateMessages({
+        provider: 'openai',
+        messages: [
+          { role: 'system', content: 'Always grounded.' },
+          { role: 'user', content: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+          { role: 'assistant', content: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+          { role: 'user', content: 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' }
+        ],
+        maxInputTokens: 25,
+        strategy: 'tail'
+      });
+
+      t.equal(out.status, 'ok', `Expected status ok, got ${JSON.stringify(out)}`);
+      t.equal(out.after.inputTokens <= 25, true, `Expected bounded tokens <= 25, got ${JSON.stringify(out.after)}`);
     })
   }
 ];

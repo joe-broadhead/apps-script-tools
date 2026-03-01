@@ -844,6 +844,9 @@ Primary methods:
 - `ASTX.AI.tools(request)` for bounded auto tool execution.
 - `ASTX.AI.image(request)` for image generation paths.
 - `ASTX.AI.stream(request)` for callback-based token/tool event streaming.
+- `ASTX.AI.estimateTokens(request)` for heuristic token budget preflight.
+- `ASTX.AI.truncateMessages(request)` for deterministic message-budget truncation.
+- `ASTX.AI.renderPromptTemplate(request)` for strict variable-safe prompt rendering.
 - `ASTX.AI.OutputRepair.continueIfTruncated(request)` for bounded continuation repair.
 - `ASTX.AI.providers()` and `ASTX.AI.capabilities(provider)` for runtime checks.
 - `ASTX.AI.configure(config)` to set runtime defaults (for example from consumer script properties).
@@ -859,6 +862,9 @@ High-signal behavior:
 - optional `routing` supports provider fallback using `priority`, `fastest`, or `cost_first` strategies.
 - deterministic provider `4xx` errors only fail over when `routing.retryOn.providerErrors=true`.
 - response metadata includes `response.route.attempts` with per-provider attempt status and retryability.
+- token preflight includes provider-aware heuristic metadata and budget overflow diagnostics.
+- truncation strategies: `tail`, `head`, `semantic_blocks`.
+- prompt template rendering throws `AstAiValidationError` on missing placeholders by default.
 - structured mode has bounded reliability controls via `options.reliability`:
   - `maxSchemaRetries`
   - `repairMode` (`none`, `json_repair`, `llm_repair`)

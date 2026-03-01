@@ -187,6 +187,9 @@ test('AST exposes AI surface and helper methods', () => {
   assert.equal(typeof context.AST.AI.tools, 'function');
   assert.equal(typeof context.AST.AI.image, 'function');
   assert.equal(typeof context.AST.AI.stream, 'function');
+  assert.equal(typeof context.AST.AI.estimateTokens, 'function');
+  assert.equal(typeof context.AST.AI.truncateMessages, 'function');
+  assert.equal(typeof context.AST.AI.renderPromptTemplate, 'function');
   assert.equal(typeof context.AST.AI.providers, 'function');
   assert.equal(typeof context.AST.AI.capabilities, 'function');
   assert.equal(typeof context.AST.AI.configure, 'function');

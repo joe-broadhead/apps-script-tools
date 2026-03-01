@@ -9,6 +9,9 @@ ASTX.AI.structured(request)
 ASTX.AI.tools(request)
 ASTX.AI.image(request)
 ASTX.AI.stream(request)
+ASTX.AI.estimateTokens(request)
+ASTX.AI.truncateMessages(request)
+ASTX.AI.renderPromptTemplate(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
 ASTX.AI.configure(config, options)
@@ -228,3 +231,62 @@ Behavior notes:
 - no-op when output does not appear truncated (unless `force=true`)
 - bounded continuation passes (`1..5`)
 - overlap-aware merge to avoid duplicate text prefixes
+
+## Prompt budget utilities
+
+`ASTX.AI.estimateTokens(...)` provides deterministic, provider-aware token estimates before execution:
+
+```javascript
+const estimate = ASTX.AI.estimateTokens({
+  provider: 'openai',
+  input: 'Summarize this release diff',
+  options: {
+    maxOutputTokens: 600,
+    maxTotalTokens: 2000
+  }
+});
+
+Logger.log(estimate.totalTokens);
+Logger.log(estimate.budget.exceedsBudget);
+```
+
+Notes:
+
+- estimation is heuristic and intentionally conservative.
+- `estimate.approximation.limitations` documents approximation boundaries.
+
+`ASTX.AI.truncateMessages(...)` applies deterministic truncation (`tail`, `head`, `semantic_blocks`) against a token budget:
+
+```javascript
+const trunc = ASTX.AI.truncateMessages({
+  provider: 'openai',
+  messages,
+  maxInputTokens: 3000,
+  strategy: 'semantic_blocks'
+});
+
+const response = ASTX.AI.text({
+  provider: 'openai',
+  input: trunc.messages
+});
+```
+
+`ASTX.AI.renderPromptTemplate(...)` renders `{{token}}` placeholders with strict variable checks:
+
+```javascript
+const prompt = ASTX.AI.renderPromptTemplate({
+  template: 'Summarize {{project}} in {{tone}} tone.',
+  variables: {
+    project: 'Q1 roadmap',
+    tone: 'concise'
+  }
+});
+
+Logger.log(prompt.text);
+```
+
+Strict checks:
+
+- missing placeholders throw `AstAiValidationError` by default.
+- optional `options.failOnUnused=true` rejects unused variables.
+- nested tokens are supported (`{{owner.team}}`), with blocked prototype-path segments.

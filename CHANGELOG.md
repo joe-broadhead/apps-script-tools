@@ -195,6 +195,10 @@
   - optional repair modes (`json_repair`, `llm_repair`)
   - deterministic diagnostics on failure (`AstAiResponseParseError.details.attempts`)
 - New `AST.AI.OutputRepair.continueIfTruncated(...)` helper for bounded continuation repair of partial/truncated text outputs.
+- New AI prompt construction utilities:
+  - `AST.AI.estimateTokens(...)` for provider-aware heuristic token budgeting
+  - `AST.AI.truncateMessages(...)` for deterministic `tail` / `head` / `semantic_blocks` input truncation
+  - `AST.AI.renderPromptTemplate(...)` for strict `{{token}}` rendering with missing/unused variable checks
 - New `AST.Telemetry` namespace with:
   - `configure`, `getConfig`, `clearConfig`
   - `startSpan`, `endSpan`, `recordEvent`, `getTrace`
