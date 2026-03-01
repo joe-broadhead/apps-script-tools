@@ -20,6 +20,10 @@ ASTX.Storage.copy(request)
 ASTX.Storage.move(request)
 ASTX.Storage.signedUrl(request)
 ASTX.Storage.multipartWrite(request)
+ASTX.Storage.walk(request)
+ASTX.Storage.copyPrefix(request)
+ASTX.Storage.deletePrefix(request)
+ASTX.Storage.sync(request)
 ASTX.Storage.providers()
 ASTX.Storage.capabilities(provider)
 ASTX.Storage.configure(config, options)
@@ -42,10 +46,16 @@ ASTX.Storage.clearConfig()
     'copy' |
     'move' |
     'signed_url' |
-    'multipart_write',
+    'multipart_write' |
+    'walk' |
+    'copy_prefix' |
+    'delete_prefix' |
+    'sync',
   uri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path',
   fromUri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path', // copy/move
   toUri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path',   // copy/move
+  from: { provider?, uri?, location? }, // copy_prefix/sync optional structured source
+  to: { provider?, uri?, location? },   // copy_prefix/sync optional structured target
   location: {
     bucket: 'gcs/s3 bucket',
     key: 'gcs/s3 object key',
@@ -71,6 +81,15 @@ ASTX.Storage.clearConfig()
     retries: 2,
     includeRaw: false,
     overwrite: true,
+    maxObjects: 10000,     // walk/copy_prefix/delete_prefix/sync guard
+    includePrefixes: ['reports/2026/'],
+    excludePrefixes: ['tmp/'],
+    includeRegex: '^daily/.*\\.json$',
+    excludeRegex: '^archive/',
+    includeDirectories: false, // walk
+    dryRun: false,        // copy_prefix/delete_prefix/sync
+    continueOnError: true,
+    deleteExtra: false,   // sync
     expiresInSec: 900,     // signed_url
     method: 'GET',         // signed_url
     partSizeBytes: 5242880 // multipart_write
@@ -98,7 +117,8 @@ ASTX.Storage.clearConfig()
     copied,   // copy
     moved,    // move
     signedUrl,        // signed_url
-    multipartWritten  // multipart_write
+    multipartWritten, // multipart_write
+    summary           // walk/copy_prefix/delete_prefix/sync summary counters
   },
   page: {
     nextPageToken,
@@ -121,6 +141,14 @@ ASTX.Storage.clearConfig()
 - `fromUri/toUri` are preferred.
 - `fromLocation/toLocation` are supported for provider-native inputs.
 - Source and destination providers must match in this release.
+
+Bulk prefix operation notes:
+
+- `walk` lists normalized prefix entries with deterministic ordering.
+- `copy_prefix` supports same-provider copy and cross-provider read+write fallback.
+- `delete_prefix` deletes all matched entries under a prefix.
+- `sync` copies source->target and optionally removes extra target objects (`deleteExtra=true`).
+- Mutating bulk operations support `dryRun=true` planning without writes/deletes.
 
 ## Not-found behavior
 

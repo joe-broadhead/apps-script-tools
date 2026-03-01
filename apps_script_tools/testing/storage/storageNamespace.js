@@ -16,6 +16,10 @@ STORAGE_NAMESPACE_TESTS = [
         'move',
         'signedUrl',
         'multipartWrite',
+        'walk',
+        'copyPrefix',
+        'deletePrefix',
+        'sync',
         'providers',
         'capabilities',
         'configure',
@@ -41,7 +45,7 @@ STORAGE_NAMESPACE_TESTS = [
     test: () => astTestRunWithAssertions(t => {
       const capabilities = AST.Storage.capabilities('gcs');
 
-      ['list', 'head', 'read', 'write', 'delete', 'exists', 'copy', 'move', 'signed_url', 'multipart_write'].forEach(key => {
+      ['list', 'head', 'read', 'write', 'delete', 'exists', 'copy', 'move', 'signed_url', 'multipart_write', 'walk', 'copy_prefix', 'delete_prefix', 'sync'].forEach(key => {
         t.equal(capabilities[key], true, `Expected gcs capability ${key}=true, got ${JSON.stringify(capabilities)}`);
       });
     })

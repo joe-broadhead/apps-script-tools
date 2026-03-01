@@ -164,10 +164,52 @@ function storageMultipartWriteExample() {
 }
 ```
 
+## Bulk prefix operations
+
+```javascript
+function storageBulkExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  // Enumerate prefix contents with deterministic ordering/filters.
+  const walk = ASTX.Storage.walk({
+    uri: 'gcs://my-bucket/inbound/',
+    options: {
+      recursive: true,
+      includePrefixes: ['2026/'],
+      maxObjects: 5000
+    }
+  });
+  Logger.log(JSON.stringify(walk.output.summary));
+
+  // Plan a copy without mutating (dryRun).
+  const plan = ASTX.Storage.copyPrefix({
+    fromUri: 'gcs://my-bucket/inbound/',
+    toUri: 'gcs://my-bucket/archive/',
+    options: {
+      dryRun: true
+    }
+  });
+  Logger.log(JSON.stringify(plan.output.summary));
+
+  // Sync source->target and delete extra target objects not in source.
+  ASTX.Storage.sync({
+    fromUri: 's3://raw/events/',
+    toUri: 's3://curated/events/',
+    options: {
+      recursive: true,
+      overwrite: true,
+      deleteExtra: true,
+      continueOnError: true
+    }
+  });
+}
+```
+
 ## Behavior notes
 
 - Not found in `head`, `read`, or `delete` throws `AstStorageNotFoundError`.
 - `exists` returns `output.exists.exists=false` for missing objects.
 - `copy/move` requires same-provider `fromUri` and `toUri`.
+- `copyPrefix/deletePrefix/sync` support `options.dryRun`, `options.maxObjects`, and per-item failure reporting in `output.items`.
 - Payloads are normalized to base64 internally (`text`/`json` are helper inputs).
 - Config resolution precedence: request auth > `ASTX.Storage.configure(...)` > script properties.

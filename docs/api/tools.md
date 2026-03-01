@@ -372,6 +372,7 @@ Primary methods:
 - `ASTX.Storage.run(request)` for explicit operation routing.
 - `ASTX.Storage.list/head/read/write/delete(request)` convenience wrappers.
 - `ASTX.Storage.exists/copy/move/signedUrl/multipartWrite(request)` advanced object lifecycle wrappers.
+- `ASTX.Storage.walk/copyPrefix/deletePrefix/sync(request)` bulk prefix operations with dry-run and progress summaries.
 - `ASTX.Storage.providers()` and `ASTX.Storage.capabilities(provider)` for runtime checks.
 - `ASTX.Storage.configure(config)` to set runtime defaults from script properties.
 - `ASTX.Storage.getConfig()` and `ASTX.Storage.clearConfig()` for runtime config inspection/reset.
