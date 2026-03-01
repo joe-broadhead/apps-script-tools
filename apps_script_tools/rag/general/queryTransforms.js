@@ -113,6 +113,16 @@ function astRagBuildQueryTransformPlan(query, queryTransform = {}) {
     ? astRagCloneObject(transform.decompose)
     : {};
   const maxQueries = astRagNormalizePositiveInt(transform.maxQueries, 4, 1);
+  const maxSubqueries = astRagNormalizePositiveInt(
+    decompose.maxSubqueries,
+    (
+      AST_RAG_DEFAULT_RETRIEVAL
+      && AST_RAG_DEFAULT_RETRIEVAL.queryTransform
+      && AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose
+      && AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.maxSubqueries
+    ) || 3,
+    1
+  );
 
   const rewriteEnabled = transform.enabled === true || rewrite.enabled === true;
   const rewrittenQuery = rewriteEnabled
@@ -121,10 +131,15 @@ function astRagBuildQueryTransformPlan(query, queryTransform = {}) {
   const rewriteApplied = rewrittenQuery !== originalQuery;
 
   const decomposeEnabled = transform.enabled === true || decompose.enabled === true;
-  const decomposition = decomposeEnabled
+  const decompositionRaw = decomposeEnabled
     ? astRagDecomposeQueryByPolicy(rewrittenQuery, decompose)
     : [];
-  const decomposeApplied = decomposition.length > 1;
+  const decomposition = decompositionRaw.slice(0, maxSubqueries);
+  const decomposeApplied = decomposition.length > 0
+    && !(
+      decomposition.length === 1
+      && decomposition[0].toLowerCase() === rewrittenQuery.toLowerCase()
+    );
 
   let retrievalQueries = decomposeApplied ? decomposition.slice() : [rewrittenQuery];
   if (decomposeEnabled && astRagNormalizeBoolean(decompose.includeOriginal, true)) {
@@ -158,6 +173,7 @@ function astRagBuildQueryTransformPlan(query, queryTransform = {}) {
     retrievalQueries,
     transformed: rewriteApplied || decomposeApplied,
     maxQueries,
+    maxSubqueries,
     truncated: deduped.length > maxQueries
   };
 }
@@ -168,7 +184,10 @@ function astRagRewriteQueryCore(request = {}) {
   const rewriteEnabled = Boolean(
     normalized.queryTransform
     && (
-      normalized.queryTransform.enabled === true
+      (
+        normalized.queryTransform.enabled === true
+        && plan.rewritePolicy !== 'none'
+      )
       || (
         normalized.queryTransform.rewrite
         && normalized.queryTransform.rewrite.enabled === true
@@ -195,7 +214,10 @@ function astRagDecomposeQuestionCore(request = {}) {
   const decomposeEnabled = Boolean(
     normalized.queryTransform
     && (
-      normalized.queryTransform.enabled === true
+      (
+        normalized.queryTransform.enabled === true
+        && plan.decomposePolicy !== 'none'
+      )
       || (
         normalized.queryTransform.decompose
         && normalized.queryTransform.decompose.enabled === true

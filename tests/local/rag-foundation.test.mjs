@@ -527,6 +527,52 @@ test('RAG query transform helpers reflect top-level enabled flag in response met
   assert.equal(decomposed.decompose.enabled, true);
 });
 
+test('RAG decomposeQuestion enforces maxSubqueries limit', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const out = context.AST.RAG.decomposeQuestion({
+    question: 'revenue and margin and churn and retention',
+    decompose: {
+      policy: 'clauses',
+      maxSubqueries: 1,
+      includeOriginal: false
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.subqueries.length, 1);
+  assert.equal(out.subqueries[0], 'revenue');
+  assert.equal(out.provenance.maxSubqueries, 1);
+});
+
+test('RAG rewrite/decompose helper metadata does not report enabled for policy none', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'revenue',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        policy: 'none'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, false);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        policy: 'none'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, false);
+});
+
 test('RAG rewrite/decompose helpers validate policy inputs', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
