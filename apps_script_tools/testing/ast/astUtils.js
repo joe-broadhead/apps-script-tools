@@ -107,6 +107,8 @@ AST_UTILS_TESTS = [
     test: () => astTestRunWithAssertions(t => {
       t.ok(AST && AST.Config && AST.Runtime, 'AST.Config or AST.Runtime is not available');
       t.equal(typeof AST.Config.fromScriptProperties, 'function', 'AST.Config.fromScriptProperties is not available');
+      t.equal(typeof AST.Config.schema, 'function', 'AST.Config.schema is not available');
+      t.equal(typeof AST.Config.bind, 'function', 'AST.Config.bind is not available');
       t.equal(typeof AST.Runtime.configureFromProps, 'function', 'AST.Runtime.configureFromProps is not available');
     })
   },

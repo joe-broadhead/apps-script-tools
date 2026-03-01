@@ -119,6 +119,7 @@ nav:
     - dbt Manifest Contracts: api/dbt-manifest-contracts.md
     - dbt Manifest Search: api/dbt-manifest-search.md
     - dbt Artifacts and Impact: api/dbt-artifacts-impact.md
+    - Config Contracts: api/config-contracts.md
     - SQL Contracts: api/sql-contracts.md
     - HTTP Contracts: api/http-contracts.md
     - GitHub Contracts: api/github-contracts.md

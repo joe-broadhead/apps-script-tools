@@ -9,10 +9,14 @@ function astConfigResolveFacadeFunction(name) {
 }
 
 const AST_CONFIG = Object.freeze({
-  fromScriptProperties: options => astConfigResolveFacadeFunction('astConfigFromScriptProperties')(options)
+  fromScriptProperties: options => astConfigResolveFacadeFunction('astConfigFromScriptProperties')(options),
+  schema: definition => astConfigResolveFacadeFunction('astConfigSchema')(definition),
+  bind: (definitionOrSchema, options) => astConfigResolveFacadeFunction('astConfigBind')(definitionOrSchema, options)
 });
 
 if (typeof astConfigFromScriptProperties === 'function') __astConfigRoot.astConfigFromScriptProperties = astConfigFromScriptProperties;
+if (typeof astConfigSchema === 'function') __astConfigRoot.astConfigSchema = astConfigSchema;
+if (typeof astConfigBind === 'function') __astConfigRoot.astConfigBind = astConfigBind;
 if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') __astConfigRoot.astConfigGetScriptPropertiesSnapshotMemoized = astConfigGetScriptPropertiesSnapshotMemoized;
 if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') __astConfigRoot.astConfigInvalidateScriptPropertiesSnapshotMemoized = astConfigInvalidateScriptPropertiesSnapshotMemoized;
 if (typeof astConfigResolveFirstString === 'function') __astConfigRoot.astConfigResolveFirstString = astConfigResolveFirstString;

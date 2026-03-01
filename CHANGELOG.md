@@ -97,6 +97,11 @@
   - new methods: `AST.Telemetry.query(...)`, `AST.Telemetry.aggregate(...)`, `AST.Telemetry.export(...)`
   - grouped latency/error metrics (`count`, `errorRate`, `p50`, `p95`, `avg`, `min`, `max`)
   - export formats: `json`, `ndjson`, `csv` (inline, Drive, or Storage destinations)
+- `AST.Config` typed schema binding:
+  - new methods: `AST.Config.schema(...)` and `AST.Config.bind(...)`
+  - typed field support: `string`, `int`, `float`, `bool`, `enum`, `json`, `secret-ref`
+  - deterministic precedence defaults (`request > runtime > script_properties`)
+  - typed validation errors with structured key/type/source details
 
 ### Changed
 

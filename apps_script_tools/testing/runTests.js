@@ -27,6 +27,7 @@ async function runAllTests() {
     ...MESSAGING_CONTRACT_TESTS,
     ...GITHUB_NAMESPACE_TESTS,
     ...GITHUB_CONTRACT_TESTS,
+    ...CONFIG_SCHEMA_TESTS,
 
     // dataFrame/DataFrame Tests
 
