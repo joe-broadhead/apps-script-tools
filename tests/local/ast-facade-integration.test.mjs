@@ -6,6 +6,7 @@ import { createGasContext, listScriptFiles, loadCoreDataContext, loadScripts } f
 const FACADE_MODULE_DIRS = [
   'apps_script_tools/workspace',
   'apps_script_tools/config',
+  'apps_script_tools/http',
   'apps_script_tools/runtime',
   'apps_script_tools/cache',
   'apps_script_tools/storage',
@@ -24,6 +25,7 @@ const FACADE_MODULE_DIRS = [
 
 const FACADE_FILES = new Set([
   'apps_script_tools/config/Config.js',
+  'apps_script_tools/http/Http.js',
   'apps_script_tools/runtime/Runtime.js',
   'apps_script_tools/cache/Cache.js',
   'apps_script_tools/storage/Storage.js',
@@ -80,6 +82,7 @@ test('AST facade composes key namespaces in a single VM context', () => {
     'GroupBy',
     'Sheets',
     'Drive',
+    'Http',
     'Storage',
     'Secrets',
     'Cache',
@@ -131,6 +134,7 @@ test('AST facade namespace methods are callable in composed context', () => {
   assert.ok(AST.DBT.providers().includes('drive'));
   assert.ok(AST.Storage.providers().includes('gcs'));
   assert.ok(AST.GitHub.operations().includes('get_repository'));
+  assert.equal(typeof AST.Http.request, 'function');
 
   assert.equal(typeof AST.Chat.ThreadStore.create, 'function');
   assert.equal(typeof AST.Messaging.email.send, 'function');

@@ -140,6 +140,10 @@ Object.defineProperties(AST, {
     }),
     enumerable: true
   },
+  Http: {
+    get: () => astResolveAstBinding('AST_HTTP', () => (typeof AST_HTTP === 'undefined' ? undefined : AST_HTTP)),
+    enumerable: true
+  },
   AI: {
     get: () => astResolveAstBinding('AST_AI', () => (typeof AST_AI === 'undefined' ? undefined : AST_AI)),
     enumerable: true

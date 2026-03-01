@@ -31,6 +31,7 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   assert.equal(typeof context.AST.Runtime.modules, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.withSpan, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.startSpanSafe, 'function');
+  assert.equal(context.AST.Runtime.modules().includes('Http'), true);
   assert.equal(context.AST.Runtime.modules().includes('Secrets'), true);
   assert.equal(context.AST.Runtime.modules().includes('Triggers'), true);
   assert.equal(context.AST.Runtime.modules().includes('GitHub'), true);
@@ -71,6 +72,44 @@ test('AST.Runtime.configureFromProps can target GitHub module', () => {
   assert.equal(summary.skippedModules.length, 0);
   assert.equal(configureCall.config.GITHUB_TOKEN, 'token-123');
   assert.equal(configureCall.config.GITHUB_OWNER, 'octo');
+  assert.equal(configureCall.options.merge, true);
+});
+
+test('AST.Runtime.configureFromProps can target Http module', () => {
+  let configureCall = null;
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          HTTP_TIMEOUT_MS: '12345',
+          HTTP_RETRIES: '3'
+        })
+      })
+    },
+    AST_HTTP: {
+      configure: (config, options) => {
+        configureCall = { config, options };
+        return {};
+      },
+      clearConfig: () => ({})
+    }
+  });
+
+  loadScripts(context, [
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
+    'apps_script_tools/AST.js'
+  ]);
+
+  const summary = context.AST.Runtime.configureFromProps({
+    modules: ['Http']
+  });
+
+  assert.equal(summary.configuredModules.includes('Http'), true);
+  assert.equal(summary.failedModules.length, 0);
+  assert.equal(summary.skippedModules.length, 0);
+  assert.equal(configureCall.config.HTTP_TIMEOUT_MS, '12345');
+  assert.equal(configureCall.config.HTTP_RETRIES, '3');
   assert.equal(configureCall.options.merge, true);
 });
 
