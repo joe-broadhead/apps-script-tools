@@ -150,6 +150,18 @@ AST_UTILS_TESTS = [
     })
   },
   {
+    description: 'AST namespace should expose Messaging helper surface',
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.Messaging, 'AST.Messaging is not available');
+      t.equal(typeof AST.Messaging.run, 'function', 'AST.Messaging.run is not available');
+      t.equal(typeof AST.Messaging.configure, 'function', 'AST.Messaging.configure is not available');
+      t.equal(typeof AST.Messaging.email.send, 'function', 'AST.Messaging.email.send is not available');
+      t.equal(typeof AST.Messaging.chat.send, 'function', 'AST.Messaging.chat.send is not available');
+      t.equal(typeof AST.Messaging.tracking.recordEvent, 'function', 'AST.Messaging.tracking.recordEvent is not available');
+      t.equal(typeof AST.Messaging.logs.list, 'function', 'AST.Messaging.logs.list is not available');
+    })
+  },
+  {
     description: 'AST namespace should expose Triggers helper surface',
     test: () => astTestRunWithAssertions(t => {
       t.ok(AST && AST.Triggers, 'AST.Triggers is not available');

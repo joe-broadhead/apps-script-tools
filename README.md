@@ -35,6 +35,7 @@ Core surfaces:
 - Platform: `AST.Storage`, `AST.Secrets`, `AST.Cache`, `AST.Config`, `AST.Runtime`
 - Automation and observability: `AST.Jobs`, `AST.Triggers`, `AST.Telemetry`, `AST.TelemetryHelpers`
 - AI stack: `AST.AI`, `AST.RAG`, `AST.Chat`
+- Messaging: `AST.Messaging` (Google Email + Chat automation)
 - Metadata and external APIs: `AST.DBT`, `AST.GitHub`
 - Utilities and structures: `AST.Utils` plus global structures (`Queue`, `Deque`, `Stack`, `PriorityQueue`, `LinkedList`, `Graph`, `Trie`, `TernarySearchTree`, `BinarySearchTree`, `DisjointSet`, `LruCache`)
 
@@ -90,6 +91,7 @@ Module quickstarts:
 - Jobs: <https://joe-broadhead.github.io/apps-script-tools/getting-started/jobs-quickstart/>
 - Triggers: <https://joe-broadhead.github.io/apps-script-tools/getting-started/triggers-quickstart/>
 - Chat: <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
+- Messaging: <https://joe-broadhead.github.io/apps-script-tools/getting-started/messaging-quickstart/>
 - Telemetry: <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
 
 ## Cookbooks

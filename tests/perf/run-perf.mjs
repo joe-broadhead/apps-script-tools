@@ -6,6 +6,7 @@ import { loadDbtScripts } from '../local/dbt-helpers.mjs';
 import { runDataFramePerf } from './dataframe.perf.test.mjs';
 import { runDbtManifestPerf } from './dbt-manifest.perf.test.mjs';
 import { runGithubPerf } from './github-cache.perf.test.mjs';
+import { runMessagingPerf } from './messaging.perf.test.mjs';
 import { runSeriesPerf } from './series.perf.test.mjs';
 import { runUtilitiesPerf } from './utilities.perf.test.mjs';
 
@@ -184,8 +185,9 @@ function runAllBenchmarks(options) {
   const seriesResults = runSeriesPerf(context, { rows: options.rows, samples: options.samples });
   const utilityResults = runUtilitiesPerf(context, { rows: options.rows, samples: options.samples });
   const githubResults = runGithubPerf(context, { rows: options.rows, samples: options.samples });
+  const messagingResults = runMessagingPerf(context, { rows: options.rows, samples: options.samples });
 
-  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults, ...githubResults];
+  return [...dataframeResults, ...dbtResults, ...seriesResults, ...utilityResults, ...githubResults, ...messagingResults];
 }
 
 function main() {

@@ -192,6 +192,10 @@ Object.defineProperties(AST, {
     get: () => astResolveAstBinding('AST_CHAT', () => (typeof AST_CHAT === 'undefined' ? undefined : AST_CHAT)),
     enumerable: true
   },
+  Messaging: {
+    get: () => astResolveAstBinding('AST_MESSAGING', () => (typeof AST_MESSAGING === 'undefined' ? undefined : AST_MESSAGING)),
+    enumerable: true
+  },
   GitHub: {
     get: () => astResolveAstBinding('AST_GITHUB', () => (typeof AST_GITHUB === 'undefined' ? undefined : AST_GITHUB)),
     enumerable: true

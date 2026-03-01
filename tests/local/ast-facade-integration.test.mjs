@@ -14,6 +14,7 @@ const FACADE_MODULE_DIRS = [
   'apps_script_tools/jobs',
   'apps_script_tools/triggers',
   'apps_script_tools/chat',
+  'apps_script_tools/messaging',
   'apps_script_tools/ai',
   'apps_script_tools/rag',
   'apps_script_tools/dbt',
@@ -31,6 +32,7 @@ const FACADE_FILES = new Set([
   'apps_script_tools/jobs/Jobs.js',
   'apps_script_tools/triggers/Triggers.js',
   'apps_script_tools/chat/Chat.js',
+  'apps_script_tools/messaging/Messaging.js',
   'apps_script_tools/ai/AI.js',
   'apps_script_tools/rag/RAG.js',
   'apps_script_tools/dbt/DBT.js',
@@ -88,6 +90,7 @@ test('AST facade composes key namespaces in a single VM context', () => {
     'Jobs',
     'Triggers',
     'Chat',
+    'Messaging',
     'AI',
     'RAG',
     'DBT',
@@ -130,6 +133,7 @@ test('AST facade namespace methods are callable in composed context', () => {
   assert.ok(AST.GitHub.operations().includes('get_repository'));
 
   assert.equal(typeof AST.Chat.ThreadStore.create, 'function');
+  assert.equal(typeof AST.Messaging.email.send, 'function');
   assert.equal(typeof AST.Jobs.enqueue, 'function');
   assert.equal(typeof AST.Triggers.upsert, 'function');
   assert.equal(typeof AST.Sql.run, 'function');

@@ -669,6 +669,47 @@ const history = store.buildHistory(user, {
   maxPairs: 10,
   systemMessage: 'You are a project assistant.'
 });
+```
+
+## `ASTX.Messaging`
+
+Google Email + Google Chat automation with tracking, dry-run planning, idempotency, and durable delivery logs.
+
+Primary methods:
+
+- `ASTX.Messaging.run(request)` for operation-routed execution.
+- `ASTX.Messaging.email.*` for send, draft, search, thread/message, and label-update flows.
+- `ASTX.Messaging.chat.*` for webhook/API send and Chat API message reads.
+- `ASTX.Messaging.tracking.*` for pixel URL generation, link wrapping, event recording, and web event handling.
+- `ASTX.Messaging.logs.*` for delivery/event log list/get/delete flows.
+- `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
+- `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.clearConfig()`.
+
+High-signal behavior:
+
+- email transport is GmailApp-first.
+- chat transport supports incoming webhook and Chat API.
+- tracking open/click instrumentation is opt-in.
+- mutation operations support `options.dryRun=true` and return `dryRun.plannedRequest`.
+- mutation sends support idempotent replay for retry-safe workflows.
+- sync execution is default; optional async enqueue via `ASTX.Jobs`.
+- durable log backend defaults to `drive_json` and can be switched to `storage_json`, `script_properties`, or `memory`.
+
+```javascript
+const out = ASTX.Messaging.email.send({
+  body: {
+    to: ['user@example.com'],
+    subject: 'Status {{date}}',
+    htmlBody: '<p>Run complete</p><a href=\"https://example.com\">Details</a>',
+    template: { params: { date: '2026-03-01' } },
+    options: {
+      track: { enabled: true, open: true, click: true }
+    }
+  }
+});
+
+Logger.log(JSON.stringify(out.tracking, null, 2));
+```
 
 ## `ASTX.GitHub`
 
@@ -720,6 +761,9 @@ Logger.log(JSON.stringify(planned.dryRun.plannedRequest, null, 2));
 See:
 
 - [Chat Contracts](chat-contracts.md)
+- [Messaging Contracts](messaging-contracts.md)
+- [Messaging Email API](messaging-email.md)
+- [Messaging Chat API](messaging-chat.md)
 - [GitHub Contracts](github-contracts.md)
 - [GitHub Operations](github-operations.md)
 - [GitHub Security](../operations/github-security.md)

@@ -19,7 +19,8 @@
       "series.multiply_100000": 120,
       "utilities.removeDuplicates_records_100000": 1600,
       "utilities.joinRecords_inner_100000": 2600,
-      "github.cache_profile": 150
+      "github.cache_profile": 150,
+      "messaging.send_profile": 120
     },
     "maxHeapDeltaBytes": {
       "dataframe.fromRecords_100000_10": 180000000,
@@ -57,6 +58,10 @@
       "github.cache_profile": {
         "warmRelativePct": 40,
         "etagRelativePct": 30
+      },
+      "messaging.send_profile": {
+        "warmRelativePct": 40,
+        "dryRunRelativePct": 40
       }
     }
   }
