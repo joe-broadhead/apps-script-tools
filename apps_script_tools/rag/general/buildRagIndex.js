@@ -23,6 +23,35 @@ function astRagPrepareSourceChunks(sourceDescriptor, extracted, chunking, source
   });
 }
 
+function astRagBuildIncrementalJournalFromSources(sources = [], now = null) {
+  const list = Array.isArray(sources) ? sources : [];
+  const stamp = astRagNormalizeString(now, astRagNowIsoString());
+  const journal = {};
+
+  for (let idx = 0; idx < list.length; idx += 1) {
+    const source = list[idx] || {};
+    const fileId = astRagNormalizeString(source.fileId, null);
+    if (!fileId) {
+      continue;
+    }
+
+    journal[fileId] = {
+      sourceId: astRagNormalizeString(source.sourceId, null),
+      fileId,
+      sourceKind: astRagNormalizeString(source.sourceKind, 'drive'),
+      sourceUri: astRagNormalizeString(source.sourceUri, null),
+      provider: astRagNormalizeString(source.provider, null),
+      modifiedTime: astRagNormalizeString(source.modifiedTime, null),
+      fingerprint: astRagNormalizeSourceFingerprint(source),
+      revisionFingerprint: astRagNormalizeString(source.revisionFingerprint, null),
+      chunkCount: astRagNormalizePositiveInt(source.chunkCount, 0, 0),
+      updatedAt: stamp
+    };
+  }
+
+  return journal;
+}
+
 function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, embeddingResult) {
   const indexId = astRagUniqueId('rag_index');
   const now = astRagNowIsoString();
@@ -56,6 +85,7 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
     chunks,
     sync: {
       lastSyncAt: now,
+      incrementalJournal: astRagBuildIncrementalJournalFromSources(preparedSources, now),
       lastSyncSummary: {
         mode: 'build',
         dryRun: false,
@@ -67,7 +97,8 @@ function astRagBuildIndexDocument(normalizedRequest, preparedSources, chunks, em
         removedChunks: 0,
         unchangedSources: 0,
         reusedChunks: 0,
-        reembeddedChunks: chunks.length
+        reembeddedChunks: chunks.length,
+        journalSkippedSources: 0
       }
     }
   };
@@ -129,6 +160,7 @@ function astRagBuildIndexCore(request = {}) {
         }
 
         const fingerprint = astRagBuildSourceFingerprint(sourceDescriptor, extracted);
+        const revisionFingerprint = astRagBuildSourceRevisionFingerprint(sourceDescriptor);
 
         preparedSources.push({
           sourceId,
@@ -141,6 +173,7 @@ function astRagBuildIndexCore(request = {}) {
           modifiedTime: sourceDescriptor.modifiedTime,
           fingerprint,
           checksum: fingerprint,
+          revisionFingerprint,
           chunkCount: sourceChunks.length
         });
 

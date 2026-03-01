@@ -212,6 +212,7 @@ ASTX.Http.clearConfig()
 ASTX.RAG.configure(config, options)
 ASTX.RAG.buildIndex(request)
 ASTX.RAG.syncIndex(request)
+ASTX.RAG.incrementalSync(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
@@ -594,6 +595,7 @@ ASTX.GitHub.clearConfig()
 - `RAG.answer(...)` supports prompt context budgets via `generation.maxContextChars` and `generation.maxContextTokensApprox`.
 - `RAG.answer(...)` includes `diagnostics` only when enabled via `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
 - `RAG.answerStream(...)` emits deterministic `start`, `progress`, `token`, `metadata`, `done`, and `error` events via `onEvent`.
+- `RAG.incrementalSync(...)` enables revision-fingerprint journal skips by default (`options.useFingerprintJournal=true`).
 - RAG diagnostics include cache backend metadata and lock timing/contention fields (`cache.backend`, `cache.lockScope`, `timings.lockWaitMs`, `cache.lockContention`).
 - `ASTX.Chat.ThreadStore` persists per-user thread state with lock-aware writes and deterministic thread/turn caps.
 - `ASTX.AI.*` accepts optional `routing` candidates for priority/latency/cost-based provider fallback with per-attempt trace metadata.

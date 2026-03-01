@@ -10,6 +10,7 @@ RAG_NAMESPACE_TESTS = [
         'clearConfig',
         'buildIndex',
         'syncIndex',
+        'incrementalSync',
         'search',
         'previewSources',
         'answer',

@@ -579,6 +579,12 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   });
 
   loadRagScripts(context, { includeAst: true });
+  const originalReadSourceText = context.astRagReadSourceText;
+  let readSourceCalls = 0;
+  context.astRagReadSourceText = function wrappedReadSourceText() {
+    readSourceCalls += 1;
+    return originalReadSourceText.apply(this, arguments);
+  };
 
   const built = context.AST.RAG.buildIndex({
     source: {
@@ -1095,7 +1101,7 @@ test('syncIndex maxChunks guard does not double-count pending embeds', () => {
   assert.equal(loaded.chunks.length, 2);
 });
 
-test('syncIndex does not re-embed unchanged corpus', () => {
+test('syncIndex does not re-embed unchanged corpus and can skip reads when journal mode is enabled', () => {
   const fileA = makeDriveFile({
     id: 'file_static_a',
     name: 'static-a.txt',
@@ -1120,6 +1126,12 @@ test('syncIndex does not re-embed unchanged corpus', () => {
   });
 
   loadRagScripts(context, { includeAst: true });
+  const originalReadSourceText = context.astRagReadSourceText;
+  let readSourceCalls = 0;
+  context.astRagReadSourceText = function wrappedReadSourceText() {
+    readSourceCalls += 1;
+    return originalReadSourceText.apply(this, arguments);
+  };
 
   const built = context.AST.RAG.buildIndex({
     source: {
@@ -1135,6 +1147,7 @@ test('syncIndex does not re-embed unchanged corpus', () => {
       model: 'text-embedding-3-small'
     },
     options: {
+      useFingerprintJournal: true,
       maxFiles: 20,
       maxChunks: 200
     },
@@ -1147,6 +1160,7 @@ test('syncIndex does not re-embed unchanged corpus', () => {
   tracker.calls = 0;
   tracker.textsEmbedded = 0;
   tracker.batches = [];
+  readSourceCalls = 0;
 
   const synced = context.AST.RAG.syncIndex({
     source: {
@@ -1163,6 +1177,7 @@ test('syncIndex does not re-embed unchanged corpus', () => {
       model: 'text-embedding-3-small'
     },
     options: {
+      useFingerprintJournal: true,
       maxFiles: 20,
       maxChunks: 200
     },
@@ -1175,9 +1190,173 @@ test('syncIndex does not re-embed unchanged corpus', () => {
   assert.equal(synced.updatedSources, 0);
   assert.equal(synced.removedSources, 0);
   assert.equal(synced.unchangedSources, 2);
+  assert.equal(synced.journalSkippedSources, 2);
   assert.equal(synced.reembeddedChunks, 0);
   assert.equal(tracker.calls, 0);
   assert.equal(tracker.textsEmbedded, 0);
+  assert.equal(readSourceCalls, 0);
+
+  const loaded = context.astRagLoadIndexDocument(built.indexFileId).document;
+  assert.ok(loaded.sync && loaded.sync.incrementalJournal);
+  assert.equal(Object.keys(loaded.sync.incrementalJournal).length, 2);
+  assert.ok(loaded.sync.incrementalJournal.file_static_a.revisionFingerprint);
+  assert.ok(loaded.sync.incrementalJournal.file_static_b.revisionFingerprint);
+});
+
+test('syncIndex defaults fingerprint journal mode off and still validates unchanged content', () => {
+  const fileA = makeDriveFile({
+    id: 'file_sync_default_off_a',
+    name: 'default-off-a.txt',
+    mimeType: MIME_TEXT,
+    text: 'default off alpha'
+  });
+  const fileB = makeDriveFile({
+    id: 'file_sync_default_off_b',
+    name: 'default-off-b.txt',
+    mimeType: MIME_TEXT,
+    text: 'default off bravo'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA, fileB]
+  });
+  const tracker = { calls: 0, textsEmbedded: 0, batches: [] };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(tracker)
+  });
+
+  loadRagScripts(context, { includeAst: true });
+  const originalReadSourceText = context.astRagReadSourceText;
+  let readSourceCalls = 0;
+  context.astRagReadSourceText = function wrappedReadSourceText() {
+    readSourceCalls += 1;
+    return originalReadSourceText.apply(this, arguments);
+  };
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-default-off-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  tracker.calls = 0;
+  tracker.textsEmbedded = 0;
+  tracker.batches = [];
+  readSourceCalls = 0;
+
+  const synced = context.AST.RAG.syncIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-default-off-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.unchangedSources, 2);
+  assert.equal(synced.journalSkippedSources, 0);
+  assert.equal(synced.reembeddedChunks, 0);
+  assert.equal(tracker.calls, 0);
+  assert.equal(readSourceCalls >= 2, true);
+});
+
+test('incrementalSync API defaults to fingerprint journal path and skips unchanged source extraction', () => {
+  const fileA = makeDriveFile({
+    id: 'file_incremental_a',
+    name: 'incremental-a.txt',
+    mimeType: MIME_TEXT,
+    text: 'incremental alpha'
+  });
+
+  const drive = createDriveRuntime({
+    files: [fileA]
+  });
+  const tracker = { calls: 0, textsEmbedded: 0, batches: [] };
+
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    UrlFetchApp: createEmbeddingFetchMock(tracker)
+  });
+
+  loadRagScripts(context, { includeAst: true });
+  const originalReadSourceText = context.astRagReadSourceText;
+  let readSourceCalls = 0;
+  context.astRagReadSourceText = function wrappedReadSourceText() {
+    readSourceCalls += 1;
+    return originalReadSourceText.apply(this, arguments);
+  };
+
+  const built = context.AST.RAG.buildIndex({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-incremental-api-index'
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  tracker.calls = 0;
+  tracker.textsEmbedded = 0;
+  tracker.batches = [];
+  readSourceCalls = 0;
+
+  const synced = context.AST.RAG.incrementalSync({
+    source: {
+      folderId: 'root',
+      includeSubfolders: false,
+      includeMimeTypes: [MIME_TEXT]
+    },
+    index: {
+      indexName: 'sync-incremental-api-index',
+      indexFileId: built.indexFileId
+    },
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small'
+    },
+    auth: {
+      apiKey: 'test-openai-key'
+    }
+  });
+
+  assert.equal(synced.unchangedSources, 1);
+  assert.equal(synced.journalSkippedSources, 1);
+  assert.equal(synced.reembeddedChunks, 0);
+  assert.equal(tracker.calls, 0);
+  assert.equal(readSourceCalls, 0);
 });
 
 test('syncIndex re-embeds only changed chunks for edited source', () => {
@@ -1445,6 +1624,7 @@ test('syncIndex preserves existing source data when parse fails and skipParseFai
     },
     options: {
       skipParseFailures: true,
+      useFingerprintJournal: false,
       maxFiles: 20,
       maxChunks: 200
     },
