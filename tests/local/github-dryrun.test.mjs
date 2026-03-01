@@ -163,3 +163,35 @@ test('rerunWorkflowRun dryRun returns plan and skips network call', () => {
   assert.equal(response.dryRun.plannedRequest.operation, 'rerun_workflow_run');
   assert.equal(response.dryRun.plannedRequest.source.path, '/repos/octocat/hello-world/actions/runs/321/rerun');
 });
+
+test('createCheckRun dryRun returns plan and skips network call', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not call fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.createCheckRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      name: 'ci',
+      head_sha: 'abc123'
+    },
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.dryRun.enabled, true);
+  assert.equal(response.dryRun.plannedRequest.operation, 'create_check_run');
+  assert.equal(response.dryRun.plannedRequest.source.path, '/repos/octocat/hello-world/check-runs');
+});

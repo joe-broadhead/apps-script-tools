@@ -266,3 +266,72 @@ test('cancelWorkflowRun maps method/path correctly', () => {
   assert.equal(parsePayload(calls[0].options), null);
   assert.equal(response.status, 'ok');
 });
+
+test('createCheckRun maps method/path/body correctly', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(201, { id: 91, name: 'ci' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.createCheckRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      name: 'ci',
+      head_sha: 'abc123',
+      status: 'in_progress'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, 'post');
+  assert.match(calls[0].url, /\/check-runs$/);
+  assert.deepEqual(parsePayload(calls[0].options), {
+    name: 'ci',
+    head_sha: 'abc123',
+    status: 'in_progress'
+  });
+  assert.equal(response.data.id, 91);
+});
+
+test('updateCheckRun maps method/path/body correctly', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { id: 91, status: 'completed' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.updateCheckRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    checkRunId: 91,
+    body: {
+      status: 'completed',
+      conclusion: 'success'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, 'patch');
+  assert.match(calls[0].url, /\/check-runs\/91$/);
+  assert.deepEqual(parsePayload(calls[0].options), {
+    status: 'completed',
+    conclusion: 'success'
+  });
+  assert.equal(response.data.status, 'completed');
+});

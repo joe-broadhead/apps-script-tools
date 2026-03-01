@@ -797,7 +797,7 @@ Primary methods:
 - `ASTX.GitHub.graphql(request)` for explicit GraphQL queries/mutations.
 - `ASTX.GitHub.authAsApp(request)` for GitHub App installation token exchange.
 - `ASTX.GitHub.verifyWebhook(request)` and `ASTX.GitHub.parseWebhook(request)` for webhook integrity + normalized event parsing.
-- Helper methods for repository, branch, commit, file, issue, pull request, release/tag, Actions workflow/run/artifact, and search flows.
+- Helper methods for repository, branch, commit, file, issue, pull request, release/tag, Actions workflow/run/artifact, Checks/status, and search flows.
 - `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(...)` for runtime discovery.
 - `ASTX.GitHub.configure(config)` / `ASTX.GitHub.getConfig()` / `ASTX.GitHub.clearConfig()`.
 

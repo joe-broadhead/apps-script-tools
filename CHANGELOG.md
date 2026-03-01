@@ -93,6 +93,10 @@
   - workflow run controls: `rerunWorkflowRun`, `cancelWorkflowRun`
   - artifacts helpers: `listWorkflowRunArtifacts`, `getWorkflowRunArtifact`
   - operation group: `actions` in `AST.GitHub.capabilities(...)`
+- GitHub Checks API additions:
+  - new helpers: `listCheckRuns`, `getCheckRun`, `createCheckRun`, `updateCheckRun`, `listCommitStatuses`
+  - operation group: `checks` in `AST.GitHub.capabilities(...)`
+  - checks mutations support dry-run planning (`options.dryRun=true`)
 - Messaging chat transport expansion:
   - new transports: `slack_webhook`, `slack_api`, and `teams_webhook`
   - added config keys: `MESSAGING_SLACK_WEBHOOK_URL`, `MESSAGING_SLACK_BOT_TOKEN`, `MESSAGING_SLACK_CHANNEL`, `MESSAGING_SLACK_API_BASE_URL`, `MESSAGING_TEAMS_WEBHOOK_URL`

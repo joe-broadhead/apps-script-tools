@@ -63,6 +63,11 @@ ASTX.GitHub.rerunWorkflowRun(request)
 ASTX.GitHub.cancelWorkflowRun(request)
 ASTX.GitHub.listWorkflowRunArtifacts(request)
 ASTX.GitHub.getWorkflowRunArtifact(request)
+ASTX.GitHub.listCheckRuns(request)
+ASTX.GitHub.getCheckRun(request)
+ASTX.GitHub.createCheckRun(request)
+ASTX.GitHub.updateCheckRun(request)
+ASTX.GitHub.listCommitStatuses(request)
 ASTX.GitHub.searchRepositories(request)
 ASTX.GitHub.searchUsers(request)
 ASTX.GitHub.searchCode(request)
@@ -80,13 +85,14 @@ ASTX.GitHub.clearConfig()
 
 ```javascript
 {
-  operation: 'get_me' | 'get_repository' | 'create_repository' | 'list_workflows' | 'get_workflow' | 'list_workflow_runs' | 'get_workflow_run' | 'rerun_workflow_run' | 'cancel_workflow_run' | 'list_workflow_run_artifacts' | 'get_workflow_run_artifact' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
+  operation: 'get_me' | 'get_repository' | 'create_repository' | 'list_workflows' | 'get_workflow' | 'list_workflow_runs' | 'get_workflow_run' | 'rerun_workflow_run' | 'cancel_workflow_run' | 'list_workflow_run_artifacts' | 'get_workflow_run_artifact' | 'list_check_runs' | 'get_check_run' | 'create_check_run' | 'update_check_run' | 'list_commit_statuses' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
   owner: 'optional',
   repo: 'optional',
   issueNumber: 123,
   pullNumber: 456,
   reviewId: 789,
   commentId: 1011,
+  checkRunId: 2020,
   workflowId: 222 | '.github/workflows/ci.yml',
   runId: 123456789,
   artifactId: 987654321,

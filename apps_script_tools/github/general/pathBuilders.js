@@ -213,6 +213,26 @@ function astGitHubBuildActionsArtifactPath(request = {}, suffix = '') {
   return astGitHubBuildRepoPath(request, `/actions/artifacts/${artifactId}${suffix || ''}`);
 }
 
+function astGitHubResolveCommitRef(request = {}) {
+  const refRaw = astGitHubReadRequestField(request, ['ref', 'sha']);
+  if (refRaw == null || refRaw === '') {
+    throw new AstGitHubValidationError("Missing required GitHub request field 'ref'", {
+      field: 'ref'
+    });
+  }
+  return astGitHubEncodePathSegment(String(refRaw), 'ref', { allowSlash: true });
+}
+
+function astGitHubBuildCommitPath(request = {}, suffix = '') {
+  const ref = astGitHubResolveCommitRef(request);
+  return astGitHubBuildRepoPath(request, `/commits/${ref}${suffix || ''}`);
+}
+
+function astGitHubBuildCheckRunPath(request = {}, suffix = '') {
+  const checkRunId = astGitHubResolveNumericIdentifier(request, 'checkRunId', ['check_run_id']);
+  return astGitHubBuildRepoPath(request, `/check-runs/${checkRunId}${suffix || ''}`);
+}
+
 function astGitHubMergeQuery(base = {}, extra = {}) {
   const out = astGitHubPathIsPlainObject(base)
     ? Object.assign({}, base)

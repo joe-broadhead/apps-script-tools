@@ -134,6 +134,29 @@ test('validate request rejects traversal-like workflowId values', () => {
   );
 });
 
+test('validate request normalizes checkRunId and rejects invalid checkRunId', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'get_check_run',
+    owner: 'octocat',
+    repo: 'hello-world',
+    checkRunId: 12
+  });
+  assert.equal(normalized.checkRunId, 12);
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'get_check_run',
+      owner: 'octocat',
+      repo: 'hello-world',
+      checkRunId: 0
+    }),
+    /checkRunId/
+  );
+});
+
 test('resolve config throws auth error when token is missing', () => {
   const context = createGasContext({
     PropertiesService: {
