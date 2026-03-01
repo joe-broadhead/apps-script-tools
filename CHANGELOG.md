@@ -110,6 +110,7 @@
   - `DataFrame`: `isNull`/`isNa`, `notNull`/`notNa`, `duplicated`, `nunique`, `valueCounts`, `agg`, `transform`
   - `Series`: `agg`, `interpolate`, `toFrame`
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
+- `AST.Cache` now includes batch primitives for high-throughput workloads: `getMany`, `setMany`, `fetchMany`, and `deleteMany` with per-item status/aggregate stats outputs.
 
 ## v0.0.4 - 2026-02-25
 

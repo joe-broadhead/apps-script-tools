@@ -6,12 +6,28 @@ function astCacheApiSet(key, value, options = {}) {
   return astCacheSetValue(key, value, options);
 }
 
+function astCacheApiGetMany(keys, options = {}) {
+  return astCacheGetManyValues(keys, options);
+}
+
+function astCacheApiSetMany(entries, options = {}) {
+  return astCacheSetManyValues(entries, options);
+}
+
 function astCacheApiFetch(key, resolver, options = {}) {
   return astCacheFetchValue(key, resolver, options);
 }
 
+function astCacheApiFetchMany(keys, resolver, options = {}) {
+  return astCacheFetchManyValues(keys, resolver, options);
+}
+
 function astCacheApiDelete(key, options = {}) {
   return astCacheDeleteValue(key, options);
+}
+
+function astCacheApiDeleteMany(keys, options = {}) {
+  return astCacheDeleteManyValues(keys, options);
 }
 
 function astCacheApiInvalidateByTag(tag, options = {}) {
@@ -41,8 +57,12 @@ function astCacheApiClear(options = {}) {
 const AST_CACHE = Object.freeze({
   get: astCacheApiGet,
   set: astCacheApiSet,
+  getMany: astCacheApiGetMany,
+  setMany: astCacheApiSetMany,
   fetch: astCacheApiFetch,
+  fetchMany: astCacheApiFetchMany,
   delete: astCacheApiDelete,
+  deleteMany: astCacheApiDeleteMany,
   invalidateByTag: astCacheApiInvalidateByTag,
   stats: astCacheApiStats,
   backends: astCacheListBackends,

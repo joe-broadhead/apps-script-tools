@@ -258,8 +258,12 @@ Primary methods:
 
 - `ASTX.Cache.get(key, options)`
 - `ASTX.Cache.set(key, value, options)`
+- `ASTX.Cache.getMany(keys, options)`
+- `ASTX.Cache.setMany(entries, options)`
 - `ASTX.Cache.fetch(key, resolver, options)`
+- `ASTX.Cache.fetchMany(keys, resolver, options)`
 - `ASTX.Cache.delete(key, options)`
+- `ASTX.Cache.deleteMany(keys, options)`
 - `ASTX.Cache.invalidateByTag(tag, options)`
 - `ASTX.Cache.stats(options)`
 - `ASTX.Cache.backends()` and `ASTX.Cache.capabilities(backend)`
@@ -286,6 +290,11 @@ ASTX.Cache.set('rag:query:abc', { chunks: [1, 2, 3] }, {
 });
 
 const cached = ASTX.Cache.get('rag:query:abc');
+
+const batch = ASTX.Cache.getMany(['rag:query:abc', 'rag:query:def']);
+const refreshed = ASTX.Cache.fetchMany(['rag:query:def', 'rag:query:xyz'], payload => {
+  return { chunks: [], key: payload.requestedKey };
+});
 ```
 
 `storage_json` example:

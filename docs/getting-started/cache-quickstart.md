@@ -41,6 +41,34 @@ function cacheBasicExample() {
 }
 ```
 
+## Batch read/write/fetch
+
+```javascript
+function cacheBatchExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.Cache.setMany([
+    { key: 'summary:1', value: { ok: true } },
+    { key: 'summary:2', value: { ok: true } }
+  ], {
+    ttlSec: 120,
+    tags: ['summary']
+  });
+
+  const out = ASTX.Cache.getMany(['summary:1', 'summary:2', 'summary:3']);
+  Logger.log(JSON.stringify(out.stats));
+
+  const fetched = ASTX.Cache.fetchMany(['summary:3', 'summary:4'], payload => {
+    return { generatedFor: payload.requestedKey };
+  }, {
+    ttlSec: 120,
+    staleTtlSec: 600
+  });
+
+  Logger.log(JSON.stringify(fetched.items));
+}
+```
+
 ## Stale-while-revalidate fetch
 
 ```javascript

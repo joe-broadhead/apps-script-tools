@@ -7,7 +7,12 @@ CACHE_NAMESPACE_TESTS = [
       const requiredMethods = [
         'get',
         'set',
+        'getMany',
+        'setMany',
+        'fetch',
+        'fetchMany',
         'delete',
+        'deleteMany',
         'invalidateByTag',
         'stats',
         'backends',

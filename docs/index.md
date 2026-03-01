@@ -23,7 +23,7 @@
 - `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`) with search, lineage, diff, and impact overlays.
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.
-- `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key ops + invalidation/stats).
+- `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key + batch ops, invalidation, stats).
 - `AST.Config`: script-properties snapshot helpers for configuration bootstrap.
 - `AST.Runtime`: runtime configuration hydration across AST namespaces.
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.

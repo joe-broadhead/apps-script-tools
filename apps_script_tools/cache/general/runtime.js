@@ -599,11 +599,78 @@ function astCacheFetchResolveAndPersist(
   }
 }
 
-function astCacheGetValue(key, options = {}) {
-  const context = astCacheBuildResolvedContext(options);
-  const normalizedKey = astCacheNormalizeKey(key);
-  const keyHash = astCacheHashKey(normalizedKey);
-  const entry = context.adapter.get(keyHash);
+function astCacheNormalizeBatchKeys(keys, fieldName = 'keys') {
+  if (!Array.isArray(keys)) {
+    throw new AstCacheValidationError(`Cache ${fieldName} must be an array`);
+  }
+
+  const normalized = [];
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    const normalizedKey = astCacheNormalizeKey(key);
+    normalized.push({
+      key: astCacheJsonClone(key),
+      normalizedKey,
+      keyHash: astCacheHashKey(normalizedKey)
+    });
+  }
+
+  return normalized;
+}
+
+function astCacheNormalizeBatchEntries(entries) {
+  if (!Array.isArray(entries)) {
+    throw new AstCacheValidationError('Cache entries must be an array');
+  }
+
+  const normalized = [];
+  for (let idx = 0; idx < entries.length; idx += 1) {
+    const entry = entries[idx];
+    if (!astCacheIsPlainObject(entry)) {
+      throw new AstCacheValidationError('Cache setMany entries must be plain objects');
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(entry, 'key')) {
+      throw new AstCacheValidationError('Cache setMany entries require key');
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(entry, 'value')) {
+      throw new AstCacheValidationError('Cache setMany entries require value');
+    }
+
+    const normalizedKey = astCacheNormalizeKey(entry.key);
+    let entryOptions = {};
+    if (typeof entry.options !== 'undefined') {
+      if (!astCacheIsPlainObject(entry.options)) {
+        throw new AstCacheValidationError('Cache setMany entry options must be an object');
+      }
+      entryOptions = entry.options;
+    }
+
+    if (typeof entry.ttlSec !== 'undefined' || typeof entry.tags !== 'undefined') {
+      entryOptions = Object.assign({}, entryOptions, {
+        ttlSec: typeof entry.ttlSec !== 'undefined' ? entry.ttlSec : entryOptions.ttlSec,
+        tags: typeof entry.tags !== 'undefined' ? entry.tags : entryOptions.tags
+      });
+    }
+
+    normalized.push({
+      key: astCacheJsonClone(entry.key),
+      value: entry.value,
+      normalizedKey,
+      keyHash: astCacheHashKey(normalizedKey),
+      options: entryOptions
+    });
+  }
+
+  return normalized;
+}
+
+function astCacheGetValueWithContext(context, normalizedKey, keyHash) {
+  const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
+    ? keyHash
+    : astCacheHashKey(normalizedKey);
+  const entry = context.adapter.get(resolvedKeyHash);
   if (!entry) {
     return null;
   }
@@ -611,19 +678,22 @@ function astCacheGetValue(key, options = {}) {
   return astCacheJsonClone(entry.value);
 }
 
-function astCacheSetValue(key, value, options = {}) {
-  const context = astCacheBuildResolvedContext(options);
-  const normalizedKey = astCacheNormalizeKey(key);
-  const keyHash = astCacheHashKey(normalizedKey);
+function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, operationOptions = {}) {
+  const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
+    ? keyHash
+    : astCacheHashKey(normalizedKey);
+  const safeOperationOptions = astCacheIsPlainObject(operationOptions)
+    ? operationOptions
+    : {};
   const staleKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'stale'));
   const leaseKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'lease'));
-  const ttlSec = astCacheResolveTtlSec(context.options.ttlSec, context.config.defaultTtlSec);
-  const tags = astCacheNormalizeTags(context.options.tags);
+  const ttlSec = astCacheResolveTtlSec(safeOperationOptions.ttlSec, context.config.defaultTtlSec);
+  const tags = astCacheNormalizeTags(safeOperationOptions.tags);
   const nowMs = astCacheNowMs();
 
   const entry = astCacheBuildEntry({
     normalizedKey,
-    keyHash,
+    keyHash: resolvedKeyHash,
     value,
     tags,
     ttlSec,
@@ -643,36 +713,31 @@ function astCacheSetValue(key, value, options = {}) {
   };
 }
 
-function astCacheDeleteValue(key, options = {}) {
-  const context = astCacheBuildResolvedContext(options);
-  const normalizedKey = astCacheNormalizeKey(key);
-  const keyHash = astCacheHashKey(normalizedKey);
+function astCacheDeleteValueWithContext(context, normalizedKey, keyHash) {
+  const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
+    ? keyHash
+    : astCacheHashKey(normalizedKey);
   const staleKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'stale'));
   const leaseKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'lease'));
-
-  const deleted = context.adapter.delete(keyHash);
+  const deleted = context.adapter.delete(resolvedKeyHash);
   astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
   astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
   return deleted;
 }
 
-function astCacheFetchValue(key, resolver, options = {}) {
-  if (typeof resolver !== 'function') {
-    throw new AstCacheValidationError('Cache fetch resolver must be a function');
-  }
-
-  const context = astCacheBuildResolvedContext(options);
-  const normalizedKey = astCacheNormalizeKey(key);
-  const keyHash = astCacheHashKey(normalizedKey);
+function astCacheFetchValueWithContext(context, normalizedKey, keyHash, resolver) {
+  const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
+    ? keyHash
+    : astCacheHashKey(normalizedKey);
   const staleKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'stale'));
   const leaseKeyHash = astCacheHashKey(astCacheBuildInternalKey(normalizedKey, 'lease'));
   const fetchOptions = astCacheResolveFetchOptions(context.config, context.options);
 
   if (!fetchOptions.forceRefresh) {
-    const freshEntry = context.adapter.get(keyHash);
+    const freshEntry = context.adapter.get(resolvedKeyHash);
     if (freshEntry) {
       astCacheRecordFetchStat(context.config, 'freshHits', 1);
-      return astCacheBuildFetchResult(context, keyHash, freshEntry.value, {
+      return astCacheBuildFetchResult(context, resolvedKeyHash, freshEntry.value, {
         cacheHit: true,
         stale: false,
         source: 'fresh',
@@ -690,7 +755,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
     return astCacheFetchResolveAndPersist(
       context,
       normalizedKey,
-      keyHash,
+      resolvedKeyHash,
       resolver,
       fetchOptions,
       staleEntry
@@ -712,7 +777,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
       return astCacheFetchResolveAndPersist(
         context,
         normalizedKey,
-        keyHash,
+        resolvedKeyHash,
         resolver,
         fetchOptions,
         staleEntry
@@ -726,7 +791,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
 
   if (staleEntry && fetchOptions.allowStaleWhileRevalidate) {
     astCacheRecordFetchStat(context.config, 'staleHits', 1);
-    return astCacheBuildFetchResult(context, keyHash, staleEntry.value, {
+    return astCacheBuildFetchResult(context, resolvedKeyHash, staleEntry.value, {
       cacheHit: true,
       stale: true,
       source: 'stale',
@@ -739,7 +804,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
   astCacheRecordFetchStat(context.config, 'coalescedWaits', 1);
   const waitResult = astCacheFetchWaitForLeader(
     context,
-    keyHash,
+    resolvedKeyHash,
     leaseKeyHash,
     fetchOptions.coalesceWaitMs,
     fetchOptions.pollMs
@@ -747,7 +812,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
 
   if (waitResult.entry) {
     astCacheRecordFetchStat(context.config, 'freshHits', 1);
-    return astCacheBuildFetchResult(context, keyHash, waitResult.entry.value, {
+    return astCacheBuildFetchResult(context, resolvedKeyHash, waitResult.entry.value, {
       cacheHit: true,
       stale: false,
       source: 'fresh',
@@ -775,7 +840,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
       return astCacheFetchResolveAndPersist(
         context,
         normalizedKey,
-        keyHash,
+        resolvedKeyHash,
         resolver,
         fetchOptions,
         staleEntry,
@@ -792,7 +857,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
   astCacheRecordFetchStat(context.config, 'coalescedWaits', 1);
   const followUpWaitResult = astCacheFetchWaitForLeader(
     context,
-    keyHash,
+    resolvedKeyHash,
     leaseKeyHash,
     fetchOptions.coalesceWaitMs,
     fetchOptions.pollMs
@@ -801,7 +866,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
 
   if (followUpWaitResult.entry) {
     astCacheRecordFetchStat(context.config, 'freshHits', 1);
-    return astCacheBuildFetchResult(context, keyHash, followUpWaitResult.entry.value, {
+    return astCacheBuildFetchResult(context, resolvedKeyHash, followUpWaitResult.entry.value, {
       cacheHit: true,
       stale: false,
       source: 'fresh',
@@ -817,7 +882,7 @@ function astCacheFetchValue(key, resolver, options = {}) {
 
   if (staleEntry && fetchOptions.allowStaleWhileRevalidate) {
     astCacheRecordFetchStat(context.config, 'staleHits', 1);
-    return astCacheBuildFetchResult(context, keyHash, staleEntry.value, {
+    return astCacheBuildFetchResult(context, resolvedKeyHash, staleEntry.value, {
       cacheHit: true,
       stale: true,
       source: 'stale',
@@ -828,10 +893,226 @@ function astCacheFetchValue(key, resolver, options = {}) {
   }
 
   throw new AstCacheError('Cache fetch coalescing lease unavailable after wait', {
-    keyHash,
+    keyHash: resolvedKeyHash,
     coalesceWaitMs: fetchOptions.coalesceWaitMs,
     waitMs: totalWaitMs
   });
+}
+
+function astCacheGetValue(key, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedKey = astCacheNormalizeKey(key);
+  const keyHash = astCacheHashKey(normalizedKey);
+  return astCacheGetValueWithContext(context, normalizedKey, keyHash);
+}
+
+function astCacheGetManyValues(keys, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedItems = astCacheNormalizeBatchKeys(keys);
+  const items = [];
+  let hits = 0;
+  let misses = 0;
+
+  for (let idx = 0; idx < normalizedItems.length; idx += 1) {
+    const item = normalizedItems[idx];
+    const value = astCacheGetValueWithContext(context, item.normalizedKey, item.keyHash);
+    const isHit = value !== null;
+    if (isHit) {
+      hits += 1;
+    } else {
+      misses += 1;
+    }
+
+    items.push({
+      key: item.key,
+      keyHash: item.keyHash,
+      status: isHit ? 'hit' : 'miss',
+      value
+    });
+  }
+
+  return {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation: 'get_many',
+    count: normalizedItems.length,
+    items,
+    stats: {
+      requested: normalizedItems.length,
+      processed: normalizedItems.length,
+      hits,
+      misses
+    }
+  };
+}
+
+function astCacheSetValue(key, value, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedKey = astCacheNormalizeKey(key);
+  const keyHash = astCacheHashKey(normalizedKey);
+  return astCacheSetValueWithContext(context, normalizedKey, keyHash, value, context.options);
+}
+
+function astCacheSetManyValues(entries, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedEntries = astCacheNormalizeBatchEntries(entries);
+  const items = [];
+
+  for (let idx = 0; idx < normalizedEntries.length; idx += 1) {
+    const entry = normalizedEntries[idx];
+    const entryOptions = Object.assign({}, context.options, entry.options);
+    const saved = astCacheSetValueWithContext(
+      context,
+      entry.normalizedKey,
+      entry.keyHash,
+      entry.value,
+      entryOptions
+    );
+
+    items.push({
+      key: entry.key,
+      keyHash: saved.keyHash,
+      status: 'set',
+      ttlSec: saved.ttlSec,
+      tags: saved.tags.slice(),
+      expiresAt: saved.expiresAt
+    });
+  }
+
+  return {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation: 'set_many',
+    count: normalizedEntries.length,
+    items,
+    stats: {
+      requested: normalizedEntries.length,
+      processed: normalizedEntries.length,
+      set: normalizedEntries.length
+    }
+  };
+}
+
+function astCacheDeleteValue(key, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedKey = astCacheNormalizeKey(key);
+  const keyHash = astCacheHashKey(normalizedKey);
+  return astCacheDeleteValueWithContext(context, normalizedKey, keyHash);
+}
+
+function astCacheDeleteManyValues(keys, options = {}) {
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedItems = astCacheNormalizeBatchKeys(keys);
+  const items = [];
+  let deletedCount = 0;
+  let notFoundCount = 0;
+
+  for (let idx = 0; idx < normalizedItems.length; idx += 1) {
+    const item = normalizedItems[idx];
+    const deleted = astCacheDeleteValueWithContext(context, item.normalizedKey, item.keyHash);
+    if (deleted) {
+      deletedCount += 1;
+    } else {
+      notFoundCount += 1;
+    }
+
+    items.push({
+      key: item.key,
+      keyHash: item.keyHash,
+      status: deleted ? 'deleted' : 'not_found',
+      deleted
+    });
+  }
+
+  return {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation: 'delete_many',
+    count: normalizedItems.length,
+    items,
+    stats: {
+      requested: normalizedItems.length,
+      processed: normalizedItems.length,
+      deleted: deletedCount,
+      notFound: notFoundCount
+    }
+  };
+}
+
+function astCacheFetchValue(key, resolver, options = {}) {
+  if (typeof resolver !== 'function') {
+    throw new AstCacheValidationError('Cache fetch resolver must be a function');
+  }
+
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedKey = astCacheNormalizeKey(key);
+  const keyHash = astCacheHashKey(normalizedKey);
+  return astCacheFetchValueWithContext(context, normalizedKey, keyHash, resolver);
+}
+
+function astCacheFetchManyValues(keys, resolver, options = {}) {
+  if (typeof resolver !== 'function') {
+    throw new AstCacheValidationError('Cache fetchMany resolver must be a function');
+  }
+
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedItems = astCacheNormalizeBatchKeys(keys);
+  const items = [];
+  let hits = 0;
+  let misses = 0;
+  let staleHits = 0;
+
+  for (let idx = 0; idx < normalizedItems.length; idx += 1) {
+    const item = normalizedItems[idx];
+    const result = astCacheFetchValueWithContext(
+      context,
+      item.normalizedKey,
+      item.keyHash,
+      payload => resolver(Object.assign({}, payload, {
+        requestedKey: astCacheJsonClone(item.key),
+        index: idx,
+        total: normalizedItems.length
+      }))
+    );
+
+    if (result.cacheHit) {
+      hits += 1;
+    } else {
+      misses += 1;
+    }
+
+    if (result.stale) {
+      staleHits += 1;
+    }
+
+    items.push({
+      key: item.key,
+      keyHash: result.keyHash,
+      status: result.cacheHit ? 'hit' : 'miss',
+      cacheHit: result.cacheHit,
+      stale: result.stale,
+      source: result.source,
+      refreshed: result.refreshed,
+      coalesced: result.coalesced,
+      waitMs: result.waitMs,
+      value: result.value
+    });
+  }
+
+  return {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation: 'fetch_many',
+    count: normalizedItems.length,
+    items,
+    stats: {
+      requested: normalizedItems.length,
+      processed: normalizedItems.length,
+      hits,
+      misses,
+      staleHits
+    }
+  };
 }
 
 function astCacheInvalidateTag(tag, options = {}) {
