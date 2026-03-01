@@ -55,6 +55,14 @@ test('AST exposes GitHub surface with all public helper methods', () => {
     'getReleaseByTag',
     'listTags',
     'getTag',
+    'listWorkflows',
+    'getWorkflow',
+    'listWorkflowRuns',
+    'getWorkflowRun',
+    'rerunWorkflowRun',
+    'cancelWorkflowRun',
+    'listWorkflowRunArtifacts',
+    'getWorkflowRunArtifact',
     'searchRepositories',
     'searchUsers',
     'searchCode',
@@ -102,6 +110,10 @@ test('GitHub providers and capabilities report expected support', () => {
   assert.equal(groupCaps.group, 'pull_requests');
   assert.equal(groupCaps.operations.includes('merge_pull_request'), true);
 
+  const actionsCaps = context.AST.GitHub.capabilities('actions');
+  assert.equal(actionsCaps.group, 'actions');
+  assert.equal(actionsCaps.operations.includes('list_workflow_runs'), true);
+
   const graphqlCaps = context.AST.GitHub.capabilities('graphql');
   assert.equal(graphqlCaps.operation, 'graphql');
   assert.equal(graphqlCaps.mutation, true);
@@ -111,5 +123,6 @@ test('GitHub providers and capabilities report expected support', () => {
   assert.equal(Array.isArray(defaultCaps.operations), true);
   assert.equal(defaultCaps.operations.includes('graphql'), true);
   assert.equal(defaultCaps.operations.includes('auth_as_app'), true);
+  assert.equal(defaultCaps.operations.includes('list_workflows'), true);
   assert.equal(defaultCaps.auth.githubApp, true);
 });

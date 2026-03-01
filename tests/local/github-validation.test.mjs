@@ -101,6 +101,39 @@ test('validate request allows parse_webhook without token fields', () => {
   assert.equal(normalized.operation, 'parse_webhook');
 });
 
+test('validate request accepts workflowId and run/artifact numeric identifiers', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'list_workflow_runs',
+    owner: 'octocat',
+    repo: 'hello-world',
+    workflowId: '.github/workflows/ci.yml',
+    runId: 123,
+    artifactId: 456
+  });
+
+  assert.equal(normalized.workflowId, '.github/workflows/ci.yml');
+  assert.equal(normalized.runId, 123);
+  assert.equal(normalized.artifactId, 456);
+});
+
+test('validate request rejects traversal-like workflowId values', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'get_workflow',
+      owner: 'octocat',
+      repo: 'hello-world',
+      workflowId: '../workflows/ci.yml'
+    }),
+    /workflowId/
+  );
+});
+
 test('resolve config throws auth error when token is missing', () => {
   const context = createGasContext({
     PropertiesService: {

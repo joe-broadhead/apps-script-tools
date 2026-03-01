@@ -137,6 +137,21 @@ function astGitHubBuildOperationQuery(request, spec, pagination) {
       return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['sort', 'direction', 'since']));
     case 'list_branches':
       return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['protected']));
+    case 'list_workflow_runs':
+      return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, [
+        'actor',
+        'branch',
+        'event',
+        'status',
+        'created',
+        'exclude_pull_requests',
+        'check_suite_id',
+        'head_sha'
+      ]));
+    case 'get_workflow_run':
+      return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['exclude_pull_requests']));
+    case 'list_workflow_run_artifacts':
+      return astGitHubMergeQuery(base, astGitHubExtractAllowedQueryFields(body, ['name']));
     case 'search_pull_requests': {
       const query = astGitHubEnsureSearchQuery(request, 'is:pr');
       return astGitHubMergeQuery(base, astGitHubMergeQuery(

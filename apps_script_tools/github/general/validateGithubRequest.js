@@ -83,6 +83,50 @@ function astGitHubNormalizeInteger(value, field, fallback = null, min = 1) {
   return parsed;
 }
 
+function astGitHubNormalizeWorkflowId(value, fallback = null) {
+  if (typeof value === 'undefined' || value === null || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new AstGitHubValidationError("GitHub request field 'workflowId' must be a positive integer or a workflow file identifier", {
+        field: 'workflowId',
+        value
+      });
+    }
+    return String(value);
+  }
+
+  if (typeof value !== 'string') {
+    throw new AstGitHubValidationError("GitHub request field 'workflowId' must be a string or integer", {
+      field: 'workflowId',
+      value
+    });
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  if (/[\u0000-\u001F]/.test(trimmed) || trimmed.includes('\\') || trimmed.includes('..')) {
+    throw new AstGitHubValidationError("GitHub request field 'workflowId' contains disallowed path characters", {
+      field: 'workflowId',
+      value: trimmed
+    });
+  }
+
+  if (trimmed.startsWith('/') || trimmed.endsWith('/') || trimmed.includes('//')) {
+    throw new AstGitHubValidationError("GitHub request field 'workflowId' contains invalid slash placement", {
+      field: 'workflowId',
+      value: trimmed
+    });
+  }
+
+  return trimmed;
+}
+
 function astGitHubNormalizeBoolean(value, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -198,6 +242,22 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
   const pullNumber = astGitHubNormalizeInteger(request.pullNumber, 'pullNumber', null, 1);
   const reviewId = astGitHubNormalizeInteger(request.reviewId, 'reviewId', null, 1);
   const commentId = astGitHubNormalizeInteger(request.commentId, 'commentId', null, 1);
+  const workflowId = astGitHubNormalizeWorkflowId(
+    typeof request.workflowId !== 'undefined' ? request.workflowId : request.workflow_id,
+    null
+  );
+  const runId = astGitHubNormalizeInteger(
+    typeof request.runId !== 'undefined' ? request.runId : request.run_id,
+    'runId',
+    null,
+    1
+  );
+  const artifactId = astGitHubNormalizeInteger(
+    typeof request.artifactId !== 'undefined' ? request.artifactId : request.artifact_id,
+    'artifactId',
+    null,
+    1
+  );
 
   const body = typeof request.body === 'undefined'
     ? {}
@@ -273,6 +333,9 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     pullNumber,
     reviewId,
     commentId,
+    workflowId,
+    runId,
+    artifactId,
     path,
     branch,
     ref,

@@ -88,6 +88,11 @@
   - webhook secret config key: `GITHUB_WEBHOOK_SECRET`
   - app/webhook operation groups in `AST.GitHub.operations()` and `capabilities(...)`
   - local + GAS contract coverage for app auth dry-run, token exchange path, and signature verification
+- GitHub Actions API additions:
+  - new helpers: `listWorkflows`, `getWorkflow`, `listWorkflowRuns`, `getWorkflowRun`
+  - workflow run controls: `rerunWorkflowRun`, `cancelWorkflowRun`
+  - artifacts helpers: `listWorkflowRunArtifacts`, `getWorkflowRunArtifact`
+  - operation group: `actions` in `AST.GitHub.capabilities(...)`
 - Messaging chat transport expansion:
   - new transports: `slack_webhook`, `slack_api`, and `teams_webhook`
   - added config keys: `MESSAGING_SLACK_WEBHOOK_URL`, `MESSAGING_SLACK_BOT_TOKEN`, `MESSAGING_SLACK_CHANNEL`, `MESSAGING_SLACK_API_BASE_URL`, `MESSAGING_TEAMS_WEBHOOK_URL`

@@ -207,3 +207,62 @@ test('createBranch resolves default branch when sha not provided', () => {
   assert.equal(parsePayload(calls[2].options).ref, 'refs/heads/feature/test');
   assert.equal(response.status, 'ok');
 });
+
+test('rerunWorkflowRun maps method/path/body correctly', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(201, {});
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.rerunWorkflowRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    runId: 123,
+    body: {
+      enable_debug_logging: true
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, 'post');
+  assert.match(calls[0].url, /\/actions\/runs\/123\/rerun$/);
+  assert.deepEqual(parsePayload(calls[0].options), {
+    enable_debug_logging: true
+  });
+  assert.equal(response.status, 'ok');
+});
+
+test('cancelWorkflowRun maps method/path correctly', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(202, {});
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.cancelWorkflowRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    runId: 123
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, 'post');
+  assert.match(calls[0].url, /\/actions\/runs\/123\/cancel$/);
+  assert.equal(parsePayload(calls[0].options), null);
+  assert.equal(response.status, 'ok');
+});

@@ -175,5 +175,42 @@ GITHUB_CONTRACT_TESTS = [
         AST.GitHub.clearConfig();
       }
     }
+  },
+  {
+    description: 'AST.GitHub.listWorkflows should call actions workflows endpoint',
+    test: () => {
+      AST.GitHub.clearConfig();
+      AST.GitHub.configure({
+        GITHUB_TOKEN: 'gas-test-token',
+        GITHUB_CACHE_ENABLED: false
+      });
+
+      const originalFetch = UrlFetchApp.fetch;
+      let calledUrl = null;
+      UrlFetchApp.fetch = url => {
+        calledUrl = url;
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({ total_count: 1, workflows: [{ id: 1, name: 'CI' }] }),
+          getAllHeaders: () => ({})
+        };
+      };
+
+      try {
+        const response = AST.GitHub.listWorkflows({
+          owner: 'octocat',
+          repo: 'hello-world'
+        });
+        if (!calledUrl || calledUrl.indexOf('/actions/workflows') === -1) {
+          throw new Error(`Expected actions workflows URL, got: ${calledUrl}`);
+        }
+        if (!response || !response.data || response.data.total_count !== 1) {
+          throw new Error(`Unexpected listWorkflows response: ${JSON.stringify(response)}`);
+        }
+      } finally {
+        UrlFetchApp.fetch = originalFetch;
+        AST.GitHub.clearConfig();
+      }
+    }
   }
 ];

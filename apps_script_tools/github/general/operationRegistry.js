@@ -84,6 +84,15 @@ const AST_GITHUB_OPERATION_REGISTRY = Object.freeze({
   list_tags: Object.freeze({ method: 'get', path: request => astGitHubBuildRepoPath(request, '/tags'), read: true, paginated: true, group: 'releases' }),
   get_tag: Object.freeze({ method: 'get', path: request => astGitHubBuildPathForTag(request, true), read: true, paginated: false, group: 'releases' }),
 
+  list_workflows: Object.freeze({ method: 'get', path: request => astGitHubBuildRepoPath(request, '/actions/workflows'), read: true, paginated: true, group: 'actions' }),
+  get_workflow: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsWorkflowPath(request), read: true, paginated: false, group: 'actions' }),
+  list_workflow_runs: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsWorkflowPath(request, '/runs'), read: true, paginated: true, group: 'actions' }),
+  get_workflow_run: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsRunPath(request), read: true, paginated: false, group: 'actions' }),
+  rerun_workflow_run: Object.freeze({ method: 'post', path: request => astGitHubBuildActionsRunPath(request, '/rerun'), read: false, paginated: false, group: 'actions', mutation: true }),
+  cancel_workflow_run: Object.freeze({ method: 'post', path: request => astGitHubBuildActionsRunPath(request, '/cancel'), read: false, paginated: false, group: 'actions', mutation: true }),
+  list_workflow_run_artifacts: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsRunPath(request, '/artifacts'), read: true, paginated: true, group: 'actions' }),
+  get_workflow_run_artifact: Object.freeze({ method: 'get', path: request => astGitHubBuildActionsArtifactPath(request), read: true, paginated: false, group: 'actions' }),
+
   search_repositories: Object.freeze({ method: 'get', path: () => '/search/repositories', read: true, paginated: true, group: 'search' }),
   search_users: Object.freeze({ method: 'get', path: () => '/search/users', read: true, paginated: true, group: 'search' }),
   search_code: Object.freeze({ method: 'get', path: () => '/search/code', read: true, paginated: true, group: 'search' }),

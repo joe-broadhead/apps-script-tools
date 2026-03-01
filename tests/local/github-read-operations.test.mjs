@@ -312,3 +312,118 @@ test('searchPullRequests appends is:pr when query contains overlapping qualifier
   assert.match(decodedUrl, /is:private/);
   assert.match(decodedUrl, /is:pr/);
 });
+
+test('listWorkflows uses actions workflows path and pagination', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(
+          200,
+          { total_count: 1, workflows: [{ id: 1, name: 'CI' }] },
+          { link: '<https://api.github.com/repos/octocat/hello-world/actions/workflows?page=2>; rel="next"' }
+        );
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.listWorkflows({
+    owner: 'octocat',
+    repo: 'hello-world',
+    options: {
+      page: 1,
+      perPage: 50
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/actions\/workflows/);
+  assert.match(calls[0].url, /per_page=50/);
+  assert.equal(response.page.nextPage, 2);
+  assert.equal(response.page.hasMore, true);
+  assert.equal(response.data.total_count, 1);
+});
+
+test('listWorkflowRuns supports workflow path id and query filters', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { total_count: 0, workflow_runs: [] });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.listWorkflowRuns({
+    owner: 'octocat',
+    repo: 'hello-world',
+    workflowId: '.github/workflows/ci.yml',
+    body: {
+      branch: 'main',
+      status: 'completed'
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/actions\/workflows\/\.github%2Fworkflows%2Fci\.yml\/runs/);
+  assert.match(calls[0].url, /branch=main/);
+  assert.match(calls[0].url, /status=completed/);
+  assert.equal(response.status, 'ok');
+});
+
+test('getWorkflowRunArtifact resolves artifact metadata endpoint', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, { id: 222, name: 'artifact.zip' });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.getWorkflowRunArtifact({
+    owner: 'octocat',
+    repo: 'hello-world',
+    artifactId: 222
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/actions\/artifacts\/222$/);
+  assert.equal(response.data.id, 222);
+});
+
+test('getWorkflowRun validates runId before network request', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        return createResponse(200, {});
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  assert.throws(
+    () => context.AST.GitHub.getWorkflowRun({
+      owner: 'octocat',
+      repo: 'hello-world'
+    }),
+    /runId/
+  );
+  assert.equal(fetchCalls, 0);
+});
