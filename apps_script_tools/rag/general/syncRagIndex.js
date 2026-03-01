@@ -82,6 +82,9 @@ function astRagCreateSyncedSource(sourceDescriptor, sourceId, fingerprint, chunk
     sourceId,
     fileId: sourceDescriptor.fileId,
     fileName: sourceDescriptor.fileName,
+    sourceKind: astRagNormalizeString(sourceDescriptor.sourceKind, 'drive'),
+    sourceUri: astRagNormalizeString(sourceDescriptor.uri, null),
+    provider: astRagNormalizeString(sourceDescriptor.provider, null),
     mimeType: sourceDescriptor.mimeType,
     modifiedTime: sourceDescriptor.modifiedTime,
     fingerprint,
@@ -181,11 +184,18 @@ function astRagSyncIndexCore(request = {}) {
 
     const existingChunksByFileId = astRagGroupChunksByFileId(current.chunks || []);
 
-    const driveSources = astRagListDriveSources(normalizedRequest.source, {
-      maxFiles: normalizedRequest.options.maxFiles
-    });
+    const listSourcesFn = typeof astRagListSources === 'function'
+      ? astRagListSources
+      : (source, options) => astRagListDriveSources(source, options);
+    const readSourceFn = typeof astRagReadSourceText === 'function'
+      ? astRagReadSourceText
+      : astRagReadDriveSourceText;
 
-    const liveFileIds = new Set(driveSources.map(source => source.fileId));
+    const sources = listSourcesFn(normalizedRequest.source, {
+      maxFiles: normalizedRequest.options.maxFiles
+    }, normalizedRequest.auth);
+
+    const liveFileIds = new Set(sources.map(source => source.fileId));
     const nextSources = [];
     const nextChunks = [];
     const pendingEmbedChunks = [];
@@ -200,13 +210,13 @@ function astRagSyncIndexCore(request = {}) {
     let reusedChunks = 0;
     let reembeddedChunks = 0;
 
-    driveSources.forEach(sourceDescriptor => {
+    sources.forEach(sourceDescriptor => {
       const existingSource = existingSourceByFileId[sourceDescriptor.fileId] || null;
       const sourceId = (existingSource && existingSource.sourceId) || `src_${sourceDescriptor.fileId}`;
       const existingChunks = existingChunksByFileId[sourceDescriptor.fileId] || [];
 
       try {
-        const extracted = astRagReadDriveSourceText(sourceDescriptor, normalizedRequest.auth, {
+        const extracted = readSourceFn(sourceDescriptor, normalizedRequest.auth, {
           retries: 2
         });
         const fingerprint = astRagBuildSourceFingerprint(sourceDescriptor, extracted);

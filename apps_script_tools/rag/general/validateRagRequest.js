@@ -51,6 +51,43 @@ function astRagNormalizeStringArray(values, field, allowEmpty = true) {
   return Array.from(new Set(normalized));
 }
 
+function astRagNormalizeStorageUri(value, fieldPath) {
+  const normalized = astRagNormalizeString(value, null);
+  if (!normalized) {
+    return null;
+  }
+
+  const lower = normalized.toLowerCase();
+  if (
+    lower.indexOf('gcs://') !== 0
+    && lower.indexOf('s3://') !== 0
+    && lower.indexOf('dbfs:/') !== 0
+  ) {
+    throw new AstRagValidationError(`${fieldPath} must start with one of: gcs://, s3://, dbfs:/`, {
+      value: normalized
+    });
+  }
+
+  return normalized;
+}
+
+function astRagNormalizeStorageUris(source = {}) {
+  const single = astRagNormalizeStorageUri(source.uri, 'source.uri');
+  const list = astRagNormalizeStringArray(source.uris, 'source.uris', true)
+    .map((uri, idx) => astRagNormalizeStorageUri(uri, `source.uris[${idx}]`))
+    .filter(Boolean);
+
+  const combined = [];
+  if (single) {
+    combined.push(single);
+  }
+  for (let idx = 0; idx < list.length; idx += 1) {
+    combined.push(list[idx]);
+  }
+
+  return Array.from(new Set(combined));
+}
+
 function astRagNormalizeAccessControl(accessControl = {}, fieldPath = 'retrieval.access') {
   if (typeof accessControl === 'undefined' || accessControl === null) {
     accessControl = {};
@@ -249,15 +286,18 @@ function astRagNormalizeSourceRequest(source = {}) {
   }
 
   const folderId = astRagNormalizeString(source.folderId, null);
-  if (!folderId) {
-    throw new AstRagValidationError('source.folderId is required');
+  const storageUris = astRagNormalizeStorageUris(source);
+  if (!folderId && storageUris.length === 0) {
+    throw new AstRagValidationError('source requires source.folderId and/or source.uri/source.uris');
   }
 
   return {
     folderId,
     includeSubfolders: astRagNormalizeBoolean(source.includeSubfolders, true),
     includeMimeTypes: astRagNormalizeMimeTypes(source.includeMimeTypes),
-    excludeFileIds: astRagNormalizeStringArray(source.excludeFileIds, 'source.excludeFileIds', true)
+    excludeFileIds: astRagNormalizeStringArray(source.excludeFileIds, 'source.excludeFileIds', true),
+    uris: storageUris,
+    providerOptions: astRagIsPlainObject(source.providerOptions) ? astRagCloneObject(source.providerOptions) : {}
   };
 }
 

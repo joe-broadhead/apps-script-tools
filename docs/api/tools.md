@@ -906,11 +906,11 @@ See:
 
 ## `ASTX.RAG`
 
-Drive-backed retrieval-augmented generation surface for Apps Script chat workflows.
+Retrieval-augmented generation surface for Apps Script chat workflows with Drive and Storage URI ingestion.
 
 Primary methods:
 
-- `ASTX.RAG.buildIndex(...)` to create a Drive JSON index from Drive sources.
+- `ASTX.RAG.buildIndex(...)` to create a Drive JSON index from Drive folders and/or Storage URIs.
 - `ASTX.RAG.syncIndex(...)` to refresh existing indexes after file changes.
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
@@ -925,10 +925,10 @@ Primary methods:
 
 Source support:
 
-- plain text
-- PDF
-- Google Docs
-- Google Slides (slide text + speaker notes)
+- plain text (Drive + `gcs://` + `s3://` + `dbfs:/`)
+- PDF (Drive + `gcs://` + `s3://` + `dbfs:/`)
+- Google Docs (Drive)
+- Google Slides (Drive, slide text + speaker notes)
 
 High-signal behavior:
 

@@ -232,6 +232,11 @@ ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
 ASTX.RAG.unregisterEmbeddingProvider(name)
 ```
 
+Notes:
+
+- `buildIndex` / `syncIndex` support mixed source ingestion via Drive folders (`source.folderId`) and Storage URIs (`source.uri` / `source.uris`).
+- Supported storage URI schemes: `gcs://`, `s3://`, `dbfs:/`.
+
 ## `DBT` essentials
 
 ```javascript

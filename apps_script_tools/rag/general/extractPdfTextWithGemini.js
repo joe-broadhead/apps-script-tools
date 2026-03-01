@@ -75,15 +75,32 @@ function astRagResolvePdfExtractionModel(options = {}, auth = {}, config = {}) {
 }
 
 function astRagExtractPdfTextWithGemini(sourceDescriptor, auth = {}, options = {}) {
-  const file = sourceDescriptor.driveFile;
-  const blob = file.getBlob();
-  const mimeType = sourceDescriptor.mimeType || blob.getContentType() || 'application/pdf';
+  let mimeType = sourceDescriptor.mimeType || 'application/pdf';
+  let base64Data = astRagNormalizeString(sourceDescriptor.pdfBase64, null);
 
-  let base64Data = null;
-  if (typeof blob.getBytes === 'function' && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64Encode === 'function') {
-    base64Data = Utilities.base64Encode(blob.getBytes());
-  } else if (typeof blob.getDataAsString === 'function' && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64Encode === 'function') {
-    base64Data = Utilities.base64Encode(blob.getDataAsString());
+  if (!base64Data) {
+    const file = sourceDescriptor.driveFile;
+    if (!file || typeof file.getBlob !== 'function') {
+      throw new AstRagSourceError('PDF extraction requires driveFile or pdfBase64 input', {
+        fileId: sourceDescriptor.fileId,
+        fileName: sourceDescriptor.fileName
+      });
+    }
+
+    const blob = file.getBlob();
+    const blobMimeType = blob && typeof blob.getContentType === 'function'
+      ? blob.getContentType()
+      : null;
+    if (!sourceDescriptor.mimeType && blobMimeType) {
+      sourceDescriptor.mimeType = blobMimeType;
+      mimeType = blobMimeType;
+    }
+
+    if (typeof blob.getBytes === 'function' && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64Encode === 'function') {
+      base64Data = Utilities.base64Encode(blob.getBytes());
+    } else if (typeof blob.getDataAsString === 'function' && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64Encode === 'function') {
+      base64Data = Utilities.base64Encode(blob.getDataAsString());
+    }
   }
 
   if (!base64Data) {

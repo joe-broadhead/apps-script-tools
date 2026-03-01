@@ -63,6 +63,7 @@ function astRagListDriveSources(sourceRequest, options = {}) {
     }
 
     output.push({
+      sourceKind: 'drive',
       fileId,
       fileName: file.getName(),
       mimeType,

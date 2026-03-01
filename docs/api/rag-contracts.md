@@ -39,7 +39,12 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
 ```javascript
 {
   source: {
-    folderId: 'required',
+    // at least one source is required:
+    // - Drive folder ingestion
+    // - storage URI ingestion via AST.Storage
+    folderId: 'optional',
+    uri: 'optional single storage URI (gcs:// | s3:// | dbfs:/)',
+    uris: ['optional storage URI list'],
     includeSubfolders: true,
     includeMimeTypes: [
       'text/plain',
@@ -47,7 +52,8 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
       'application/vnd.google-apps.document',
       'application/vnd.google-apps.presentation'
     ],
-    excludeFileIds: []
+    excludeFileIds: [],
+    providerOptions: {}
   },
   index: {
     indexName: 'project-index',
@@ -76,6 +82,12 @@ ASTX.RAG.unregisterEmbeddingProvider(name)
   }
 }
 ```
+
+Notes:
+
+- `source` requires at least one of `folderId` or `uri`/`uris`.
+- Google-native MIME types (`application/vnd.google-apps.document`, `application/vnd.google-apps.presentation`) are supported from Drive sources.
+- Storage URI ingestion (`gcs://`, `s3://`, `dbfs:/`) supports plain text and PDF extraction.
 
 ## `search(request)`
 
@@ -307,7 +319,10 @@ const manager = ASTX.RAG.IndexManager.create({
   defaults: {
     indexName: 'project-index',
     indexFileId: '', // optional
-    source: { folderId: '...' },
+    source: {
+      folderId: 'optional-drive-folder-id',
+      uris: ['gcs://my-bucket/rag-corpus/']
+    },
     embedding: { provider: 'vertex_gemini', model: 'text-embedding-005' },
     auth: { ... },
     fallbackToSupportedMimeTypes: true
@@ -323,7 +338,7 @@ const ensured = manager.ensure({
   }
 });
 
-const synced = manager.sync({ source: { folderId: '...' } });
+const synced = manager.sync({ source: { uris: ['s3://my-bucket/rag-corpus/'] } });
 const fast = manager.fastState(); // lightweight metadata
 ```
 
