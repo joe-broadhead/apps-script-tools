@@ -108,3 +108,43 @@ function runWorkflowWithTelemetry() {
 
 - `getTrace` returns only in-memory traces.
 - If runtime restarted, previously captured traces are only in your sink output.
+
+## Query and dashboard examples
+
+Query recent errors:
+
+```javascript
+const errors = ASTX.Telemetry.query({
+  filters: {
+    statuses: ['error'],
+    from: new Date(Date.now() - (60 * 60 * 1000)).toISOString()
+  },
+  sort: { by: 'timestamp', direction: 'desc' },
+  page: { limit: 50, offset: 0 }
+});
+```
+
+Aggregate p95 latency by module:
+
+```javascript
+const agg = ASTX.Telemetry.aggregate({
+  filters: { types: ['span'] },
+  groupBy: ['module']
+});
+```
+
+Export query output to storage:
+
+```javascript
+ASTX.Telemetry.export({
+  format: 'ndjson',
+  query: {
+    filters: { modules: ['rag'] },
+    page: { limit: 5000, offset: 0 }
+  },
+  destination: {
+    storageUri: 'gcs://my-bucket/telemetry/rag.ndjson',
+    overwrite: true
+  }
+});
+```

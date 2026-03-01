@@ -129,6 +129,9 @@ test('AST exposes Telemetry namespace and core methods', () => {
   assert.equal(typeof context.AST.Telemetry.recordEvent, 'function');
   assert.equal(typeof context.AST.Telemetry.getTrace, 'function');
   assert.equal(typeof context.AST.Telemetry.flush, 'function');
+  assert.equal(typeof context.AST.Telemetry.query, 'function');
+  assert.equal(typeof context.AST.Telemetry.aggregate, 'function');
+  assert.equal(typeof context.AST.Telemetry.export, 'function');
 });
 
 test('Telemetry redacts sensitive keys in span context', () => {
@@ -167,6 +170,227 @@ test('Telemetry redacts sensitive keys in span context', () => {
   assert.equal(trace.spans[0].context.safe, 'hello');
   assert.equal(trace.spans[0].result.result.password, '[REDACTED]');
   assert.ok(logger.logs.length > 0);
+});
+
+test('Telemetry query filters records and preserves redacted payloads', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'logger',
+    redactSecrets: true
+  });
+
+  const spanOk = context.AST.Telemetry.startSpan('checkout.total', {
+    traceId: 'trace_checkout',
+    module: 'billing',
+    apiKey: 'secret-value'
+  });
+  context.AST.Telemetry.endSpan(spanOk, {
+    status: 'ok'
+  });
+
+  const spanError = context.AST.Telemetry.startSpan('checkout.submit', {
+    traceId: 'trace_checkout',
+    module: 'billing',
+    token: 'secret-token'
+  });
+  context.AST.Telemetry.endSpan(spanError, {
+    status: 'error',
+    error: new Error('billing failed')
+  });
+
+  const spanSearch = context.AST.Telemetry.startSpan('search.index', {
+    traceId: 'trace_search',
+    module: 'search'
+  });
+  context.AST.Telemetry.endSpan(spanSearch, {
+    status: 'error'
+  });
+
+  const result = context.AST.Telemetry.query({
+    filters: {
+      modules: ['billing'],
+      statuses: ['error'],
+      types: ['span']
+    },
+    includeRaw: true,
+    page: {
+      limit: 10,
+      offset: 0
+    }
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.equal(result.page.total, 1);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].name, 'checkout.submit');
+  assert.equal(result.items[0].raw.context.token, '[REDACTED]');
+  assert.equal(result.stats.matchedRecords, 1);
+});
+
+test('Telemetry aggregate computes grouped latency and error metrics', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  const timestamps = [
+    '2026-02-01T00:00:00.000Z',
+    '2026-02-01T00:00:00.010Z',
+    '2026-02-01T00:00:01.000Z',
+    '2026-02-01T00:00:01.020Z',
+    '2026-02-01T00:00:02.000Z',
+    '2026-02-01T00:00:02.030Z'
+  ];
+  context.astTelemetryNowIsoString = () => timestamps.shift() || '2026-02-01T00:00:03.000Z';
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  const spanA = context.AST.Telemetry.startSpan('orders.load', { module: 'orders' });
+  context.AST.Telemetry.endSpan(spanA, { status: 'ok' });
+  const spanB = context.AST.Telemetry.startSpan('orders.join', { module: 'orders' });
+  context.AST.Telemetry.endSpan(spanB, { status: 'error' });
+  const spanC = context.AST.Telemetry.startSpan('orders.finalize', { module: 'orders' });
+  context.AST.Telemetry.endSpan(spanC, { status: 'ok' });
+
+  const aggregate = context.AST.Telemetry.aggregate({
+    filters: {
+      types: ['span']
+    },
+    groupBy: ['module']
+  });
+
+  assert.equal(aggregate.status, 'ok');
+  assert.equal(aggregate.items.length, 1);
+  assert.equal(aggregate.items[0].group.module, 'orders');
+  assert.equal(aggregate.items[0].metrics.count, 3);
+  assert.equal(aggregate.items[0].metrics.errorCount, 1);
+  assert.equal(aggregate.items[0].metrics.errorRate, 0.333333);
+  assert.equal(aggregate.items[0].metrics.latencyMs.p50, 20);
+  assert.equal(aggregate.items[0].metrics.latencyMs.p95, 29);
+});
+
+test('Telemetry export writes ndjson payload to storage destination', () => {
+  const writes = [];
+  const context = createGasContext({
+    astRunStorageRequest: request => {
+      writes.push(request);
+      return {
+        provider: 's3',
+        operation: 'write',
+        uri: request.uri
+      };
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  const spanId = context.AST.Telemetry.startSpan('orders.export', {
+    module: 'orders'
+  });
+  context.AST.Telemetry.endSpan(spanId, { status: 'ok' });
+
+  const result = context.AST.Telemetry.export({
+    format: 'ndjson',
+    destination: {
+      storageUri: 's3://ast-telemetry/export.ndjson',
+      overwrite: true
+    }
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.equal(result.destination.type, 'storage');
+  assert.equal(result.data, null);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].payload.text, /"type":"span"/);
+});
+
+test('Telemetry query handles high-volume records with deterministic filtering', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    maxTraceCount: 2000
+  });
+
+  for (let idx = 0; idx < 1000; idx += 1) {
+    const spanId = context.AST.Telemetry.startSpan('high.volume.run', {
+      traceId: `trace_${idx}`,
+      module: idx % 2 === 0 ? 'analytics' : 'other'
+    });
+
+    context.AST.Telemetry.endSpan(spanId, {
+      status: idx % 5 === 0 ? 'error' : 'ok'
+    });
+  }
+
+  const result = context.AST.Telemetry.query({
+    filters: {
+      modules: ['analytics'],
+      statuses: ['error'],
+      types: ['span']
+    },
+    page: {
+      limit: 50,
+      offset: 0
+    },
+    sort: {
+      by: 'timestamp',
+      direction: 'desc'
+    }
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.equal(result.page.total, 100);
+  assert.equal(result.page.returned, 50);
+  assert.equal(result.page.hasMore, true);
+  assert.equal(result.stats.scannedRecords, 1000);
+  assert.equal(result.stats.matchedRecords, 100);
+});
+
+test('Telemetry query rejects unsupported sources', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  assert.throws(() => {
+    context.AST.Telemetry.query({
+      source: 'sink'
+    });
+  }, error => error && error.name === 'AstTelemetryCapabilityError');
+});
+
+test('Telemetry query accepts epoch-zero time boundaries', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  const spanId = context.AST.Telemetry.startSpan('epoch.boundary', {
+    traceId: 'trace_epoch'
+  });
+  context.AST.Telemetry.endSpan(spanId, {
+    status: 'ok'
+  });
+
+  const result = context.AST.Telemetry.query({
+    filters: {
+      from: 0
+    },
+    page: {
+      limit: 10,
+      offset: 0
+    }
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.equal(result.query.filters.from, '1970-01-01T00:00:00.000Z');
+  assert.ok(result.page.total >= 1);
 });
 
 test('Telemetry drive_json sink writes partitioned batch files without full-file appends', () => {

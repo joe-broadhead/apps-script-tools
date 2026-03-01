@@ -504,6 +504,9 @@ Primary methods:
 - `ASTX.Telemetry.recordEvent(event)` to append structured event records.
 - `ASTX.Telemetry.getTrace(traceId)` to retrieve in-memory trace state.
 - `ASTX.Telemetry.flush(options)` to force buffered sink flushes (used by `drive_json` and `storage_json` manual mode).
+- `ASTX.Telemetry.query(request)` to filter/paginate normalized span and event records.
+- `ASTX.Telemetry.aggregate(request)` to compute grouped counts, error-rate, and p50/p95 latency metrics.
+- `ASTX.Telemetry.export(request)` to export query output as `json`, `ndjson`, or `csv` (inline, Drive, or Storage).
 
 Sink support:
 
@@ -517,6 +520,7 @@ High-signal behavior:
 - sensitive keys and token-like values are redacted by default.
 - telemetry calls should never block functional execution paths.
 - span IDs and trace IDs are generated if not supplied.
+- query/aggregate operates on the in-memory telemetry store (already redacted records).
 
 ```javascript
 const traceSpan = ASTX.Telemetry.startSpan('demo.operation', {

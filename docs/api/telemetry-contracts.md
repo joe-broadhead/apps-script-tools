@@ -19,6 +19,9 @@ ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
 ASTX.Telemetry.flush(options)
+ASTX.Telemetry.query(request)
+ASTX.Telemetry.aggregate(request)
+ASTX.Telemetry.export(request)
 ```
 
 ## Config contract
@@ -100,6 +103,71 @@ ASTX.Telemetry.recordEvent({
 ```javascript
 const trace = ASTX.Telemetry.getTrace(traceId);
 ```
+
+## Query contract
+
+```javascript
+const result = ASTX.Telemetry.query({
+  filters: {
+    traceIds: ['trace_123'],
+    modules: ['rag'],
+    names: ['rag.answer'],
+    statuses: ['error'],
+    levels: ['error'],
+    types: ['span', 'event'],
+    from: '2026-03-01T00:00:00Z',
+    to: '2026-03-01T23:59:59Z',
+    query: 'timeout'
+  },
+  sort: { by: 'timestamp', direction: 'desc' },
+  page: { limit: 100, offset: 0 },
+  includeRaw: false
+});
+```
+
+Query response:
+
+- `status`: `ok`
+- `query`: normalized filters/sort/page contract
+- `page`: `limit`, `offset`, `returned`, `total`, `hasMore`
+- `items[]`: normalized span/event records
+- `stats`: `scannedRecords`, `matchedRecords`, `elapsedMs`
+
+## Aggregate contract
+
+```javascript
+const agg = ASTX.Telemetry.aggregate({
+  filters: {
+    modules: ['ai'],
+    types: ['span']
+  },
+  groupBy: ['module', 'name']
+});
+```
+
+Aggregate response includes grouped metrics:
+
+- `count`, `spanCount`, `eventCount`
+- `errorCount`, `errorRate`
+- `latencyMs`: `p50`, `p95`, `avg`, `min`, `max`
+
+## Export contract
+
+```javascript
+const exported = ASTX.Telemetry.export({
+  format: 'ndjson', // json | ndjson | csv
+  query: {
+    filters: { modules: ['jobs'] },
+    page: { limit: 5000, offset: 0 }
+  },
+  destination: {
+    storageUri: 'gcs://my-bucket/telemetry/export.ndjson',
+    overwrite: true
+  }
+});
+```
+
+`export(...)` returns metadata (`format`, `mimeType`, `count`, `bytes`, `destination`) and optional inline payload via `data` when `includeData=true` or no destination is provided.
 
 Manual flush example:
 

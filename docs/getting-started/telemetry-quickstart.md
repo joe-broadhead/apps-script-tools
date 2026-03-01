@@ -60,3 +60,4 @@ function telemetryWithSpanExample() {
 - Sensitive keys are redacted automatically in span/event context.
 - Choose `drive_json` or `storage_json` sinks for durable production traces.
 - Call `ASTX.Telemetry.flush()` when using buffered/manual flush modes.
+- Use `ASTX.Telemetry.query(...)` and `ASTX.Telemetry.aggregate(...)` for in-memory diagnostics and lightweight dashboards.

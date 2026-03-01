@@ -93,6 +93,10 @@
   - added config keys: `MESSAGING_SLACK_WEBHOOK_URL`, `MESSAGING_SLACK_BOT_TOKEN`, `MESSAGING_SLACK_CHANNEL`, `MESSAGING_SLACK_API_BASE_URL`, `MESSAGING_TEAMS_WEBHOOK_URL`
   - chat read operations remain constrained to `chat_api` transport
   - local test coverage for Slack/Teams send paths, validation contracts, and capability discovery
+- Telemetry query analytics APIs:
+  - new methods: `AST.Telemetry.query(...)`, `AST.Telemetry.aggregate(...)`, `AST.Telemetry.export(...)`
+  - grouped latency/error metrics (`count`, `errorRate`, `p50`, `p95`, `avg`, `min`, `max`)
+  - export formats: `json`, `ndjson`, `csv` (inline, Drive, or Storage destinations)
 
 ### Changed
 

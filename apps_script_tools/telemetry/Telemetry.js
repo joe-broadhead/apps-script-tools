@@ -30,6 +30,18 @@ function astTelemetryApiFlush(options = {}) {
   return astTelemetryFlush(options);
 }
 
+function astTelemetryApiQuery(request = {}) {
+  return astTelemetryQuery(request);
+}
+
+function astTelemetryApiAggregate(request = {}) {
+  return astTelemetryAggregate(request);
+}
+
+function astTelemetryApiExport(request = {}) {
+  return astTelemetryExport(request);
+}
+
 function astTelemetryApiReset() {
   astTelemetryResetStore();
 }
@@ -43,5 +55,8 @@ const AST_TELEMETRY = Object.freeze({
   recordEvent: astTelemetryApiRecordEvent,
   getTrace: astTelemetryApiGetTrace,
   flush: astTelemetryApiFlush,
+  query: astTelemetryApiQuery,
+  aggregate: astTelemetryApiAggregate,
+  export: astTelemetryApiExport,
   _reset: astTelemetryApiReset
 });
