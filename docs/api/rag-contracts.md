@@ -298,6 +298,7 @@ Behavior:
 - Reuses existing source chunks without extraction when source revision fingerprint is unchanged.
 - Persists `sync.incrementalJournal` metadata on index documents for deterministic future skip checks.
 - Returns `journalSkippedSources` in sync results/summary.
+- `syncIndex(...)` remains conservative by default (`options.useFingerprintJournal=false`); enable it explicitly when desired.
 
 ## `answerStream(request)`
 

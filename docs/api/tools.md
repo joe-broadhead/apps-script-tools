@@ -986,6 +986,7 @@ High-signal behavior:
 - `answer(...)` supports retrieval-timeout behavior via `options.onRetrievalTimeout` (`error`, `insufficient_context`, `fallback`).
 - `answer(...)` prompt controls include `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
 - `answerStream(...)` requires `onEvent` callback and emits a final `metadata` frame with citations/retrieval/usage payload.
+- `syncIndex(...)` defaults `options.useFingerprintJournal=false` (content-verified sync path).
 - `incrementalSync(...)` defaults `options.useFingerprintJournal=true` and reports `journalSkippedSources`.
 - `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
 - `answer(...)` can return stable `diagnostics` for retrieval/generation phase timing + pipeline path when `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).

@@ -277,7 +277,7 @@ function astRagNormalizeBuildOptions(options = {}) {
 function astRagNormalizeSyncOptions(options = {}) {
   const normalized = astRagNormalizeBuildOptions(options);
   normalized.dryRun = astRagNormalizeBoolean(options.dryRun, AST_RAG_DEFAULT_OPTIONS.dryRun);
-  normalized.useFingerprintJournal = astRagNormalizeBoolean(options.useFingerprintJournal, true);
+  normalized.useFingerprintJournal = astRagNormalizeBoolean(options.useFingerprintJournal, false);
   return normalized;
 }
 
