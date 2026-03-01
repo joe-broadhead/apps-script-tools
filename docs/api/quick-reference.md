@@ -411,6 +411,9 @@ ASTX.Telemetry.endSpan(spanId, result)
 ASTX.Telemetry.recordEvent(event)
 ASTX.Telemetry.getTrace(traceId)
 ASTX.Telemetry.flush(options)
+ASTX.Telemetry.query(request)
+ASTX.Telemetry.aggregate(request)
+ASTX.Telemetry.export(request)
 ```
 
 ## `TelemetryHelpers` essentials
