@@ -723,13 +723,13 @@ const history = store.buildHistory(user, {
 
 ## `ASTX.Messaging`
 
-Google Email + Google Chat automation with tracking, dry-run planning, idempotency, and durable delivery logs.
+Google Email + Google Chat/Slack/Teams automation with tracking, dry-run planning, idempotency, and durable delivery logs.
 
 Primary methods:
 
 - `ASTX.Messaging.run(request)` for operation-routed execution.
 - `ASTX.Messaging.email.*` for send, draft, search, thread/message, and label-update flows.
-- `ASTX.Messaging.chat.*` for webhook/API send and Chat API message reads.
+- `ASTX.Messaging.chat.*` for Google Chat, Slack, and Teams sends plus Google Chat API message reads.
 - `ASTX.Messaging.tracking.*` for pixel URL generation, link wrapping, event recording, and web event handling.
 - `ASTX.Messaging.logs.*` for delivery/event log list/get/delete flows.
 - `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
@@ -738,7 +738,7 @@ Primary methods:
 High-signal behavior:
 
 - email transport is GmailApp-first.
-- chat transport supports incoming webhook and Chat API.
+- chat transport supports `chat_webhook`, `chat_api`, `slack_webhook`, `slack_api`, and `teams_webhook`.
 - tracking open/click instrumentation is opt-in.
 - mutation operations support `options.dryRun=true` and return `dryRun.plannedRequest`.
 - mutation sends support idempotent replay for retry-safe workflows.

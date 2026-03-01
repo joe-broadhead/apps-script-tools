@@ -88,6 +88,11 @@
   - webhook secret config key: `GITHUB_WEBHOOK_SECRET`
   - app/webhook operation groups in `AST.GitHub.operations()` and `capabilities(...)`
   - local + GAS contract coverage for app auth dry-run, token exchange path, and signature verification
+- Messaging chat transport expansion:
+  - new transports: `slack_webhook`, `slack_api`, and `teams_webhook`
+  - added config keys: `MESSAGING_SLACK_WEBHOOK_URL`, `MESSAGING_SLACK_BOT_TOKEN`, `MESSAGING_SLACK_CHANNEL`, `MESSAGING_SLACK_API_BASE_URL`, `MESSAGING_TEAMS_WEBHOOK_URL`
+  - chat read operations remain constrained to `chat_api` transport
+  - local test coverage for Slack/Teams send paths, validation contracts, and capability discovery
 
 ### Changed
 

@@ -5,6 +5,11 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_CHAT_WEBHOOK_URL',
   'MESSAGING_CHAT_SPACE',
   'MESSAGING_CHAT_API_BASE_URL',
+  'MESSAGING_SLACK_WEBHOOK_URL',
+  'MESSAGING_SLACK_BOT_TOKEN',
+  'MESSAGING_SLACK_CHANNEL',
+  'MESSAGING_SLACK_API_BASE_URL',
+  'MESSAGING_TEAMS_WEBHOOK_URL',
   'MESSAGING_TIMEOUT_MS',
   'MESSAGING_RETRIES',
   'MESSAGING_TRACKING_ENABLED',
@@ -37,7 +42,12 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
   chat: Object.freeze({
     webhookUrl: '',
     space: '',
-    apiBaseUrl: 'https://chat.googleapis.com/v1'
+    apiBaseUrl: 'https://chat.googleapis.com/v1',
+    slackWebhookUrl: '',
+    slackBotToken: '',
+    slackChannel: '',
+    slackApiBaseUrl: 'https://slack.com/api',
+    teamsWebhookUrl: ''
   }),
   tracking: Object.freeze({
     enabled: false,
@@ -280,7 +290,12 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
 
   const chat = {
     webhookUrl: astMessagingResolveFirstString(
-      [normalizedRequest.auth && normalizedRequest.auth.chatWebhookUrl, runtimeConfig.MESSAGING_CHAT_WEBHOOK_URL, scriptConfig.MESSAGING_CHAT_WEBHOOK_URL],
+      [
+        normalizedRequest.auth && normalizedRequest.auth.chatWebhookUrl,
+        normalizedRequest.auth && normalizedRequest.auth.webhookUrl,
+        runtimeConfig.MESSAGING_CHAT_WEBHOOK_URL,
+        scriptConfig.MESSAGING_CHAT_WEBHOOK_URL
+      ],
       AST_MESSAGING_DEFAULTS.chat.webhookUrl
     ),
     space: astMessagingResolveFirstString(
@@ -290,6 +305,41 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     apiBaseUrl: astMessagingResolveFirstString(
       [runtimeConfig.MESSAGING_CHAT_API_BASE_URL, scriptConfig.MESSAGING_CHAT_API_BASE_URL],
       AST_MESSAGING_DEFAULTS.chat.apiBaseUrl
+    ),
+    slackWebhookUrl: astMessagingResolveFirstString(
+      [
+        normalizedRequest.auth && normalizedRequest.auth.slackWebhookUrl,
+        normalizedRequest.auth && normalizedRequest.auth.slack_webhook_url,
+        runtimeConfig.MESSAGING_SLACK_WEBHOOK_URL,
+        scriptConfig.MESSAGING_SLACK_WEBHOOK_URL
+      ],
+      AST_MESSAGING_DEFAULTS.chat.slackWebhookUrl
+    ),
+    slackBotToken: astMessagingResolveFirstString(
+      [
+        normalizedRequest.auth && normalizedRequest.auth.slackBotToken,
+        normalizedRequest.auth && normalizedRequest.auth.slack_bot_token,
+        runtimeConfig.MESSAGING_SLACK_BOT_TOKEN,
+        scriptConfig.MESSAGING_SLACK_BOT_TOKEN
+      ],
+      AST_MESSAGING_DEFAULTS.chat.slackBotToken
+    ),
+    slackChannel: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_SLACK_CHANNEL, scriptConfig.MESSAGING_SLACK_CHANNEL],
+      AST_MESSAGING_DEFAULTS.chat.slackChannel
+    ),
+    slackApiBaseUrl: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_SLACK_API_BASE_URL, scriptConfig.MESSAGING_SLACK_API_BASE_URL],
+      AST_MESSAGING_DEFAULTS.chat.slackApiBaseUrl
+    ),
+    teamsWebhookUrl: astMessagingResolveFirstString(
+      [
+        normalizedRequest.auth && normalizedRequest.auth.teamsWebhookUrl,
+        normalizedRequest.auth && normalizedRequest.auth.teams_webhook_url,
+        runtimeConfig.MESSAGING_TEAMS_WEBHOOK_URL,
+        scriptConfig.MESSAGING_TEAMS_WEBHOOK_URL
+      ],
+      AST_MESSAGING_DEFAULTS.chat.teamsWebhookUrl
     )
   };
 

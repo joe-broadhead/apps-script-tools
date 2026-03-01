@@ -99,6 +99,35 @@ function astMessagingNormalizeOptions(options = {}) {
   };
 }
 
+function astMessagingNormalizeChatTransport(value, fallback = null) {
+  const normalized = astMessagingValidateNormalizeString(value, null);
+  if (!normalized) {
+    return fallback;
+  }
+
+  const lowered = normalized.toLowerCase();
+  if (['webhook', 'chat_webhook'].includes(lowered)) {
+    return 'chat_webhook';
+  }
+  if (['chat_api', 'api'].includes(lowered)) {
+    return 'chat_api';
+  }
+  if (['slack', 'slack_webhook'].includes(lowered)) {
+    return 'slack_webhook';
+  }
+  if (['slack_api'].includes(lowered)) {
+    return 'slack_api';
+  }
+  if (['teams', 'msteams', 'teams_webhook'].includes(lowered)) {
+    return 'teams_webhook';
+  }
+
+  throw new AstMessagingValidationError('Unsupported chat transport', {
+    field: 'body.transport',
+    transport: normalized
+  });
+}
+
 function astMessagingEnsureField(condition, field, details = {}) {
   if (!condition) {
     throw new AstMessagingValidationError(`Missing required messaging request field '${field}'`, Object.assign({ field }, details));
@@ -138,16 +167,14 @@ function astMessagingValidateEmailPayload(operation, body) {
   }
 }
 
-function astMessagingValidateChatPayload(operation, body) {
-  const transport = astMessagingValidateNormalizeString(body.transport, null);
+function astMessagingValidateChatPayload(normalized) {
+  const operation = normalized.operation;
+  const body = normalized.body || {};
+  const transport = astMessagingNormalizeChatTransport(body.transport, null);
 
   if (operation === 'chat_send') {
     const hasMessage = astMessagingValidateIsPlainObject(body.message) || typeof body.message === 'string';
     astMessagingEnsureField(hasMessage, 'body.message');
-
-    if (transport === 'webhook') {
-      astMessagingEnsureField(Boolean(astMessagingValidateNormalizeString(body.webhookUrl, null)), 'body.webhookUrl');
-    }
 
     if (transport === 'chat_api') {
       astMessagingEnsureField(Boolean(astMessagingValidateNormalizeString(body.space, null)), 'body.space');
@@ -155,15 +182,28 @@ function astMessagingValidateChatPayload(operation, body) {
   }
 
   if (operation === 'chat_send_batch') {
+    astMessagingNormalizeChatTransport(body.transport, null);
     const messages = Array.isArray(body.messages) ? body.messages : [];
     astMessagingEnsureField(messages.length > 0, 'body.messages');
   }
 
   if (operation === 'chat_get_message') {
+    if (transport && transport !== 'chat_api') {
+      throw new AstMessagingValidationError('chat_get_message supports only chat_api transport', {
+        field: 'body.transport',
+        transport
+      });
+    }
     astMessagingEnsureField(Boolean(astMessagingValidateNormalizeString(body.messageName, null)), 'body.messageName');
   }
 
   if (operation === 'chat_list_messages') {
+    if (transport && transport !== 'chat_api') {
+      throw new AstMessagingValidationError('chat_list_messages supports only chat_api transport', {
+        field: 'body.transport',
+        transport
+      });
+    }
     astMessagingEnsureField(Boolean(astMessagingValidateNormalizeString(body.space, null)), 'body.space');
   }
 }
@@ -195,7 +235,7 @@ function astMessagingValidateByOperation(normalized) {
   }
 
   if (normalized.channel === 'chat') {
-    astMessagingValidateChatPayload(normalized.operation, normalized.body);
+    astMessagingValidateChatPayload(normalized);
     return;
   }
 

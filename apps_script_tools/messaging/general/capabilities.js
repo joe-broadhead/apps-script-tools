@@ -10,8 +10,8 @@ const AST_MESSAGING_OPERATION_SPECS = Object.freeze({
   email_list_labels: Object.freeze({ group: 'email', channel: 'email', mutation: false, read: true, transport: ['gmailapp'] }),
   email_update_message_labels: Object.freeze({ group: 'email', channel: 'email', mutation: true, read: false, transport: ['gmailapp'], dryRun: true }),
 
-  chat_send: Object.freeze({ group: 'chat', channel: 'chat', mutation: true, read: false, transport: ['chat_webhook', 'chat_api'], dryRun: true }),
-  chat_send_batch: Object.freeze({ group: 'chat', channel: 'chat', mutation: true, read: false, transport: ['chat_webhook', 'chat_api'], dryRun: true }),
+  chat_send: Object.freeze({ group: 'chat', channel: 'chat', mutation: true, read: false, transport: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'], dryRun: true }),
+  chat_send_batch: Object.freeze({ group: 'chat', channel: 'chat', mutation: true, read: false, transport: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'], dryRun: true }),
   chat_get_message: Object.freeze({ group: 'chat', channel: 'chat', mutation: false, read: true, transport: ['chat_api'] }),
   chat_list_messages: Object.freeze({ group: 'chat', channel: 'chat', mutation: false, read: true, transport: ['chat_api'] }),
 
@@ -91,7 +91,7 @@ function astMessagingGetCapabilities(operationOrGroup) {
       groups: Object.keys(AST_MESSAGING_OPERATION_GROUPS).sort(),
       transports: {
         email: ['gmailapp'],
-        chat: ['chat_webhook', 'chat_api']
+        chat: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook']
       },
       dryRun: true,
       asyncJobs: true,

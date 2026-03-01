@@ -44,3 +44,58 @@ test('validation enforces required chat transport payload', () => {
     /body.space/
   );
 });
+
+test('validation accepts webhook transports without explicit request webhook URL', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  const slack = context.astMessagingValidateRequest({
+    operation: 'chat_send',
+    body: {
+      transport: 'slack_webhook',
+      message: { text: 'hello' }
+    }
+  });
+  assert.equal(slack.operation, 'chat_send');
+
+  const teams = context.astMessagingValidateRequest({
+    operation: 'chat_send',
+    body: {
+      transport: 'teams_webhook',
+      message: { text: 'hello' }
+    }
+  });
+  assert.equal(teams.operation, 'chat_send');
+});
+
+test('validation rejects unsupported chat transport aliases', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'chat_send',
+      body: {
+        transport: 'discord_webhook',
+        message: { text: 'hello' }
+      }
+    }),
+    /Unsupported chat transport/
+  );
+});
+
+test('validation rejects non-chat_api transport for chat read operations', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'chat_get_message',
+      body: {
+        transport: 'slack_webhook',
+        messageName: 'spaces/abc/messages/1'
+      }
+    }),
+    /only chat_api transport/
+  );
+});

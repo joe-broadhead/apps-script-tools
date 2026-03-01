@@ -1,23 +1,35 @@
 function astMessagingResolveChatTransport(normalizedRequest = {}, resolvedConfig = {}) {
-  const requestTransport = astMessagingValidateNormalizeString(
+  const requestTransportRaw = astMessagingValidateNormalizeString(
     normalizedRequest.providerOptions && normalizedRequest.providerOptions.transport,
     null
   ) || astMessagingValidateNormalizeString(normalizedRequest.body && normalizedRequest.body.transport, null);
+  const requestTransport = astMessagingNormalizeChatTransport(requestTransportRaw, null);
 
-  if (requestTransport) {
-    const lowered = requestTransport.toLowerCase();
-    if (['webhook', 'chat_webhook'].includes(lowered)) {
-      return 'chat_webhook';
+  if (normalizedRequest.operation === 'chat_get_message' || normalizedRequest.operation === 'chat_list_messages') {
+    if (requestTransport && requestTransport !== 'chat_api') {
+      throw new AstMessagingCapabilityError('Chat read operations support only chat_api transport', {
+        operation: normalizedRequest.operation,
+        transport: requestTransport
+      });
     }
-    if (['chat_api', 'api'].includes(lowered)) {
-      return 'chat_api';
-    }
-    throw new AstMessagingValidationError('Unsupported chat transport', { transport: requestTransport });
+    return 'chat_api';
   }
 
-  const configuredWebhook = resolvedConfig.chat && resolvedConfig.chat.webhookUrl;
-  if (configuredWebhook) {
+  if (requestTransport) {
+    return requestTransport;
+  }
+
+  if (resolvedConfig.chat && resolvedConfig.chat.webhookUrl) {
     return 'chat_webhook';
+  }
+  if (resolvedConfig.chat && resolvedConfig.chat.slackWebhookUrl) {
+    return 'slack_webhook';
+  }
+  if (resolvedConfig.chat && resolvedConfig.chat.teamsWebhookUrl) {
+    return 'teams_webhook';
+  }
+  if (resolvedConfig.chat && resolvedConfig.chat.slackBotToken) {
+    return 'slack_api';
   }
 
   return 'chat_api';
@@ -27,22 +39,58 @@ function astMessagingRunChatOperation(normalizedRequest = {}, resolvedConfig = {
   const transport = astMessagingResolveChatTransport(normalizedRequest, resolvedConfig);
 
   if (normalizedRequest.operation === 'chat_send') {
-    return transport === 'chat_webhook'
-      ? astMessagingChatSendWebhook(normalizedRequest.body, normalizedRequest, resolvedConfig)
-      : astMessagingChatApiSend(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    if (transport === 'chat_webhook') {
+      return astMessagingChatSendWebhook(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'chat_api') {
+      return astMessagingChatApiSend(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'slack_webhook') {
+      return astMessagingSlackSendWebhook(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'slack_api') {
+      return astMessagingSlackSendApi(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'teams_webhook') {
+      return astMessagingTeamsSendWebhook(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
   }
 
   if (normalizedRequest.operation === 'chat_send_batch') {
-    return transport === 'chat_webhook'
-      ? astMessagingChatSendWebhookBatch(normalizedRequest.body, normalizedRequest, resolvedConfig)
-      : astMessagingChatApiSendBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    if (transport === 'chat_webhook') {
+      return astMessagingChatSendWebhookBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'chat_api') {
+      return astMessagingChatApiSendBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'slack_webhook') {
+      return astMessagingSlackSendWebhookBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'slack_api') {
+      return astMessagingSlackSendApiBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
+    if (transport === 'teams_webhook') {
+      return astMessagingTeamsSendWebhookBatch(normalizedRequest.body, normalizedRequest, resolvedConfig);
+    }
   }
 
   if (normalizedRequest.operation === 'chat_get_message') {
+    if (transport !== 'chat_api') {
+      throw new AstMessagingCapabilityError('chat_get_message supports only chat_api transport', {
+        operation: normalizedRequest.operation,
+        transport
+      });
+    }
     return astMessagingChatApiGetMessage(normalizedRequest.body, normalizedRequest, resolvedConfig);
   }
 
   if (normalizedRequest.operation === 'chat_list_messages') {
+    if (transport !== 'chat_api') {
+      throw new AstMessagingCapabilityError('chat_list_messages supports only chat_api transport', {
+        operation: normalizedRequest.operation,
+        transport
+      });
+    }
     return astMessagingChatApiListMessages(normalizedRequest.body, normalizedRequest, resolvedConfig);
   }
 

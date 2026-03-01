@@ -82,3 +82,38 @@ test('chat api send/get/list use bearer token and normalized payloads', () => {
     assert.equal(call.options.headers.Authorization, 'Bearer oauth-token-123');
   });
 });
+
+test('chat read operations stay on chat_api when non-chat transports are configured', () => {
+  const calls = [];
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token-xyz'
+    },
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({ name: 'spaces/abc/messages/1', messages: [] }),
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+  context.AST.Messaging.configure({
+    MESSAGING_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/XXX'
+  });
+
+  const got = context.AST.Messaging.chat.getMessage({
+    body: {
+      messageName: 'spaces/abc/messages/1'
+    }
+  });
+
+  assert.equal(got.status, 'ok');
+  assert.equal(got.transport, 'chat_api');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer oauth-token-xyz');
+});
