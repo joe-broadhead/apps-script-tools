@@ -123,6 +123,11 @@
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 - `AST.Cache` now includes batch primitives for high-throughput workloads: `getMany`, `setMany`, `fetchMany`, and `deleteMany` with per-item status/aggregate stats outputs.
 - `AST.Storage` now includes bulk prefix operations: `walk`, `copyPrefix`, `deletePrefix`, and `sync` (with `dryRun`, `maxObjects`, filter controls, and per-item progress/failure summaries).
+- `AST.Jobs` now includes orchestration helpers:
+  - `chain(request)` for sequential task plans
+  - `enqueueMany(request)` for bounded fan-out plans
+  - `mapReduce(request)` for bounded map + reduce plans
+  - helper responses include `orchestration` parent/child/stage status summaries
 
 ## v0.0.4 - 2026-02-25
 

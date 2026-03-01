@@ -26,6 +26,18 @@ function astJobsApiConfigure(config = {}, options = {}) {
   return astJobsSetRuntimeConfig(config, options);
 }
 
+function astJobsApiEnqueueMany(request = {}) {
+  return astJobsEnqueueMany(request);
+}
+
+function astJobsApiChain(request = {}) {
+  return astJobsChain(request);
+}
+
+function astJobsApiMapReduce(request = {}) {
+  return astJobsMapReduce(request);
+}
+
 function astJobsApiGetConfig() {
   return astJobsGetRuntimeConfig();
 }
@@ -41,6 +53,9 @@ const AST_JOBS = Object.freeze({
   status: astJobsApiStatus,
   list: astJobsApiList,
   cancel: astJobsApiCancel,
+  enqueueMany: astJobsApiEnqueueMany,
+  chain: astJobsApiChain,
+  mapReduce: astJobsApiMapReduce,
   configure: astJobsApiConfigure,
   getConfig: astJobsApiGetConfig,
   clearConfig: astJobsApiClearConfig
