@@ -114,3 +114,43 @@ test('GitHub config derives GHES GraphQL URL from REST /api/v3 base', () => {
   assert.equal(resolved.baseUrl, 'https://ghe.example.com/api/v3');
   assert.equal(resolved.graphqlUrl, 'https://ghe.example.com/api/graphql');
 });
+
+test('GitHub config allows webhook operations without token when webhook secret exists', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_WEBHOOK_SECRET: 'webhook-secret'
+    })
+  });
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'parse_webhook',
+    payload: '{"action":"opened"}',
+    headers: {
+      'x-github-event': 'issues'
+    }
+  });
+  const resolved = context.astGitHubResolveConfig(normalized);
+
+  assert.equal(resolved.token, null);
+  assert.equal(resolved.webhookSecret, 'webhook-secret');
+});
+
+test('GitHub config resolves secret:// values through AST.Secrets', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_TOKEN: 'secret://script/github-token'
+    }),
+    AST_SECRETS: {
+      resolveValue: reference => reference === 'secret://script/github-token'
+        ? 'resolved-token'
+        : null
+    }
+  });
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({ operation: 'get_me' });
+  const resolved = context.astGitHubResolveConfig(normalized);
+
+  assert.equal(resolved.token, 'resolved-token');
+});

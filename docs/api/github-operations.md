@@ -8,6 +8,15 @@ Use `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(groupOrOperation)` 
 
 - `get_me`
 
+### Auth
+
+- `auth_as_app`
+
+### Webhooks
+
+- `verify_webhook`
+- `parse_webhook`
+
 ### Repositories
 
 - `get_repository`
@@ -101,6 +110,19 @@ const ASTX = ASTLib.AST || ASTLib;
 // Explicit GraphQL helper
 const out = ASTX.GitHub.graphql({
   query: 'query { viewer { login } }'
+});
+```
+
+```javascript
+const ASTX = ASTLib.AST || ASTLib;
+
+// Verify GitHub webhook signature
+const verified = ASTX.GitHub.verifyWebhook({
+  payload: e.postData.contents,
+  headers: e.headers,
+  auth: {
+    webhookSecret: 'secret://script/github-webhook-secret'
+  }
 });
 ```
 

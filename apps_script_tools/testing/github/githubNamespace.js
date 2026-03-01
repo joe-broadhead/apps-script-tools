@@ -7,6 +7,9 @@ GITHUB_NAMESPACE_TESTS = [
       const requiredMethods = [
         'run',
         'graphql',
+        'authAsApp',
+        'verifyWebhook',
+        'parseWebhook',
         'getMe',
         'getRepository',
         'createRepository',
@@ -72,6 +75,7 @@ GITHUB_NAMESPACE_TESTS = [
       const operations = AST.GitHub.operations();
       t.ok(operations.indexOf('get_repository') !== -1, 'Missing get_repository operation');
       t.ok(operations.indexOf('graphql') !== -1, 'Missing graphql operation');
+      t.ok(operations.indexOf('auth_as_app') !== -1, 'Missing auth_as_app operation');
     })
   },
   {

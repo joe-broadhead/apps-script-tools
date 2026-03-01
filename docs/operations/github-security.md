@@ -3,14 +3,22 @@
 ## Authentication baseline
 
 - PAT (`GITHUB_TOKEN`) is the baseline for this release.
+- GitHub App auth is supported via `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PRIVATE_KEY`.
 - Do not hardcode PATs in source files.
 - Load secrets from Script Properties or CI secret managers.
 
 ## Token scope guidance
 
 - Use least-privilege PAT scopes for the operations you call.
+- Prefer GitHub App installation permissions for automation that does not require user-scoped PAT access.
 - Prefer separate tokens for read-only automation and write automation.
 - Rotate tokens regularly and invalidate leaked tokens immediately.
+
+## Webhook verification
+
+- Validate `X-Hub-Signature-256` before processing event payloads.
+- Configure `GITHUB_WEBHOOK_SECRET` (or pass `auth.webhookSecret`) and call `ASTX.GitHub.verifyWebhook(...)`.
+- Use `ASTX.GitHub.parseWebhook(...)` with `options.verifySignature=true` to parse + verify in one call.
 
 ## Dry-run for mutation safety
 
@@ -28,6 +36,7 @@
 ## Logging/redaction behavior
 
 - Authorization and token-like headers are redacted in typed errors.
+- Webhook secrets are never included in thrown error details.
 - Avoid logging full request/response payloads containing secrets.
 
 ## Retry and rate-limit behavior

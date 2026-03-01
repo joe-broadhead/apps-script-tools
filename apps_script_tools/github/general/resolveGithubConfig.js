@@ -1,9 +1,14 @@
 const AST_GITHUB_CONFIG_KEYS = Object.freeze([
   'GITHUB_TOKEN',
+  'GITHUB_TOKEN_TYPE',
   'GITHUB_API_BASE_URL',
   'GITHUB_GRAPHQL_URL',
   'GITHUB_OWNER',
   'GITHUB_REPO',
+  'GITHUB_APP_ID',
+  'GITHUB_APP_INSTALLATION_ID',
+  'GITHUB_APP_PRIVATE_KEY',
+  'GITHUB_WEBHOOK_SECRET',
   'GITHUB_TIMEOUT_MS',
   'GITHUB_RETRIES',
   'GITHUB_CACHE_ENABLED',
@@ -79,6 +84,44 @@ function astGitHubNormalizeConfigValue(value) {
   }
 
   return null;
+}
+
+function astGitHubResolveSecretValue(value, fieldName) {
+  const normalized = astGitHubResolveNormalizeString(value, null);
+  if (!normalized) {
+    return null;
+  }
+
+  if (!normalized.startsWith('secret://')) {
+    return normalized;
+  }
+
+  if (
+    typeof AST_SECRETS !== 'undefined' &&
+    AST_SECRETS &&
+    typeof AST_SECRETS.resolveValue === 'function'
+  ) {
+    const resolved = AST_SECRETS.resolveValue(normalized);
+    if (typeof resolved === 'string' || typeof resolved === 'number' || typeof resolved === 'boolean') {
+      return String(resolved);
+    }
+    throw new AstGitHubAuthError(`GitHub secret reference for '${fieldName}' resolved to non-string value`, {
+      field: fieldName
+    });
+  }
+
+  throw new AstGitHubAuthError(
+    `GitHub secret reference for '${fieldName}' requires AST.Secrets to be available`,
+    { field: fieldName }
+  );
+}
+
+function astGitHubResolvePrivateKeyValue(value) {
+  const resolved = astGitHubResolveSecretValue(value, 'appPrivateKey');
+  if (!resolved) {
+    return null;
+  }
+  return resolved.replace(/\\n/g, '\n');
 }
 
 function astGitHubGetRuntimeConfig() {
@@ -334,16 +377,86 @@ function astGitHubResolveConfig(request = {}) {
   const options = astGitHubResolveIsPlainObject(request.options) ? request.options : {};
   const providerOptions = astGitHubResolveIsPlainObject(request.providerOptions) ? request.providerOptions : {};
 
-  const token = astGitHubResolveStringCandidates([
+  const operation = astGitHubResolveStringCandidates([request.operation], '').toLowerCase();
+  const tokenOptionalOperations = {
+    auth_as_app: true,
+    verify_webhook: true,
+    parse_webhook: true
+  };
+
+  const tokenRaw = astGitHubResolveStringCandidates([
     auth.token,
     runtimeConfig.GITHUB_TOKEN,
     scriptConfig.GITHUB_TOKEN
   ], null);
+  const token = astGitHubResolveSecretValue(tokenRaw, 'token');
 
-  if (!token) {
+  const appIdRaw = astGitHubResolveStringCandidates([
+    auth.appId,
+    auth.app_id,
+    runtimeConfig.GITHUB_APP_ID,
+    scriptConfig.GITHUB_APP_ID
+  ], null);
+  const appInstallationIdRaw = astGitHubResolveStringCandidates([
+    auth.installationId,
+    auth.installation_id,
+    runtimeConfig.GITHUB_APP_INSTALLATION_ID,
+    scriptConfig.GITHUB_APP_INSTALLATION_ID
+  ], null);
+  const appPrivateKeyRaw = astGitHubResolveStringCandidates([
+    auth.privateKey,
+    auth.privateKeyPem,
+    auth.private_key,
+    runtimeConfig.GITHUB_APP_PRIVATE_KEY,
+    scriptConfig.GITHUB_APP_PRIVATE_KEY
+  ], null);
+  const webhookSecretRaw = astGitHubResolveStringCandidates([
+    auth.webhookSecret,
+    auth.webhook_secret,
+    runtimeConfig.GITHUB_WEBHOOK_SECRET,
+    scriptConfig.GITHUB_WEBHOOK_SECRET
+  ], null);
+
+  const appId = astGitHubResolveSecretValue(appIdRaw, 'appId');
+  const appInstallationId = astGitHubResolveSecretValue(appInstallationIdRaw, 'appInstallationId');
+  const appPrivateKey = astGitHubResolvePrivateKeyValue(appPrivateKeyRaw);
+  const webhookSecret = astGitHubResolveSecretValue(webhookSecretRaw, 'webhookSecret');
+
+  const hasAppCredentials = Boolean(appId && appInstallationId && appPrivateKey);
+  const tokenTypeRaw = astGitHubResolveStringCandidates([
+    auth.tokenType,
+    runtimeConfig.GITHUB_TOKEN_TYPE,
+    scriptConfig.GITHUB_TOKEN_TYPE
+  ], null);
+  const normalizedTokenType = astGitHubResolveNormalizeString(tokenTypeRaw, null)
+    ? astGitHubResolveNormalizeString(tokenTypeRaw, 'pat').toLowerCase()
+    : null;
+
+  if (normalizedTokenType && !['pat', 'github_app', 'app'].includes(normalizedTokenType)) {
+    throw new AstGitHubValidationError('Unsupported GitHub tokenType; expected pat or github_app', {
+      field: 'tokenType',
+      value: tokenTypeRaw
+    });
+  }
+
+  const tokenType = normalizedTokenType
+    ? normalizedTokenType
+    : (token ? 'pat' : (hasAppCredentials ? 'github_app' : 'pat'));
+  const wantsAppAuth = tokenType === 'github_app' || tokenType === 'app';
+  const tokenOptional = Object.prototype.hasOwnProperty.call(tokenOptionalOperations, operation);
+
+  if (!token && !hasAppCredentials && !tokenOptional) {
     throw new AstGitHubAuthError("Missing required GitHub configuration field 'token'", {
       field: 'token',
-      scriptKey: 'GITHUB_TOKEN'
+      scriptKey: 'GITHUB_TOKEN',
+      alsoAccepted: ['GITHUB_APP_ID', 'GITHUB_APP_INSTALLATION_ID', 'GITHUB_APP_PRIVATE_KEY']
+    });
+  }
+
+  if ((operation === 'auth_as_app' || wantsAppAuth) && !hasAppCredentials) {
+    throw new AstGitHubAuthError('Missing required GitHub App configuration fields', {
+      required: ['appId', 'appInstallationId', 'appPrivateKey'],
+      scriptKeys: ['GITHUB_APP_ID', 'GITHUB_APP_INSTALLATION_ID', 'GITHUB_APP_PRIVATE_KEY']
     });
   }
 
@@ -407,7 +520,11 @@ function astGitHubResolveConfig(request = {}) {
 
   return {
     token,
-    tokenType: astGitHubResolveStringCandidates([auth.tokenType], 'pat'),
+    tokenType: wantsAppAuth ? 'github_app' : tokenType,
+    appId,
+    appInstallationId,
+    appPrivateKey,
+    webhookSecret,
     baseUrl: baseUrl.replace(/\/+$/, ''),
     graphqlUrl,
     owner,

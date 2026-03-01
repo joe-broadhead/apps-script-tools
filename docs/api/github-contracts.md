@@ -11,6 +11,9 @@ const ASTX = ASTLib.AST || ASTLib;
 ```javascript
 ASTX.GitHub.run(request)
 ASTX.GitHub.graphql(request)
+ASTX.GitHub.authAsApp(request)
+ASTX.GitHub.verifyWebhook(request)
+ASTX.GitHub.parseWebhook(request)
 ASTX.GitHub.getMe(request)
 ASTX.GitHub.getRepository(request)
 ASTX.GitHub.createRepository(request)
@@ -69,7 +72,7 @@ ASTX.GitHub.clearConfig()
 
 ```javascript
 {
-  operation: 'get_me' | 'get_repository' | 'create_repository' | 'graphql' | ...,
+  operation: 'get_me' | 'get_repository' | 'create_repository' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
   owner: 'optional',
   repo: 'optional',
   issueNumber: 123,
@@ -81,14 +84,22 @@ ASTX.GitHub.clearConfig()
   ref: 'sha-or-ref',
   tag: 'v1.2.3',
   query: 'search query',
+  payload: '{"webhook":"payload"}' | { ... }, // webhook helpers
+  headers: { 'X-Hub-Signature-256': 'sha256=...' }, // webhook helpers
   body: { ...operation-specific payload... },
   auth: {
     token: 'ghp_...',
-    tokenType: 'pat'
+    tokenType: 'pat' | 'github_app',
+    appId: '12345',                 // GitHub App auth
+    installationId: '67890',        // GitHub App auth
+    privateKey: '-----BEGIN...',    // GitHub App auth (supports secret://...)
+    webhookSecret: '...'            // webhook verification (supports secret://...)
   },
   options: {
     dryRun: false,
     includeRaw: false,
+    verifySignature: false,   // parse_webhook only
+    forceRefreshToken: false, // auth_as_app and github_app token flow
     timeoutMs: 45000,
     retries: 2,
     page: 1,
@@ -186,6 +197,17 @@ ASTX.GitHub.clearConfig()
 1. Per-call `request.auth` and `request.options`.
 2. Runtime config via `ASTX.GitHub.configure(...)`.
 3. Script properties.
+
+Common script keys:
+
+- `GITHUB_TOKEN`
+- `GITHUB_TOKEN_TYPE` (`pat` | `github_app`)
+- `GITHUB_APP_ID`
+- `GITHUB_APP_INSTALLATION_ID`
+- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_WEBHOOK_SECRET`
+- `GITHUB_API_BASE_URL`
+- `GITHUB_GRAPHQL_URL`
 
 ## Typed errors
 

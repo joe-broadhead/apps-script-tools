@@ -18,6 +18,11 @@ function configureGitHubRuntime() {
 Supported script property keys:
 
 - `GITHUB_TOKEN`
+- `GITHUB_TOKEN_TYPE` (`pat` | `github_app`)
+- `GITHUB_APP_ID`
+- `GITHUB_APP_INSTALLATION_ID`
+- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_WEBHOOK_SECRET`
 - `GITHUB_API_BASE_URL` (optional, defaults to `https://api.github.com`)
 - `GITHUB_GRAPHQL_URL` (optional)
 - `GITHUB_OWNER` / `GITHUB_REPO` (optional defaults)
@@ -90,6 +95,46 @@ function githubGraphqlExample() {
   });
 
   Logger.log(JSON.stringify(out.data.data.repository, null, 2));
+}
+```
+
+## GitHub App installation token
+
+```javascript
+function githubAppTokenExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.GitHub.authAsApp({
+    auth: {
+      appId: PropertiesService.getScriptProperties().getProperty('GITHUB_APP_ID'),
+      installationId: PropertiesService.getScriptProperties().getProperty('GITHUB_APP_INSTALLATION_ID'),
+      privateKey: PropertiesService.getScriptProperties().getProperty('GITHUB_APP_PRIVATE_KEY')
+    }
+  });
+
+  Logger.log(out.data.expiresAt);
+}
+```
+
+## Webhook verification + parsing
+
+```javascript
+function doPost(e) {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const parsed = ASTX.GitHub.parseWebhook({
+    payload: e.postData.contents,
+    headers: e.headers,
+    options: {
+      verifySignature: true
+    },
+    auth: {
+      webhookSecret: PropertiesService.getScriptProperties().getProperty('GITHUB_WEBHOOK_SECRET')
+    }
+  });
+
+  Logger.log(`${parsed.data.event} ${parsed.data.action}`);
+  return ContentService.createTextOutput('ok');
 }
 ```
 

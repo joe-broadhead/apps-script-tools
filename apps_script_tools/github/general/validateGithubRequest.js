@@ -104,6 +104,27 @@ function astGitHubNormalizeOptionalInteger(value, field, min = 0) {
   return astGitHubNormalizeInteger(value, field, null, min);
 }
 
+function astGitHubReadHeaderIgnoreCase(headers, key) {
+  if (!astGitHubValidateIsPlainObject(headers)) {
+    return null;
+  }
+
+  const normalizedKey = astGitHubNormalizeString(key, '').toLowerCase();
+  if (!normalizedKey) {
+    return null;
+  }
+
+  const keys = Object.keys(headers);
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const current = keys[idx];
+    if (String(current).toLowerCase() === normalizedKey) {
+      return headers[current];
+    }
+  }
+
+  return null;
+}
+
 function astGitHubNormalizeOptions(options = {}) {
   if (!astGitHubValidateIsPlainObject(options)) {
     throw new AstGitHubValidationError('GitHub request options must be an object');
@@ -133,6 +154,8 @@ function astGitHubNormalizeOptions(options = {}) {
   return {
     dryRun: astGitHubNormalizeBoolean(options.dryRun, false),
     includeRaw: astGitHubNormalizeBoolean(options.includeRaw, false),
+    verifySignature: astGitHubNormalizeOptionalBoolean(options.verifySignature),
+    forceRefreshToken: astGitHubNormalizeOptionalBoolean(options.forceRefreshToken),
     timeoutMs,
     retries,
     page,
@@ -214,6 +237,27 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     throw new AstGitHubValidationError('GitHub providerOptions must be an object when provided');
   }
 
+  const headersInput = typeof request.headers === 'undefined'
+    ? (astGitHubValidateIsPlainObject(body.headers) ? body.headers : {})
+    : request.headers;
+  if (!astGitHubValidateIsPlainObject(headersInput)) {
+    throw new AstGitHubValidationError('GitHub request headers must be an object when provided');
+  }
+
+  let payload = typeof request.payload !== 'undefined'
+    ? request.payload
+    : (Object.prototype.hasOwnProperty.call(body, 'payload') ? body.payload : undefined);
+
+  if (typeof payload !== 'undefined' && typeof payload !== 'string' && !astGitHubValidateIsPlainObject(payload)) {
+    throw new AstGitHubValidationError('GitHub request payload must be a string or object when provided', {
+      field: 'payload'
+    });
+  }
+
+  if (astGitHubValidateIsPlainObject(payload)) {
+    payload = astGitHubCloneObject(payload);
+  }
+
   const options = astGitHubNormalizeOptions(request.options || {});
 
   astGitHubValidateSlugField(owner, 'owner');
@@ -237,6 +281,8 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     query,
     operationName,
     body: astGitHubCloneObject(body),
+    headers: astGitHubCloneObject(headersInput),
+    payload,
     auth: astGitHubCloneObject(auth),
     options,
     providerOptions: astGitHubCloneObject(providerOptions)
@@ -260,6 +306,44 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
 
     normalized.query = graphqlQuery;
     normalized.variables = astGitHubCloneObject(variables);
+  }
+
+  if (loweredOperation === 'verify_webhook') {
+    if (typeof normalized.payload === 'undefined') {
+      throw new AstGitHubValidationError("Missing required GitHub request field 'payload' for verify_webhook operation", {
+        field: 'payload'
+      });
+    }
+
+    const signatureHeader = astGitHubNormalizeString(
+      astGitHubReadHeaderIgnoreCase(normalized.headers, 'x-hub-signature-256'),
+      null
+    );
+    if (!signatureHeader) {
+      throw new AstGitHubValidationError("Missing required GitHub request header 'x-hub-signature-256' for verify_webhook operation", {
+        field: 'headers.x-hub-signature-256'
+      });
+    }
+  }
+
+  if (loweredOperation === 'parse_webhook') {
+    if (typeof normalized.payload === 'undefined') {
+      throw new AstGitHubValidationError("Missing required GitHub request field 'payload' for parse_webhook operation", {
+        field: 'payload'
+      });
+    }
+
+    if (normalized.options.verifySignature === true) {
+      const signatureHeader = astGitHubNormalizeString(
+        astGitHubReadHeaderIgnoreCase(normalized.headers, 'x-hub-signature-256'),
+        null
+      );
+      if (!signatureHeader) {
+        throw new AstGitHubValidationError("Missing required GitHub request header 'x-hub-signature-256' when options.verifySignature=true", {
+          field: 'headers.x-hub-signature-256'
+        });
+      }
+    }
   }
 
   return normalized;

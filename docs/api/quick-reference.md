@@ -471,6 +471,9 @@ store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You ar
 ```javascript
 ASTX.GitHub.run(request)
 ASTX.GitHub.graphql(request)
+ASTX.GitHub.authAsApp(request)
+ASTX.GitHub.verifyWebhook(request)
+ASTX.GitHub.parseWebhook(request)
 ASTX.GitHub.getMe(request)
 ASTX.GitHub.getRepository(request)
 ASTX.GitHub.createRepository(request)
@@ -590,3 +593,5 @@ ASTX.GitHub.clearConfig()
 - GitHub mutation operations support `options.dryRun=true` planning and skip network writes.
 - GitHub read operations support optional cache + ETag revalidation with stale-on-error fallback.
 - GitHub API auth defaults to PAT (`GITHUB_TOKEN`) unless overridden per request.
+- GitHub App auth is supported via `authAsApp(...)` or per-call `auth.tokenType='github_app'` with app credentials.
+- Webhook integrity helpers are available via `verifyWebhook(...)` and `parseWebhook(...)`.

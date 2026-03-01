@@ -11,6 +11,9 @@ test('AST exposes GitHub surface with all public helper methods', () => {
   const methods = [
     'run',
     'graphql',
+    'authAsApp',
+    'verifyWebhook',
+    'parseWebhook',
     'getMe',
     'getRepository',
     'createRepository',
@@ -107,4 +110,6 @@ test('GitHub providers and capabilities report expected support', () => {
   const defaultCaps = context.AST.GitHub.capabilities();
   assert.equal(Array.isArray(defaultCaps.operations), true);
   assert.equal(defaultCaps.operations.includes('graphql'), true);
+  assert.equal(defaultCaps.operations.includes('auth_as_app'), true);
+  assert.equal(defaultCaps.auth.githubApp, true);
 });
