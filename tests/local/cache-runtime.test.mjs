@@ -412,28 +412,31 @@ test('AST exposes Cache surface and backend helpers', () => {
     const setMany = context.AST.Cache.setMany([
       { key: 'k1', value: { id: 1 } },
       { key: 'k2', value: { id: 2 }, ttlSec: 60 },
-      { key: 'k3', value: { id: 3 }, options: { ttlSec: 60, tags: ['entry-tag'] } }
+      { key: 'k3', value: { id: 3 }, options: { ttlSec: 60, tags: ['entry-tag'] } },
+      { key: 'kNull', value: null }
     ], {
       ttlSec: 120,
       tags: ['batch-tag']
     });
 
     assert.equal(setMany.operation, 'set_many');
-    assert.equal(setMany.stats.set, 3);
-    assert.equal(setMany.items.length, 3);
+    assert.equal(setMany.stats.set, 4);
+    assert.equal(setMany.items.length, 4);
     assert.equal(setMany.items[0].status, 'set');
 
-    const getMany = context.AST.Cache.getMany(['k1', 'missing', 'k2']);
+    const getMany = context.AST.Cache.getMany(['k1', 'missing', 'k2', 'kNull']);
     assert.equal(getMany.operation, 'get_many');
-    assert.equal(getMany.stats.hits, 2);
+    assert.equal(getMany.stats.hits, 3);
     assert.equal(getMany.stats.misses, 1);
-    assert.equal(getMany.items.length, 3);
+    assert.equal(getMany.items.length, 4);
     assert.equal(getMany.items[0].status, 'hit');
     assert.equal(getMany.items[1].status, 'miss');
     assert.equal(
       JSON.stringify(getMany.items[2].value),
       JSON.stringify({ id: 2 })
     );
+    assert.equal(getMany.items[3].status, 'hit');
+    assert.equal(getMany.items[3].value, null);
 
     const resolverCalls = [];
     const fetchMany = context.AST.Cache.fetchMany(['k1', 'k4'], payload => {

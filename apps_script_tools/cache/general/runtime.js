@@ -666,16 +666,30 @@ function astCacheNormalizeBatchEntries(entries) {
   return normalized;
 }
 
-function astCacheGetValueWithContext(context, normalizedKey, keyHash) {
+function astCacheGetValueWithContext(context, normalizedKey, keyHash, includeMetadata = false) {
   const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
     ? keyHash
     : astCacheHashKey(normalizedKey);
   const entry = context.adapter.get(resolvedKeyHash);
   if (!entry) {
+    if (includeMetadata) {
+      return {
+        found: false,
+        value: null
+      };
+    }
     return null;
   }
 
-  return astCacheJsonClone(entry.value);
+  const value = astCacheJsonClone(entry.value);
+  if (includeMetadata) {
+    return {
+      found: true,
+      value
+    };
+  }
+
+  return value;
 }
 
 function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, operationOptions = {}) {
@@ -915,8 +929,8 @@ function astCacheGetManyValues(keys, options = {}) {
 
   for (let idx = 0; idx < normalizedItems.length; idx += 1) {
     const item = normalizedItems[idx];
-    const value = astCacheGetValueWithContext(context, item.normalizedKey, item.keyHash);
-    const isHit = value !== null;
+    const resolved = astCacheGetValueWithContext(context, item.normalizedKey, item.keyHash, true);
+    const isHit = resolved.found === true;
     if (isHit) {
       hits += 1;
     } else {
@@ -927,7 +941,7 @@ function astCacheGetManyValues(keys, options = {}) {
       key: item.key,
       keyHash: item.keyHash,
       status: isHit ? 'hit' : 'miss',
-      value
+      value: resolved.value
     });
   }
 
