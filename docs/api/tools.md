@@ -769,6 +769,8 @@ Primary methods:
 
 - `ASTX.GitHub.run(request)` for operation-routed REST execution.
 - `ASTX.GitHub.graphql(request)` for explicit GraphQL queries/mutations.
+- `ASTX.GitHub.authAsApp(request)` for GitHub App installation token exchange.
+- `ASTX.GitHub.verifyWebhook(request)` and `ASTX.GitHub.parseWebhook(request)` for webhook integrity + normalized event parsing.
 - Helper methods for repository, branch, commit, file, issue, pull request, release/tag, and search flows.
 - `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(...)` for runtime discovery.
 - `ASTX.GitHub.configure(config)` / `ASTX.GitHub.getConfig()` / `ASTX.GitHub.clearConfig()`.
@@ -780,6 +782,7 @@ High-signal behavior:
 - read operations can use cache + ETag revalidation when cache is enabled.
 - retries are bounded to transient statuses (`429`, `502`, `503`, `504`) and secondary-rate-limit `403`.
 - response includes normalized rate-limit metadata from GitHub headers.
+- supports `secret://...` auth values via `AST.Secrets.resolveValue(...)` when `AST.Secrets` is available.
 
 ```javascript
 const repo = ASTX.GitHub.getRepository({

@@ -10,6 +10,18 @@ function astGitHubGraphql(request = {}) {
   return astGitHubRunOperation('graphql', request);
 }
 
+function astGitHubAuthAsApp(request = {}) {
+  return astGitHubRunOperation('auth_as_app', request);
+}
+
+function astGitHubVerifyWebhook(request = {}) {
+  return astGitHubRunOperation('verify_webhook', request);
+}
+
+function astGitHubParseWebhook(request = {}) {
+  return astGitHubRunOperation('parse_webhook', request);
+}
+
 function astGitHubGetMe(request = {}) {
   return astGitHubRunOperation('get_me', request);
 }
@@ -221,6 +233,9 @@ function astGitHubClearConfig() {
 const AST_GITHUB = Object.freeze({
   run: astGitHubRun,
   graphql: astGitHubGraphql,
+  authAsApp: astGitHubAuthAsApp,
+  verifyWebhook: astGitHubVerifyWebhook,
+  parseWebhook: astGitHubParseWebhook,
   getMe: astGitHubGetMe,
   getRepository: astGitHubGetRepository,
   createRepository: astGitHubCreateRepository,

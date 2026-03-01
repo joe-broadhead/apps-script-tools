@@ -1,4 +1,6 @@
 const AST_GITHUB_OPERATION_GROUPS = Object.freeze({
+  auth: Object.freeze(['auth_as_app']),
+  webhooks: Object.freeze(['verify_webhook', 'parse_webhook']),
   identity: Object.freeze(['get_me']),
   repositories: Object.freeze(['get_repository', 'create_repository', 'fork_repository']),
   branches: Object.freeze(['list_branches', 'create_branch']),
@@ -44,7 +46,11 @@ function astGitHubGetCapabilities(operationOrGroup) {
       etag: true,
       auth: {
         pat: true,
-        githubApp: false
+        githubApp: true
+      },
+      webhooks: {
+        verify: true,
+        parse: true
       }
     };
   }

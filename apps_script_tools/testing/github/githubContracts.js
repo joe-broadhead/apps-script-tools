@@ -74,6 +74,70 @@ GITHUB_CONTRACT_TESTS = [
     }
   },
   {
+    description: 'AST.GitHub.authAsApp dryRun should plan token exchange without network call',
+    test: () => {
+      AST.GitHub.clearConfig();
+      AST.GitHub.configure({
+        GITHUB_APP_ID: '12345',
+        GITHUB_APP_INSTALLATION_ID: '67890',
+        GITHUB_APP_PRIVATE_KEY: 'test_private_key_placeholder'
+      });
+
+      const originalFetch = UrlFetchApp.fetch;
+      let fetchCalls = 0;
+      UrlFetchApp.fetch = () => {
+        fetchCalls += 1;
+        throw new Error('dryRun should not execute UrlFetchApp.fetch');
+      };
+
+      try {
+        const response = AST.GitHub.authAsApp({
+          options: {
+            dryRun: true
+          }
+        });
+        if (!response || !response.dryRun || response.dryRun.enabled !== true) {
+          throw new Error(`Expected authAsApp dryRun plan, got ${JSON.stringify(response)}`);
+        }
+        if (fetchCalls !== 0) {
+          throw new Error(`Expected 0 fetch calls, got ${fetchCalls}`);
+        }
+      } finally {
+        UrlFetchApp.fetch = originalFetch;
+        AST.GitHub.clearConfig();
+      }
+    }
+  },
+  {
+    description: 'AST.GitHub.verifyWebhook should validate HMAC signature',
+    test: () => {
+      AST.GitHub.clearConfig();
+      AST.GitHub.configure({
+        GITHUB_WEBHOOK_SECRET: 'test-webhook-secret'
+      });
+
+      const payload = JSON.stringify({ action: 'opened', repository: { full_name: 'octocat/hello-world' } });
+      const signature = Utilities.computeHmacSha256Signature(payload, 'test-webhook-secret');
+      const toHex = bytes => bytes.map(value => (value < 0 ? value + 256 : value).toString(16).padStart(2, '0')).join('');
+      const signatureHeader = `sha256=${toHex(signature)}`;
+
+      const response = AST.GitHub.verifyWebhook({
+        payload,
+        headers: {
+          'X-Hub-Signature-256': signatureHeader,
+          'X-GitHub-Event': 'issues',
+          'X-GitHub-Delivery': 'delivery-1'
+        }
+      });
+
+      if (!response || !response.data || response.data.valid !== true) {
+        throw new Error(`Expected verifyWebhook valid=true, got ${JSON.stringify(response)}`);
+      }
+
+      AST.GitHub.clearConfig();
+    }
+  },
+  {
     description: 'AST.GitHub.graphql should execute query and return data',
     test: () => {
       AST.GitHub.clearConfig();

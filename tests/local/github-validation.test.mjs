@@ -72,6 +72,35 @@ test('validate request enforces graphql query', () => {
   );
 });
 
+test('validate request enforces payload/signature for verify_webhook', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  assert.throws(
+    () => context.astGitHubValidateRequest({
+      operation: 'verify_webhook',
+      payload: '{"action":"opened"}',
+      headers: {}
+    }),
+    /x-hub-signature-256/
+  );
+});
+
+test('validate request allows parse_webhook without token fields', () => {
+  const context = createGasContext();
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'parse_webhook',
+    payload: '{"action":"opened"}',
+    headers: {
+      'x-github-event': 'issues'
+    }
+  });
+
+  assert.equal(normalized.operation, 'parse_webhook');
+});
+
 test('resolve config throws auth error when token is missing', () => {
   const context = createGasContext({
     PropertiesService: {

@@ -738,6 +738,18 @@ function astGitHubDispatchCustomOperation(request, config, spec) {
     return astGitHubExecutePullRequestStatus(request, config);
   }
 
+  if (spec.customExecutor === 'auth_as_app') {
+    return astGitHubExecuteAuthAsApp(request, config);
+  }
+
+  if (spec.customExecutor === 'verify_webhook') {
+    return astGitHubExecuteVerifyWebhook(request, config);
+  }
+
+  if (spec.customExecutor === 'parse_webhook') {
+    return astGitHubExecuteParseWebhook(request, config);
+  }
+
   throw new AstGitHubCapabilityError('Unsupported custom GitHub operation executor', {
     operation: request.operation,
     executor: spec.customExecutor
@@ -746,8 +758,9 @@ function astGitHubDispatchCustomOperation(request, config, spec) {
 
 function astRunGitHubRequest(request = {}) {
   const normalized = astGitHubValidateRequest(request);
-  const config = astGitHubResolveConfig(normalized);
-  const withDefaults = astGitHubApplyConfigDefaults(normalized, config);
+  const resolvedConfig = astGitHubResolveConfig(normalized);
+  const withDefaults = astGitHubApplyConfigDefaults(normalized, resolvedConfig);
+  const config = astGitHubEnsureAuthToken(resolvedConfig, withDefaults);
 
   if (withDefaults.operation === 'graphql') {
     return astGitHubRunGraphqlRequest(withDefaults, config);

@@ -82,6 +82,12 @@
   - `dryRun` planning mode for non-mutating validation
 - New docs:
   - `api/triggers-contracts.md`
+- GitHub App + webhook security additions:
+  - new helpers: `AST.GitHub.authAsApp(...)`, `AST.GitHub.verifyWebhook(...)`, `AST.GitHub.parseWebhook(...)`
+  - app credential config keys: `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY`
+  - webhook secret config key: `GITHUB_WEBHOOK_SECRET`
+  - app/webhook operation groups in `AST.GitHub.operations()` and `capabilities(...)`
+  - local + GAS contract coverage for app auth dry-run, token exchange path, and signature verification
 
 ### Changed
 
