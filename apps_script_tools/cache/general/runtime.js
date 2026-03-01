@@ -1071,23 +1071,54 @@ function astCacheFetchManyValues(keys, resolver, options = {}) {
 
   const context = astCacheBuildResolvedContext(options);
   const normalizedItems = astCacheNormalizeBatchKeys(keys);
+  const failFast = astCacheResolveConfigBoolean([
+    context.options.failFast,
+    context.options.fetchManyFailFast
+  ], false);
   const items = [];
   let hits = 0;
   let misses = 0;
   let staleHits = 0;
+  let errors = 0;
 
   for (let idx = 0; idx < normalizedItems.length; idx += 1) {
     const item = normalizedItems[idx];
-    const result = astCacheFetchValueWithContext(
-      context,
-      item.normalizedKey,
-      item.keyHash,
-      payload => resolver(Object.assign({}, payload, {
-        requestedKey: astCacheJsonClone(item.key),
-        index: idx,
-        total: normalizedItems.length
-      }))
-    );
+    let result = null;
+    try {
+      result = astCacheFetchValueWithContext(
+        context,
+        item.normalizedKey,
+        item.keyHash,
+        payload => resolver(Object.assign({}, payload, {
+          requestedKey: astCacheJsonClone(item.key),
+          index: idx,
+          total: normalizedItems.length
+        }))
+      );
+    } catch (error) {
+      if (failFast) {
+        throw error;
+      }
+
+      errors += 1;
+      items.push({
+        key: item.key,
+        keyHash: item.keyHash,
+        status: 'error',
+        cacheHit: false,
+        stale: false,
+        source: 'error',
+        refreshed: false,
+        coalesced: false,
+        waitMs: 0,
+        value: null,
+        error: {
+          name: astCacheNormalizeString(error && error.name, 'Error'),
+          message: astCacheNormalizeString(error && error.message, String(error || 'Unknown error'))
+        }
+      });
+      continue;
+    }
 
     if (result.cacheHit) {
       hits += 1;
@@ -1124,7 +1155,8 @@ function astCacheFetchManyValues(keys, resolver, options = {}) {
       processed: normalizedItems.length,
       hits,
       misses,
-      staleHits
+      staleHits,
+      errors
     }
   };
 }

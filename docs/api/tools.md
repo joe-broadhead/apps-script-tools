@@ -295,6 +295,15 @@ const batch = ASTX.Cache.getMany(['rag:query:abc', 'rag:query:def']);
 const refreshed = ASTX.Cache.fetchMany(['rag:query:def', 'rag:query:xyz'], payload => {
   return { chunks: [], key: payload.requestedKey };
 });
+
+// default: failFast=false (per-key errors returned in items with status='error')
+const resilient = ASTX.Cache.fetchMany(['a', 'b'], payload => {
+  if (payload.requestedKey === 'b') throw new Error('upstream failed');
+  return { ok: true };
+});
+
+// optional failFast=true for strict all-or-nothing semantics
+const strict = ASTX.Cache.fetchMany(['a', 'b'], resolverFn, { failFast: true });
 ```
 
 `storage_json` example:

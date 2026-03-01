@@ -526,6 +526,58 @@ test('cache batch APIs validate request contracts', () => {
   }, /resolver must be a function/);
 });
 
+test('cache fetchMany returns per-key error items when failFast is false', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_many_partial_errors'
+  });
+
+  context.AST.Cache.set('ok-hit', { id: 'hit' });
+
+  const resolverCalls = [];
+  const out = context.AST.Cache.fetchMany(['ok-hit', 'explode', 'fresh'], payload => {
+    resolverCalls.push(payload.requestedKey);
+    if (payload.requestedKey === 'explode') {
+      throw new Error('resolver exploded');
+    }
+    return { fromResolver: payload.requestedKey };
+  });
+
+  assert.equal(out.operation, 'fetch_many');
+  assert.equal(out.stats.hits, 1);
+  assert.equal(out.stats.misses, 1);
+  assert.equal(out.stats.errors, 1);
+  assert.equal(out.items.length, 3);
+  assert.equal(out.items[0].status, 'hit');
+  assert.equal(out.items[1].status, 'error');
+  assert.equal(out.items[1].error.message, 'resolver exploded');
+  assert.equal(out.items[2].status, 'miss');
+  assert.equal(JSON.stringify(resolverCalls), JSON.stringify(['explode', 'fresh']));
+});
+
+test('cache fetchMany failFast=true throws resolver errors', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_fetch_many_fail_fast'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.fetchMany(['explode'], () => {
+      throw new Error('boom');
+    }, {
+      failFast: true
+    });
+  }, /boom/);
+});
+
 test('memory backend supports set/get/delete/tag invalidation and stats', () => {
   const context = createGasContext();
   loadCacheScripts(context, { includeAst: true });
