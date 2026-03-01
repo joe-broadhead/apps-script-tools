@@ -7,6 +7,9 @@ function astRagPrepareSourceChunks(sourceDescriptor, extracted, chunking, source
       sourceId,
       fileId: sourceDescriptor.fileId,
       fileName: sourceDescriptor.fileName,
+      sourceKind: astRagNormalizeString(sourceDescriptor.sourceKind, 'drive'),
+      sourceUri: astRagNormalizeString(sourceDescriptor.uri, null),
+      provider: astRagNormalizeString(sourceDescriptor.provider, null),
       mimeType: sourceDescriptor.mimeType,
       page: chunk.page == null ? null : chunk.page,
       slide: chunk.slide == null ? null : chunk.slide,
@@ -78,20 +81,27 @@ function astRagBuildIndexCore(request = {}) {
   try {
     const normalizedRequest = astRagValidateBuildRequest(request);
 
-    const driveSources = astRagListDriveSources(normalizedRequest.source, {
+    const listSourcesFn = typeof astRagListSources === 'function'
+      ? astRagListSources
+      : (source, options) => astRagListDriveSources(source, options);
+    const readSourceFn = typeof astRagReadSourceText === 'function'
+      ? astRagReadSourceText
+      : astRagReadDriveSourceText;
+
+    const sources = listSourcesFn(normalizedRequest.source, {
       maxFiles: normalizedRequest.options.maxFiles
-    });
+    }, normalizedRequest.auth);
 
     const preparedSources = [];
     const chunks = [];
     const warnings = [];
 
-    for (let idx = 0; idx < driveSources.length; idx += 1) {
-      const sourceDescriptor = driveSources[idx];
+    for (let idx = 0; idx < sources.length; idx += 1) {
+      const sourceDescriptor = sources[idx];
       const sourceId = `src_${sourceDescriptor.fileId}`;
 
       try {
-        const extracted = astRagReadDriveSourceText(sourceDescriptor, normalizedRequest.auth, {
+        const extracted = readSourceFn(sourceDescriptor, normalizedRequest.auth, {
           retries: 2
         });
 
@@ -124,6 +134,9 @@ function astRagBuildIndexCore(request = {}) {
           sourceId,
           fileId: sourceDescriptor.fileId,
           fileName: sourceDescriptor.fileName,
+          sourceKind: astRagNormalizeString(sourceDescriptor.sourceKind, 'drive'),
+          sourceUri: astRagNormalizeString(sourceDescriptor.uri, null),
+          provider: astRagNormalizeString(sourceDescriptor.provider, null),
           mimeType: sourceDescriptor.mimeType,
           modifiedTime: sourceDescriptor.modifiedTime,
           fingerprint,
