@@ -17,6 +17,7 @@ ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
+ASTX.RAG.answerStream(request)
 ASTX.RAG.rerank(request)
 ASTX.RAG.rewriteQuery(request)
 ASTX.RAG.decomposeQuestion(request)
@@ -276,6 +277,29 @@ Notes:
   auth: {}
 }
 ```
+
+## `answerStream(request)`
+
+`answerStream` uses the same request contract as `answer(...)`, plus:
+
+```javascript
+{
+  ...answerRequest,
+  options: {
+    ...answerRequest.options,
+    streamChunkSize: 24 // optional positive integer, max 1024
+  },
+  onEvent: (event) => { ... } // required callback
+}
+```
+
+Event frames are deterministic:
+
+- `start`: emitted once before answer generation.
+- `token`: emitted per text chunk as `{ index, delta, text }`.
+- `metadata`: emitted once with final `{ status, citations, retrieval, usage, queryProvenance, diagnostics }`.
+- `done`: emitted once with `{ response }`.
+- `error`: emitted on failure with `{ error: { name, message } }`, and the method rethrows.
 
 ## `previewSources(request)`
 

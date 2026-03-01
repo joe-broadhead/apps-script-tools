@@ -951,6 +951,7 @@ Primary methods:
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
+- `ASTX.RAG.answerStream(...)` for deterministic stream frames (`start`, `token`, `metadata`, `done`, `error`) with final citation/usage metadata.
 - `ASTX.RAG.rerank(...)` for direct post-retrieval reranking over candidate chunks.
 - `ASTX.RAG.rewriteQuery(...)` and `ASTX.RAG.decomposeQuestion(...)` for deterministic query transformation planning.
 - `ASTX.RAG.evaluate(...)` for deterministic retrieval/grounding/end-to-end scorecards.
@@ -983,6 +984,7 @@ High-signal behavior:
 - `search(...)` and `answer(...)` support retrieval budgets via `options.maxRetrievalMs`.
 - `answer(...)` supports retrieval-timeout behavior via `options.onRetrievalTimeout` (`error`, `insufficient_context`, `fallback`).
 - `answer(...)` prompt controls include `generation.instructions`, `generation.style`, and `generation.forbiddenPhrases`.
+- `answerStream(...)` requires `onEvent` callback and emits a final `metadata` frame with citations/retrieval/usage payload.
 - `IndexManager.ensure(...)` can optionally fallback unsupported MIME requests to supported MIME sets with diagnostics.
 - `answer(...)` can return stable `diagnostics` for retrieval/generation phase timing + pipeline path when `options.diagnostics=true` (or `RAG_DIAGNOSTICS_ENABLED=true`).
 - diagnostics include cache backend/lock metadata and lock timing/contention (`cache.lockScope`, `timings.lockWaitMs`, `cache.lockContention`).
