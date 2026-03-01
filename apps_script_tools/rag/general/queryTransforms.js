@@ -124,13 +124,13 @@ function astRagBuildQueryTransformPlan(query, queryTransform = {}) {
     1
   );
 
-  const rewriteEnabled = transform.enabled === true || rewrite.enabled === true;
+  const rewriteEnabled = rewrite.enabled === true;
   const rewrittenQuery = rewriteEnabled
     ? astRagApplyRewritePolicy(originalQuery, rewrite)
     : originalQuery;
   const rewriteApplied = rewrittenQuery !== originalQuery;
 
-  const decomposeEnabled = transform.enabled === true || decompose.enabled === true;
+  const decomposeEnabled = decompose.enabled === true;
   const decompositionRaw = decomposeEnabled
     ? astRagDecomposeQueryByPolicy(rewrittenQuery, decompose)
     : [];

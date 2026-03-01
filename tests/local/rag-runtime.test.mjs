@@ -2309,6 +2309,71 @@ test('search applies query decomposition and returns query provenance', () => {
   assert.equal(output.results.some(item => item.chunkId === 'margin_chunk'), true);
 });
 
+test('search rewrite-only transform does not enable decomposition side-effects', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_rewrite_only',
+    indexName: 'rewrite-only-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'rewrite_chunk',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'rewrite.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Revenue margin trend improved after pricing update.',
+        embedding: [1, 0, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_rewrite_only',
+    fileName: 'rewrite-only.json',
+    document: indexDoc
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_rewrite_only',
+    query: 'Please tell me revenue and margin',
+    retrieval: {
+      mode: 'lexical',
+      topK: 3,
+      minScore: 0,
+      queryTransform: {
+        rewrite: {
+          enabled: true,
+          policy: 'keywords'
+        },
+        decompose: {
+          enabled: false,
+          includeOriginal: true
+        }
+      }
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(output.queryProvenance.rewriteApplied, true);
+  assert.equal(output.queryProvenance.decomposeApplied, false);
+  assert.equal(output.queryProvenance.retrievalQueries.length, 1);
+  assert.equal(output.queryProvenance.retrievalQueries[0], output.queryProvenance.rewrittenQuery);
+});
+
 test('search enforces retrieval access control allow/deny constraints', () => {
   const indexDoc = {
     schemaVersion: '1.0',
