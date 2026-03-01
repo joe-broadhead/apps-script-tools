@@ -117,3 +117,91 @@ test('chat read operations stay on chat_api when non-chat transports are configu
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer oauth-token-xyz');
 });
+
+test('chat send without explicit transport keeps chat_api intent when body.space is provided', () => {
+  const calls = [];
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token-abc'
+    },
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({ name: 'spaces/abc/messages/new' }),
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+  context.AST.Messaging.configure({
+    MESSAGING_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/XXX',
+    MESSAGING_TEAMS_WEBHOOK_URL: 'https://contoso.webhook.office.com/webhookb2/xxx'
+  });
+
+  const sent = context.AST.Messaging.chat.send({
+    body: {
+      space: 'spaces/abc',
+      message: { text: 'hello chat api' }
+    }
+  });
+
+  assert.equal(sent.status, 'ok');
+  assert.equal(sent.transport, 'chat_api');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url.includes('chat.googleapis.com/v1/spaces/abc/messages'), true);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer oauth-token-abc');
+});
+
+test('chat send without explicit transport infers slack_api from channel hint', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({ ok: true, ts: '1710000000.000001' }),
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+  context.AST.Messaging.configure({
+    MESSAGING_SLACK_BOT_TOKEN: 'xoxb-token-123'
+  });
+
+  const sent = context.AST.Messaging.chat.send({
+    body: {
+      channel: 'C123',
+      message: { text: 'hello slack api' }
+    }
+  });
+
+  assert.equal(sent.status, 'ok');
+  assert.equal(sent.transport, 'slack_api');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://slack.com/api/chat.postMessage');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer xoxb-token-123');
+});
+
+test('chat send without explicit transport rejects ambiguous provider hints', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.AST.Messaging.chat.send({
+      body: {
+        space: 'spaces/abc',
+        channel: 'C123',
+        message: { text: 'ambiguous payload' }
+      }
+    }),
+    /Ambiguous chat payload/
+  );
+});
