@@ -306,6 +306,9 @@ ASTX.AI.structured(request)
 ASTX.AI.tools(request)
 ASTX.AI.image(request)
 ASTX.AI.stream(request)
+ASTX.AI.estimateTokens(request)
+ASTX.AI.truncateMessages(request)
+ASTX.AI.renderPromptTemplate(request)
 ASTX.AI.providers()
 ASTX.AI.capabilities(provider)
 ASTX.AI.configure(config, options)
@@ -552,6 +555,9 @@ ASTX.GitHub.clearConfig()
 - unsupported AI provider/operation combinations throw typed capability errors.
 - `ASTX.AI.stream(...)` emits `start`, `token`, `tool_call`, `tool_result`, `done`, and `error` events via `onEvent`.
 - `ASTX.AI.OutputRepair.continueIfTruncated(...)` can continue truncated answers with bounded follow-up passes.
+- `ASTX.AI.estimateTokens(...)` provides deterministic heuristic budget estimates with documented approximation limits.
+- `ASTX.AI.truncateMessages(...)` supports `tail`, `head`, and `semantic_blocks` truncation strategies.
+- `ASTX.AI.renderPromptTemplate(...)` enforces strict placeholder validation by default (missing vars throw typed validation errors).
 - `RAG.answer(...)` supports retrieval recovery policy (`retrieval.recovery.*`) before generation.
 - `RAG.answer(...)` supports deterministic fallback controls (`fallback.onRetrievalError`, `fallback.onRetrievalEmpty`).
 - `RAG.search(...)` and `RAG.answer(...)` support retrieval budgets via `options.maxRetrievalMs`.

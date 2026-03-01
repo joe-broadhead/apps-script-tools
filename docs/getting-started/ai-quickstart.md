@@ -135,3 +135,47 @@ function aiImageExample() {
 - Use `ASTX.AI.capabilities(provider)` to check provider-level operation support.
 - Structured calls support deterministic reliability controls in `options.reliability`.
 - Set `options.includeRaw=true` when you need provider-native raw payloads for debugging.
+
+## 6) Token budgeting + prompt templates
+
+```javascript
+function aiBudgetedChatExample() {
+  const rendered = ASTX.AI.renderPromptTemplate({
+    template: 'Summarize {{topic}} for {{audience}}.',
+    variables: {
+      topic: 'release changes',
+      audience: 'engineering leadership'
+    }
+  });
+
+  const estimate = ASTX.AI.estimateTokens({
+    provider: 'vertex_gemini',
+    input: rendered.text,
+    options: {
+      maxOutputTokens: 700,
+      maxTotalTokens: 2000
+    }
+  });
+
+  if (estimate.budget.exceedsBudget) {
+    throw new Error('Prompt exceeds token budget');
+  }
+
+  const truncated = ASTX.AI.truncateMessages({
+    provider: 'vertex_gemini',
+    messages: [
+      { role: 'system', content: 'Ground responses in provided context.' },
+      { role: 'user', content: rendered.text }
+    ],
+    maxInputTokens: 1200,
+    strategy: 'tail'
+  });
+
+  const response = ASTX.AI.text({
+    provider: 'vertex_gemini',
+    input: truncated.messages
+  });
+
+  Logger.log(response.output.text);
+}
+```

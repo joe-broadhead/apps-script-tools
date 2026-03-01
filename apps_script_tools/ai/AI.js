@@ -24,6 +24,18 @@ function astAiStream(request = {}) {
   }));
 }
 
+function astAiEstimateTokensApi(request = {}) {
+  return astAiEstimateTokens(request);
+}
+
+function astAiTruncateMessagesApi(request = {}) {
+  return astAiTruncateMessages(request);
+}
+
+function astAiRenderPromptTemplateApi(request = {}) {
+  return astAiRenderPromptTemplate(request);
+}
+
 function astAiProviders() {
   return AST_AI_PROVIDERS.slice();
 }
@@ -73,6 +85,9 @@ const AST_AI = Object.freeze({
   tools: astAiTools,
   image: astAiImage,
   stream: astAiStream,
+  estimateTokens: astAiEstimateTokensApi,
+  truncateMessages: astAiTruncateMessagesApi,
+  renderPromptTemplate: astAiRenderPromptTemplateApi,
   providers: astAiProviders,
   capabilities: astAiCapabilities,
   configure: astAiConfigure,
