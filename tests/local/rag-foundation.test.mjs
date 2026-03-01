@@ -573,6 +573,37 @@ test('RAG rewrite/decompose helper metadata does not report enabled for policy n
   assert.equal(decomposed.decompose.enabled, false);
 });
 
+test('RAG helper metadata respects explicit sub-transform disable even when top-level transform is enabled', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        enabled: false,
+        policy: 'keywords'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, false);
+  assert.equal(rewritten.rewriteApplied, false);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        enabled: false,
+        policy: 'clauses'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, false);
+  assert.equal(decomposed.provenance.decomposeApplied, false);
+});
+
 test('RAG rewrite/decompose helpers validate policy inputs', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });

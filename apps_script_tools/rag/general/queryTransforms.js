@@ -183,16 +183,9 @@ function astRagRewriteQueryCore(request = {}) {
   const plan = astRagBuildQueryTransformPlan(normalized.query, normalized.queryTransform);
   const rewriteEnabled = Boolean(
     normalized.queryTransform
-    && (
-      (
-        normalized.queryTransform.enabled === true
-        && plan.rewritePolicy !== 'none'
-      )
-      || (
-        normalized.queryTransform.rewrite
-        && normalized.queryTransform.rewrite.enabled === true
-      )
-    )
+    && normalized.queryTransform.rewrite
+    && normalized.queryTransform.rewrite.enabled === true
+    && plan.rewritePolicy !== 'none'
   );
 
   return {
@@ -213,16 +206,9 @@ function astRagDecomposeQuestionCore(request = {}) {
   const plan = astRagBuildQueryTransformPlan(normalized.question, normalized.queryTransform);
   const decomposeEnabled = Boolean(
     normalized.queryTransform
-    && (
-      (
-        normalized.queryTransform.enabled === true
-        && plan.decomposePolicy !== 'none'
-      )
-      || (
-        normalized.queryTransform.decompose
-        && normalized.queryTransform.decompose.enabled === true
-      )
-    )
+    && normalized.queryTransform.decompose
+    && normalized.queryTransform.decompose.enabled === true
+    && plan.decomposePolicy !== 'none'
   );
 
   return {
