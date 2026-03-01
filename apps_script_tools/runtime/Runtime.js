@@ -8,6 +8,7 @@ const AST_RUNTIME_MODULE_DEFINITIONS = Object.freeze([
   { name: 'Telemetry', globalName: 'AST_TELEMETRY' },
   { name: 'Jobs', globalName: 'AST_JOBS' },
   { name: 'Triggers', globalName: 'AST_TRIGGERS' },
+  { name: 'Messaging', globalName: 'AST_MESSAGING' },
   { name: 'GitHub', globalName: 'AST_GITHUB' }
 ]);
 
@@ -30,6 +31,8 @@ const AST_RUNTIME_MODULE_ALIAS_MAP = Object.freeze({
   ASTJOBS: 'Jobs',
   TRIGGERS: 'Triggers',
   ASTTRIGGERS: 'Triggers',
+  MESSAGING: 'Messaging',
+  ASTMESSAGING: 'Messaging',
   GITHUB: 'GitHub',
   ASTGITHUB: 'GitHub'
 });

@@ -4,6 +4,25 @@
 
 ### Added
 
+- New `AST.Messaging` namespace with:
+  - `run`, `operations`, `capabilities`
+  - `configure`, `getConfig`, `clearConfig`
+  - `email.*` send/draft/mailbox methods
+  - `chat.*` webhook/API send and read methods
+  - `tracking.*` pixel/link/event helper methods
+  - `logs.*` list/get/delete event logs
+- Messaging reliability/runtime features:
+  - mutation dry-run planning (`options.dryRun`)
+  - idempotent send replay protection
+  - bounded retry handling for transient provider failures
+  - optional async enqueue via `AST.Jobs`
+  - default durable log backend (`drive_json`) with backend overrides
+- New messaging docs:
+  - `getting-started/messaging-quickstart.md`
+  - `api/messaging-contracts.md`
+  - `api/messaging-email.md`
+  - `api/messaging-chat.md`
+  - `operations/messaging-security.md`
 - CI security workflows:
   - `Security - CodeQL` (`.github/workflows/security-codeql.yml`)
   - `Security - Dependency Review` (`.github/workflows/security-dependency-review.yml`)

@@ -112,6 +112,7 @@ nav:
     - RAG Quick Start: getting-started/rag-quickstart.md
     - Storage Quick Start: getting-started/storage-quickstart.md
     - GitHub Quick Start: getting-started/github-quickstart.md
+    - Messaging Quick Start: getting-started/messaging-quickstart.md
   - API:
     - Quick Reference: api/quick-reference.md
     - Tools: api/tools.md
@@ -121,6 +122,9 @@ nav:
     - SQL Contracts: api/sql-contracts.md
     - GitHub Contracts: api/github-contracts.md
     - GitHub Operations: api/github-operations.md
+    - Messaging Contracts: api/messaging-contracts.md
+    - Messaging Email API: api/messaging-email.md
+    - Messaging Chat API: api/messaging-chat.md
     - AI Contracts: api/ai-contracts.md
     - AI Providers: api/ai-providers.md
     - AI Tool Calling: api/ai-tool-calling.md
@@ -145,6 +149,7 @@ nav:
     - RAG Indexing: operations/rag-indexing.md
     - Storage Security: operations/storage-security.md
     - GitHub Security: operations/github-security.md
+    - Messaging Security: operations/messaging-security.md
     - Security: operations/security.md
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md

@@ -30,6 +30,7 @@
 - `AST.Jobs`: script-properties checkpointed multi-step job runner with retry/resume and status controls.
 - `AST.Triggers`: declarative time-based trigger upsert/list/delete with optional Jobs dispatch.
 - `AST.Chat`: durable user-scoped thread persistence and bounded history assembly.
+- `AST.Messaging`: Google Email + Chat sends with tracking, logs, and dry-run planning.
 - `AST.GitHub`: GitHub REST + GraphQL automation with typed errors, dry-run planning, and cache/ETag support.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
@@ -54,6 +55,7 @@ flowchart LR
     B --> T[AST.Jobs]
     B --> AC[AST.Triggers]
     B --> W[AST.Chat]
+    B --> ME[AST.Messaging]
     B --> GH[AST.GitHub]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
@@ -67,6 +69,7 @@ flowchart LR
     T --> U["Script Properties Checkpoints"]
     AC --> AD["ScriptApp Time Triggers"]
     W --> X["Durable Thread Store"]
+    ME --> MM["GmailApp + Chat Webhook/API"]
     GH --> GHAPI[GitHub REST + GraphQL APIs]
     C --> H[Records / Arrays / Sheets]
 ```

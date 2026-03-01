@@ -30,6 +30,7 @@ ASTX.TelemetryHelpers
 ASTX.Jobs
 ASTX.Triggers
 ASTX.Chat
+ASTX.Messaging
 ASTX.GitHub
 ASTX.Sql
 ASTX.Utils
@@ -240,6 +241,38 @@ ASTX.DBT.validateManifest(request)
 ASTX.DBT.configure(config, options)
 ASTX.DBT.getConfig()
 ASTX.DBT.clearConfig()
+```
+
+## `Messaging` essentials
+
+```javascript
+ASTX.Messaging.run(request)
+ASTX.Messaging.email.send(request)
+ASTX.Messaging.email.sendBatch(request)
+ASTX.Messaging.email.createDraft(request)
+ASTX.Messaging.email.sendDraft(request)
+ASTX.Messaging.email.listThreads(request)
+ASTX.Messaging.email.getThread(request)
+ASTX.Messaging.email.searchMessages(request)
+ASTX.Messaging.email.getMessage(request)
+ASTX.Messaging.email.listLabels(request)
+ASTX.Messaging.email.updateMessageLabels(request)
+ASTX.Messaging.chat.send(request)
+ASTX.Messaging.chat.sendBatch(request)
+ASTX.Messaging.chat.getMessage(request)
+ASTX.Messaging.chat.listMessages(request)
+ASTX.Messaging.tracking.buildPixelUrl(request)
+ASTX.Messaging.tracking.wrapLinks(request)
+ASTX.Messaging.tracking.recordEvent(request)
+ASTX.Messaging.tracking.handleWebEvent(request)
+ASTX.Messaging.logs.list(request)
+ASTX.Messaging.logs.get(request)
+ASTX.Messaging.logs.delete(request)
+ASTX.Messaging.operations()
+ASTX.Messaging.capabilities(operationOrGroup)
+ASTX.Messaging.configure(config, options)
+ASTX.Messaging.getConfig()
+ASTX.Messaging.clearConfig()
 ```
 
 ## `AI` essentials
