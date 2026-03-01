@@ -1081,9 +1081,18 @@ function astRagAnswerStreamCore(request = {}) {
     type: 'start',
     question: normalizedRequest.question
   }));
+  astRagAnswerStreamEmit(onEvent, Object.assign({}, eventBase, {
+    type: 'progress',
+    phase: 'answer_started'
+  }));
 
   try {
     const response = astRagAnswerCore(normalizedRequest);
+    astRagAnswerStreamEmit(onEvent, Object.assign({}, eventBase, {
+      type: 'progress',
+      phase: 'answer_ready',
+      status: response && response.status ? response.status : null
+    }));
     const chunks = astRagAnswerStreamChunkText(response && response.answer, normalizedRequest.streamChunkSize);
     let accumulated = '';
 
@@ -1111,13 +1120,17 @@ function astRagAnswerStreamCore(request = {}) {
 
     return response;
   } catch (error) {
-    astRagAnswerStreamEmit(onEvent, Object.assign({}, eventBase, {
-      type: 'error',
-      error: {
-        name: error && error.name ? error.name : 'Error',
-        message: error && error.message ? error.message : String(error)
-      }
-    }));
+    try {
+      astRagAnswerStreamEmit(onEvent, Object.assign({}, eventBase, {
+        type: 'error',
+        error: {
+          name: error && error.name ? error.name : 'Error',
+          message: error && error.message ? error.message : String(error)
+        }
+      }));
+    } catch (_emitError) {
+      // Preserve original upstream failure so callers receive the true root cause.
+    }
     throw error;
   }
 }

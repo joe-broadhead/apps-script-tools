@@ -951,7 +951,7 @@ Primary methods:
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
-- `ASTX.RAG.answerStream(...)` for deterministic stream frames (`start`, `token`, `metadata`, `done`, `error`) with final citation/usage metadata.
+- `ASTX.RAG.answerStream(...)` for deterministic stream frames (`start`, `progress`, `token`, `metadata`, `done`, `error`) with final citation/usage metadata.
 - `ASTX.RAG.rerank(...)` for direct post-retrieval reranking over candidate chunks.
 - `ASTX.RAG.rewriteQuery(...)` and `ASTX.RAG.decomposeQuestion(...)` for deterministic query transformation planning.
 - `ASTX.RAG.evaluate(...)` for deterministic retrieval/grounding/end-to-end scorecards.

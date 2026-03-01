@@ -296,6 +296,7 @@ Notes:
 Event frames are deterministic:
 
 - `start`: emitted once before answer generation.
+- `progress`: emitted for lifecycle milestones (`answer_started`, `answer_ready`) before final output frames.
 - `token`: emitted per text chunk as `{ index, delta, text }`.
 - `metadata`: emitted once with final `{ status, citations, retrieval, usage, queryProvenance, diagnostics }`.
 - `done`: emitted once with `{ response }`.

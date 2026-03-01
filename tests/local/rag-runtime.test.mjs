@@ -2612,17 +2612,20 @@ test('answerStream emits deterministic token and metadata frames', () => {
 
   assert.equal(response.status, 'ok');
   assert.equal(response.answer, 'Summary for project status');
-  assert.deepEqual(events.map(event => event.type), ['start', 'token', 'token', 'token', 'token', 'metadata', 'done']);
+  assert.deepEqual(events.map(event => event.type), ['start', 'progress', 'progress', 'token', 'token', 'token', 'token', 'metadata', 'done']);
   assert.equal(events[0].question, 'project status');
-  assert.equal(events[1].delta, 'Summary ');
-  assert.equal(events[2].delta, 'for proj');
-  assert.equal(events[3].delta, 'ect stat');
-  assert.equal(events[4].delta, 'us');
-  assert.equal(events[4].text, response.answer);
-  assert.equal(events[5].metadata.status, 'ok');
-  assert.equal(events[5].metadata.citations.length, 1);
-  assert.equal(events[5].metadata.citations[0].chunkId, 'chunk_stream_1');
-  assert.equal(events[6].response.answer, response.answer);
+  assert.equal(events[1].phase, 'answer_started');
+  assert.equal(events[2].phase, 'answer_ready');
+  assert.equal(events[2].status, 'ok');
+  assert.equal(events[3].delta, 'Summary ');
+  assert.equal(events[4].delta, 'for proj');
+  assert.equal(events[5].delta, 'ect stat');
+  assert.equal(events[6].delta, 'us');
+  assert.equal(events[6].text, response.answer);
+  assert.equal(events[7].metadata.status, 'ok');
+  assert.equal(events[7].metadata.citations.length, 1);
+  assert.equal(events[7].metadata.citations[0].chunkId, 'chunk_stream_1');
+  assert.equal(events[8].response.answer, response.answer);
 });
 
 test('answerStream emits error frame and throws when answer fails', () => {
@@ -2643,10 +2646,12 @@ test('answerStream emits error frame and throws when answer fails', () => {
     /stream explode/
   );
 
-  assert.equal(events.length, 2);
+  assert.equal(events.length, 3);
   assert.equal(events[0].type, 'start');
-  assert.equal(events[1].type, 'error');
-  assert.equal(events[1].error.message, 'stream explode');
+  assert.equal(events[1].type, 'progress');
+  assert.equal(events[1].phase, 'answer_started');
+  assert.equal(events[2].type, 'error');
+  assert.equal(events[2].error.message, 'stream explode');
 });
 
 test('answerStream requires onEvent callback', () => {
@@ -2659,6 +2664,28 @@ test('answerStream requires onEvent callback', () => {
       question: 'any'
     }),
     /answerStream request requires onEvent callback function/
+  );
+});
+
+test('answerStream preserves original failure when error-event callback throws', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true, includeAi: false });
+
+  context.astRagAnswerCore = () => {
+    throw new Error('stream explode');
+  };
+
+  assert.throws(
+    () => context.AST.RAG.answerStream({
+      indexFileId: 'index_answer_stream_error_emit',
+      question: 'why',
+      onEvent: event => {
+        if (event.type === 'error') {
+          throw new Error('event explode');
+        }
+      }
+    }),
+    /stream explode/
   );
 });
 
