@@ -18,27 +18,32 @@ function astRagApplyRewritePolicy(query, rewrite = {}) {
   }
 
   if (policy === 'keywords') {
-    const sourceTokens = astRagTokenizeLexicalText(preserveCase ? normalized : normalized.toLowerCase());
+    const keywordSource = preserveCase ? normalized : normalized.toLowerCase();
+    const sourceTokens = keywordSource
+      .split(/[^A-Za-z0-9]+/g)
+      .map(token => token.trim())
+      .filter(Boolean);
     const kept = [];
     const seen = new Set();
 
     for (let idx = 0; idx < sourceTokens.length; idx += 1) {
       const token = sourceTokens[idx];
+      const tokenKey = token.toLowerCase();
       if (!token) {
         continue;
       }
-      if (AST_RAG_QUERY_REWRITE_STOPWORDS.has(token)) {
+      if (AST_RAG_QUERY_REWRITE_STOPWORDS.has(tokenKey)) {
         continue;
       }
-      if (seen.has(token)) {
+      if (seen.has(tokenKey)) {
         continue;
       }
-      seen.add(token);
+      seen.add(tokenKey);
       kept.push(token);
     }
 
     if (kept.length === 0) {
-      return preserveCase ? normalized : normalized.toLowerCase();
+      return keywordSource;
     }
     return kept.join(' ');
   }
@@ -160,6 +165,16 @@ function astRagBuildQueryTransformPlan(query, queryTransform = {}) {
 function astRagRewriteQueryCore(request = {}) {
   const normalized = astRagValidateRewriteQueryRequest(request);
   const plan = astRagBuildQueryTransformPlan(normalized.query, normalized.queryTransform);
+  const rewriteEnabled = Boolean(
+    normalized.queryTransform
+    && (
+      normalized.queryTransform.enabled === true
+      || (
+        normalized.queryTransform.rewrite
+        && normalized.queryTransform.rewrite.enabled === true
+      )
+    )
+  );
 
   return {
     status: 'ok',
@@ -168,7 +183,7 @@ function astRagRewriteQueryCore(request = {}) {
     rewriteApplied: plan.rewriteApplied,
     rewrite: {
       policy: plan.rewritePolicy,
-      enabled: normalized.queryTransform.rewrite.enabled === true
+      enabled: rewriteEnabled
     },
     provenance: plan
   };
@@ -177,6 +192,16 @@ function astRagRewriteQueryCore(request = {}) {
 function astRagDecomposeQuestionCore(request = {}) {
   const normalized = astRagValidateDecomposeQuestionRequest(request);
   const plan = astRagBuildQueryTransformPlan(normalized.question, normalized.queryTransform);
+  const decomposeEnabled = Boolean(
+    normalized.queryTransform
+    && (
+      normalized.queryTransform.enabled === true
+      || (
+        normalized.queryTransform.decompose
+        && normalized.queryTransform.decompose.enabled === true
+      )
+    )
+  );
 
   return {
     status: 'ok',
@@ -185,7 +210,7 @@ function astRagDecomposeQuestionCore(request = {}) {
     subqueries: plan.retrievalQueries.slice(),
     decompose: {
       policy: plan.decomposePolicy,
-      enabled: normalized.queryTransform.decompose.enabled === true
+      enabled: decomposeEnabled
     },
     provenance: plan
   };

@@ -459,6 +459,29 @@ test('RAG rewriteQuery returns deterministic provenance for rewrite policy', () 
   assert.equal(Array.isArray(out.provenance.retrievalQueries), true);
 });
 
+test('RAG rewriteQuery keywords policy honors preserveCase contract', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const preserved = context.AST.RAG.rewriteQuery({
+    query: 'Please tell me Revenue and Margin trends',
+    rewrite: {
+      policy: 'keywords',
+      preserveCase: true
+    }
+  });
+  assert.equal(preserved.rewrittenQuery, 'Revenue Margin trends');
+
+  const lowered = context.AST.RAG.rewriteQuery({
+    query: 'Please tell me Revenue and Margin trends',
+    rewrite: {
+      policy: 'keywords',
+      preserveCase: false
+    }
+  });
+  assert.equal(lowered.rewrittenQuery, 'revenue margin trends');
+});
+
 test('RAG decomposeQuestion returns deterministic subqueries and provenance', () => {
   const context = createGasContext();
   loadRagScripts(context, { includeAst: true });
@@ -475,6 +498,33 @@ test('RAG decomposeQuestion returns deterministic subqueries and provenance', ()
   assert.equal(Array.isArray(out.subqueries), true);
   assert.equal(out.subqueries.length >= 1, true);
   assert.equal(out.provenance.decomposePolicy, 'clauses');
+});
+
+test('RAG query transform helpers reflect top-level enabled flag in response metadata', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        policy: 'normalize'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, true);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        policy: 'clauses'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, true);
 });
 
 test('RAG rewrite/decompose helpers validate policy inputs', () => {
