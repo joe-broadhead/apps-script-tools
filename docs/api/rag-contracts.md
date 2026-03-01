@@ -17,6 +17,7 @@ ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
+ASTX.RAG.rerank(request)
 ASTX.RAG.evaluate(request)
 ASTX.RAG.compareRuns(request)
 ASTX.RAG.inspectIndex(request)
@@ -34,6 +35,9 @@ ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
 ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
 ASTX.RAG.unregisterEmbeddingProvider(name)
+ASTX.RAG.rerankers()
+ASTX.RAG.registerReranker(name, adapter, options)
+ASTX.RAG.unregisterReranker(name)
 ```
 
 ## `buildIndex(request)`
@@ -112,7 +116,8 @@ Notes:
     },
     rerank: {
       enabled: false,
-      topN: 20
+      topN: 20,
+      provider: 'heuristic'
     },
     access: {
       allowedFileIds: [],
@@ -167,7 +172,8 @@ Notes:
     lexicalWeight: 0.35, // hybrid only
     rerank: {
       enabled: false,
-      topN: 20
+      topN: 20,
+      provider: 'heuristic'
     },
     access: {
       allowedFileIds: [],
@@ -272,6 +278,52 @@ Notes:
       storageUri: 'optional'
     }
   }
+}
+```
+
+## `rerank(request)`
+
+```javascript
+{
+  query: 'required for heuristic reranker',
+  results: [
+    {
+      chunkId: 'required',
+      text: 'optional',
+      score: 0.71,       // optional fallback for finalScore
+      finalScore: 0.71,  // optional
+      vectorScore: 0.66, // optional
+      lexicalScore: 0.42 // optional
+    }
+  ],
+  // optional aliases:
+  // provider, topN, enabled
+  rerank: {
+    enabled: true,
+    topN: 20,
+    provider: 'heuristic|custom_name'
+  }
+}
+```
+
+Returns:
+
+```javascript
+{
+  status: 'ok',
+  query: '...',
+  rerank: { enabled: true, topN: 20, provider: 'heuristic' },
+  totalCandidates: 20,
+  returned: 20,
+  results: [
+    {
+      chunkId: '...',
+      finalScore: 0.42,
+      rerankProvider: 'heuristic',
+      rerankScore: 0.57,
+      rerankScoreNormalized: 0.91
+    }
+  ]
 }
 ```
 

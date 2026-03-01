@@ -35,6 +35,8 @@ function astRagBuildAnswerDiagnostics(cacheConfig = {}, timeoutMs = null) {
     retrieval: {
       source: null,
       ms: 0,
+      reranker: null,
+      rerankTopN: 0,
       rawSources: 0,
       usableSources: 0,
       lexicalPrefilterTopN: 0,
@@ -344,6 +346,17 @@ function astRagAnswerCore(request = {}) {
     const diagnostics = astRagBuildAnswerDiagnostics(cacheConfig, retrievalTimeoutMs);
     diagnostics.timings.validationMs = Math.max(0, astRagNowMs() - validationStartMs);
     diagnostics.retrieval.lexicalPrefilterTopN = normalizedRequest.retrieval.lexicalPrefilterTopN || 0;
+    if (
+      normalizedRequest.retrieval &&
+      normalizedRequest.retrieval.rerank &&
+      normalizedRequest.retrieval.rerank.enabled === true
+    ) {
+      diagnostics.retrieval.reranker = astRagNormalizeString(
+        normalizedRequest.retrieval.rerank.provider,
+        AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
+      );
+      diagnostics.retrieval.rerankTopN = normalizedRequest.retrieval.rerank.topN;
+    }
     const retrievalBudgetStartedAtMs = astRagNowMs();
 
     const indexLoadStartMs = astRagNowMs();

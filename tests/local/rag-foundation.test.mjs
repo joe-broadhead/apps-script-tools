@@ -35,6 +35,7 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.search, 'function');
   assert.equal(typeof context.AST.RAG.previewSources, 'function');
   assert.equal(typeof context.AST.RAG.answer, 'function');
+  assert.equal(typeof context.AST.RAG.rerank, 'function');
   assert.equal(typeof context.AST.RAG.inspectIndex, 'function');
   assert.equal(typeof context.AST.RAG.buildRetrievalCacheKey, 'function');
   assert.equal(typeof context.AST.RAG.putRetrievalPayload, 'function');
@@ -44,6 +45,9 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.embeddingCapabilities, 'function');
   assert.equal(typeof context.AST.RAG.registerEmbeddingProvider, 'function');
   assert.equal(typeof context.AST.RAG.unregisterEmbeddingProvider, 'function');
+  assert.equal(typeof context.AST.RAG.registerReranker, 'function');
+  assert.equal(typeof context.AST.RAG.unregisterReranker, 'function');
+  assert.equal(typeof context.AST.RAG.rerankers, 'function');
   assert.equal(typeof context.AST.RAG.IndexManager, 'object');
   assert.equal(typeof context.AST.RAG.IndexManager.create, 'function');
   assert.equal(typeof context.AST.RAG.Citations, 'object');
@@ -57,6 +61,10 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(
     JSON.stringify(context.AST.RAG.embeddingProviders()),
     JSON.stringify(['gemini', 'openai', 'openrouter', 'perplexity', 'vertex_gemini'])
+  );
+  assert.equal(
+    JSON.stringify(context.AST.RAG.rerankers()),
+    JSON.stringify(['heuristic'])
   );
 });
 
@@ -398,6 +406,36 @@ test('RAG custom embedding providers can be registered and used', () => {
 
   assert.equal(context.AST.RAG.unregisterEmbeddingProvider('mock_custom'), true);
   assert.equal(context.AST.RAG.embeddingProviders().includes('mock_custom'), false);
+});
+
+test('RAG custom rerankers can be registered and used via AST.RAG.rerank', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.AST.RAG.registerReranker('mock_reverse', {
+    rerank: request => request.candidates.map((candidate, idx, list) => ({
+      chunkId: candidate.chunkId,
+      score: list.length - idx
+    }))
+  });
+
+  const rerankers = context.AST.RAG.rerankers();
+  assert.equal(rerankers.includes('mock_reverse'), true);
+
+  const out = context.AST.RAG.rerank({
+    query: 'launch checklist',
+    provider: 'mock_reverse',
+    results: [
+      { chunkId: 'c1', text: 'A', score: 0.9 },
+      { chunkId: 'c2', text: 'B', score: 0.8 }
+    ]
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.rerank.provider, 'mock_reverse');
+  assert.equal(out.results[0].chunkId, 'c1');
+  assert.equal(typeof out.results[0].rerankScoreNormalized, 'number');
+  assert.equal(context.AST.RAG.unregisterReranker('mock_reverse'), true);
 });
 
 test('RAG embedding rejects unregistered providers with typed capability error', () => {
@@ -774,7 +812,8 @@ test('astRagValidateSearchRequest normalizes hybrid retrieval contract', () => {
       lexicalWeight: 1,
       rerank: {
         enabled: true,
-        topN: 3
+        topN: 3,
+        provider: 'heuristic'
       },
       filters: {
         fileIds: ['f1'],
@@ -790,6 +829,7 @@ test('astRagValidateSearchRequest normalizes hybrid retrieval contract', () => {
   assert.equal(normalized.retrieval.lexicalWeight, 1);
   assert.equal(normalized.retrieval.rerank.enabled, true);
   assert.equal(normalized.retrieval.rerank.topN, 3);
+  assert.equal(normalized.retrieval.rerank.provider, 'heuristic');
   assert.equal(JSON.stringify(normalized.retrieval.filters.fileIds), JSON.stringify(['f1']));
   assert.equal(JSON.stringify(normalized.retrieval.filters.mimeTypes), JSON.stringify(['text/plain']));
 });

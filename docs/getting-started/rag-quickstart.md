@@ -213,3 +213,37 @@ function ragEvaluate() {
   Logger.log(JSON.stringify(out.metrics, null, 2));
 }
 ```
+
+## Register and use a custom reranker
+
+```javascript
+function ragCustomRerankerExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.RAG.registerReranker('prefer_phrase', {
+    rerank: request => request.candidates.map(candidate => ({
+      chunkId: candidate.chunkId,
+      score: candidate.text && candidate.text.toLowerCase().includes(request.query.toLowerCase())
+        ? 10
+        : 1
+    }))
+  });
+
+  const out = ASTX.RAG.search({
+    indexFileId: 'YOUR_INDEX_FILE_ID',
+    query: 'critical launch checklist',
+    retrieval: {
+      topK: 6,
+      minScore: 0.1,
+      rerank: {
+        enabled: true,
+        topN: 12,
+        provider: 'prefer_phrase'
+      }
+    }
+  });
+
+  Logger.log(out.results[0]);
+  ASTX.RAG.unregisterReranker('prefer_phrase');
+}
+```

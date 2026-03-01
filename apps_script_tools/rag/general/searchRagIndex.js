@@ -32,6 +32,23 @@ function astRagBuildSearchDiagnostics(normalizedRequest, cacheConfig = {}) {
       mode: normalizedRequest.retrieval.mode,
       topK: normalizedRequest.retrieval.topK,
       minScore: normalizedRequest.retrieval.minScore,
+      reranker: (
+        normalizedRequest.retrieval &&
+        normalizedRequest.retrieval.rerank &&
+        normalizedRequest.retrieval.rerank.enabled === true
+      )
+        ? astRagNormalizeString(
+          normalizedRequest.retrieval.rerank.provider,
+          AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
+        )
+        : null,
+      rerankTopN: (
+        normalizedRequest.retrieval &&
+        normalizedRequest.retrieval.rerank &&
+        normalizedRequest.retrieval.rerank.enabled === true
+      )
+        ? normalizedRequest.retrieval.rerank.topN
+        : 0,
       lexicalPrefilterTopN: normalizedRequest.retrieval.lexicalPrefilterTopN || 0,
       partition: {
         enabled: normalizedRequest.retrieval.partition && normalizedRequest.retrieval.partition.enabled === true,

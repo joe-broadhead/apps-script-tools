@@ -150,6 +150,11 @@
   - `enqueueMany(request)` for bounded fan-out plans
   - `mapReduce(request)` for bounded map + reduce plans
   - helper responses include `orchestration` parent/child/stage status summaries
+- `AST.RAG` reranking now supports a pluggable reranker registry:
+  - new APIs: `rerank(...)`, `rerankers()`, `registerReranker(...)`, `unregisterReranker(...)`
+  - built-in reranker: `heuristic`
+  - retrieval rerank config now includes `rerank.provider` (default: `heuristic`)
+  - reranked results include deterministic `rerankScoreNormalized` and stable tie ordering
 
 ## v0.0.4 - 2026-02-25
 

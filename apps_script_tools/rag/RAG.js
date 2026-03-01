@@ -6,6 +6,7 @@ function astRagEnsureInitialized() {
   }
 
   astRagRegisterBuiltInEmbeddingProviders();
+  astRagRegisterBuiltInRerankers();
   AST_RAG_IS_INITIALIZED = true;
 }
 
@@ -37,6 +38,11 @@ function astRagApiPreviewSources(request = {}) {
 function astRagApiAnswer(request = {}) {
   astRagEnsureInitialized();
   return astRagAnswerCore(request);
+}
+
+function astRagApiRerank(request = {}) {
+  astRagEnsureInitialized();
+  return astRagRerankCore(request);
 }
 
 function astRagApiEvaluate(request = {}) {
@@ -73,6 +79,21 @@ function astRagApiRegisterEmbeddingProvider(name, adapter, options = {}) {
 function astRagApiUnregisterEmbeddingProvider(name) {
   astRagEnsureInitialized();
   return astRagUnregisterEmbeddingProvider(name);
+}
+
+function astRagApiRegisterReranker(name, adapter, options = {}) {
+  astRagEnsureInitialized();
+  return astRagRegisterReranker(name, adapter, options);
+}
+
+function astRagApiUnregisterReranker(name) {
+  astRagEnsureInitialized();
+  return astRagUnregisterReranker(name);
+}
+
+function astRagApiRerankers() {
+  astRagEnsureInitialized();
+  return astRagListRerankers();
 }
 
 function astRagApiBuildRetrievalCacheKey(args = {}) {
@@ -144,6 +165,7 @@ const AST_RAG = Object.freeze({
   search: astRagApiSearch,
   previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
+  rerank: astRagApiRerank,
   evaluate: astRagApiEvaluate,
   compareRuns: astRagApiCompareRuns,
   inspectIndex: astRagApiInspectIndex,
@@ -166,5 +188,8 @@ const AST_RAG = Object.freeze({
   embeddingProviders: astRagApiEmbeddingProviders,
   embeddingCapabilities: astRagApiEmbeddingCapabilities,
   registerEmbeddingProvider: astRagApiRegisterEmbeddingProvider,
-  unregisterEmbeddingProvider: astRagApiUnregisterEmbeddingProvider
+  unregisterEmbeddingProvider: astRagApiUnregisterEmbeddingProvider,
+  registerReranker: astRagApiRegisterReranker,
+  unregisterReranker: astRagApiUnregisterReranker,
+  rerankers: astRagApiRerankers
 });
