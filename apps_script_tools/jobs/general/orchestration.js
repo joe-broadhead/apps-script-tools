@@ -8,6 +8,12 @@ function astJobsCloneSerializableOrchestrationValue(value, label, details = {}) 
   }
 }
 
+function astJobsBuildSerializableCloneFactory(value, label, details = {}) {
+  const normalized = astJobsCloneSerializableOrchestrationValue(value, label, details);
+  const serialized = JSON.stringify(normalized);
+  return () => JSON.parse(serialized);
+}
+
 function astJobsBuildWindowDependencyIds(stepIds, index, maxConcurrency) {
   if (index < maxConcurrency) {
     return [];
@@ -190,7 +196,7 @@ function astJobsChain(request = {}) {
   });
 }
 
-function astJobsBuildItemPayload(item, index, total, sharedPayload, labelPrefix) {
+function astJobsBuildItemPayload(item, index, total, sharedPayloadFactory, labelPrefix) {
   const payload = {
     item: astJobsCloneSerializableOrchestrationValue(item, `${labelPrefix} item`, {
       index
@@ -200,8 +206,8 @@ function astJobsBuildItemPayload(item, index, total, sharedPayload, labelPrefix)
     total
   };
 
-  if (typeof sharedPayload !== 'undefined' && sharedPayload !== null) {
-    payload.shared = sharedPayload;
+  if (typeof sharedPayloadFactory === 'function') {
+    payload.shared = sharedPayloadFactory();
   }
 
   return payload;
@@ -210,9 +216,9 @@ function astJobsBuildItemPayload(item, index, total, sharedPayload, labelPrefix)
 function astJobsEnqueueMany(request = {}) {
   const normalized = astJobsValidateEnqueueManyRequest(request);
   const total = normalized.items.length;
-  const sharedPayload = typeof normalized.sharedPayload === 'undefined' || normalized.sharedPayload === null
+  const sharedPayloadFactory = typeof normalized.sharedPayload === 'undefined' || normalized.sharedPayload === null
     ? null
-    : astJobsCloneSerializableOrchestrationValue(normalized.sharedPayload, 'enqueueMany sharedPayload');
+    : astJobsBuildSerializableCloneFactory(normalized.sharedPayload, 'enqueueMany sharedPayload');
   const stepIds = normalized.items.map((_item, idx) => `${normalized.stepIdPrefix}_${idx + 1}`);
   const steps = [];
 
@@ -224,7 +230,7 @@ function astJobsEnqueueMany(request = {}) {
         normalized.items[idx],
         idx,
         total,
-        sharedPayload,
+        sharedPayloadFactory,
         'enqueueMany'
       )
     };
@@ -256,9 +262,9 @@ function astJobsEnqueueMany(request = {}) {
 
 function astJobsMapReduce(request = {}) {
   const normalized = astJobsValidateMapReduceRequest(request);
-  const mapSharedPayload = typeof normalized.mapPayload === 'undefined' || normalized.mapPayload === null
+  const mapSharedPayloadFactory = typeof normalized.mapPayload === 'undefined' || normalized.mapPayload === null
     ? null
-    : astJobsCloneSerializableOrchestrationValue(normalized.mapPayload, 'mapReduce mapPayload');
+    : astJobsBuildSerializableCloneFactory(normalized.mapPayload, 'mapReduce mapPayload');
   const mapStepIds = normalized.items.map((_item, idx) => `${normalized.mapStepIdPrefix}_${idx + 1}`);
   const reduceStepId = normalized.reduceStepId;
   const mapStepIdSet = new Set(mapStepIds);
@@ -278,7 +284,7 @@ function astJobsMapReduce(request = {}) {
         normalized.items[idx],
         idx,
         normalized.items.length,
-        mapSharedPayload,
+        mapSharedPayloadFactory,
         'mapReduce.map'
       )
     };

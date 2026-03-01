@@ -838,6 +838,37 @@ test('AST.Jobs.enqueueMany enqueues item fan-out plan with bounded dependency wi
   assert.equal(completed.results.item_4, 8);
 });
 
+test('AST.Jobs.enqueueMany clones sharedPayload per step to prevent cross-item mutation leaks', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_ENQUEUE_MANY_SHARED_${Date.now()}_`;
+
+  context.jobsEnqueueManySharedMutation = ({ payload }) => {
+    const before = payload.shared.seed;
+    payload.shared.seed += 1;
+    return {
+      itemValue: payload.item.value,
+      before,
+      after: payload.shared.seed
+    };
+  };
+
+  const result = context.AST.Jobs.enqueueMany({
+    name: 'enqueue-many-shared-payload-test',
+    mode: 'run',
+    options: { propertyPrefix },
+    handler: 'jobsEnqueueManySharedMutation',
+    items: [{ value: 1 }, { value: 2 }],
+    sharedPayload: { seed: 10 },
+    maxConcurrency: 2
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.item_1.before, 10);
+  assert.equal(result.results.item_1.after, 11);
+  assert.equal(result.results.item_2.before, 10);
+  assert.equal(result.results.item_2.after, 11);
+});
+
 test('AST.Jobs.mapReduce runs map and reduce stages with aggregated status metadata', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_MAP_REDUCE_${Date.now()}_`;
@@ -860,6 +891,32 @@ test('AST.Jobs.mapReduce runs map and reduce stages with aggregated status metad
   assert.equal(result.orchestration.stages.map.counts.total, 3);
   assert.equal(result.orchestration.stages.map.status, 'completed');
   assert.equal(result.orchestration.stages.reduce.status, 'completed');
+});
+
+test('AST.Jobs.mapReduce clones mapPayload shared data per map step', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_MAP_REDUCE_SHARED_${Date.now()}_`;
+
+  context.jobsMapReduceSharedMap = ({ payload }) => {
+    payload.shared.base += 1;
+    return payload.shared.base;
+  };
+  context.jobsMapReduceSharedReduce = ({ payload, results }) => payload.mapStepIds.reduce((sum, stepId) => sum + results[stepId], 0);
+
+  const result = context.AST.Jobs.mapReduce({
+    name: 'map-reduce-shared-payload-test',
+    options: { propertyPrefix },
+    items: [{ value: 1 }, { value: 2 }],
+    mapHandler: 'jobsMapReduceSharedMap',
+    reduceHandler: 'jobsMapReduceSharedReduce',
+    mapPayload: { base: 0 },
+    maxConcurrency: 2
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.map_1, 1);
+  assert.equal(result.results.map_2, 1);
+  assert.equal(result.results.reduce, 2);
 });
 
 test('AST.Jobs.mapReduce supports pause/resume recovery for mid-flow map failures', () => {
