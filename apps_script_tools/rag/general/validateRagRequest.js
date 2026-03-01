@@ -484,7 +484,11 @@ function astRagNormalizeRetrievalRerank(rerank, defaults, fieldPath) {
   if (typeof rerank === 'undefined' || rerank === null) {
     return {
       enabled: defaults.enabled,
-      topN: defaults.topN
+      topN: defaults.topN,
+      provider: astRagNormalizeString(
+        defaults.provider,
+        AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
+      ).toLowerCase()
     };
   }
 
@@ -492,9 +496,18 @@ function astRagNormalizeRetrievalRerank(rerank, defaults, fieldPath) {
     throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
   }
 
+  const provider = astRagNormalizeString(
+    rerank.provider,
+    astRagNormalizeString(defaults.provider, AST_RAG_DEFAULT_RETRIEVAL.rerank.provider)
+  );
+  if (!provider) {
+    throw new AstRagValidationError(`${fieldPath}.provider is required when rerank is configured`);
+  }
+
   return {
     enabled: astRagNormalizeBoolean(rerank.enabled, defaults.enabled),
-    topN: astRagNormalizePositiveInt(rerank.topN, defaults.topN, 1)
+    topN: astRagNormalizePositiveInt(rerank.topN, defaults.topN, 1),
+    provider: provider.toLowerCase()
   };
 }
 

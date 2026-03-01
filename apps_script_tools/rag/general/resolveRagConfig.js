@@ -403,7 +403,8 @@ function astRagResolveRetrievalDefaults() {
     vectorWeight: AST_RAG_DEFAULT_RETRIEVAL.vectorWeight,
     rerank: {
       enabled: AST_RAG_DEFAULT_RETRIEVAL.rerank.enabled,
-      topN: AST_RAG_DEFAULT_RETRIEVAL.rerank.topN
+      topN: AST_RAG_DEFAULT_RETRIEVAL.rerank.topN,
+      provider: AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
     },
     defaultFolderId
   };

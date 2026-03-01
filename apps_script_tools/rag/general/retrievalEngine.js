@@ -161,7 +161,12 @@ function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval
     .filter(item => item.finalScore >= retrieval.minScore);
   const selectionLimit = astRagResolveRetrievalSelectionLimit(retrieval);
   const selectedForRerank = astRagSelectTopScoredResults(fused, selectionLimit);
-  const reranked = astRagRerankResults(query, selectedForRerank, retrieval.rerank || {});
+  const reranked = astRagRerankResults(
+    query,
+    selectedForRerank,
+    retrieval.rerank || {},
+    { diagnostics }
+  );
   const returned = reranked
     .slice(0, retrieval.topK)
     .map(item => Object.assign({}, item, {

@@ -215,6 +215,7 @@ ASTX.RAG.syncIndex(request)
 ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
+ASTX.RAG.rerank(request)
 ASTX.RAG.evaluate(request)
 ASTX.RAG.compareRuns(request)
 ASTX.RAG.inspectIndex({ indexFileId })
@@ -232,6 +233,9 @@ ASTX.RAG.embeddingProviders()
 ASTX.RAG.embeddingCapabilities(provider)
 ASTX.RAG.registerEmbeddingProvider(name, adapter, options)
 ASTX.RAG.unregisterEmbeddingProvider(name)
+ASTX.RAG.rerankers()
+ASTX.RAG.registerReranker(name, adapter, options)
+ASTX.RAG.unregisterReranker(name)
 ```
 
 Notes:

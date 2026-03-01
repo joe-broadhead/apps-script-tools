@@ -2139,6 +2139,92 @@ test('search rerank can promote phrase-exact chunk within topN', () => {
   assert.equal(output.results.length, 2);
   assert.equal(output.results[0].chunkId, 'phrase_exact');
   assert.equal(typeof output.results[0].rerankScore, 'number');
+  assert.equal(typeof output.results[0].rerankScoreNormalized, 'number');
+});
+
+test('search rerank uses registered custom reranker provider when configured', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_rerank_provider',
+    indexName: 'rerank-provider-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'first',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'a.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'baseline',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'second',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'b.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'target',
+        embedding: [0.99, 0.1, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_rerank_provider',
+    fileName: 'rerank-provider.json',
+    document: indexDoc
+  });
+  context.astRagEmbedTexts = () => ({
+    vectors: [[1, 0, 0]],
+    usage: { inputTokens: 1, totalTokens: 1 }
+  });
+
+  context.AST.RAG.registerReranker('prefer_second', {
+    rerank: request => request.candidates.map(candidate => ({
+      chunkId: candidate.chunkId,
+      score: candidate.chunkId === 'second' ? 100 : 1
+    }))
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_rerank_provider',
+    query: 'launch checklist',
+    retrieval: {
+      mode: 'vector',
+      topK: 2,
+      minScore: 0,
+      rerank: {
+        enabled: true,
+        topN: 2,
+        provider: 'prefer_second'
+      }
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(output.results.length, 2);
+  assert.equal(output.results[0].chunkId, 'second');
+  assert.equal(output.diagnostics.retrieval.reranker, 'prefer_second');
+  assert.equal(output.diagnostics.retrieval.rerankTopN, 2);
+  assert.equal(output.diagnostics.timings.rerankMs >= 0, true);
+  assert.equal(context.AST.RAG.unregisterReranker('prefer_second'), true);
 });
 
 test('search enforces retrieval access control allow/deny constraints', () => {

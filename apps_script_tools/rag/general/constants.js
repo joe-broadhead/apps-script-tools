@@ -45,7 +45,8 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
   }),
   rerank: Object.freeze({
     enabled: false,
-    topN: 20
+    topN: 20,
+    provider: 'heuristic'
   })
 });
 

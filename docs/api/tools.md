@@ -324,7 +324,7 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
 - `retrieval.mode = 'lexical'` (BM25-only ranking; no embedding call)
 - `retrieval.lexicalPrefilterTopN` for optional lexical shortlist before vector scoring
-- `retrieval.rerank` for optional top-N reranking
+- `retrieval.rerank` for optional top-N reranking with pluggable provider selection
 - `retrieval.access` for source-level allow/deny constraints
 - `generation.maxContextChars` / `generation.maxContextTokensApprox` for bounded grounding context packing
 - optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)
@@ -340,7 +340,7 @@ const answer = ASTX.RAG.answer({
     vectorWeight: 0.6,
     lexicalWeight: 0.4,
     lexicalPrefilterTopN: 100,
-    rerank: { enabled: true, topN: 12 },
+    rerank: { enabled: true, topN: 12, provider: 'heuristic' },
     access: {
       allowedFileIds: ['file_public_1', 'file_public_2'],
       deniedFileIds: ['file_sensitive_1']
@@ -950,6 +950,7 @@ Primary methods:
 - `ASTX.RAG.search(...)` for cosine-ranked retrieval over indexed chunks.
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
+- `ASTX.RAG.rerank(...)` for direct post-retrieval reranking over candidate chunks.
 - `ASTX.RAG.evaluate(...)` for deterministic retrieval/grounding/end-to-end scorecards.
 - `ASTX.RAG.compareRuns(...)` for baseline vs candidate metric deltas.
 - `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.
@@ -959,6 +960,7 @@ Primary methods:
 - `ASTX.RAG.IndexManager.create(...)` for build/sync/fast-state orchestration.
 - `ASTX.RAG.embeddingProviders()` and `ASTX.RAG.embeddingCapabilities(...)`.
 - `ASTX.RAG.registerEmbeddingProvider(...)` and `ASTX.RAG.unregisterEmbeddingProvider(...)`.
+- `ASTX.RAG.rerankers()`, `ASTX.RAG.registerReranker(...)`, and `ASTX.RAG.unregisterReranker(...)`.
 
 Source support:
 

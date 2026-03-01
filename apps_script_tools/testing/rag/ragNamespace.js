@@ -13,6 +13,7 @@ RAG_NAMESPACE_TESTS = [
         'search',
         'previewSources',
         'answer',
+        'rerank',
         'inspectIndex',
         'buildRetrievalCacheKey',
         'putRetrievalPayload',
@@ -21,7 +22,10 @@ RAG_NAMESPACE_TESTS = [
         'embeddingProviders',
         'embeddingCapabilities',
         'registerEmbeddingProvider',
-        'unregisterEmbeddingProvider'
+        'unregisterEmbeddingProvider',
+        'registerReranker',
+        'unregisterReranker',
+        'rerankers'
       ];
 
       requiredMethods.forEach(method => {
@@ -48,6 +52,9 @@ RAG_NAMESPACE_TESTS = [
       const providers = AST.RAG.embeddingProviders();
       const expected = ['gemini', 'openai', 'openrouter', 'perplexity', 'vertex_gemini'];
       t.deepEqual(providers, expected, `Expected providers ${JSON.stringify(expected)}, got ${JSON.stringify(providers)}`);
+
+      const rerankers = AST.RAG.rerankers();
+      t.deepEqual(rerankers, ['heuristic'], `Expected rerankers [\"heuristic\"], got ${JSON.stringify(rerankers)}`);
     })
   },
   {
