@@ -318,7 +318,7 @@ ASTX.Cache.configure({
 
 ## `ASTX.RAG` retrieval modes
 
-`ASTX.RAG.search(...)` and `ASTX.RAG.answer(...)` both support:
+`ASTX.RAG.search(...)`, `ASTX.RAG.answer(...)`, and `ASTX.RAG.answerStream(...)` all support:
 
 - `retrieval.mode = 'vector'` (default cosine-only ranking)
 - `retrieval.mode = 'hybrid'` (weighted vector + lexical fusion)
