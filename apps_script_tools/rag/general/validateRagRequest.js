@@ -544,6 +544,145 @@ function astRagNormalizeRetrievalPartition(partition, defaults, fieldPath) {
   };
 }
 
+function astRagNormalizeQueryRewritePolicy(policy, fallback, fieldPath) {
+  const normalized = astRagNormalizeString(policy, fallback);
+  if (!['none', 'normalize', 'keywords'].includes(normalized)) {
+    throw new AstRagValidationError(`${fieldPath} must be one of: none, normalize, keywords`);
+  }
+  return normalized;
+}
+
+function astRagNormalizeQueryDecomposePolicy(policy, fallback, fieldPath) {
+  const normalized = astRagNormalizeString(policy, fallback);
+  if (!['none', 'clauses', 'sentences'].includes(normalized)) {
+    throw new AstRagValidationError(`${fieldPath} must be one of: none, clauses, sentences`);
+  }
+  return normalized;
+}
+
+function astRagNormalizeRetrievalQueryTransform(transform, defaults, fieldPath) {
+  if (typeof transform === 'undefined' || transform === null) {
+    return {
+      enabled: astRagNormalizeBoolean(defaults.enabled, AST_RAG_DEFAULT_RETRIEVAL.queryTransform.enabled),
+      maxQueries: astRagNormalizePositiveInt(
+        defaults.maxQueries,
+        AST_RAG_DEFAULT_RETRIEVAL.queryTransform.maxQueries,
+        1
+      ),
+      rewrite: {
+        enabled: astRagNormalizeBoolean(
+          defaults.rewrite && defaults.rewrite.enabled,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.enabled
+        ),
+        policy: astRagNormalizeQueryRewritePolicy(
+          defaults.rewrite && defaults.rewrite.policy,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.policy,
+          `${fieldPath}.rewrite.policy`
+        ),
+        preserveCase: astRagNormalizeBoolean(
+          defaults.rewrite && defaults.rewrite.preserveCase,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.preserveCase
+        )
+      },
+      decompose: {
+        enabled: astRagNormalizeBoolean(
+          defaults.decompose && defaults.decompose.enabled,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.enabled
+        ),
+        policy: astRagNormalizeQueryDecomposePolicy(
+          defaults.decompose && defaults.decompose.policy,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.policy,
+          `${fieldPath}.decompose.policy`
+        ),
+        maxSubqueries: astRagNormalizePositiveInt(
+          defaults.decompose && defaults.decompose.maxSubqueries,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.maxSubqueries,
+          1
+        ),
+        includeOriginal: astRagNormalizeBoolean(
+          defaults.decompose && defaults.decompose.includeOriginal,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.includeOriginal
+        )
+      }
+    };
+  }
+
+  if (!astRagIsPlainObject(transform)) {
+    throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
+  }
+
+  const rewriteInput = astRagIsPlainObject(transform.rewrite) ? transform.rewrite : {};
+  const decomposeInput = astRagIsPlainObject(transform.decompose) ? transform.decompose : {};
+  const normalized = {
+    enabled: astRagNormalizeBoolean(
+      transform.enabled,
+      astRagNormalizeBoolean(defaults.enabled, false)
+    ),
+    maxQueries: astRagNormalizePositiveInt(
+      transform.maxQueries,
+      astRagNormalizePositiveInt(defaults.maxQueries, AST_RAG_DEFAULT_RETRIEVAL.queryTransform.maxQueries, 1),
+      1
+    ),
+    rewrite: {
+      enabled: astRagNormalizeBoolean(
+        rewriteInput.enabled,
+        astRagNormalizeBoolean(defaults.rewrite && defaults.rewrite.enabled, false)
+      ),
+      policy: astRagNormalizeQueryRewritePolicy(
+        rewriteInput.policy,
+        astRagNormalizeString(defaults.rewrite && defaults.rewrite.policy, AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.policy),
+        `${fieldPath}.rewrite.policy`
+      ),
+      preserveCase: astRagNormalizeBoolean(
+        rewriteInput.preserveCase,
+        astRagNormalizeBoolean(
+          defaults.rewrite && defaults.rewrite.preserveCase,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.preserveCase
+        )
+      )
+    },
+    decompose: {
+      enabled: astRagNormalizeBoolean(
+        decomposeInput.enabled,
+        astRagNormalizeBoolean(defaults.decompose && defaults.decompose.enabled, false)
+      ),
+      policy: astRagNormalizeQueryDecomposePolicy(
+        decomposeInput.policy,
+        astRagNormalizeString(defaults.decompose && defaults.decompose.policy, AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.policy),
+        `${fieldPath}.decompose.policy`
+      ),
+      maxSubqueries: astRagNormalizePositiveInt(
+        decomposeInput.maxSubqueries,
+        astRagNormalizePositiveInt(
+          defaults.decompose && defaults.decompose.maxSubqueries,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.maxSubqueries,
+          1
+        ),
+        1
+      ),
+      includeOriginal: astRagNormalizeBoolean(
+        decomposeInput.includeOriginal,
+        astRagNormalizeBoolean(
+          defaults.decompose && defaults.decompose.includeOriginal,
+          AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.includeOriginal
+        )
+      )
+    }
+  };
+
+  if (normalized.rewrite.policy === 'none') {
+    normalized.rewrite.enabled = false;
+  }
+  if (normalized.decompose.policy === 'none') {
+    normalized.decompose.enabled = false;
+  }
+  if (normalized.rewrite.enabled || normalized.decompose.enabled) {
+    normalized.enabled = true;
+  }
+
+  return normalized;
+}
+
 function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
   if (!astRagIsPlainObject(retrieval)) {
     throw new AstRagValidationError(`${fieldPath} must be an object when provided`);
@@ -586,6 +725,11 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     defaults.partition || AST_RAG_DEFAULT_RETRIEVAL.partition,
     `${fieldPath}.partition`
   );
+  const queryTransform = astRagNormalizeRetrievalQueryTransform(
+    retrieval.queryTransform,
+    defaults.queryTransform || AST_RAG_DEFAULT_RETRIEVAL.queryTransform,
+    `${fieldPath}.queryTransform`
+  );
 
   if (mode === 'hybrid' && (vectorWeight + lexicalWeight) <= 0) {
     throw new AstRagValidationError(`${fieldPath} requires vectorWeight + lexicalWeight > 0 in hybrid mode`);
@@ -605,7 +749,8 @@ function astRagNormalizeRetrievalConfig(retrieval, defaults, fieldPath) {
     lexicalWeight,
     rerank,
     partition,
-    recovery
+    recovery,
+    queryTransform
   };
 }
 
@@ -683,6 +828,9 @@ function astRagValidateSearchRequest(request = {}) {
   }
   if (typeof retrieval.rerank === 'undefined') {
     retrieval.rerank = request.rerank;
+  }
+  if (typeof retrieval.queryTransform === 'undefined' && astRagIsPlainObject(request.queryTransform)) {
+    retrieval.queryTransform = astRagCloneObject(request.queryTransform);
   }
   if (typeof retrieval.access === 'undefined') {
     retrieval.access = request.access;
@@ -780,6 +928,9 @@ function astRagValidateAnswerRequest(request = {}) {
   if (typeof retrieval.access === 'undefined') {
     retrieval.access = request.access;
   }
+  if (typeof retrieval.queryTransform === 'undefined' && astRagIsPlainObject(request.queryTransform)) {
+    retrieval.queryTransform = astRagCloneObject(request.queryTransform);
+  }
   const defaults = astRagResolveRetrievalDefaults();
   const normalizedRetrieval = astRagNormalizeRetrievalConfig(retrieval, defaults, 'answer.retrieval');
   const normalizedAccess = astRagNormalizeAccessControl(retrieval.access, 'answer.retrieval.access');
@@ -858,6 +1009,78 @@ function astRagValidateAnswerRequest(request = {}) {
     retrievalPayload,
     retrievalPayloadKey,
     retrievalPayloadCache
+  };
+}
+
+function astRagValidateRewriteQueryRequest(request = {}) {
+  if (!astRagIsPlainObject(request)) {
+    throw new AstRagValidationError('rewriteQuery request must be an object');
+  }
+
+  const query = astRagNormalizeString(request.query, astRagNormalizeString(request.question, null));
+  if (!query) {
+    throw new AstRagValidationError('rewriteQuery request requires query');
+  }
+
+  const defaults = astRagResolveRetrievalDefaults();
+  const transformInput = astRagIsPlainObject(request.queryTransform)
+    ? astRagCloneObject(request.queryTransform)
+    : (astRagIsPlainObject(request.rewrite) ? { rewrite: astRagCloneObject(request.rewrite) } : {});
+  if (!astRagIsPlainObject(transformInput.rewrite)) {
+    transformInput.rewrite = {};
+  }
+  if (typeof transformInput.rewrite.enabled === 'undefined') {
+    transformInput.rewrite.enabled = true;
+  }
+  transformInput.decompose = {
+    enabled: false,
+    policy: 'none'
+  };
+
+  return {
+    query,
+    queryTransform: astRagNormalizeRetrievalQueryTransform(
+      transformInput,
+      defaults.queryTransform || AST_RAG_DEFAULT_RETRIEVAL.queryTransform,
+      'rewriteQuery.queryTransform'
+    )
+  };
+}
+
+function astRagValidateDecomposeQuestionRequest(request = {}) {
+  if (!astRagIsPlainObject(request)) {
+    throw new AstRagValidationError('decomposeQuestion request must be an object');
+  }
+
+  const question = astRagNormalizeString(request.question, astRagNormalizeString(request.query, null));
+  if (!question) {
+    throw new AstRagValidationError('decomposeQuestion request requires question');
+  }
+
+  const defaults = astRagResolveRetrievalDefaults();
+  const transformInput = astRagIsPlainObject(request.queryTransform)
+    ? astRagCloneObject(request.queryTransform)
+    : {};
+  if (!astRagIsPlainObject(transformInput.rewrite) && astRagIsPlainObject(request.rewrite)) {
+    transformInput.rewrite = astRagCloneObject(request.rewrite);
+  }
+  if (!astRagIsPlainObject(transformInput.decompose) && astRagIsPlainObject(request.decompose)) {
+    transformInput.decompose = astRagCloneObject(request.decompose);
+  }
+  if (!astRagIsPlainObject(transformInput.decompose)) {
+    transformInput.decompose = {};
+  }
+  if (typeof transformInput.decompose.enabled === 'undefined') {
+    transformInput.decompose.enabled = true;
+  }
+
+  return {
+    question,
+    queryTransform: astRagNormalizeRetrievalQueryTransform(
+      transformInput,
+      defaults.queryTransform || AST_RAG_DEFAULT_RETRIEVAL.queryTransform,
+      'decomposeQuestion.queryTransform'
+    )
   };
 }
 

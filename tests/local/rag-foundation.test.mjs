@@ -36,6 +36,8 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.previewSources, 'function');
   assert.equal(typeof context.AST.RAG.answer, 'function');
   assert.equal(typeof context.AST.RAG.rerank, 'function');
+  assert.equal(typeof context.AST.RAG.rewriteQuery, 'function');
+  assert.equal(typeof context.AST.RAG.decomposeQuestion, 'function');
   assert.equal(typeof context.AST.RAG.inspectIndex, 'function');
   assert.equal(typeof context.AST.RAG.buildRetrievalCacheKey, 'function');
   assert.equal(typeof context.AST.RAG.putRetrievalPayload, 'function');
@@ -436,6 +438,191 @@ test('RAG custom rerankers can be registered and used via AST.RAG.rerank', () =>
   assert.equal(out.results[0].chunkId, 'c1');
   assert.equal(typeof out.results[0].rerankScoreNormalized, 'number');
   assert.equal(context.AST.RAG.unregisterReranker('mock_reverse'), true);
+});
+
+test('RAG rewriteQuery returns deterministic provenance for rewrite policy', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const out = context.AST.RAG.rewriteQuery({
+    query: '  Please tell me about customer onboarding and retention   ',
+    rewrite: {
+      policy: 'keywords'
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.query, 'Please tell me about customer onboarding and retention');
+  assert.equal(out.rewriteApplied, true);
+  assert.match(out.rewrittenQuery, /customer/);
+  assert.match(out.rewrittenQuery, /retention/);
+  assert.equal(Array.isArray(out.provenance.retrievalQueries), true);
+});
+
+test('RAG rewriteQuery keywords policy honors preserveCase contract', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const preserved = context.AST.RAG.rewriteQuery({
+    query: 'Please tell me Revenue and Margin trends',
+    rewrite: {
+      policy: 'keywords',
+      preserveCase: true
+    }
+  });
+  assert.equal(preserved.rewrittenQuery, 'Revenue Margin trends');
+
+  const lowered = context.AST.RAG.rewriteQuery({
+    query: 'Please tell me Revenue and Margin trends',
+    rewrite: {
+      policy: 'keywords',
+      preserveCase: false
+    }
+  });
+  assert.equal(lowered.rewrittenQuery, 'revenue margin trends');
+});
+
+test('RAG decomposeQuestion returns deterministic subqueries and provenance', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const out = context.AST.RAG.decomposeQuestion({
+    question: 'What changed in revenue and margin after the pricing update?',
+    decompose: {
+      policy: 'clauses',
+      maxSubqueries: 3
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(Array.isArray(out.subqueries), true);
+  assert.equal(out.subqueries.length >= 1, true);
+  assert.equal(out.provenance.decomposePolicy, 'clauses');
+});
+
+test('RAG query transform helpers reflect top-level enabled flag in response metadata', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        policy: 'normalize'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, true);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        policy: 'clauses'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, true);
+});
+
+test('RAG decomposeQuestion enforces maxSubqueries limit', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const out = context.AST.RAG.decomposeQuestion({
+    question: 'revenue and margin and churn and retention',
+    decompose: {
+      policy: 'clauses',
+      maxSubqueries: 1,
+      includeOriginal: false
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.subqueries.length, 1);
+  assert.equal(out.subqueries[0], 'revenue');
+  assert.equal(out.provenance.maxSubqueries, 1);
+});
+
+test('RAG rewrite/decompose helper metadata does not report enabled for policy none', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'revenue',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        policy: 'none'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, false);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        policy: 'none'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, false);
+});
+
+test('RAG helper metadata respects explicit sub-transform disable even when top-level transform is enabled', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  const rewritten = context.AST.RAG.rewriteQuery({
+    query: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      rewrite: {
+        enabled: false,
+        policy: 'keywords'
+      }
+    }
+  });
+  assert.equal(rewritten.rewrite.enabled, false);
+  assert.equal(rewritten.rewriteApplied, false);
+
+  const decomposed = context.AST.RAG.decomposeQuestion({
+    question: 'Revenue and margin',
+    queryTransform: {
+      enabled: true,
+      decompose: {
+        enabled: false,
+        policy: 'clauses'
+      }
+    }
+  });
+  assert.equal(decomposed.decompose.enabled, false);
+  assert.equal(decomposed.provenance.decomposeApplied, false);
+});
+
+test('RAG rewrite/decompose helpers validate policy inputs', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.AST.RAG.rewriteQuery({
+      query: 'revenue details',
+      rewrite: { policy: 'unsupported_policy' }
+    }),
+    /rewriteQuery.queryTransform.rewrite.policy/
+  );
+
+  assert.throws(
+    () => context.AST.RAG.decomposeQuestion({
+      question: 'revenue and margin',
+      decompose: { policy: 'unsupported_policy' }
+    }),
+    /decomposeQuestion.queryTransform.decompose.policy/
+  );
 });
 
 test('RAG embedding rejects unregistered providers with typed capability error', () => {

@@ -47,6 +47,21 @@ const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
     enabled: false,
     topN: 20,
     provider: 'heuristic'
+  }),
+  queryTransform: Object.freeze({
+    enabled: false,
+    maxQueries: 4,
+    rewrite: Object.freeze({
+      enabled: false,
+      policy: 'normalize',
+      preserveCase: true
+    }),
+    decompose: Object.freeze({
+      enabled: false,
+      policy: 'clauses',
+      maxSubqueries: 3,
+      includeOriginal: true
+    })
   })
 });
 

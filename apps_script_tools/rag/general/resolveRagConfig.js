@@ -406,6 +406,21 @@ function astRagResolveRetrievalDefaults() {
       topN: AST_RAG_DEFAULT_RETRIEVAL.rerank.topN,
       provider: AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
     },
+    queryTransform: {
+      enabled: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.enabled,
+      maxQueries: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.maxQueries,
+      rewrite: {
+        enabled: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.enabled,
+        policy: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.policy,
+        preserveCase: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.rewrite.preserveCase
+      },
+      decompose: {
+        enabled: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.enabled,
+        policy: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.policy,
+        maxSubqueries: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.maxSubqueries,
+        includeOriginal: AST_RAG_DEFAULT_RETRIEVAL.queryTransform.decompose.includeOriginal
+      }
+    },
     defaultFolderId
   };
 }

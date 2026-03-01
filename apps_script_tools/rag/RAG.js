@@ -45,6 +45,16 @@ function astRagApiRerank(request = {}) {
   return astRagRerankCore(request);
 }
 
+function astRagApiRewriteQuery(request = {}) {
+  astRagEnsureInitialized();
+  return astRagRewriteQueryCore(request);
+}
+
+function astRagApiDecomposeQuestion(request = {}) {
+  astRagEnsureInitialized();
+  return astRagDecomposeQuestionCore(request);
+}
+
 function astRagApiEvaluate(request = {}) {
   astRagEnsureInitialized();
   return astRagEvaluateCore(request);
@@ -166,6 +176,8 @@ const AST_RAG = Object.freeze({
   previewSources: astRagApiPreviewSources,
   answer: astRagApiAnswer,
   rerank: astRagApiRerank,
+  rewriteQuery: astRagApiRewriteQuery,
+  decomposeQuestion: astRagApiDecomposeQuestion,
   evaluate: astRagApiEvaluate,
   compareRuns: astRagApiCompareRuns,
   inspectIndex: astRagApiInspectIndex,

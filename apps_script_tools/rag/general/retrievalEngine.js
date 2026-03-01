@@ -82,6 +82,125 @@ function astRagProjectChunkForRetrieval(chunk = {}) {
   };
 }
 
+function astRagMergeRetrievedResultsAcrossQueries(queryResults = [], selectionLimit = 20) {
+  const mergedByChunk = new Map();
+
+  for (let idx = 0; idx < queryResults.length; idx += 1) {
+    const entry = queryResults[idx];
+    const query = astRagNormalizeString(entry && entry.query, '');
+    const items = Array.isArray(entry && entry.results) ? entry.results : [];
+
+    for (let itemIdx = 0; itemIdx < items.length; itemIdx += 1) {
+      const item = items[itemIdx];
+      const chunkId = astRagNormalizeString(item && item.chunkId, null);
+      if (!chunkId) {
+        continue;
+      }
+
+      if (!mergedByChunk.has(chunkId)) {
+        mergedByChunk.set(chunkId, Object.assign({}, item, {
+          matchedQueries: query ? [query] : []
+        }));
+        continue;
+      }
+
+      const current = mergedByChunk.get(chunkId);
+      if (query && Array.isArray(current.matchedQueries) && current.matchedQueries.indexOf(query) === -1) {
+        current.matchedQueries.push(query);
+      }
+
+      const currentScore = typeof current.finalScore === 'number' && isFinite(current.finalScore)
+        ? current.finalScore
+        : -1;
+      const incomingScore = typeof item.finalScore === 'number' && isFinite(item.finalScore)
+        ? item.finalScore
+        : -1;
+
+      if (incomingScore > currentScore) {
+        const matchedQueries = current.matchedQueries.slice();
+        mergedByChunk.set(chunkId, Object.assign({}, item, {
+          matchedQueries
+        }));
+      }
+    }
+  }
+
+  const merged = Array.from(mergedByChunk.values());
+  return astRagSelectTopScoredResults(
+    merged,
+    astRagNormalizePositiveInt(selectionLimit, merged.length || 1, 1)
+  );
+}
+
+function astRagRetrieveRankedChunksForQueries(indexDocument, queryPlan = {}, queryVectorsByQuery = {}, retrieval = {}, runtime = {}) {
+  const plan = astRagIsPlainObject(queryPlan) ? queryPlan : {};
+  const retrievalQueries = Array.isArray(plan.retrievalQueries) && plan.retrievalQueries.length > 0
+    ? plan.retrievalQueries.slice()
+    : [astRagNormalizeString(plan.rewrittenQuery, astRagNormalizeString(plan.originalQuery, ''))];
+
+  if (retrievalQueries.length <= 1) {
+    const singleQuery = astRagNormalizeString(retrievalQueries[0], astRagNormalizeString(plan.originalQuery, ''));
+    const singleVector = queryVectorsByQuery && queryVectorsByQuery[singleQuery];
+    return astRagRetrieveRankedChunks(
+      indexDocument,
+      singleQuery,
+      singleVector,
+      retrieval,
+      runtime
+    );
+  }
+
+  const diagnostics = astRagIsPlainObject(runtime) ? runtime.diagnostics : null;
+  const selectionLimit = astRagResolveRetrievalSelectionLimit(retrieval);
+  const retrievalWithoutRerank = Object.assign({}, retrieval, {
+    topK: selectionLimit,
+    rerank: {
+      enabled: false,
+      topN: selectionLimit,
+      provider: astRagNormalizeString(
+        retrieval && retrieval.rerank && retrieval.rerank.provider,
+        AST_RAG_DEFAULT_RETRIEVAL.rerank.provider
+      )
+    }
+  });
+
+  const perQueryResults = retrievalQueries.map(query => ({
+    query,
+    results: astRagRetrieveRankedChunks(
+      indexDocument,
+      query,
+      queryVectorsByQuery ? queryVectorsByQuery[query] : null,
+      retrievalWithoutRerank,
+      {}
+    )
+  }));
+
+  const mergedCandidates = astRagMergeRetrievedResultsAcrossQueries(perQueryResults, selectionLimit);
+  const reranked = astRagRerankResults(
+    astRagNormalizeString(plan.rewrittenQuery, astRagNormalizeString(plan.originalQuery, retrievalQueries[0] || '')),
+    mergedCandidates,
+    retrieval.rerank || {},
+    { diagnostics }
+  );
+  const returned = reranked
+    .slice(0, retrieval.topK)
+    .map(item => Object.assign({}, item, {
+      score: item.finalScore
+    }));
+
+  if (astRagIsPlainObject(diagnostics) && astRagIsPlainObject(diagnostics.retrieval)) {
+    if (!astRagIsPlainObject(diagnostics.retrieval.candidateCounts)) {
+      diagnostics.retrieval.candidateCounts = {};
+    }
+    diagnostics.retrieval.queryCount = retrievalQueries.length;
+    diagnostics.retrieval.candidateCounts.selectedForRerank = mergedCandidates.length;
+    diagnostics.retrieval.candidateCounts.returned = returned.length;
+    diagnostics.retrieval.returned = returned.length;
+  }
+
+  return returned;
+}
+
 function astRagRetrieveRankedChunks(indexDocument, query, queryVector, retrieval = {}, runtime = {}) {
   const diagnostics = astRagIsPlainObject(runtime) ? runtime.diagnostics : null;
   const sourceChunks = Array.isArray(indexDocument.chunks) ? indexDocument.chunks : [];

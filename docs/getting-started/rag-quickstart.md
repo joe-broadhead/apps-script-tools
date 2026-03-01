@@ -247,3 +247,39 @@ function ragCustomRerankerExample() {
   ASTX.RAG.unregisterReranker('prefer_phrase');
 }
 ```
+
+## Rewrite and decompose query plans
+
+```javascript
+function ragQueryTransformExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const rewritten = ASTX.RAG.rewriteQuery({
+    query: 'Please tell me revenue and margin changes',
+    rewrite: { policy: 'keywords' }
+  });
+
+  const decomposed = ASTX.RAG.decomposeQuestion({
+    question: 'What changed in revenue and margin after pricing?',
+    decompose: { policy: 'clauses', maxSubqueries: 3, includeOriginal: true }
+  });
+
+  const out = ASTX.RAG.search({
+    indexFileId: 'YOUR_INDEX_FILE_ID',
+    query: decomposed.question,
+    retrieval: {
+      mode: 'hybrid',
+      topK: 8,
+      minScore: 0.1,
+      queryTransform: {
+        enabled: true,
+        rewrite: { enabled: true, policy: 'normalize' },
+        decompose: { enabled: true, policy: 'clauses', maxSubqueries: 3, includeOriginal: true }
+      }
+    }
+  });
+
+  Logger.log(JSON.stringify(rewritten.provenance, null, 2));
+  Logger.log(JSON.stringify(out.queryProvenance, null, 2));
+}
+```

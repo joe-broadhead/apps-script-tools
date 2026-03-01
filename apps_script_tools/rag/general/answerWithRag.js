@@ -35,6 +35,10 @@ function astRagBuildAnswerDiagnostics(cacheConfig = {}, timeoutMs = null) {
     retrieval: {
       source: null,
       ms: 0,
+      queryCount: 1,
+      originalQuery: null,
+      rewrittenQuery: null,
+      transformedQuery: false,
       reranker: null,
       rerankTopN: 0,
       rawSources: 0,
@@ -302,6 +306,7 @@ function astRagBuildFallbackAnswerResult({
   normalizedRequest,
   rankedResults,
   queryUsage,
+  queryPlan,
   diagnostics,
   totalStartMs,
   pipelinePath
@@ -322,6 +327,7 @@ function astRagBuildFallbackAnswerResult({
     status: fallback.status,
     answer: astRagCitationNormalizeInline(fallback.answer),
     citations: filteredCitations,
+    queryProvenance: astRagIsPlainObject(queryPlan) ? astRagCloneObject(queryPlan) : null,
     retrieval: astRagBuildAnswerRetrievalSummary(normalizedRequest, rankedResults),
     usage: queryUsage,
     diagnostics: astRagFinalizeAnswerDiagnostics(diagnostics, totalStartMs, pipelinePath || 'fallback')
@@ -337,6 +343,13 @@ function astRagAnswerCore(request = {}) {
 
   try {
     const normalizedRequest = astRagValidateAnswerRequest(request);
+    const queryPlan = astRagBuildQueryTransformPlan(
+      normalizedRequest.question,
+      normalizedRequest.retrieval.queryTransform
+    );
+    const retrievalQueries = Array.isArray(queryPlan.retrievalQueries) && queryPlan.retrievalQueries.length > 0
+      ? queryPlan.retrievalQueries.slice()
+      : [normalizedRequest.question];
     const diagnosticsEnabled = normalizedRequest.options && normalizedRequest.options.diagnostics === true;
     const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
     const retrievalTimeoutMs = normalizedRequest.options && typeof normalizedRequest.options.maxRetrievalMs === 'number'
@@ -345,6 +358,10 @@ function astRagAnswerCore(request = {}) {
 
     const diagnostics = astRagBuildAnswerDiagnostics(cacheConfig, retrievalTimeoutMs);
     diagnostics.timings.validationMs = Math.max(0, astRagNowMs() - validationStartMs);
+    diagnostics.retrieval.queryCount = retrievalQueries.length;
+    diagnostics.retrieval.originalQuery = queryPlan.originalQuery;
+    diagnostics.retrieval.rewrittenQuery = queryPlan.rewrittenQuery;
+    diagnostics.retrieval.transformedQuery = queryPlan.transformed === true;
     diagnostics.retrieval.lexicalPrefilterTopN = normalizedRequest.retrieval.lexicalPrefilterTopN || 0;
     if (
       normalizedRequest.retrieval &&
@@ -392,7 +409,7 @@ function astRagAnswerCore(request = {}) {
     const answerCacheKey = astRagBuildAnswerCacheKey(
       normalizedRequest.indexFileId,
       versionToken,
-      normalizedRequest.question,
+      queryPlan,
       normalizedRequest.history,
       normalizedRequest.retrieval,
       {
@@ -447,6 +464,20 @@ function astRagAnswerCore(request = {}) {
         )
           ? cachedResponse.retrieval.returned
           : (Array.isArray(cachedResponse.citations) ? cachedResponse.citations.length : 0);
+        if (astRagIsPlainObject(cachedResponse.queryProvenance)) {
+          diagnostics.retrieval.queryCount = Array.isArray(cachedResponse.queryProvenance.retrievalQueries)
+            ? cachedResponse.queryProvenance.retrievalQueries.length
+            : diagnostics.retrieval.queryCount;
+          diagnostics.retrieval.originalQuery = astRagNormalizeString(
+            cachedResponse.queryProvenance.originalQuery,
+            diagnostics.retrieval.originalQuery
+          );
+          diagnostics.retrieval.rewrittenQuery = astRagNormalizeString(
+            cachedResponse.queryProvenance.rewrittenQuery,
+            diagnostics.retrieval.rewrittenQuery
+          );
+          diagnostics.retrieval.transformedQuery = cachedResponse.queryProvenance.transformed === true;
+        }
         const finalizedCachedDiagnostics = astRagFinalizeAnswerDiagnostics(
           diagnostics,
           totalStartMs,
@@ -469,6 +500,7 @@ function astRagAnswerCore(request = {}) {
     }
 
     let queryVector = null;
+    const queryVectorsByQuery = {};
     let queryUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -509,44 +541,50 @@ function astRagAnswerCore(request = {}) {
         if (normalizedRequest.retrieval.mode === 'lexical') {
           queryVector = null;
         } else {
-          const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
-            normalizedRequest.indexFileId,
-            versionToken,
-            embeddingProvider,
-            embeddingModel,
-            normalizedRequest.question
-          );
-          const cachedEmbedding = astRagCacheGet(
-            cacheConfig,
-            embeddingCacheKey,
-            operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
-            { path: 'embedding' }
-          );
-          astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'cache_embedding_get', diagnostics);
+          for (let queryIdx = 0; queryIdx < retrievalQueries.length; queryIdx += 1) {
+            const currentQuery = retrievalQueries[queryIdx];
+            const embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+              normalizedRequest.indexFileId,
+              versionToken,
+              embeddingProvider,
+              embeddingModel,
+              currentQuery
+            );
+            const cachedEmbedding = astRagCacheGet(
+              cacheConfig,
+              embeddingCacheKey,
+              operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
+              { path: 'embedding' }
+            );
+            astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'cache_embedding_get', diagnostics);
 
-          if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
-            diagnostics.cache.embeddingHit = true;
-            diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'embedding';
-            queryVector = cachedEmbedding.vector.slice();
-          } else {
+            if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+              diagnostics.cache.embeddingHit = true;
+              diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'embedding';
+              queryVectorsByQuery[currentQuery] = cachedEmbedding.vector.slice();
+              continue;
+            }
+
             const embeddingStartMs = astRagNowMs();
             astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'embedding', diagnostics);
             const queryEmbedding = astRagEmbedTexts({
               provider: embeddingProvider,
               model: embeddingModel,
-              texts: [normalizedRequest.question],
+              texts: [currentQuery],
               auth: normalizedRequest.auth,
               options: { retries: 2 }
             });
-            queryVector = queryEmbedding.vectors[0];
-            queryUsage = queryEmbedding.usage || queryUsage;
-            diagnostics.timings.embeddingMs = Math.max(0, astRagNowMs() - embeddingStartMs);
+            queryVectorsByQuery[currentQuery] = queryEmbedding.vectors[0];
+            queryUsage.inputTokens += (queryEmbedding.usage && queryEmbedding.usage.inputTokens) || 0;
+            queryUsage.outputTokens += (queryEmbedding.usage && queryEmbedding.usage.outputTokens) || 0;
+            queryUsage.totalTokens += (queryEmbedding.usage && queryEmbedding.usage.totalTokens) || 0;
+            diagnostics.timings.embeddingMs += Math.max(0, astRagNowMs() - embeddingStartMs);
             astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'embedding', diagnostics);
             astRagCacheSet(
               cacheConfig,
               embeddingCacheKey,
               {
-                vector: queryVector
+                vector: queryVectorsByQuery[currentQuery]
               },
               cacheConfig.embeddingTtlSec,
               operationMeta => astRagApplyAnswerCacheOperationDiagnostics(diagnostics, operationMeta),
@@ -554,13 +592,14 @@ function astRagAnswerCore(request = {}) {
             );
             astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'cache_embedding_set', diagnostics);
           }
+          queryVector = queryVectorsByQuery[queryPlan.rewrittenQuery] || queryVectorsByQuery[retrievalQueries[0]] || null;
         }
 
         astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'retrieval', diagnostics);
-        rankedResults = astRagRetrieveRankedChunks(
+        rankedResults = astRagRetrieveRankedChunksForQueries(
           indexDocument,
-          normalizedRequest.question,
-          queryVector,
+          queryPlan,
+          queryVectorsByQuery,
           normalizedRequest.retrieval,
           { diagnostics }
         );
@@ -596,6 +635,7 @@ function astRagAnswerCore(request = {}) {
           status: 'insufficient_context',
           answer: normalizedRequest.options.insufficientEvidenceMessage,
           citations: [],
+          queryProvenance: astRagCloneObject(queryPlan),
           retrieval: astRagBuildAnswerRetrievalSummary(normalizedRequest, []),
           usage: queryUsage,
           diagnostics: astRagFinalizeAnswerDiagnostics(
@@ -620,6 +660,7 @@ function astRagAnswerCore(request = {}) {
           normalizedRequest,
           rankedResults: [],
           queryUsage,
+          queryPlan,
           diagnostics,
           totalStartMs,
           pipelinePath: 'timeout_fallback'
@@ -639,6 +680,7 @@ function astRagAnswerCore(request = {}) {
           normalizedRequest,
           rankedResults: [],
           queryUsage,
+          queryPlan,
           diagnostics,
           totalStartMs,
           pipelinePath: 'fallback'
@@ -697,10 +739,10 @@ function astRagAnswerCore(request = {}) {
           );
         } else {
           astRagAssertAnswerRetrievalBudget(retrievalTimeoutMs, retrievalStartMs, 'recovery', diagnostics);
-          candidateResults = astRagRetrieveRankedChunks(
+          candidateResults = astRagRetrieveRankedChunksForQueries(
             indexDocument,
-            normalizedRequest.question,
-            queryVector,
+            queryPlan,
+            queryVectorsByQuery,
             candidateRetrieval,
             { diagnostics }
           );
@@ -735,8 +777,8 @@ function astRagAnswerCore(request = {}) {
           ? astRagDetectPayloadEmptyReason(retrievalPayload.results, normalizedRequest.retrieval)
           : astRagDetectIndexEmptyReason(
             indexDocument,
-            normalizedRequest.question,
-            queryVector,
+            queryPlan.rewrittenQuery,
+            queryVectorsByQuery[queryPlan.rewrittenQuery] || queryVector,
             normalizedRequest.retrieval
           )
       );
@@ -761,11 +803,11 @@ function astRagAnswerCore(request = {}) {
                 retrievalTimeoutMs > 0 &&
                 Math.max(0, astRagNowMs() - retrievalStartMs) > retrievalTimeoutMs
               )
-            )
-              ? astRagRetrieveRankedChunks(
+              )
+              ? astRagRetrieveRankedChunksForQueries(
                 indexDocument,
-                normalizedRequest.question,
-                queryVector,
+                queryPlan,
+                queryVectorsByQuery,
                 relaxedForFallback,
                 { diagnostics }
               )
@@ -776,6 +818,7 @@ function astRagAnswerCore(request = {}) {
           normalizedRequest,
           rankedResults: fallbackSeedResults,
           queryUsage,
+          queryPlan,
           diagnostics,
           totalStartMs,
           pipelinePath: 'fallback'
@@ -810,6 +853,7 @@ function astRagAnswerCore(request = {}) {
         status: 'insufficient_context',
         answer: normalizedRequest.options.insufficientEvidenceMessage,
         citations: [],
+        queryProvenance: astRagCloneObject(queryPlan),
         retrieval: astRagBuildAnswerRetrievalSummary(normalizedRequest, rankedResults),
         usage: queryUsage,
         diagnostics: astRagFinalizeAnswerDiagnostics(
@@ -918,6 +962,7 @@ function astRagAnswerCore(request = {}) {
         status: grounded.status,
         answer: astRagCitationNormalizeInline(grounded.answer),
         citations: filteredCitations,
+        queryProvenance: astRagCloneObject(queryPlan),
         retrieval: astRagBuildAnswerRetrievalSummary(normalizedRequest, rankedResults),
         usage: {
           retrieval: queryUsage,
