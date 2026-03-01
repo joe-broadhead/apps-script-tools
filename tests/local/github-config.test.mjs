@@ -115,7 +115,7 @@ test('GitHub config derives GHES GraphQL URL from REST /api/v3 base', () => {
   assert.equal(resolved.graphqlUrl, 'https://ghe.example.com/api/graphql');
 });
 
-test('GitHub config allows webhook operations without token when webhook secret exists', () => {
+test('GitHub config resolves webhook secret for verify_webhook without token', () => {
   const context = createGasContext({
     PropertiesService: createPropertiesService({
       GITHUB_WEBHOOK_SECRET: 'webhook-secret'
@@ -124,10 +124,11 @@ test('GitHub config allows webhook operations without token when webhook secret 
   loadGitHubScripts(context);
 
   const normalized = context.astGitHubValidateRequest({
-    operation: 'parse_webhook',
+    operation: 'verify_webhook',
     payload: '{"action":"opened"}',
     headers: {
-      'x-github-event': 'issues'
+      'x-github-event': 'issues',
+      'x-hub-signature-256': 'sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     }
   });
   const resolved = context.astGitHubResolveConfig(normalized);
@@ -153,4 +154,67 @@ test('GitHub config resolves secret:// values through AST.Secrets', () => {
   const resolved = context.astGitHubResolveConfig(normalized);
 
   assert.equal(resolved.token, 'resolved-token');
+});
+
+test('GitHub config does not eagerly resolve app secret refs for PAT operations', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_TOKEN: 'runtime-token',
+      GITHUB_APP_ID: '12345',
+      GITHUB_APP_INSTALLATION_ID: '67890',
+      GITHUB_APP_PRIVATE_KEY: 'secret://script/app-private-key'
+    })
+  });
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({ operation: 'get_me' });
+  const resolved = context.astGitHubResolveConfig(normalized);
+
+  assert.equal(resolved.token, 'runtime-token');
+  assert.equal(resolved.tokenType, 'pat');
+});
+
+test('GitHub webhook parse without verifySignature skips token secret resolution', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_TOKEN: 'secret://script/github-token'
+    })
+  });
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'parse_webhook',
+    payload: '{"action":"opened"}',
+    headers: {
+      'x-github-event': 'issues'
+    }
+  });
+  const resolved = context.astGitHubResolveConfig(normalized);
+
+  assert.equal(resolved.token, null);
+});
+
+test('GitHub app auth request does not resolve token secret when tokenType=github_app', () => {
+  const context = createGasContext({
+    PropertiesService: createPropertiesService({
+      GITHUB_TOKEN: 'secret://script/github-token',
+      GITHUB_APP_ID: '12345',
+      GITHUB_APP_INSTALLATION_ID: '67890',
+      GITHUB_APP_PRIVATE_KEY: 'test_private_key_placeholder'
+    })
+  });
+  loadGitHubScripts(context);
+
+  const normalized = context.astGitHubValidateRequest({
+    operation: 'auth_as_app',
+    auth: {
+      tokenType: 'github_app'
+    }
+  });
+  const resolved = context.astGitHubResolveConfig(normalized);
+
+  assert.equal(resolved.token, null);
+  assert.equal(resolved.tokenType, 'github_app');
+  assert.equal(resolved.appId, '12345');
+  assert.equal(resolved.appInstallationId, '67890');
 });

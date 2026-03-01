@@ -383,13 +383,37 @@ function astGitHubResolveConfig(request = {}) {
     verify_webhook: true,
     parse_webhook: true
   };
+  const tokenOptional = Object.prototype.hasOwnProperty.call(tokenOptionalOperations, operation);
+
+  const tokenTypeRaw = astGitHubResolveStringCandidates([
+    auth.tokenType,
+    runtimeConfig.GITHUB_TOKEN_TYPE,
+    scriptConfig.GITHUB_TOKEN_TYPE
+  ], null);
+  const normalizedTokenType = astGitHubResolveNormalizeString(tokenTypeRaw, null)
+    ? astGitHubResolveNormalizeString(tokenTypeRaw, 'pat').toLowerCase()
+    : null;
+
+  if (normalizedTokenType && !['pat', 'github_app', 'app'].includes(normalizedTokenType)) {
+    throw new AstGitHubValidationError('Unsupported GitHub tokenType; expected pat or github_app', {
+      field: 'tokenType',
+      value: tokenTypeRaw
+    });
+  }
 
   const tokenRaw = astGitHubResolveStringCandidates([
     auth.token,
     runtimeConfig.GITHUB_TOKEN,
     scriptConfig.GITHUB_TOKEN
   ], null);
-  const token = astGitHubResolveSecretValue(tokenRaw, 'token');
+  const tokenRequestedByCall = Boolean(astGitHubResolveNormalizeString(auth.token, null));
+  const tokenTypeWantsApp = normalizedTokenType === 'github_app' || normalizedTokenType === 'app';
+  const shouldResolveToken = Boolean(tokenRaw) && (
+    tokenRequestedByCall || (!tokenOptional && !tokenTypeWantsApp)
+  );
+  const token = shouldResolveToken
+    ? astGitHubResolveSecretValue(tokenRaw, 'token')
+    : null;
 
   const appIdRaw = astGitHubResolveStringCandidates([
     auth.appId,
@@ -417,33 +441,30 @@ function astGitHubResolveConfig(request = {}) {
     scriptConfig.GITHUB_WEBHOOK_SECRET
   ], null);
 
-  const appId = astGitHubResolveSecretValue(appIdRaw, 'appId');
-  const appInstallationId = astGitHubResolveSecretValue(appInstallationIdRaw, 'appInstallationId');
-  const appPrivateKey = astGitHubResolvePrivateKeyValue(appPrivateKeyRaw);
-  const webhookSecret = astGitHubResolveSecretValue(webhookSecretRaw, 'webhookSecret');
-
-  const hasAppCredentials = Boolean(appId && appInstallationId && appPrivateKey);
-  const tokenTypeRaw = astGitHubResolveStringCandidates([
-    auth.tokenType,
-    runtimeConfig.GITHUB_TOKEN_TYPE,
-    scriptConfig.GITHUB_TOKEN_TYPE
-  ], null);
-  const normalizedTokenType = astGitHubResolveNormalizeString(tokenTypeRaw, null)
-    ? astGitHubResolveNormalizeString(tokenTypeRaw, 'pat').toLowerCase()
+  const rawAppCredentialsProvided = Boolean(appIdRaw || appInstallationIdRaw || appPrivateKeyRaw);
+  const requestedAppAuth = operation === 'auth_as_app' || normalizedTokenType === 'github_app' || normalizedTokenType === 'app';
+  const shouldResolveAppCredentials = requestedAppAuth || (!token && rawAppCredentialsProvided);
+  const appId = shouldResolveAppCredentials
+    ? astGitHubResolveSecretValue(appIdRaw, 'appId')
     : null;
+  const appInstallationId = shouldResolveAppCredentials
+    ? astGitHubResolveSecretValue(appInstallationIdRaw, 'appInstallationId')
+    : null;
+  const appPrivateKey = shouldResolveAppCredentials
+    ? astGitHubResolvePrivateKeyValue(appPrivateKeyRaw)
+    : null;
+  const hasAppCredentials = Boolean(appId && appInstallationId && appPrivateKey);
 
-  if (normalizedTokenType && !['pat', 'github_app', 'app'].includes(normalizedTokenType)) {
-    throw new AstGitHubValidationError('Unsupported GitHub tokenType; expected pat or github_app', {
-      field: 'tokenType',
-      value: tokenTypeRaw
-    });
-  }
+  const shouldResolveWebhookSecret = operation === 'verify_webhook'
+    || (operation === 'parse_webhook' && options.verifySignature === true);
+  const webhookSecret = shouldResolveWebhookSecret
+    ? astGitHubResolveSecretValue(webhookSecretRaw, 'webhookSecret')
+    : null;
 
   const tokenType = normalizedTokenType
     ? normalizedTokenType
     : (token ? 'pat' : (hasAppCredentials ? 'github_app' : 'pat'));
   const wantsAppAuth = tokenType === 'github_app' || tokenType === 'app';
-  const tokenOptional = Object.prototype.hasOwnProperty.call(tokenOptionalOperations, operation);
 
   if (!token && !hasAppCredentials && !tokenOptional) {
     throw new AstGitHubAuthError("Missing required GitHub configuration field 'token'", {

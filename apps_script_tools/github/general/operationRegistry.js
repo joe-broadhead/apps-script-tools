@@ -1,5 +1,5 @@
 const AST_GITHUB_OPERATION_REGISTRY = Object.freeze({
-  auth_as_app: Object.freeze({ method: 'custom', path: () => '/app/installations/{installation_id}/access_tokens', read: true, paginated: false, group: 'auth', customExecutor: 'auth_as_app' }),
+  auth_as_app: Object.freeze({ method: 'custom', path: () => '/app/installations/{installation_id}/access_tokens', read: true, paginated: false, group: 'auth', mutation: true, customExecutor: 'auth_as_app' }),
   verify_webhook: Object.freeze({ method: 'custom', path: () => '/app/webhooks/verify', read: true, paginated: false, group: 'webhooks', customExecutor: 'verify_webhook' }),
   parse_webhook: Object.freeze({ method: 'custom', path: () => '/app/webhooks/parse', read: true, paginated: false, group: 'webhooks', customExecutor: 'parse_webhook' }),
 

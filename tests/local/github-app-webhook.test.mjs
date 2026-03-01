@@ -47,7 +47,7 @@ test('GitHub App auth exchanges installation token and reuses in-memory cache', 
   context.AST.GitHub.configure({
     GITHUB_APP_ID: '12345',
     GITHUB_APP_INSTALLATION_ID: '67890',
-    GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nFAKE\\n-----END PRIVATE KEY-----'
+    GITHUB_APP_PRIVATE_KEY: 'test_private_key_placeholder'
   });
 
   const first = context.AST.GitHub.getRepository({
@@ -89,7 +89,7 @@ test('authAsApp returns dryRun plan without network call', () => {
   context.AST.GitHub.configure({
     GITHUB_APP_ID: '12345',
     GITHUB_APP_INSTALLATION_ID: '67890',
-    GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nFAKE\\n-----END PRIVATE KEY-----'
+    GITHUB_APP_PRIVATE_KEY: 'test_private_key_placeholder'
   });
 
   const response = context.AST.GitHub.authAsApp({
