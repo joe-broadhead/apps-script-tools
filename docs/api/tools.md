@@ -991,6 +991,9 @@ Primary methods:
 - `ASTX.DBT.lineage(request)`
 - `ASTX.DBT.diffEntities(request)`
 - `ASTX.DBT.impact(request)`
+- `ASTX.DBT.qualityReport(request)`
+- `ASTX.DBT.testCoverage(request)`
+- `ASTX.DBT.owners(request)`
 - `ASTX.DBT.providers()` / `ASTX.DBT.capabilities(provider)`
 - `ASTX.DBT.validateManifest(request)`
 - `ASTX.DBT.configure(config)` / `ASTX.DBT.getConfig()` / `ASTX.DBT.clearConfig()`
@@ -1067,4 +1070,36 @@ const impact = ASTX.DBT.impact({
 });
 
 Logger.log(impact.nodes);
+```
+
+Governance report example:
+
+```javascript
+const quality = ASTX.DBT.qualityReport({
+  bundle: loaded.bundle,
+  filters: {
+    resourceTypes: ['model']
+  },
+  ownerPaths: ['owner.team', 'owner'],
+  topK: 50
+});
+
+const coverage = ASTX.DBT.testCoverage({
+  bundle: loaded.bundle,
+  filters: {
+    resourceTypes: ['model']
+  },
+  uncoveredOnly: true
+});
+
+const owners = ASTX.DBT.owners({
+  bundle: loaded.bundle,
+  filters: {
+    resourceTypes: ['model']
+  }
+});
+
+Logger.log(quality.summary);
+Logger.log(coverage.summary);
+Logger.log(owners.items);
 ```

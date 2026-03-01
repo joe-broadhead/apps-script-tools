@@ -23,7 +23,10 @@ const AST_DBT_RUN_OPERATIONS = Object.freeze([
   'lineage',
   'validate_manifest',
   'diff_entities',
-  'impact'
+  'impact',
+  'quality_report',
+  'test_coverage',
+  'owners'
 ]);
 
 const AST_DBT_PROVIDER_CAPABILITIES = Object.freeze({

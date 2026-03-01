@@ -26,6 +26,12 @@ function astDbtRun(request = {}) {
       return astDbtDiffEntitiesCore(normalized);
     case 'impact':
       return astDbtImpactCore(normalized);
+    case 'quality_report':
+      return astDbtQualityReportCore(normalized);
+    case 'test_coverage':
+      return astDbtTestCoverageCore(normalized);
+    case 'owners':
+      return astDbtOwnersCore(normalized);
     default:
       throw new AstDbtValidationError(`Unsupported DBT operation '${normalized.operation}'`);
   }
@@ -73,6 +79,18 @@ function astDbtDiffEntities(request = {}) {
 
 function astDbtImpact(request = {}) {
   return astDbtImpactCore(request);
+}
+
+function astDbtQualityReport(request = {}) {
+  return astDbtQualityReportCore(request);
+}
+
+function astDbtTestCoverage(request = {}) {
+  return astDbtTestCoverageCore(request);
+}
+
+function astDbtOwners(request = {}) {
+  return astDbtOwnersCore(request);
 }
 
 function astDbtValidateManifestCore(request = {}) {
@@ -155,6 +173,9 @@ const AST_DBT = Object.freeze({
   lineage: astDbtLineage,
   diffEntities: astDbtDiffEntities,
   impact: astDbtImpact,
+  qualityReport: astDbtQualityReport,
+  testCoverage: astDbtTestCoverage,
+  owners: astDbtOwners,
   providers: astDbtListProviders,
   capabilities: astDbtGetProviderCapabilities,
   validateManifest: astDbtValidateManifest,
