@@ -60,8 +60,63 @@ function jobsCancelExample(jobId) {
 }
 ```
 
+## Orchestration recipes
+
+```javascript
+function jobsChainRecipe() {
+  const ASTX = ASTLib.AST || ASTLib;
+  const result = ASTX.Jobs.chain({
+    name: 'chain-recipe',
+    tasks: [
+      { handler: 'jobsPrepare_' },
+      { handler: 'jobsCompute_' }
+    ]
+  });
+  Logger.log(JSON.stringify(result.orchestration));
+}
+
+function jobsEnqueueManyRecipe() {
+  const ASTX = ASTLib.AST || ASTLib;
+  const queued = ASTX.Jobs.enqueueMany({
+    name: 'fanout-recipe',
+    handler: 'jobsFanout_',
+    items: [{ id: 1 }, { id: 2 }, { id: 3 }],
+    maxConcurrency: 2
+  });
+
+  // Resume in a trigger/worker loop until terminal status.
+  const status = ASTX.Jobs.resume(queued.id);
+  Logger.log(status.status);
+}
+
+function jobsMapReduceRecipe() {
+  const ASTX = ASTLib.AST || ASTLib;
+  const result = ASTX.Jobs.mapReduce({
+    name: 'map-reduce-recipe',
+    items: [{ value: 5 }, { value: 7 }, { value: 9 }],
+    mapHandler: 'jobsMap_',
+    reduceHandler: 'jobsReduce_',
+    maxConcurrency: 2
+  });
+  Logger.log(JSON.stringify(result.results.reduce));
+}
+
+function jobsFanout_(ctx) {
+  return { processedId: ctx.payload.item.id };
+}
+
+function jobsMap_(ctx) {
+  return ctx.payload.item.value;
+}
+
+function jobsReduce_(ctx) {
+  return ctx.payload.mapStepIds.reduce((sum, stepId) => sum + ctx.results[stepId], 0);
+}
+```
+
 ## Notes
 
 - Jobs are checkpointed and resumable; each step must be deterministic and serializable.
 - `resume(...)` enforces lease ownership to avoid concurrent worker collisions.
+- `chain`, `enqueueMany`, and `mapReduce` compile to normal job steps and use the same retry/cancel/checkpoint semantics.
 - Keep job payloads compact; store large artifacts in `AST.Storage` and pass references.

@@ -578,6 +578,9 @@ Primary methods:
 
 - `ASTX.Jobs.run(request)` to enqueue and execute immediately until completion/pause/failure.
 - `ASTX.Jobs.enqueue(request)` to persist a queued job without executing it.
+- `ASTX.Jobs.chain(request)` to compile sequential tasks into one checkpointed job.
+- `ASTX.Jobs.enqueueMany(request)` to fan out one handler over `items[]` with bounded dependency width.
+- `ASTX.Jobs.mapReduce(request)` to run bounded map fan-out plus one reduce step.
 - `ASTX.Jobs.resume(jobId, options)` to continue a queued/paused job from checkpoint.
 - `ASTX.Jobs.status(jobId, options)` to fetch a single persisted job record.
 - `ASTX.Jobs.list(filters, options)` to list persisted job records.
@@ -591,6 +594,7 @@ High-signal behavior:
 - async step handlers are not supported; handlers must return JSON-serializable outputs.
 - checkpoints are persisted in script properties with configurable key prefix.
 - retries are bounded by `maxRetries`; jobs pause on retryable step failure.
+- orchestration helpers return `result.orchestration` with parent/child/stage status aggregation.
 - currently supported checkpoint store is `properties`.
 
 ```javascript

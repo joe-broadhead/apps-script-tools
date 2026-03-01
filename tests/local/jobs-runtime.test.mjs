@@ -110,6 +110,9 @@ test('AST exposes Jobs namespace methods', () => {
   const methods = [
     'run',
     'enqueue',
+    'enqueueMany',
+    'chain',
+    'mapReduce',
     'resume',
     'status',
     'list',
@@ -774,4 +777,215 @@ test('jobs execution options cap oversized request values instead of ignoring th
   assert.equal(resolved.maxRetries, 20);
   assert.equal(resolved.maxRuntimeMs, 600000);
   assert.equal(resolved.leaseTtlMs, 600000);
+});
+
+test('AST.Jobs.chain executes sequential tasks and returns orchestration summary', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_CHAIN_${Date.now()}_`;
+
+  context.jobsChainStepOne = ({ payload }) => payload.value + 1;
+  context.jobsChainStepTwo = ({ results }) => results.chain_step_1 * 3;
+
+  const result = context.AST.Jobs.chain({
+    name: 'chain-test',
+    options: { propertyPrefix },
+    tasks: [
+      {
+        handler: 'jobsChainStepOne',
+        payload: { value: 3 }
+      },
+      {
+        handler: 'jobsChainStepTwo'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.chain_step_1, 4);
+  assert.equal(result.results.chain_step_2, 12);
+  assert.equal(result.orchestration.helper, 'chain');
+  assert.equal(result.orchestration.parent.status, 'completed');
+  assert.equal(result.orchestration.children.counts.total, 2);
+  assert.equal(result.orchestration.children.status, 'completed');
+});
+
+test('AST.Jobs.enqueueMany enqueues item fan-out plan with bounded dependency window', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_ENQUEUE_MANY_${Date.now()}_`;
+
+  context.jobsEnqueueManyHandler = ({ payload }) => payload.item.value * 2;
+
+  const queued = context.AST.Jobs.enqueueMany({
+    name: 'enqueue-many-test',
+    mode: 'enqueue',
+    options: { propertyPrefix },
+    handler: 'jobsEnqueueManyHandler',
+    items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }],
+    maxConcurrency: 2
+  });
+
+  assert.equal(queued.status, 'queued');
+  assert.deepEqual(Array.from(queued.steps[0].dependsOn), []);
+  assert.deepEqual(Array.from(queued.steps[1].dependsOn), []);
+  assert.deepEqual(Array.from(queued.steps[2].dependsOn), ['item_1']);
+  assert.deepEqual(Array.from(queued.steps[3].dependsOn), ['item_2']);
+  assert.equal(queued.orchestration.children.counts.total, 4);
+  assert.equal(queued.orchestration.children.status, 'queued');
+
+  const completed = context.AST.Jobs.resume(queued.id);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.results.item_1, 2);
+  assert.equal(completed.results.item_4, 8);
+});
+
+test('AST.Jobs.enqueueMany clones sharedPayload per step to prevent cross-item mutation leaks', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_ENQUEUE_MANY_SHARED_${Date.now()}_`;
+
+  context.jobsEnqueueManySharedMutation = ({ payload }) => {
+    const before = payload.shared.seed;
+    payload.shared.seed += 1;
+    return {
+      itemValue: payload.item.value,
+      before,
+      after: payload.shared.seed
+    };
+  };
+
+  const result = context.AST.Jobs.enqueueMany({
+    name: 'enqueue-many-shared-payload-test',
+    mode: 'run',
+    options: { propertyPrefix },
+    handler: 'jobsEnqueueManySharedMutation',
+    items: [{ value: 1 }, { value: 2 }],
+    sharedPayload: { seed: 10 },
+    maxConcurrency: 2
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.item_1.before, 10);
+  assert.equal(result.results.item_1.after, 11);
+  assert.equal(result.results.item_2.before, 10);
+  assert.equal(result.results.item_2.after, 11);
+});
+
+test('AST.Jobs.mapReduce runs map and reduce stages with aggregated status metadata', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_MAP_REDUCE_${Date.now()}_`;
+
+  context.jobsMapReduceMap = ({ payload }) => payload.item.score;
+  context.jobsMapReduceReduce = ({ results, payload }) => payload.mapStepIds.reduce((sum, stepId) => sum + results[stepId], 0);
+
+  const result = context.AST.Jobs.mapReduce({
+    name: 'map-reduce-test',
+    options: { propertyPrefix },
+    items: [{ score: 1 }, { score: 2 }, { score: 3 }],
+    mapHandler: 'jobsMapReduceMap',
+    reduceHandler: 'jobsMapReduceReduce',
+    maxConcurrency: 2
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.reduce, 6);
+  assert.equal(result.orchestration.helper, 'map_reduce');
+  assert.equal(result.orchestration.stages.map.counts.total, 3);
+  assert.equal(result.orchestration.stages.map.status, 'completed');
+  assert.equal(result.orchestration.stages.reduce.status, 'completed');
+});
+
+test('AST.Jobs.mapReduce clones mapPayload shared data per map step', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_MAP_REDUCE_SHARED_${Date.now()}_`;
+
+  context.jobsMapReduceSharedMap = ({ payload }) => {
+    payload.shared.base += 1;
+    return payload.shared.base;
+  };
+  context.jobsMapReduceSharedReduce = ({ payload, results }) => payload.mapStepIds.reduce((sum, stepId) => sum + results[stepId], 0);
+
+  const result = context.AST.Jobs.mapReduce({
+    name: 'map-reduce-shared-payload-test',
+    options: { propertyPrefix },
+    items: [{ value: 1 }, { value: 2 }],
+    mapHandler: 'jobsMapReduceSharedMap',
+    reduceHandler: 'jobsMapReduceSharedReduce',
+    mapPayload: { base: 0 },
+    maxConcurrency: 2
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.results.map_1, 1);
+  assert.equal(result.results.map_2, 1);
+  assert.equal(result.results.reduce, 2);
+});
+
+test('AST.Jobs.mapReduce supports pause/resume recovery for mid-flow map failures', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_MAP_REDUCE_RESUME_${Date.now()}_`;
+
+  context.__mapReduceFlakyCount = 0;
+  context.jobsMapReduceFlakyMap = ({ payload }) => {
+    if (payload.index === 1 && context.__mapReduceFlakyCount === 0) {
+      context.__mapReduceFlakyCount += 1;
+      throw new Error('retry-map');
+    }
+    return payload.item.value;
+  };
+  context.jobsMapReduceFlakyReduce = ({ results, payload }) => payload.mapStepIds.reduce((sum, stepId) => sum + results[stepId], 0);
+
+  const queued = context.AST.Jobs.mapReduce({
+    name: 'map-reduce-recovery-test',
+    mode: 'enqueue',
+    options: {
+      propertyPrefix,
+      maxRetries: 1
+    },
+    items: [{ value: 10 }, { value: 20 }],
+    mapHandler: 'jobsMapReduceFlakyMap',
+    reduceHandler: 'jobsMapReduceFlakyReduce'
+  });
+
+  const firstResume = context.AST.Jobs.resume(queued.id);
+  assert.equal(firstResume.status, 'paused');
+  assert.equal(firstResume.steps.find(step => step.id === 'map_2').attempts, 1);
+
+  const secondResume = context.AST.Jobs.resume(queued.id);
+  assert.equal(secondResume.status, 'completed');
+  assert.equal(secondResume.results.reduce, 30);
+});
+
+test('AST.Jobs orchestration helpers validate malformed plans with typed errors', () => {
+  const { context } = createJobsContext();
+  context.jobsMapReduceValidMap = ({ payload }) => payload.item.value;
+  context.jobsMapReduceValidReduce = ({ results, payload }) => payload.mapStepIds.reduce((sum, stepId) => sum + results[stepId], 0);
+
+  assert.throws(
+    () => context.AST.Jobs.chain({
+      name: 'bad-chain',
+      mode: 'invalid-mode',
+      tasks: [{ handler: 'missing' }]
+    }),
+    /Invalid orchestration mode/
+  );
+
+  assert.throws(
+    () => context.AST.Jobs.enqueueMany({
+      name: 'bad-enqueue-many',
+      handler: 'unknownHandler',
+      items: []
+    }),
+    /must be a non-empty array/
+  );
+
+  assert.throws(
+    () => context.AST.Jobs.mapReduce({
+      name: 'bad-map-reduce-conflict',
+      items: [{ value: 1 }],
+      mapHandler: 'jobsMapReduceValidMap',
+      reduceHandler: 'jobsMapReduceValidReduce',
+      mapStepIdPrefix: 'reduce',
+      reduceStepId: 'reduce_1'
+    }),
+    /must be distinct/
+  );
 });

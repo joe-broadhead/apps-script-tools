@@ -13,6 +13,9 @@ const ASTX = ASTLib.AST || ASTLib;
 ```javascript
 ASTX.Jobs.run(request)
 ASTX.Jobs.enqueue(request)
+ASTX.Jobs.enqueueMany(request)
+ASTX.Jobs.chain(request)
+ASTX.Jobs.mapReduce(request)
 ASTX.Jobs.resume(jobId, options)
 ASTX.Jobs.status(jobId, options)
 ASTX.Jobs.list(filters, options)
@@ -53,6 +56,81 @@ Validation rules:
 - step handlers must resolve to globally available named functions.
 - async step handlers are not supported.
 - step outputs must be JSON serializable.
+
+## Orchestration helper contracts
+
+### `ASTX.Jobs.chain(request)`
+
+```javascript
+{
+  name: 'chain-job',
+  mode: 'run', // run | enqueue
+  tasks: [
+    { id: 'optional', handler: 'globalFunctionName', payload: { ... } }
+  ],
+  options: { ...standard job options }
+}
+```
+
+- Tasks are converted into sequential dependencies (`task[n]` depends on `task[n-1]`).
+- Missing task IDs are auto-generated as `chain_step_<n>`.
+- Default mode is `run`.
+
+### `ASTX.Jobs.enqueueMany(request)`
+
+```javascript
+{
+  name: 'fanout-job',
+  mode: 'enqueue', // run | enqueue
+  handler: 'globalFunctionName',
+  items: [ ... ],
+  maxConcurrency: 10,        // 1..1000 dependency window
+  stepIdPrefix: 'item',
+  sharedPayload: { ... },    // optional, copied to each step payload.shared
+  options: { ...standard job options }
+}
+```
+
+- Generates one step per item with payload `{ item, index, position, total, shared? }`.
+- Applies a bounded dependency window (`step[i]` depends on `step[i-maxConcurrency]`) for deterministic fan-out shape.
+- Default mode is `enqueue`.
+
+### `ASTX.Jobs.mapReduce(request)`
+
+```javascript
+{
+  name: 'map-reduce-job',
+  mode: 'run', // run | enqueue
+  items: [ ... ],
+  maxConcurrency: 10,
+  map: {
+    handler: 'globalMapHandler',
+    stepIdPrefix: 'map',
+    payload: { ... } // optional shared map payload
+  },
+  reduce: {
+    id: 'reduce',
+    handler: 'globalReduceHandler',
+    payload: { ... } // optional shared reduce payload
+  },
+  options: { ...standard job options }
+}
+```
+
+Shorthand keys are also supported: `mapHandler`, `reduceHandler`, `mapPayload`, `reducePayload`, `mapStepIdPrefix`, `reduceStepId`.
+
+- Generates map steps with bounded dependency window.
+- Adds one reduce step that depends on all map steps.
+- Reduce payload includes `{ mapStepIds, total, shared? }`.
+- Default mode is `run`.
+
+## Retry and cancel semantics for helpers
+
+- Helpers compile to standard Jobs step graphs and therefore inherit the same checkpoint/retry model.
+- Retries are controlled by `options.maxRetries` on the helper request.
+- On retryable step failure, helper jobs transition to `paused`; resume with `ASTX.Jobs.resume(jobId)`.
+- If a step exceeds retry budget, helper jobs transition to `failed`.
+- `ASTX.Jobs.cancel(jobId)` works unchanged for helper-created jobs and marks pending/running helper steps as `canceled`.
 
 ## Job status model
 
@@ -145,6 +223,22 @@ All operational calls (`run`, `enqueue`, `resume`, `status`, `cancel`) return a 
   ],
   results: {
     step_id: {}
+  },
+  orchestration: { // present on chain/enqueueMany/mapReduce returns
+    helper: 'chain|enqueue_many|map_reduce',
+    mode: 'run|enqueue',
+    parent: { jobId, status },
+    children: {
+      status: 'queued|pending|running|paused|failed|completed|canceled|mixed',
+      counts: { total, pending, running, completed, failed, canceled }
+    },
+    stages: {
+      stageName: {
+        status: 'queued|pending|running|paused|failed|completed|canceled|mixed',
+        counts: { total, pending, running, completed, failed, canceled },
+        maxConcurrency: 10 // when applicable
+      }
+    }
   }
 }
 ```

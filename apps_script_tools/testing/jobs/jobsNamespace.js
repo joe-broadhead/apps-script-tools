@@ -9,6 +9,9 @@ JOBS_NAMESPACE_TESTS = [
       const requiredMethods = [
         'run',
         'enqueue',
+        'enqueueMany',
+        'chain',
+        'mapReduce',
         'resume',
         'status',
         'list',

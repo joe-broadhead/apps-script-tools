@@ -7,6 +7,15 @@ const AST_JOBS_ALLOWED_STATUSES = Object.freeze([
   'canceled'
 ]);
 
+const AST_JOBS_ORCHESTRATION_ALLOWED_MODES = Object.freeze([
+  'run',
+  'enqueue'
+]);
+
+const AST_JOBS_ORCHESTRATION_MAX_ITEMS = 5000;
+const AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = 10;
+const AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = 1000;
+
 const AST_JOBS_DEFAULT_OPTIONS = Object.freeze({
   maxRetries: 2,
   maxRuntimeMs: 240000,
@@ -295,8 +304,204 @@ function astJobsValidateListFilters(filters = {}) {
   };
 }
 
+function astJobsNormalizeOrchestrationMode(mode, fallback = 'run') {
+  const fallbackMode = astJobsNormalizeString(fallback, 'run').toLowerCase();
+  if (!AST_JOBS_ORCHESTRATION_ALLOWED_MODES.includes(fallbackMode)) {
+    throw new AstJobsValidationError('Invalid orchestration fallback mode', {
+      fallback
+    });
+  }
+
+  if (typeof mode === 'undefined' || mode === null || mode === '') {
+    return fallbackMode;
+  }
+
+  const normalized = astJobsNormalizeString(mode, null);
+  if (!normalized) {
+    throw new AstJobsValidationError('Invalid orchestration mode', {
+      mode
+    });
+  }
+
+  const lowered = normalized.toLowerCase();
+
+  if (!AST_JOBS_ORCHESTRATION_ALLOWED_MODES.includes(lowered)) {
+    throw new AstJobsValidationError('Invalid orchestration mode', {
+      mode
+    });
+  }
+
+  return lowered;
+}
+
+function astJobsNormalizeOrchestrationItems(items, label = 'items') {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new AstJobsValidationError(`${label} must be a non-empty array`);
+  }
+
+  if (items.length > AST_JOBS_ORCHESTRATION_MAX_ITEMS) {
+    throw new AstJobsValidationError(`${label} exceeds supported max size`, {
+      maxItems: AST_JOBS_ORCHESTRATION_MAX_ITEMS,
+      count: items.length
+    });
+  }
+
+  return items.slice();
+}
+
+function astJobsNormalizeOrchestrationConcurrency(value) {
+  return astJobsNormalizePositiveInt(
+    value,
+    AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY,
+    1,
+    AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY
+  );
+}
+
+function astJobsNormalizeOrchestrationStepIdPrefix(value, fallback) {
+  const normalized = astJobsNormalizeString(value, fallback);
+  if (!normalized) {
+    throw new AstJobsValidationError('Step ID prefix must be a non-empty string');
+  }
+
+  return normalized;
+}
+
+function astJobsNormalizeChainTasks(tasks, stepIdPrefix) {
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    throw new AstJobsValidationError('Chain tasks must be a non-empty array');
+  }
+
+  const normalized = [];
+  const seenStepIds = new Set();
+
+  for (let idx = 0; idx < tasks.length; idx += 1) {
+    const task = tasks[idx];
+    if (!astJobsIsPlainObject(task)) {
+      throw new AstJobsValidationError('Each chain task must be an object', {
+        index: idx
+      });
+    }
+
+    const fallbackId = `${stepIdPrefix}_${idx + 1}`;
+    const stepId = astJobsNormalizeString(task.id, fallbackId);
+    if (!stepId) {
+      throw new AstJobsValidationError('Chain task id must be a non-empty string', {
+        index: idx
+      });
+    }
+
+    if (seenStepIds.has(stepId)) {
+      throw new AstJobsValidationError('Chain task IDs must be unique', {
+        stepId
+      });
+    }
+    seenStepIds.add(stepId);
+
+    normalized.push({
+      id: stepId,
+      handlerName: astJobsResolveHandlerName(task.handler, stepId),
+      payload: typeof task.payload === 'undefined' ? null : task.payload
+    });
+  }
+
+  return normalized;
+}
+
+function astJobsValidateChainRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('Chain request must be an object');
+  }
+
+  const name = astJobsNormalizeString(request.name, null);
+  if (!name) {
+    throw new AstJobsValidationError('Chain request requires a non-empty name');
+  }
+
+  const stepIdPrefix = astJobsNormalizeOrchestrationStepIdPrefix(request.stepIdPrefix, 'chain_step');
+  const tasks = astJobsNormalizeChainTasks(request.tasks, stepIdPrefix);
+
+  return {
+    name,
+    mode: astJobsNormalizeOrchestrationMode(request.mode, 'run'),
+    options: astJobsNormalizeOptions(request.options || {}),
+    stepIdPrefix,
+    tasks
+  };
+}
+
+function astJobsValidateEnqueueManyRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('enqueueMany request must be an object');
+  }
+
+  const name = astJobsNormalizeString(request.name, null);
+  if (!name) {
+    throw new AstJobsValidationError('enqueueMany request requires a non-empty name');
+  }
+
+  const stepIdPrefix = astJobsNormalizeOrchestrationStepIdPrefix(request.stepIdPrefix, 'item');
+  const handlerName = astJobsResolveHandlerName(request.handler, stepIdPrefix);
+  const items = astJobsNormalizeOrchestrationItems(request.items, 'items');
+
+  return {
+    name,
+    mode: astJobsNormalizeOrchestrationMode(request.mode, 'enqueue'),
+    options: astJobsNormalizeOptions(request.options || {}),
+    stepIdPrefix,
+    handlerName,
+    items,
+    sharedPayload: typeof request.sharedPayload === 'undefined' ? null : request.sharedPayload,
+    maxConcurrency: astJobsNormalizeOrchestrationConcurrency(request.maxConcurrency)
+  };
+}
+
+function astJobsValidateMapReduceRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('mapReduce request must be an object');
+  }
+
+  const name = astJobsNormalizeString(request.name, null);
+  if (!name) {
+    throw new AstJobsValidationError('mapReduce request requires a non-empty name');
+  }
+
+  const mapConfig = astJobsIsPlainObject(request.map) ? request.map : {};
+  const reduceConfig = astJobsIsPlainObject(request.reduce) ? request.reduce : {};
+  const mapStepIdPrefix = astJobsNormalizeOrchestrationStepIdPrefix(
+    mapConfig.stepIdPrefix || request.mapStepIdPrefix,
+    'map'
+  );
+  const reduceStepId = astJobsNormalizeString(reduceConfig.id || request.reduceStepId, 'reduce');
+  if (!reduceStepId) {
+    throw new AstJobsValidationError('mapReduce reduce step id must be non-empty');
+  }
+
+  return {
+    name,
+    mode: astJobsNormalizeOrchestrationMode(request.mode, 'run'),
+    options: astJobsNormalizeOptions(request.options || {}),
+    items: astJobsNormalizeOrchestrationItems(request.items, 'items'),
+    maxConcurrency: astJobsNormalizeOrchestrationConcurrency(request.maxConcurrency),
+    mapStepIdPrefix,
+    mapHandlerName: astJobsResolveHandlerName(mapConfig.handler || request.mapHandler, mapStepIdPrefix),
+    reduceStepId,
+    reduceHandlerName: astJobsResolveHandlerName(reduceConfig.handler || request.reduceHandler, reduceStepId),
+    mapPayload: typeof mapConfig.payload === 'undefined' ? (
+      typeof request.mapPayload === 'undefined' ? null : request.mapPayload
+    ) : mapConfig.payload,
+    reducePayload: typeof reduceConfig.payload === 'undefined' ? (
+      typeof request.reducePayload === 'undefined' ? null : request.reducePayload
+    ) : reduceConfig.payload
+  };
+}
+
 const __astJobsValidateRoot = typeof globalThis !== 'undefined' ? globalThis : this;
 __astJobsValidateRoot.AST_JOBS_ALLOWED_STATUSES = AST_JOBS_ALLOWED_STATUSES;
+__astJobsValidateRoot.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRATION_ALLOWED_MODES;
+__astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
+__astJobsValidateRoot.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
+__astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
 __astJobsValidateRoot.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
 __astJobsValidateRoot.astJobsIsPlainObject = astJobsIsPlainObject;
 __astJobsValidateRoot.astJobsNormalizeString = astJobsNormalizeString;
@@ -307,7 +512,14 @@ __astJobsValidateRoot.astJobsNormalizeOptions = astJobsNormalizeOptions;
 __astJobsValidateRoot.astJobsValidateRunRequest = astJobsValidateRunRequest;
 __astJobsValidateRoot.astJobsValidateEnqueueRequest = astJobsValidateEnqueueRequest;
 __astJobsValidateRoot.astJobsValidateListFilters = astJobsValidateListFilters;
+__astJobsValidateRoot.astJobsValidateChainRequest = astJobsValidateChainRequest;
+__astJobsValidateRoot.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
+__astJobsValidateRoot.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;
 this.AST_JOBS_ALLOWED_STATUSES = AST_JOBS_ALLOWED_STATUSES;
+this.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRATION_ALLOWED_MODES;
+this.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
+this.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
+this.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
 this.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
 this.astJobsIsPlainObject = astJobsIsPlainObject;
 this.astJobsNormalizeString = astJobsNormalizeString;
@@ -318,3 +530,6 @@ this.astJobsNormalizeOptions = astJobsNormalizeOptions;
 this.astJobsValidateRunRequest = astJobsValidateRunRequest;
 this.astJobsValidateEnqueueRequest = astJobsValidateEnqueueRequest;
 this.astJobsValidateListFilters = astJobsValidateListFilters;
+this.astJobsValidateChainRequest = astJobsValidateChainRequest;
+this.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
+this.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;
