@@ -448,6 +448,8 @@ Script property extraction helpers for deterministic runtime bootstrap.
 Primary methods:
 
 - `ASTX.Config.fromScriptProperties(options)` to read and normalize script properties.
+- `ASTX.Config.schema(definition)` to compile typed config schemas.
+- `ASTX.Config.bind(definitionOrSchema, options)` to bind typed values with precedence.
 
 High-signal behavior:
 
@@ -456,6 +458,7 @@ High-signal behavior:
 - accepts explicit handle injection via `scriptProperties: PropertiesService.getScriptProperties()`.
 - default implicit-handle reads are fresh (no shared memoized snapshot). Set `cacheDefaultHandle: true` to opt into implicit-handle memoization.
 - gracefully returns `{}` when script properties are unavailable.
+- bind precedence defaults to `request > runtime > script_properties`.
 
 ```javascript
 const props = ASTX.Config.fromScriptProperties({
@@ -463,7 +466,22 @@ const props = ASTX.Config.fromScriptProperties({
   prefix: 'OPENAI_',
   stripPrefix: true
 });
+
+const schema = ASTX.Config.schema({
+  GITHUB_TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 },
+  GITHUB_CACHE_ENABLED: { type: 'bool', default: false }
+});
+
+const cfg = ASTX.Config.bind(schema, {
+  request: { GITHUB_TIMEOUT_MS: 20000 },
+  runtime: {},
+  scriptProperties: PropertiesService.getScriptProperties()
+});
 ```
+
+See:
+
+- [Config Contracts](config-contracts.md)
 
 ## `ASTX.Runtime`
 

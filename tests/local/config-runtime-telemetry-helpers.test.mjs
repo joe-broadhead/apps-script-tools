@@ -27,6 +27,8 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   ]);
 
   assert.equal(typeof context.AST.Config.fromScriptProperties, 'function');
+  assert.equal(typeof context.AST.Config.schema, 'function');
+  assert.equal(typeof context.AST.Config.bind, 'function');
   assert.equal(typeof context.AST.Runtime.configureFromProps, 'function');
   assert.equal(typeof context.AST.Runtime.modules, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.withSpan, 'function');

@@ -24,7 +24,7 @@
 - `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
 - `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key + batch ops, invalidation, stats).
-- `AST.Config`: script-properties snapshot helpers for configuration bootstrap.
+- `AST.Config`: script-properties snapshots + typed schema binding for resolver config.
 - `AST.Runtime`: runtime configuration hydration across AST namespaces.
 - `AST.Telemetry`: request-level tracing spans/events with redaction and sink controls.
 - `AST.TelemetryHelpers`: safe wrappers for span lifecycle orchestration.
