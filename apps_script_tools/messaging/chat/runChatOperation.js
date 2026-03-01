@@ -10,25 +10,93 @@ function astMessagingRunChatIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function astMessagingRunChatResolveWebhookProvider(url) {
-  const normalized = astMessagingRunChatNormalizeString(url, '').toLowerCase();
+function astMessagingRunChatParseHttpsHostname(url) {
+  const normalized = astMessagingRunChatNormalizeString(url, '');
   if (!normalized) {
+    return '';
+  }
+
+  try {
+    if (typeof URL === 'function') {
+      const parsed = new URL(normalized);
+      if (String(parsed.protocol || '').toLowerCase() !== 'https:') {
+        return '';
+      }
+      return astMessagingRunChatNormalizeString(parsed.hostname, '').toLowerCase();
+    }
+  } catch (_error) {
+    // Fall through to deterministic regex parsing for runtimes without URL support.
+  }
+
+  const match = normalized.match(/^https:\/\/([^\/?#]+)/i);
+  if (!match) {
+    return '';
+  }
+
+  let authority = astMessagingRunChatNormalizeString(match[1], '').toLowerCase();
+  if (!authority) {
+    return '';
+  }
+
+  if (authority.includes('@')) {
+    authority = authority.split('@').pop();
+  }
+
+  if (authority.startsWith('[') && authority.includes(']')) {
+    // Ignore IPv6 authorities in transport inference.
+    return '';
+  }
+
+  const host = authority.replace(/:\d+$/, '');
+  if (!/^[a-z0-9.-]+$/.test(host)) {
+    return '';
+  }
+
+  return host;
+}
+
+function astMessagingRunChatHostnameMatches(hostname, exactHosts = [], suffixHosts = []) {
+  if (!hostname) {
+    return false;
+  }
+
+  for (let i = 0; i < exactHosts.length; i += 1) {
+    const exact = astMessagingRunChatNormalizeString(exactHosts[i], '').toLowerCase();
+    if (exact && hostname === exact) {
+      return true;
+    }
+  }
+
+  for (let i = 0; i < suffixHosts.length; i += 1) {
+    const suffix = astMessagingRunChatNormalizeString(suffixHosts[i], '').toLowerCase();
+    if (!suffix) {
+      continue;
+    }
+    if (hostname === suffix || hostname.endsWith(`.${suffix}`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function astMessagingRunChatResolveWebhookProvider(url) {
+  const hostname = astMessagingRunChatParseHttpsHostname(url);
+  if (!hostname) {
     return null;
   }
-  if (normalized.includes('chat.googleapis.com')) {
+
+  if (astMessagingRunChatHostnameMatches(hostname, ['chat.googleapis.com'])) {
     return 'chat_webhook';
   }
-  if (normalized.includes('hooks.slack.com')) {
+  if (astMessagingRunChatHostnameMatches(hostname, ['hooks.slack.com'])) {
     return 'slack_webhook';
   }
-  if (
-    normalized.includes('.office.com/webhook') ||
-    normalized.includes('.office365.com/webhook') ||
-    normalized.includes('logic.azure.com')
-  ) {
+  if (astMessagingRunChatHostnameMatches(hostname, ['logic.azure.com', 'outlook.office.com', 'outlook.office365.com'], ['webhook.office.com', 'webhook.office365.com'])) {
     return 'teams_webhook';
   }
-  return 'chat_webhook';
+
+  return null;
 }
 
 function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
@@ -39,6 +107,7 @@ function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
   const providers = {};
   let hasSpace = false;
   let hasChannel = false;
+  let unknownWebhookHost = false;
 
   const inspectPayload = payload => {
     if (!astMessagingRunChatIsPlainObject(payload)) {
@@ -55,9 +124,12 @@ function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
       providers.slack_hint = true;
     }
 
-    const webhookProvider = astMessagingRunChatResolveWebhookProvider(payload.webhookUrl);
+    const webhookUrl = astMessagingRunChatNormalizeString(payload.webhookUrl, '');
+    const webhookProvider = astMessagingRunChatResolveWebhookProvider(webhookUrl);
     if (webhookProvider) {
       providers[webhookProvider] = true;
+    } else if (webhookUrl) {
+      unknownWebhookHost = true;
     }
   };
 
@@ -73,6 +145,7 @@ function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
   return {
     hasSpace,
     hasChannel,
+    unknownWebhookHost,
     providers: Object.keys(providers).sort()
   };
 }
@@ -85,6 +158,11 @@ function astMessagingRunChatInferSendTransport(normalizedRequest = {}, resolvedC
   const uniqueProviders = hints.providers
     .filter(provider => provider !== 'slack_hint')
     .sort();
+  if (hints.unknownWebhookHost) {
+    throw new AstMessagingValidationError('Unable to infer chat transport from webhookUrl host; set body.transport explicitly', {
+      field: 'body.transport'
+    });
+  }
   if (
     hints.hasSpace && hints.hasChannel ||
     uniqueProviders.length > 1 ||

@@ -205,3 +205,47 @@ test('chat send without explicit transport rejects ambiguous provider hints', ()
     /Ambiguous chat payload/
   );
 });
+
+test('chat send without explicit transport rejects unknown webhook hosts', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.AST.Messaging.chat.send({
+      body: {
+        webhookUrl: 'https://evil.example/path/hooks.slack.com/services/T/B/X',
+        message: { text: 'hello' }
+      }
+    }),
+    /Unable to infer chat transport/
+  );
+});
+
+test('chat send without explicit transport infers slack_webhook from trusted webhook host', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => 'ok',
+          getAllHeaders: () => ({})
+        };
+      }
+    }
+  });
+  loadMessagingScripts(context, { includeAst: true });
+
+  const sent = context.AST.Messaging.chat.send({
+    body: {
+      webhookUrl: 'https://hooks.slack.com/services/T000/B000/XXX',
+      message: { text: 'hello' }
+    }
+  });
+
+  assert.equal(sent.status, 'ok');
+  assert.equal(sent.transport, 'slack_webhook');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://hooks.slack.com/services/T000/B000/XXX');
+});
