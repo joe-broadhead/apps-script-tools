@@ -199,6 +199,37 @@ High-signal behavior:
 
 See [SQL Contracts](sql-contracts.md) for provider-specific request details.
 
+## `ASTX.Http`
+
+Shared HTTP execution surface for retries, timeout budgets, and typed transport errors.
+
+Primary methods:
+
+- `ASTX.Http.request(request)` for single-request execution.
+- `ASTX.Http.requestBatch(request)` for batch execution with per-item success/error envelopes.
+- `ASTX.Http.capabilities(operation)` for runtime contract inspection.
+- `ASTX.Http.configure(config)` / `ASTX.Http.getConfig()` / `ASTX.Http.clearConfig()`.
+
+High-signal behavior:
+
+- config precedence: request options -> runtime `configure(...)` -> script properties.
+- transient retries apply to `429` and `5xx` statuses by default.
+- deterministic timeout budget semantics via `options.timeoutMs`.
+- response envelope always includes `source`, `output`, and `usage`.
+
+```javascript
+const out = ASTX.Http.request({
+  url: 'https://api.example.com/v1/health',
+  method: 'GET',
+  options: {
+    retries: 2,
+    timeoutMs: 15000
+  }
+});
+
+Logger.log(out.output.statusCode);
+```
+
 ## `ASTX.Sheets` and `ASTX.Drive`
 
 Workspace interoperability surfaces:
@@ -760,6 +791,7 @@ Logger.log(JSON.stringify(planned.dryRun.plannedRequest, null, 2));
 
 See:
 
+- [HTTP Contracts](http-contracts.md)
 - [Chat Contracts](chat-contracts.md)
 - [Messaging Contracts](messaging-contracts.md)
 - [Messaging Email API](messaging-email.md)

@@ -17,6 +17,7 @@
 - `AST.GroupBy`: grouped aggregations and grouped transforms.
 - `AST.Sheets`: sheet open helpers and enhanced sheet classes.
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
+- `AST.Http`: shared transport helpers for retries, timeout budgets, and typed request errors.
 - `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
 - `AST.RAG`: Drive-backed indexing, retrieval, and grounded answering with citations.
 - `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`) with search, lineage, diff, and impact overlays.

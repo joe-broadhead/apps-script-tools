@@ -17,6 +17,7 @@ ASTX.DataFrame
 ASTX.GroupBy
 ASTX.Sheets
 ASTX.Drive
+ASTX.Http
 ASTX.AI
 ASTX.RAG
 ASTX.DBT
@@ -192,6 +193,17 @@ ASTX.Sql.status(request)
 ASTX.Sql.cancel(request)
 ASTX.Sql.providers()
 ASTX.Sql.capabilities(provider)
+```
+
+## `Http` essentials
+
+```javascript
+ASTX.Http.request(request)
+ASTX.Http.requestBatch(request)
+ASTX.Http.capabilities(operation)
+ASTX.Http.configure(config, options)
+ASTX.Http.getConfig()
+ASTX.Http.clearConfig()
 ```
 
 ## `RAG` essentials

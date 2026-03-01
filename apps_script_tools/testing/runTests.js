@@ -9,6 +9,7 @@ async function runAllTests() {
 
     // AST namespace tests
     ...AST_UTILS_TESTS,
+    ...HTTP_NAMESPACE_TESTS,
     ...AI_NAMESPACE_TESTS,
     ...AI_TOOLS_TESTS,
     ...RAG_NAMESPACE_TESTS,

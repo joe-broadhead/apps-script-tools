@@ -120,6 +120,7 @@ nav:
     - dbt Manifest Search: api/dbt-manifest-search.md
     - dbt Artifacts and Impact: api/dbt-artifacts-impact.md
     - SQL Contracts: api/sql-contracts.md
+    - HTTP Contracts: api/http-contracts.md
     - GitHub Contracts: api/github-contracts.md
     - GitHub Operations: api/github-operations.md
     - Messaging Contracts: api/messaging-contracts.md

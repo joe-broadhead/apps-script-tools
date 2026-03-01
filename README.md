@@ -32,7 +32,7 @@ Core surfaces:
 
 - Data: `AST.Series`, `AST.DataFrame`, `AST.GroupBy`
 - Workspace and SQL: `AST.Sheets`, `AST.Drive`, `AST.Sql`
-- Platform: `AST.Storage`, `AST.Secrets`, `AST.Cache`, `AST.Config`, `AST.Runtime`
+- Platform: `AST.Http`, `AST.Storage`, `AST.Secrets`, `AST.Cache`, `AST.Config`, `AST.Runtime`
 - Automation and observability: `AST.Jobs`, `AST.Triggers`, `AST.Telemetry`, `AST.TelemetryHelpers`
 - AI stack: `AST.AI`, `AST.RAG`, `AST.Chat`
 - Messaging: `AST.Messaging` (Google Email + Chat automation)

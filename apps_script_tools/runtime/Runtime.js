@@ -1,4 +1,5 @@
 const AST_RUNTIME_MODULE_DEFINITIONS = Object.freeze([
+  { name: 'Http', globalName: 'AST_HTTP' },
   { name: 'AI', globalName: 'AST_AI' },
   { name: 'RAG', globalName: 'AST_RAG' },
   { name: 'DBT', globalName: 'AST_DBT' },
@@ -13,6 +14,8 @@ const AST_RUNTIME_MODULE_DEFINITIONS = Object.freeze([
 ]);
 
 const AST_RUNTIME_MODULE_ALIAS_MAP = Object.freeze({
+  HTTP: 'Http',
+  ASTHTTP: 'Http',
   AI: 'AI',
   ASTAI: 'AI',
   RAG: 'RAG',

@@ -4,6 +4,12 @@
 
 ### Added
 
+- New `AST.Http` namespace with:
+  - `request`, `requestBatch`
+  - `capabilities`
+  - `configure`, `getConfig`, `clearConfig`
+- HTTP docs:
+  - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:
   - `run`, `operations`, `capabilities`
   - `configure`, `getConfig`, `clearConfig`

@@ -41,6 +41,14 @@ AST_UTILS_TESTS = [
     })
   },
   {
+    description: 'AST namespace should expose Http helper surface',
+    test: () => astTestRunWithAssertions(t => {
+      t.ok(AST && AST.Http, 'AST.Http is not available');
+      t.equal(typeof AST.Http.request, 'function', 'AST.Http.request is not available');
+      t.equal(typeof AST.Http.requestBatch, 'function', 'AST.Http.requestBatch is not available');
+    })
+  },
+  {
     description: 'AST namespace should expose Secrets helper surface',
     test: () => astTestRunWithAssertions(t => {
       t.ok(AST && AST.Secrets, 'AST.Secrets is not available');
