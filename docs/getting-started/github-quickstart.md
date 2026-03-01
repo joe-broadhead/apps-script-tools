@@ -163,3 +163,39 @@ function githubCachedReadExample() {
   Logger.log(JSON.stringify(out.cache));
 }
 ```
+
+## Actions workflows and runs
+
+```javascript
+function githubActionsExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const workflows = ASTX.GitHub.listWorkflows({
+    owner: 'octocat',
+    repo: 'hello-world'
+  });
+
+  const runs = ASTX.GitHub.listWorkflowRuns({
+    owner: 'octocat',
+    repo: 'hello-world',
+    workflowId: '.github/workflows/ci.yml',
+    body: {
+      branch: 'main',
+      status: 'completed'
+    }
+  });
+
+  const rerunPlan = ASTX.GitHub.rerunWorkflowRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    runId: 123456789,
+    options: {
+      dryRun: true
+    }
+  });
+
+  Logger.log(workflows.data.total_count);
+  Logger.log(runs.data.total_count);
+  Logger.log(JSON.stringify(rerunPlan.dryRun.plannedRequest, null, 2));
+}
+```

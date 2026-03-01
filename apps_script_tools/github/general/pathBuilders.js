@@ -144,6 +144,75 @@ function astGitHubBuildFileContentsPath(request = {}) {
   return astGitHubBuildRepoPath(request, `/contents/${segments.join('/')}`);
 }
 
+function astGitHubReadRequestField(request = {}, fieldNames = []) {
+  const source = astGitHubPathIsPlainObject(request) ? request : {};
+  const body = astGitHubPathIsPlainObject(source.body) ? source.body : {};
+  const keys = Array.isArray(fieldNames) ? fieldNames : [];
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    if (!key) {
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, key) && source[key] != null && source[key] !== '') {
+      return source[key];
+    }
+    if (Object.prototype.hasOwnProperty.call(body, key) && body[key] != null && body[key] !== '') {
+      return body[key];
+    }
+  }
+
+  return null;
+}
+
+function astGitHubResolveWorkflowIdentifier(request = {}) {
+  const workflowRaw = astGitHubReadRequestField(request, ['workflowId', 'workflow_id', 'workflow']);
+  if (workflowRaw == null || workflowRaw === '') {
+    throw new AstGitHubValidationError("Missing required GitHub request field 'workflowId'", {
+      field: 'workflowId'
+    });
+  }
+
+  return astGitHubEncodePathSegment(String(workflowRaw), 'workflowId', { allowSlash: true });
+}
+
+function astGitHubResolveNumericIdentifier(request = {}, fieldName = '', aliases = []) {
+  const keys = [fieldName].concat(Array.isArray(aliases) ? aliases : []);
+  const rawValue = astGitHubReadRequestField(request, keys);
+  const resolvedField = astGitHubNormalizePathString(fieldName, 'id');
+
+  if (rawValue == null || rawValue === '') {
+    throw new AstGitHubValidationError(`Missing required GitHub request field '${resolvedField}'`, {
+      field: resolvedField
+    });
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new AstGitHubValidationError(`GitHub request field '${resolvedField}' must be an integer >= 1`, {
+      field: resolvedField,
+      value: rawValue
+    });
+  }
+
+  return parsed;
+}
+
+function astGitHubBuildActionsWorkflowPath(request = {}, suffix = '') {
+  const workflowId = astGitHubResolveWorkflowIdentifier(request);
+  return astGitHubBuildRepoPath(request, `/actions/workflows/${workflowId}${suffix || ''}`);
+}
+
+function astGitHubBuildActionsRunPath(request = {}, suffix = '') {
+  const runId = astGitHubResolveNumericIdentifier(request, 'runId', ['run_id']);
+  return astGitHubBuildRepoPath(request, `/actions/runs/${runId}${suffix || ''}`);
+}
+
+function astGitHubBuildActionsArtifactPath(request = {}, suffix = '') {
+  const artifactId = astGitHubResolveNumericIdentifier(request, 'artifactId', ['artifact_id']);
+  return astGitHubBuildRepoPath(request, `/actions/artifacts/${artifactId}${suffix || ''}`);
+}
+
 function astGitHubMergeQuery(base = {}, extra = {}) {
   const out = astGitHubPathIsPlainObject(base)
     ? Object.assign({}, base)

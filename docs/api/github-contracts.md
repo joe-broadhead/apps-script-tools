@@ -55,6 +55,14 @@ ASTX.GitHub.getLatestRelease(request)
 ASTX.GitHub.getReleaseByTag(request)
 ASTX.GitHub.listTags(request)
 ASTX.GitHub.getTag(request)
+ASTX.GitHub.listWorkflows(request)
+ASTX.GitHub.getWorkflow(request)
+ASTX.GitHub.listWorkflowRuns(request)
+ASTX.GitHub.getWorkflowRun(request)
+ASTX.GitHub.rerunWorkflowRun(request)
+ASTX.GitHub.cancelWorkflowRun(request)
+ASTX.GitHub.listWorkflowRunArtifacts(request)
+ASTX.GitHub.getWorkflowRunArtifact(request)
 ASTX.GitHub.searchRepositories(request)
 ASTX.GitHub.searchUsers(request)
 ASTX.GitHub.searchCode(request)
@@ -72,13 +80,16 @@ ASTX.GitHub.clearConfig()
 
 ```javascript
 {
-  operation: 'get_me' | 'get_repository' | 'create_repository' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
+  operation: 'get_me' | 'get_repository' | 'create_repository' | 'list_workflows' | 'get_workflow' | 'list_workflow_runs' | 'get_workflow_run' | 'rerun_workflow_run' | 'cancel_workflow_run' | 'list_workflow_run_artifacts' | 'get_workflow_run_artifact' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
   owner: 'optional',
   repo: 'optional',
   issueNumber: 123,
   pullNumber: 456,
   reviewId: 789,
   commentId: 1011,
+  workflowId: 222 | '.github/workflows/ci.yml',
+  runId: 123456789,
+  artifactId: 987654321,
   path: 'file/path',
   branch: 'branch-name',
   ref: 'sha-or-ref',

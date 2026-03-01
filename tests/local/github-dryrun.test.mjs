@@ -134,3 +134,32 @@ test('createBranch dryRun without sha does not perform lookup network calls', ()
   assert.equal(response.dryRun.plannedRequest.operation, 'create_branch');
   assert.equal(response.dryRun.plannedRequest.source.path, '/repos/octocat/hello-world/git/refs');
 });
+
+test('rerunWorkflowRun dryRun returns plan and skips network call', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not call fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.rerunWorkflowRun({
+    owner: 'octocat',
+    repo: 'hello-world',
+    runId: 321,
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.dryRun.enabled, true);
+  assert.equal(response.dryRun.plannedRequest.operation, 'rerun_workflow_run');
+  assert.equal(response.dryRun.plannedRequest.source.path, '/repos/octocat/hello-world/actions/runs/321/rerun');
+});

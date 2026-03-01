@@ -186,6 +186,38 @@ function astGitHubGetTag(request = {}) {
   return astGitHubRunOperation('get_tag', request);
 }
 
+function astGitHubListWorkflows(request = {}) {
+  return astGitHubRunOperation('list_workflows', request);
+}
+
+function astGitHubGetWorkflow(request = {}) {
+  return astGitHubRunOperation('get_workflow', request);
+}
+
+function astGitHubListWorkflowRuns(request = {}) {
+  return astGitHubRunOperation('list_workflow_runs', request);
+}
+
+function astGitHubGetWorkflowRun(request = {}) {
+  return astGitHubRunOperation('get_workflow_run', request);
+}
+
+function astGitHubRerunWorkflowRun(request = {}) {
+  return astGitHubRunOperation('rerun_workflow_run', request);
+}
+
+function astGitHubCancelWorkflowRun(request = {}) {
+  return astGitHubRunOperation('cancel_workflow_run', request);
+}
+
+function astGitHubListWorkflowRunArtifacts(request = {}) {
+  return astGitHubRunOperation('list_workflow_run_artifacts', request);
+}
+
+function astGitHubGetWorkflowRunArtifact(request = {}) {
+  return astGitHubRunOperation('get_workflow_run_artifact', request);
+}
+
 function astGitHubSearchRepositories(request = {}) {
   return astGitHubRunOperation('search_repositories', request);
 }
@@ -277,6 +309,14 @@ const AST_GITHUB = Object.freeze({
   getReleaseByTag: astGitHubGetReleaseByTag,
   listTags: astGitHubListTags,
   getTag: astGitHubGetTag,
+  listWorkflows: astGitHubListWorkflows,
+  getWorkflow: astGitHubGetWorkflow,
+  listWorkflowRuns: astGitHubListWorkflowRuns,
+  getWorkflowRun: astGitHubGetWorkflowRun,
+  rerunWorkflowRun: astGitHubRerunWorkflowRun,
+  cancelWorkflowRun: astGitHubCancelWorkflowRun,
+  listWorkflowRunArtifacts: astGitHubListWorkflowRunArtifacts,
+  getWorkflowRunArtifact: astGitHubGetWorkflowRunArtifact,
   searchRepositories: astGitHubSearchRepositories,
   searchUsers: astGitHubSearchUsers,
   searchCode: astGitHubSearchCode,

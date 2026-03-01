@@ -51,6 +51,14 @@ GITHUB_NAMESPACE_TESTS = [
         'getReleaseByTag',
         'listTags',
         'getTag',
+        'listWorkflows',
+        'getWorkflow',
+        'listWorkflowRuns',
+        'getWorkflowRun',
+        'rerunWorkflowRun',
+        'cancelWorkflowRun',
+        'listWorkflowRunArtifacts',
+        'getWorkflowRunArtifact',
         'searchRepositories',
         'searchUsers',
         'searchCode',
@@ -76,6 +84,7 @@ GITHUB_NAMESPACE_TESTS = [
       t.ok(operations.indexOf('get_repository') !== -1, 'Missing get_repository operation');
       t.ok(operations.indexOf('graphql') !== -1, 'Missing graphql operation');
       t.ok(operations.indexOf('auth_as_app') !== -1, 'Missing auth_as_app operation');
+      t.ok(operations.indexOf('list_workflows') !== -1, 'Missing list_workflows operation');
     })
   },
   {

@@ -28,6 +28,16 @@ const AST_GITHUB_OPERATION_GROUPS = Object.freeze({
     'reply_to_pull_request_comment'
   ]),
   releases: Object.freeze(['list_releases', 'get_latest_release', 'get_release_by_tag', 'list_tags', 'get_tag']),
+  actions: Object.freeze([
+    'list_workflows',
+    'get_workflow',
+    'list_workflow_runs',
+    'get_workflow_run',
+    'rerun_workflow_run',
+    'cancel_workflow_run',
+    'list_workflow_run_artifacts',
+    'get_workflow_run_artifact'
+  ]),
   search: Object.freeze(['search_repositories', 'search_users', 'search_code', 'search_issues']),
   meta: Object.freeze(['rate_limit']),
   graphql: Object.freeze(['graphql'])
