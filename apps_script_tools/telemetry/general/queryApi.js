@@ -43,7 +43,7 @@ function astTelemetryNormalizeStringArray(value) {
 
   const source = Array.isArray(value) ? value : [value];
   const output = [];
-  const seen = {};
+  const seen = new Set();
 
   for (let idx = 0; idx < source.length; idx += 1) {
     const normalized = astTelemetryNormalizeString(source[idx], null);
@@ -52,11 +52,11 @@ function astTelemetryNormalizeStringArray(value) {
     }
 
     const key = normalized.toLowerCase();
-    if (seen[key]) {
+    if (seen.has(key)) {
       continue;
     }
 
-    seen[key] = true;
+    seen.add(key);
     output.push(normalized);
   }
 
