@@ -14,6 +14,8 @@ RAG_NAMESPACE_TESTS = [
         'previewSources',
         'answer',
         'rerank',
+        'rewriteQuery',
+        'decomposeQuestion',
         'inspectIndex',
         'buildRetrievalCacheKey',
         'putRetrievalPayload',

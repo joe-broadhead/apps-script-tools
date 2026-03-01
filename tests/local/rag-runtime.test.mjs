@@ -2227,6 +2227,88 @@ test('search rerank uses registered custom reranker provider when configured', (
   assert.equal(context.AST.RAG.unregisterReranker('prefer_second'), true);
 });
 
+test('search applies query decomposition and returns query provenance', () => {
+  const indexDoc = {
+    schemaVersion: '1.0',
+    indexId: 'idx_query_transform',
+    indexName: 'query-transform-index',
+    embedding: {
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      dimensions: 3
+    },
+    sources: [],
+    chunks: [
+      {
+        chunkId: 'revenue_chunk',
+        sourceId: 's1',
+        fileId: 'f1',
+        fileName: 'revenue.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Revenue trend increased after pricing update.',
+        embedding: [1, 0, 0]
+      },
+      {
+        chunkId: 'margin_chunk',
+        sourceId: 's2',
+        fileId: 'f2',
+        fileName: 'margin.txt',
+        mimeType: MIME_TEXT,
+        page: null,
+        slide: null,
+        section: 'body',
+        text: 'Margin trend improved after pricing update.',
+        embedding: [0.9, 0.2, 0]
+      }
+    ]
+  };
+
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_query_transform',
+    fileName: 'query-transform.json',
+    document: indexDoc
+  });
+
+  const output = context.AST.RAG.search({
+    indexFileId: 'index_query_transform',
+    query: 'revenue and margin',
+    retrieval: {
+      mode: 'lexical',
+      topK: 3,
+      minScore: 0,
+      queryTransform: {
+        enabled: true,
+        rewrite: {
+          enabled: true,
+          policy: 'normalize'
+        },
+        decompose: {
+          enabled: true,
+          policy: 'clauses',
+          maxSubqueries: 3,
+          includeOriginal: false
+        }
+      }
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(output.queryProvenance.transformed, true);
+  assert.equal(output.queryProvenance.decomposeApplied, true);
+  assert.equal(output.queryProvenance.retrievalQueries.length >= 2, true);
+  assert.equal(output.diagnostics.retrieval.queryCount >= 2, true);
+  assert.equal(output.results.some(item => item.chunkId === 'revenue_chunk'), true);
+  assert.equal(output.results.some(item => item.chunkId === 'margin_chunk'), true);
+});
+
 test('search enforces retrieval access control allow/deny constraints', () => {
   const indexDoc = {
     schemaVersion: '1.0',
@@ -2479,6 +2561,92 @@ test('answer supports lexical retrieval mode without embedding calls', () => {
   assert.equal(grounded.citations[0].vectorScore, null);
   assert.equal(typeof grounded.citations[0].lexicalScore, 'number');
   assert.equal(typeof grounded.citations[0].finalScore, 'number');
+});
+
+test('answer applies query decomposition and returns query provenance', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAst: true });
+
+  context.astRagLoadIndexDocument = () => ({
+    indexFileId: 'index_answer_transform',
+    fileName: 'answer-transform-index.json',
+    document: {
+      chunks: [
+        {
+          chunkId: 'chunk_revenue',
+          sourceId: 'src_1',
+          fileId: 'f_1',
+          fileName: 'revenue.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Revenue increased after the pricing update.'
+        },
+        {
+          chunkId: 'chunk_margin',
+          sourceId: 'src_2',
+          fileId: 'f_2',
+          fileName: 'margin.txt',
+          mimeType: MIME_TEXT,
+          page: null,
+          slide: null,
+          section: 'body',
+          text: 'Margin improved after the pricing update.'
+        }
+      ]
+    }
+  });
+
+  context.astRunAiRequest = () => ({
+    output: {
+      json: {
+        answer: 'Revenue and margin improved after pricing [S1] [S2]',
+        citations: ['S1', 'S2']
+      }
+    },
+    usage: {
+      inputTokens: 8,
+      outputTokens: 12,
+      totalTokens: 20
+    }
+  });
+
+  const grounded = context.AST.RAG.answer({
+    indexFileId: 'index_answer_transform',
+    question: 'What changed in revenue and margin after pricing?',
+    retrieval: {
+      mode: 'lexical',
+      topK: 2,
+      minScore: 0,
+      queryTransform: {
+        enabled: true,
+        rewrite: {
+          enabled: true,
+          policy: 'normalize'
+        },
+        decompose: {
+          enabled: true,
+          policy: 'clauses',
+          includeOriginal: false,
+          maxSubqueries: 3
+        }
+      }
+    },
+    generation: {
+      provider: 'openai',
+      auth: { apiKey: 'test-key' }
+    },
+    options: {
+      diagnostics: true
+    }
+  });
+
+  assert.equal(grounded.status, 'ok');
+  assert.equal(grounded.queryProvenance.transformed, true);
+  assert.equal(grounded.queryProvenance.decomposeApplied, true);
+  assert.equal(grounded.queryProvenance.retrievalQueries.length >= 2, true);
+  assert.equal(grounded.diagnostics.retrieval.queryCount >= 2, true);
 });
 
 test('answer cache reuses grounded response when history is empty', () => {

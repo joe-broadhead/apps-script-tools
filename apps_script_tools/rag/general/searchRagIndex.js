@@ -32,6 +32,10 @@ function astRagBuildSearchDiagnostics(normalizedRequest, cacheConfig = {}) {
       mode: normalizedRequest.retrieval.mode,
       topK: normalizedRequest.retrieval.topK,
       minScore: normalizedRequest.retrieval.minScore,
+      queryCount: 1,
+      originalQuery: normalizedRequest.query,
+      rewrittenQuery: normalizedRequest.query,
+      transformedQuery: false,
       reranker: (
         normalizedRequest.retrieval &&
         normalizedRequest.retrieval.rerank &&
@@ -210,10 +214,21 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
     : null;
   const retrievalStartedAtMs = new Date().getTime();
   const retrievalMode = normalizedRequest.retrieval.mode;
+  const queryPlan = astRagBuildQueryTransformPlan(
+    normalizedRequest.query,
+    normalizedRequest.retrieval.queryTransform
+  );
+  const retrievalQueries = Array.isArray(queryPlan.retrievalQueries) && queryPlan.retrievalQueries.length > 0
+    ? queryPlan.retrievalQueries.slice()
+    : [normalizedRequest.query];
 
   const cacheConfig = astRagResolveCacheConfig(normalizedRequest.cache || {});
   const diagnostics = astRagBuildSearchDiagnostics(normalizedRequest, cacheConfig);
   diagnostics.timings.validationMs = validationMs;
+  diagnostics.retrieval.queryCount = retrievalQueries.length;
+  diagnostics.retrieval.originalQuery = queryPlan.originalQuery;
+  diagnostics.retrieval.rewrittenQuery = queryPlan.rewrittenQuery;
+  diagnostics.retrieval.transformedQuery = queryPlan.transformed === true;
 
   const indexLoadStartMs = new Date().getTime();
   const loaded = astRagLoadIndexDocument(normalizedRequest.indexFileId, {
@@ -237,7 +252,7 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
   const searchCacheKey = astRagBuildSearchCacheKey(
     normalizedRequest.indexFileId,
     versionToken,
-    normalizedRequest.query,
+    queryPlan,
     normalizedRequest.retrieval
   );
   const cachedSearch = astRagCacheGet(
@@ -257,6 +272,20 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
     diagnostics.cache.embeddingHit = retrievalMode !== 'lexical';
     diagnostics.cache.hitPath = 'search';
     diagnostics.retrieval.returned = cachedResponse.results.length;
+    if (astRagIsPlainObject(cachedResponse.queryProvenance)) {
+      diagnostics.retrieval.queryCount = Array.isArray(cachedResponse.queryProvenance.retrievalQueries)
+        ? cachedResponse.queryProvenance.retrievalQueries.length
+        : diagnostics.retrieval.queryCount;
+      diagnostics.retrieval.originalQuery = astRagNormalizeString(
+        cachedResponse.queryProvenance.originalQuery,
+        diagnostics.retrieval.originalQuery
+      );
+      diagnostics.retrieval.rewrittenQuery = astRagNormalizeString(
+        cachedResponse.queryProvenance.rewrittenQuery,
+        diagnostics.retrieval.rewrittenQuery
+      );
+      diagnostics.retrieval.transformedQuery = cachedResponse.queryProvenance.transformed === true;
+    }
     diagnostics.totalMs = Math.max(0, new Date().getTime() - totalStartMs);
     cachedResponse.diagnostics = diagnostics;
     return cachedResponse;
@@ -272,25 +301,8 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
         indexFileId: normalizedRequest.indexFileId
       });
     }
-
-    embeddingCacheKey = astRagBuildEmbeddingCacheKey(
-      normalizedRequest.indexFileId,
-      versionToken,
-      embeddingProvider,
-      embeddingModel,
-      normalizedRequest.query
-    );
   }
-
-  const cachedEmbedding = embeddingCacheKey
-    ? astRagCacheGet(
-      cacheConfig,
-      embeddingCacheKey,
-      operationMeta => astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta),
-      { path: 'embedding' }
-    )
-    : null;
-  let queryVector = null;
+  const queryVectorsByQuery = {};
   let usage = {
     inputTokens: 0,
     outputTokens: 0,
@@ -298,45 +310,67 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
   };
   astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'cache_embedding_get', diagnostics);
 
-  if (retrievalMode === 'lexical') {
-    queryVector = null;
-  } else if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
-    diagnostics.cache.embeddingHit = true;
-    diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'embedding';
-    queryVector = cachedEmbedding.vector.slice();
-  } else {
-    const embeddingStartMs = new Date().getTime();
-    astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'embedding', diagnostics);
-    const queryEmbedding = astRagEmbedTexts({
-      provider: embeddingProvider,
-      model: embeddingModel,
-      texts: [normalizedRequest.query],
-      auth: normalizedRequest.auth,
-      providerOptions: normalizedRequest.embedding.providerOptions,
-      options: { retries: 2 }
-    });
+  if (retrievalMode !== 'lexical') {
+    for (let queryIdx = 0; queryIdx < retrievalQueries.length; queryIdx += 1) {
+      const currentQuery = retrievalQueries[queryIdx];
+      embeddingCacheKey = astRagBuildEmbeddingCacheKey(
+        normalizedRequest.indexFileId,
+        versionToken,
+        embeddingProvider,
+        embeddingModel,
+        currentQuery
+      );
 
-    queryVector = queryEmbedding.vectors[0];
-    usage = queryEmbedding.usage || usage;
-    diagnostics.timings.embeddingMs = Math.max(0, new Date().getTime() - embeddingStartMs);
-    astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'embedding', diagnostics);
-    astRagCacheSet(
-      cacheConfig,
-      embeddingCacheKey,
-      {
-        vector: queryVector
-      },
-      cacheConfig.embeddingTtlSec,
-      operationMeta => astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta),
-      { path: 'embedding' }
-    );
-    astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'cache_embedding_set', diagnostics);
+      const cachedEmbedding = astRagCacheGet(
+        cacheConfig,
+        embeddingCacheKey,
+        operationMeta => astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta),
+        { path: 'embedding' }
+      );
+      astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'cache_embedding_get', diagnostics);
+
+      if (cachedEmbedding && Array.isArray(cachedEmbedding.vector)) {
+        diagnostics.cache.embeddingHit = true;
+        diagnostics.cache.hitPath = diagnostics.cache.hitPath || 'embedding';
+        queryVectorsByQuery[currentQuery] = cachedEmbedding.vector.slice();
+        continue;
+      }
+
+      const embeddingStartMs = new Date().getTime();
+      astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'embedding', diagnostics);
+      const queryEmbedding = astRagEmbedTexts({
+        provider: embeddingProvider,
+        model: embeddingModel,
+        texts: [currentQuery],
+        auth: normalizedRequest.auth,
+        providerOptions: normalizedRequest.embedding.providerOptions,
+        options: { retries: 2 }
+      });
+
+      queryVectorsByQuery[currentQuery] = queryEmbedding.vectors[0];
+      usage.inputTokens += (queryEmbedding.usage && queryEmbedding.usage.inputTokens) || 0;
+      usage.outputTokens += (queryEmbedding.usage && queryEmbedding.usage.outputTokens) || 0;
+      usage.totalTokens += (queryEmbedding.usage && queryEmbedding.usage.totalTokens) || 0;
+      diagnostics.timings.embeddingMs += Math.max(0, new Date().getTime() - embeddingStartMs);
+      astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'embedding', diagnostics);
+      astRagCacheSet(
+        cacheConfig,
+        embeddingCacheKey,
+        {
+          vector: queryVectorsByQuery[currentQuery]
+        },
+        cacheConfig.embeddingTtlSec,
+        operationMeta => astRagApplyCacheOperationDiagnostics(diagnostics, operationMeta),
+        { path: 'embedding' }
+      );
+      astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'cache_embedding_set', diagnostics);
+    }
   }
 
   const selectedShardRefs = astRagSelectShardRefsForSearch(
     document,
     normalizedRequest.retrieval,
-    queryVector
+    queryVectorsByQuery[queryPlan.rewrittenQuery] || queryVectorsByQuery[retrievalQueries[0]] || null
   );
   if (astRagIsShardedIndexDocument(document)) {
     diagnostics.retrieval.partition.totalShards = astRagNormalizeShardRefs(document.shards).length;
@@ -357,10 +391,10 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
   retrievalDocument.chunks = retrievalChunks;
 
   astRagSearchAssertWithinBudget(retrievalTimeoutMs, retrievalStartedAtMs, 'retrieval', diagnostics);
-  const ranked = astRagRetrieveRankedChunks(
+  const ranked = astRagRetrieveRankedChunksForQueries(
     retrievalDocument,
-    normalizedRequest.query,
-    queryVector,
+    queryPlan,
+    queryVectorsByQuery,
     normalizedRequest.retrieval,
     { diagnostics }
   );
@@ -374,6 +408,7 @@ function astRagSearchNormalizedCore(normalizedRequest, runtimeOptions = {}) {
     indexFileId: normalizedRequest.indexFileId,
     versionToken,
     query: normalizedRequest.query,
+    queryProvenance: queryPlan,
     topK: normalizedRequest.retrieval.topK,
     minScore: normalizedRequest.retrieval.minScore,
     mode: normalizedRequest.retrieval.mode,

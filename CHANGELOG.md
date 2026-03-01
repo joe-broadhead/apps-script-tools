@@ -155,6 +155,10 @@
   - built-in reranker: `heuristic`
   - retrieval rerank config now includes `rerank.provider` (default: `heuristic`)
   - reranked results include deterministic `rerankScoreNormalized` and stable tie ordering
+- `AST.RAG` query transformation now supports rewrite + decomposition planning:
+  - new APIs: `rewriteQuery(...)`, `decomposeQuestion(...)`
+  - retrieval config now includes `retrieval.queryTransform` (rewrite/decompose policies)
+  - `search(...)` and `answer(...)` responses now include explicit `queryProvenance` (`originalQuery`, `rewrittenQuery`, `retrievalQueries`, `transformed`)
 
 ## v0.0.4 - 2026-02-25
 

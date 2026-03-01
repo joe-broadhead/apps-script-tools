@@ -216,6 +216,8 @@ ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
 ASTX.RAG.rerank(request)
+ASTX.RAG.rewriteQuery(request)
+ASTX.RAG.decomposeQuestion(request)
 ASTX.RAG.evaluate(request)
 ASTX.RAG.compareRuns(request)
 ASTX.RAG.inspectIndex({ indexFileId })
@@ -608,6 +610,7 @@ ASTX.GitHub.clearConfig()
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
 - RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.
+- RAG retrieval supports optional query rewrite/decomposition via `retrieval.queryTransform`.
 - RAG retrieval supports access constraints via `retrieval.access` (`allowedFileIds`, `deniedFileIds`, `allowedMimeTypes`, `deniedMimeTypes`).
 - `RAG.answer(...)` can enforce citation/source boundaries with `options.enforceAccessControl=true`.
 - `RAG.search(...)` / `RAG.answer(...)` can cache embeddings/results with `cache.enabled` and backend overrides.

@@ -325,6 +325,7 @@ ASTX.Cache.configure({
 - `retrieval.mode = 'lexical'` (BM25-only ranking; no embedding call)
 - `retrieval.lexicalPrefilterTopN` for optional lexical shortlist before vector scoring
 - `retrieval.rerank` for optional top-N reranking with pluggable provider selection
+- `retrieval.queryTransform` for deterministic rewrite + decomposition before retrieval
 - `retrieval.access` for source-level allow/deny constraints
 - `generation.maxContextChars` / `generation.maxContextTokensApprox` for bounded grounding context packing
 - optional request/runtime cache controls (`cache.enabled`, backend overrides, TTLs)
@@ -951,6 +952,7 @@ Primary methods:
 - `ASTX.RAG.previewSources(...)` for citation-ready source cards and reusable retrieval payloads.
 - `ASTX.RAG.answer(...)` for grounded answering with strict citation mapping and abstention.
 - `ASTX.RAG.rerank(...)` for direct post-retrieval reranking over candidate chunks.
+- `ASTX.RAG.rewriteQuery(...)` and `ASTX.RAG.decomposeQuestion(...)` for deterministic query transformation planning.
 - `ASTX.RAG.evaluate(...)` for deterministic retrieval/grounding/end-to-end scorecards.
 - `ASTX.RAG.compareRuns(...)` for baseline vs candidate metric deltas.
 - `ASTX.RAG.inspectIndex(...)` for index metadata/health checks.

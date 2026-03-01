@@ -18,6 +18,8 @@ ASTX.RAG.search(request)
 ASTX.RAG.previewSources(request)
 ASTX.RAG.answer(request)
 ASTX.RAG.rerank(request)
+ASTX.RAG.rewriteQuery(request)
+ASTX.RAG.decomposeQuestion(request)
 ASTX.RAG.evaluate(request)
 ASTX.RAG.compareRuns(request)
 ASTX.RAG.inspectIndex(request)
@@ -119,6 +121,21 @@ Notes:
       topN: 20,
       provider: 'heuristic'
     },
+    queryTransform: {
+      enabled: false,
+      maxQueries: 4,
+      rewrite: {
+        enabled: false,
+        policy: 'none' | 'normalize' | 'keywords',
+        preserveCase: true
+      },
+      decompose: {
+        enabled: false,
+        policy: 'none' | 'clauses' | 'sentences',
+        maxSubqueries: 3,
+        includeOriginal: true
+      }
+    },
     access: {
       allowedFileIds: [],
       deniedFileIds: [],
@@ -174,6 +191,21 @@ Notes:
       enabled: false,
       topN: 20,
       provider: 'heuristic'
+    },
+    queryTransform: {
+      enabled: false,
+      maxQueries: 4,
+      rewrite: {
+        enabled: false,
+        policy: 'none' | 'normalize' | 'keywords',
+        preserveCase: true
+      },
+      decompose: {
+        enabled: false,
+        policy: 'none' | 'clauses' | 'sentences',
+        maxSubqueries: 3,
+        includeOriginal: true
+      }
     },
     access: {
       allowedFileIds: [],
@@ -327,6 +359,85 @@ Returns:
 }
 ```
 
+## `rewriteQuery(request)`
+
+Deterministic query rewrite helper for retrieval pipelines.
+
+```javascript
+{
+  query: 'required',
+  // optional alias:
+  // rewrite: { enabled, policy, preserveCase }
+  queryTransform: {
+    rewrite: {
+      enabled: true,
+      policy: 'none' | 'normalize' | 'keywords',
+      preserveCase: true
+    }
+  }
+}
+```
+
+Returns:
+
+```javascript
+{
+  status: 'ok',
+  query: 'original query',
+  rewrittenQuery: 'transformed query',
+  rewriteApplied: true,
+  rewrite: { enabled: true, policy: 'keywords' },
+  provenance: {
+    originalQuery,
+    rewrittenQuery,
+    retrievalQueries: ['...'],
+    transformed: true
+  }
+}
+```
+
+## `decomposeQuestion(request)`
+
+Deterministic multi-hop decomposition helper for retrieval pipelines.
+
+```javascript
+{
+  question: 'required',
+  // optional aliases:
+  // rewrite: { ... }, decompose: { ... }
+  queryTransform: {
+    rewrite: {
+      enabled: true,
+      policy: 'normalize'
+    },
+    decompose: {
+      enabled: true,
+      policy: 'none' | 'clauses' | 'sentences',
+      maxSubqueries: 3,
+      includeOriginal: true
+    }
+  }
+}
+```
+
+Returns:
+
+```javascript
+{
+  status: 'ok',
+  question: 'original question',
+  rewrittenQuestion: '...',
+  subqueries: ['...'],
+  decompose: { enabled: true, policy: 'clauses' },
+  provenance: {
+    originalQuery,
+    rewrittenQuery,
+    retrievalQueries: ['...'],
+    transformed: true
+  }
+}
+```
+
 ## `evaluate(request)`
 
 ```javascript
@@ -471,6 +582,12 @@ Resolution precedence for Vertex service-account JSON:
 {
   status: 'ok' | 'insufficient_context',
   answer: 'string',
+  queryProvenance: {
+    originalQuery: '...',
+    rewrittenQuery: '...',
+    retrievalQueries: ['...'],
+    transformed: true
+  },
   citations: [
     {
       citationId: 'S1',
@@ -591,6 +708,12 @@ const fallback = ASTX.RAG.Fallback.fromCitations({
 ```javascript
 {
   query: 'string',
+  queryProvenance: {
+    originalQuery: '...',
+    rewrittenQuery: '...',
+    retrievalQueries: ['...'],
+    transformed: true
+  },
   topK: 8,
   minScore: 0.2,
   mode: 'vector' | 'hybrid' | 'lexical',
