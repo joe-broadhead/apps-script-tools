@@ -28,7 +28,9 @@ const AST_DBT_RUN_OPERATIONS = Object.freeze([
   'impact',
   'quality_report',
   'test_coverage',
-  'owners'
+  'owners',
+  'search_owners',
+  'owner_coverage'
 ]);
 
 const AST_DBT_PROVIDER_CAPABILITIES = Object.freeze({

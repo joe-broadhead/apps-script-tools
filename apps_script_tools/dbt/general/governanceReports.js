@@ -116,6 +116,45 @@ function astDbtSortByUniqueId(items = []) {
   });
 }
 
+function astDbtBuildOwnerGroups(entities = [], ownerPaths = [], unassignedOwnerLabel = 'unassigned') {
+  const grouped = Object.create(null);
+
+  for (let idx = 0; idx < entities.length; idx += 1) {
+    const entity = entities[idx];
+    const owner = astDbtResolveOwnerLabel(entity.meta, ownerPaths, unassignedOwnerLabel);
+
+    if (!grouped[owner]) {
+      grouped[owner] = {
+        owner,
+        entityCount: 0,
+        resourceTypes: Object.create(null),
+        packages: Object.create(null)
+      };
+    }
+
+    grouped[owner].entityCount += 1;
+
+    const typeKey = entity.resourceType || 'unknown';
+    grouped[owner].resourceTypes[typeKey] = (grouped[owner].resourceTypes[typeKey] || 0) + 1;
+
+    const packageKey = entity.packageName || 'unknown';
+    grouped[owner].packages[packageKey] = (grouped[owner].packages[packageKey] || 0) + 1;
+  }
+
+  return grouped;
+}
+
+function astDbtBuildSortedOwnerItems(grouped = {}) {
+  const items = Object.keys(grouped).map(owner => grouped[owner]);
+  items.sort((left, right) => {
+    if (right.entityCount !== left.entityCount) {
+      return right.entityCount - left.entityCount;
+    }
+    return left.owner.localeCompare(right.owner);
+  });
+  return items;
+}
+
 function astDbtBuildGapEntity(entity = {}) {
   return {
     uniqueId: entity.uniqueId,
@@ -305,35 +344,8 @@ function astDbtOwnersCore(request = {}) {
   const index = bundle.index || {};
 
   const entities = astDbtCollectGovernanceEntities(index, normalized.filters, normalized.includeDisabled);
-  const grouped = {};
-
-  for (let idx = 0; idx < entities.length; idx += 1) {
-    const entity = entities[idx];
-    const owner = astDbtResolveOwnerLabel(entity.meta, normalized.ownerPaths, normalized.unassignedOwnerLabel);
-
-    if (!grouped[owner]) {
-      grouped[owner] = {
-        owner,
-        entityCount: 0,
-        resourceTypes: {},
-        packages: {}
-      };
-    }
-
-    grouped[owner].entityCount += 1;
-    const typeKey = entity.resourceType || 'unknown';
-    grouped[owner].resourceTypes[typeKey] = (grouped[owner].resourceTypes[typeKey] || 0) + 1;
-    const packageKey = entity.packageName || 'unknown';
-    grouped[owner].packages[packageKey] = (grouped[owner].packages[packageKey] || 0) + 1;
-  }
-
-  const items = Object.keys(grouped).map(owner => grouped[owner]);
-  items.sort((left, right) => {
-    if (right.entityCount !== left.entityCount) {
-      return right.entityCount - left.entityCount;
-    }
-    return left.owner.localeCompare(right.owner);
-  });
+  const grouped = astDbtBuildOwnerGroups(entities, normalized.ownerPaths, normalized.unassignedOwnerLabel);
+  const items = astDbtBuildSortedOwnerItems(grouped);
 
   const unassigned = grouped[normalized.unassignedOwnerLabel];
 
@@ -348,6 +360,162 @@ function astDbtOwnersCore(request = {}) {
     stats: {
       scannedEntities: entities.length,
       returned: Math.min(items.length, normalized.topK),
+      elapsedMs: Date.now() - startedAt
+    }
+  };
+}
+
+function astDbtSearchOwnersCore(request = {}) {
+  const startedAt = Date.now();
+  const normalized = astDbtValidateSearchOwnersRequest(request);
+  const bundle = astDbtResolveGovernanceBundle(normalized);
+  const index = bundle.index || {};
+
+  const entities = astDbtCollectGovernanceEntities(index, normalized.filters, normalized.includeDisabled);
+  const grouped = astDbtBuildOwnerGroups(entities, normalized.ownerPaths, normalized.unassignedOwnerLabel);
+  const allItems = astDbtBuildSortedOwnerItems(grouped);
+  const queryLower = astDbtNormalizeString(normalized.query, '').toLowerCase();
+
+  const filteredItems = queryLower
+    ? allItems.filter(item => astDbtNormalizeString(item.owner, '').toLowerCase().indexOf(queryLower) !== -1)
+    : allItems;
+
+  let matchedEntities = 0;
+  let matchedUnassignedEntities = 0;
+  for (let idx = 0; idx < filteredItems.length; idx += 1) {
+    const item = filteredItems[idx];
+    matchedEntities += item.entityCount;
+    if (item.owner === normalized.unassignedOwnerLabel) {
+      matchedUnassignedEntities += item.entityCount;
+    }
+  }
+
+  return {
+    status: 'ok',
+    query: normalized.query,
+    summary: {
+      entityCount: entities.length,
+      ownerCount: allItems.length,
+      matchedOwnerCount: filteredItems.length,
+      matchedEntities,
+      matchedUnassignedEntities
+    },
+    items: filteredItems.slice(0, normalized.topK),
+    stats: {
+      scannedEntities: entities.length,
+      returned: Math.min(filteredItems.length, normalized.topK),
+      elapsedMs: Date.now() - startedAt
+    }
+  };
+}
+
+function astDbtOwnerCoverageCore(request = {}) {
+  const startedAt = Date.now();
+  const normalized = astDbtValidateOwnerCoverageRequest(request);
+  const bundle = astDbtResolveGovernanceBundle(normalized);
+  const index = bundle.index || {};
+
+  const entities = astDbtCollectGovernanceEntities(index, normalized.filters, normalized.includeDisabled);
+  const byResourceType = Object.create(null);
+  const byPackage = Object.create(null);
+  const unassignedEntities = [];
+
+  let ownedEntities = 0;
+  let unassignedCount = 0;
+
+  for (let idx = 0; idx < entities.length; idx += 1) {
+    const entity = entities[idx];
+    const owner = astDbtResolveOwnerLabel(entity.meta, normalized.ownerPaths, normalized.unassignedOwnerLabel);
+    const hasOwner = owner !== normalized.unassignedOwnerLabel;
+
+    if (hasOwner) {
+      ownedEntities += 1;
+    } else {
+      unassignedCount += 1;
+      unassignedEntities.push(astDbtBuildGapEntity(entity));
+    }
+
+    const typeKey = entity.resourceType || 'unknown';
+    if (!byResourceType[typeKey]) {
+      byResourceType[typeKey] = {
+        key: typeKey,
+        entityCount: 0,
+        ownedEntities: 0,
+        unassignedEntities: 0,
+        ownershipPct: 100
+      };
+    }
+
+    byResourceType[typeKey].entityCount += 1;
+    if (hasOwner) {
+      byResourceType[typeKey].ownedEntities += 1;
+    } else {
+      byResourceType[typeKey].unassignedEntities += 1;
+    }
+
+    const packageKey = entity.packageName || 'unknown';
+    if (!byPackage[packageKey]) {
+      byPackage[packageKey] = {
+        key: packageKey,
+        entityCount: 0,
+        ownedEntities: 0,
+        unassignedEntities: 0,
+        ownershipPct: 100
+      };
+    }
+
+    byPackage[packageKey].entityCount += 1;
+    if (hasOwner) {
+      byPackage[packageKey].ownedEntities += 1;
+    } else {
+      byPackage[packageKey].unassignedEntities += 1;
+    }
+  }
+
+  const resourceTypeItems = Object.keys(byResourceType).map(key => {
+    const row = byResourceType[key];
+    row.ownershipPct = astDbtPercent(row.ownedEntities, row.entityCount);
+    return row;
+  });
+
+  const packageItems = Object.keys(byPackage).map(key => {
+    const row = byPackage[key];
+    row.ownershipPct = astDbtPercent(row.ownedEntities, row.entityCount);
+    return row;
+  });
+
+  resourceTypeItems.sort((left, right) => {
+    if (right.unassignedEntities !== left.unassignedEntities) {
+      return right.unassignedEntities - left.unassignedEntities;
+    }
+    return left.key.localeCompare(right.key);
+  });
+
+  packageItems.sort((left, right) => {
+    if (right.unassignedEntities !== left.unassignedEntities) {
+      return right.unassignedEntities - left.unassignedEntities;
+    }
+    return left.key.localeCompare(right.key);
+  });
+
+  return {
+    status: 'ok',
+    summary: {
+      entityCount: entities.length,
+      ownedEntities,
+      unassignedEntities: unassignedCount,
+      ownershipPct: astDbtPercent(ownedEntities, entities.length)
+    },
+    breakdown: {
+      byResourceType: resourceTypeItems,
+      byPackage: packageItems
+    },
+    gaps: {
+      unassignedEntities: astDbtSortByUniqueId(unassignedEntities).slice(0, normalized.topK)
+    },
+    stats: {
+      scannedEntities: entities.length,
+      returnedUnassigned: Math.min(unassignedEntities.length, normalized.topK),
       elapsedMs: Date.now() - startedAt
     }
   };

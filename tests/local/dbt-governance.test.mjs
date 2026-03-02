@@ -103,6 +103,71 @@ test('AST.DBT.owners groups entities by owner paths with unassigned fallback', (
   assert.equal(out.items.some(item => item.owner === 'missing-owner' && item.entityCount === 1), true);
 });
 
+test('AST.DBT.searchOwners filters owner groups deterministically', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const out = context.AST.DBT.searchOwners({
+    manifest: createGovernanceFixture(),
+    filters: {
+      resourceTypes: ['model']
+    },
+    query: 'rev'
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.summary.ownerCount, 2);
+  assert.equal(out.summary.matchedOwnerCount, 1);
+  assert.equal(out.items.length, 1);
+  assert.equal(out.items[0].owner, 'revops');
+  assert.equal(out.items[0].entityCount, 1);
+});
+
+test('AST.DBT.ownerCoverage returns deterministic ownership breakdown and gaps', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const out = context.AST.DBT.ownerCoverage({
+    manifest: createGovernanceFixture(),
+    filters: {
+      resourceTypes: ['model']
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.summary.entityCount, 2);
+  assert.equal(out.summary.ownedEntities, 1);
+  assert.equal(out.summary.unassignedEntities, 1);
+  assert.equal(out.summary.ownershipPct, 50);
+  assert.equal(out.breakdown.byResourceType.length, 1);
+  assert.equal(out.breakdown.byResourceType[0].key, 'model');
+  assert.equal(out.breakdown.byResourceType[0].ownershipPct, 50);
+  assert.equal(out.gaps.unassignedEntities.length, 1);
+  assert.equal(out.gaps.unassignedEntities[0].uniqueId, 'model.demo.customers');
+});
+
+test('AST.DBT.owners handles prototype-like package/resource keys deterministically', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const manifest = createGovernanceFixture();
+  manifest.nodes['model.demo.orders'].resource_type = '__proto__';
+  manifest.nodes['model.demo.orders'].package_name = '__proto__';
+
+  const out = context.AST.DBT.owners({
+    manifest,
+    filters: {
+      resourceTypes: ['__proto__', 'model']
+    }
+  });
+
+  const revops = out.items.find(item => item.owner === 'revops');
+  assert.equal(out.status, 'ok');
+  assert.equal(Boolean(revops), true);
+  assert.equal(revops.resourceTypes.__proto__, 1);
+  assert.equal(revops.packages.__proto__, 1);
+});
+
 test('AST.DBT.run routes governance operations', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });
@@ -130,8 +195,25 @@ test('AST.DBT.run routes governance operations', () => {
       resourceTypes: ['model']
     }
   });
+  const searchOwners = context.AST.DBT.run({
+    operation: 'search_owners',
+    manifest,
+    filters: {
+      resourceTypes: ['model']
+    },
+    query: 'rev'
+  });
+  const ownerCoverage = context.AST.DBT.run({
+    operation: 'owner_coverage',
+    manifest,
+    filters: {
+      resourceTypes: ['model']
+    }
+  });
 
   assert.equal(quality.status, 'ok');
   assert.equal(coverage.status, 'ok');
   assert.equal(owners.status, 'ok');
+  assert.equal(searchOwners.status, 'ok');
+  assert.equal(ownerCoverage.status, 'ok');
 });
