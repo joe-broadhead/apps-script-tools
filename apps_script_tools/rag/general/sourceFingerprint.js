@@ -45,6 +45,42 @@ function astRagBuildSourceFingerprint(sourceDescriptor, extracted = {}) {
   return astRagComputeChecksum(payload);
 }
 
+function astRagBuildSourceRevisionFingerprint(sourceDescriptor = {}) {
+  const rawSizeBytes = sourceDescriptor.sizeBytes;
+  const sizeBytes = typeof rawSizeBytes === 'number' && isFinite(rawSizeBytes) ? rawSizeBytes : null;
+
+  const payload = {
+    sourceKind: astRagNormalizeString(sourceDescriptor.sourceKind, 'drive'),
+    provider: astRagNormalizeString(sourceDescriptor.provider, null),
+    sourceUri: astRagNormalizeString(sourceDescriptor.uri, null),
+    fileId: sourceDescriptor.fileId,
+    fileName: sourceDescriptor.fileName,
+    mimeType: sourceDescriptor.mimeType,
+    modifiedTime: sourceDescriptor.modifiedTime,
+    sizeBytes,
+    etag: astRagNormalizeString(sourceDescriptor.etag, null),
+    versionId: astRagNormalizeString(sourceDescriptor.versionId, null),
+    generation: astRagNormalizeString(sourceDescriptor.generation, null)
+  };
+
+  return astRagComputeChecksum(payload);
+}
+
+function astRagSourceHasRevisionSignals(sourceDescriptor = {}) {
+  if (!sourceDescriptor || typeof sourceDescriptor !== 'object') {
+    return false;
+  }
+
+  const sizeBytes = sourceDescriptor.sizeBytes;
+  return !!(
+    astRagNormalizeString(sourceDescriptor.modifiedTime, null)
+    || astRagNormalizeString(sourceDescriptor.etag, null)
+    || astRagNormalizeString(sourceDescriptor.versionId, null)
+    || astRagNormalizeString(sourceDescriptor.generation, null)
+    || (typeof sizeBytes === 'number' && isFinite(sizeBytes))
+  );
+}
+
 function astRagNormalizeSourceFingerprint(source = {}) {
   if (!source || typeof source !== 'object') {
     return null;

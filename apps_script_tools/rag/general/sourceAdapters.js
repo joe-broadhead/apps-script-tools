@@ -151,6 +151,18 @@ function astRagCreateStorageSourceDescriptor(uri, metadata = {}, providerOptions
     metadata.modifiedTime || metadata.modifiedAt || metadata.updated || metadata.lastModified,
     null
   );
+  const sizeCandidates = [metadata.sizeBytes, metadata.size, metadata.contentLength, metadata.bytes];
+  let sizeBytesRaw = null;
+  for (let idx = 0; idx < sizeCandidates.length; idx += 1) {
+    const candidate = sizeCandidates[idx];
+    if (candidate !== null && typeof candidate !== 'undefined') {
+      sizeBytesRaw = candidate;
+      break;
+    }
+  }
+  const sizeBytes = typeof sizeBytesRaw === 'number' && isFinite(sizeBytesRaw)
+    ? sizeBytesRaw
+    : (astRagNormalizeString(sizeBytesRaw, null) ? Number(sizeBytesRaw) : null);
 
   return {
     sourceKind: 'storage',
@@ -160,6 +172,10 @@ function astRagCreateStorageSourceDescriptor(uri, metadata = {}, providerOptions
     fileName,
     mimeType,
     modifiedTime,
+    sizeBytes: typeof sizeBytes === 'number' && isFinite(sizeBytes) ? sizeBytes : null,
+    etag: astRagNormalizeString(metadata.etag || metadata.eTag || metadata.md5Hash, null),
+    versionId: astRagNormalizeString(metadata.versionId || metadata.version, null),
+    generation: astRagNormalizeString(metadata.generation, null),
     providerOptions: astRagIsPlainObject(providerOptions) ? astRagCloneObject(providerOptions) : {}
   };
 }

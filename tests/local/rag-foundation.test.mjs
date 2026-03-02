@@ -32,6 +32,7 @@ test('AST exposes RAG namespace and public methods', () => {
   assert.equal(typeof context.AST.RAG.configure, 'function');
   assert.equal(typeof context.AST.RAG.buildIndex, 'function');
   assert.equal(typeof context.AST.RAG.syncIndex, 'function');
+  assert.equal(typeof context.AST.RAG.incrementalSync, 'function');
   assert.equal(typeof context.AST.RAG.search, 'function');
   assert.equal(typeof context.AST.RAG.previewSources, 'function');
   assert.equal(typeof context.AST.RAG.answer, 'function');
