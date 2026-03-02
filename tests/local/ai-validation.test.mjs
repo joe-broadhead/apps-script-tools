@@ -91,6 +91,73 @@ test('astResolveAiConfig falls back to getProperty when getProperties does not i
   assert.equal(resolved.model, 'openai/gpt-4o-mini');
 });
 
+test('astResolveAiConfig resolves databricks config with request precedence', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_TOKEN: 'script-token',
+          DATABRICKS_HOST: 'workspace.cloud.databricks.com',
+          DATABRICKS_AI_SERVING_ENDPOINT: 'script-endpoint',
+          DATABRICKS_AI_MODEL: 'script-model'
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.astValidateAiRequest({
+    provider: 'databricks',
+    input: 'hello',
+    model: 'request-model',
+    auth: {
+      token: 'request-token',
+      host: 'request.cloud.databricks.com',
+      servingEndpoint: 'request-endpoint'
+    },
+    providerOptions: {
+      servingEndpoint: 'provider-options-endpoint'
+    }
+  });
+
+  const resolved = context.astResolveAiConfig(normalized);
+  assert.equal(resolved.token, 'request-token');
+  assert.equal(resolved.host, 'request.cloud.databricks.com');
+  assert.equal(resolved.servingEndpoint, 'provider-options-endpoint');
+  assert.equal(resolved.model, 'request-model');
+});
+
+test('astResolveAiConfig requires databricks endpoint configuration', () => {
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_TOKEN: 'script-token'
+        }),
+        getProperty: () => null
+      })
+    }
+  });
+
+  loadAiScripts(context);
+
+  const normalized = context.astValidateAiRequest({
+    provider: 'databricks',
+    input: 'hello'
+  });
+
+  assert.throws(
+    () => context.astResolveAiConfig(normalized),
+    error => {
+      assert.equal(error.name, 'AstAiAuthError');
+      assert.match(error.message, /Databricks AI configuration/);
+      return true;
+    }
+  );
+});
+
 test('astResolveAiConfig memoizes script properties snapshots and invalidates on configure/clear', () => {
   let getPropertiesCalls = 0;
   const scriptState = {
@@ -201,7 +268,7 @@ test('AST exposes AI surface and helper methods', () => {
   const providers = context.AST.AI.providers();
   assert.equal(
     JSON.stringify(providers),
-    JSON.stringify(['openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'])
+    JSON.stringify(['databricks', 'openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'])
   );
 });
 

@@ -325,6 +325,17 @@ ASTX.AI.clearConfig()
 ASTX.AI.OutputRepair.continueIfTruncated(request)
 ```
 
+Databricks provider config example:
+
+```javascript
+ASTX.AI.configure({
+  DATABRICKS_TOKEN: 'secret://apps/prod/databricks/token',
+  DATABRICKS_HOST: 'workspace.cloud.databricks.com',
+  DATABRICKS_AI_SERVING_ENDPOINT: 'databricks-claude-opus-4-6',
+  DATABRICKS_AI_MODEL: 'databricks-claude-opus-4-6'
+});
+```
+
 ## Workspace helpers
 
 ```javascript

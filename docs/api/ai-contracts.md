@@ -33,7 +33,7 @@ Auth/model resolution order:
 
 ```javascript
 {
-  provider: 'openai' | 'gemini' | 'vertex_gemini' | 'openrouter' | 'perplexity',
+  provider: 'databricks' | 'openai' | 'gemini' | 'vertex_gemini' | 'openrouter' | 'perplexity',
   operation: 'text' | 'structured' | 'tools' | 'image',
   model: 'optional-model-override',
   input: 'prompt' | [{ role, content }],

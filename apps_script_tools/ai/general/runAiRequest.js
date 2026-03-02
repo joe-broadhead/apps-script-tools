@@ -1,5 +1,7 @@
 function astGetAiProviderExecutor(provider) {
   switch (provider) {
+    case 'databricks':
+      return astRunDatabricks;
     case 'openai':
       return astRunOpenAi;
     case 'gemini':

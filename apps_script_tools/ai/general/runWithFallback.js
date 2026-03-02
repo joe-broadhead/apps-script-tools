@@ -3,6 +3,7 @@ function astAiNowMs() {
 }
 
 const AST_AI_PROVIDER_AUTH_KEYS = Object.freeze({
+  databricks: Object.freeze(['DATABRICKS_TOKEN', 'DATABRICKS_HOST', 'DATABRICKS_AI_ENDPOINT', 'DATABRICKS_AI_SERVING_ENDPOINT']),
   openai: Object.freeze(['OPENAI_API_KEY']),
   gemini: Object.freeze(['GEMINI_API_KEY']),
   openrouter: Object.freeze(['OPENROUTER_API_KEY', 'OPENROUTER_HTTP_REFERER', 'OPENROUTER_X_TITLE']),
@@ -16,6 +17,7 @@ const AST_AI_PROVIDER_AUTH_KEYS = Object.freeze({
 });
 
 const AST_AI_GENERIC_AUTH_KEYS = Object.freeze({
+  databricks: Object.freeze(['token', 'apiKey', 'host', 'endpointUrl', 'servingEndpoint', 'model']),
   openai: Object.freeze(['apiKey', 'model']),
   gemini: Object.freeze(['apiKey', 'model']),
   openrouter: Object.freeze(['apiKey', 'httpReferer', 'xTitle', 'model']),

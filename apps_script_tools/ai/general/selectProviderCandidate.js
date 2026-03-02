@@ -1,4 +1,5 @@
 const AST_AI_ROUTING_DEFAULT_LATENCY_MS = Object.freeze({
+  databricks: 3100,
   openai: 3200,
   gemini: 2800,
   vertex_gemini: 2600,
@@ -7,6 +8,7 @@ const AST_AI_ROUTING_DEFAULT_LATENCY_MS = Object.freeze({
 });
 
 const AST_AI_ROUTING_DEFAULT_COST_SCORE = Object.freeze({
+  databricks: 2,
   openai: 3,
   gemini: 2,
   vertex_gemini: 2,

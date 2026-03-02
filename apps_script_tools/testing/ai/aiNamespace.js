@@ -34,7 +34,7 @@ AI_NAMESPACE_TESTS = [
     description: 'AST.AI.providers() should list all supported providers',
     test: () => astTestRunWithAssertions(t => {
       const providers = AST.AI.providers();
-      const expected = ['openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'];
+      const expected = ['databricks', 'openai', 'gemini', 'vertex_gemini', 'openrouter', 'perplexity'];
       t.deepEqual(providers, expected, `Expected providers ${JSON.stringify(expected)}, but got ${JSON.stringify(providers)}`);
     })
   },
