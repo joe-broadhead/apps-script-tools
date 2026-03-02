@@ -146,6 +146,28 @@ test('AST.DBT.ownerCoverage returns deterministic ownership breakdown and gaps',
   assert.equal(out.gaps.unassignedEntities[0].uniqueId, 'model.demo.customers');
 });
 
+test('AST.DBT.owners handles prototype-like package/resource keys deterministically', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const manifest = createGovernanceFixture();
+  manifest.nodes['model.demo.orders'].resource_type = '__proto__';
+  manifest.nodes['model.demo.orders'].package_name = '__proto__';
+
+  const out = context.AST.DBT.owners({
+    manifest,
+    filters: {
+      resourceTypes: ['__proto__', 'model']
+    }
+  });
+
+  const revops = out.items.find(item => item.owner === 'revops');
+  assert.equal(out.status, 'ok');
+  assert.equal(Boolean(revops), true);
+  assert.equal(revops.resourceTypes.__proto__, 1);
+  assert.equal(revops.packages.__proto__, 1);
+});
+
 test('AST.DBT.run routes governance operations', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });

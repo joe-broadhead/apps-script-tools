@@ -86,7 +86,7 @@ function astDbtNormalizeStringArray(values, options = {}) {
 
   const toLower = options.toLower === true;
   const output = [];
-  const seen = {};
+  const seen = Object.create(null);
 
   values.forEach(value => {
     const normalized = astDbtNormalizeString(value, '');

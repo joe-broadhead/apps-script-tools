@@ -127,8 +127,8 @@ function astDbtBuildOwnerGroups(entities = [], ownerPaths = [], unassignedOwnerL
       grouped[owner] = {
         owner,
         entityCount: 0,
-        resourceTypes: {},
-        packages: {}
+        resourceTypes: Object.create(null),
+        packages: Object.create(null)
       };
     }
 
