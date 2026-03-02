@@ -44,7 +44,7 @@
 - New `AST.DBT` namespace with:
   - `run`, `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
   - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
-  - `diffEntities`, `impact`, `qualityReport`, `testCoverage`, `owners`
+  - `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, `owners`
   - `providers`, `capabilities`
   - `validateManifest`, `configure`, `getConfig`, `clearConfig`
 - dbt manifest source loading support for:

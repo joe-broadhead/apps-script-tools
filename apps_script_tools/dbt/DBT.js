@@ -24,6 +24,8 @@ function astDbtRun(request = {}) {
       return astDbtValidateManifestCore(normalized);
     case 'diff_entities':
       return astDbtDiffEntitiesCore(normalized);
+    case 'compare_artifacts':
+      return astDbtCompareArtifactsCore(normalized);
     case 'impact':
       return astDbtImpactCore(normalized);
     case 'quality_report':
@@ -79,6 +81,10 @@ function astDbtDiffEntities(request = {}) {
 
 function astDbtImpact(request = {}) {
   return astDbtImpactCore(request);
+}
+
+function astDbtCompareArtifacts(request = {}) {
+  return astDbtCompareArtifactsCore(request);
 }
 
 function astDbtQualityReport(request = {}) {
@@ -172,6 +178,7 @@ const AST_DBT = Object.freeze({
   getColumn: astDbtGetColumn,
   lineage: astDbtLineage,
   diffEntities: astDbtDiffEntities,
+  compareArtifacts: astDbtCompareArtifacts,
   impact: astDbtImpact,
   qualityReport: astDbtQualityReport,
   testCoverage: astDbtTestCoverage,

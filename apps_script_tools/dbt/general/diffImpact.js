@@ -330,6 +330,299 @@ function astDbtDiffEntitiesCore(request = {}) {
   return out;
 }
 
+function astDbtBuildArtifactComparableValue(artifactType, entry) {
+  if (!entry || !entry.uniqueId) {
+    return null;
+  }
+
+  if (artifactType === 'catalog') {
+    const rawColumns = astDbtIsPlainObject(entry.raw && entry.raw.columns)
+      ? entry.raw.columns
+      : {};
+    const columns = {};
+    Object.keys(rawColumns).sort().forEach(columnKey => {
+      const column = rawColumns[columnKey];
+      if (!astDbtIsPlainObject(column)) {
+        return;
+      }
+
+      const normalizedName = astDbtNormalizeString(column.name, columnKey);
+      const normalizedKey = normalizedName.toLowerCase();
+      columns[normalizedKey] = {
+        name: normalizedName,
+        dataType: astDbtNormalizeString(column.type || column.data_type, '')
+      };
+    });
+
+    return {
+      uniqueId: entry.uniqueId,
+      section: astDbtNormalizeString(entry.section, ''),
+      resourceType: astDbtNormalizeString(entry.resourceType, ''),
+      packageName: astDbtNormalizeString(entry.packageName, ''),
+      name: astDbtNormalizeString(entry.name, ''),
+      path: astDbtNormalizeString(entry.path, ''),
+      columnCount: Number(entry.columnCount || 0),
+      database: astDbtNormalizeString(entry.database, ''),
+      schema: astDbtNormalizeString(entry.schema, ''),
+      alias: astDbtNormalizeString(entry.alias, ''),
+      identifier: astDbtNormalizeString(entry.identifier, ''),
+      relationName: astDbtNormalizeString(entry.relationName, ''),
+      columns
+    };
+  }
+
+  if (artifactType === 'run_results') {
+    return {
+      uniqueId: entry.uniqueId,
+      status: astDbtNormalizeString(entry.status, ''),
+      executionTime: Number(entry.executionTime || 0),
+      threadId: astDbtNormalizeString(entry.threadId, ''),
+      message: astDbtNormalizeString(entry.message, ''),
+      failures: Number(entry.failures || 0),
+      timing: Array.isArray(entry.timing) ? astDbtStableCopy(entry.timing) : []
+    };
+  }
+
+  if (artifactType === 'sources') {
+    return {
+      uniqueId: entry.uniqueId,
+      status: astDbtNormalizeString(entry.status, ''),
+      maxLoadedAt: astDbtNormalizeString(entry.maxLoadedAt, ''),
+      snapshottedAt: astDbtNormalizeString(entry.snapshottedAt, ''),
+      executionTime: Number(entry.executionTime || 0),
+      threadId: astDbtNormalizeString(entry.threadId, ''),
+      message: astDbtNormalizeString(entry.message, '')
+    };
+  }
+
+  return {
+    uniqueId: entry.uniqueId,
+    value: astDbtStableCopy(entry)
+  };
+}
+
+function astDbtBuildArtifactComparableSnapshot(bundle, artifactType) {
+  const snapshot = {};
+  const index = astDbtIsPlainObject(bundle && bundle.index)
+    ? bundle.index
+    : (astDbtIsPlainObject(bundle && bundle.artifact)
+      ? astDbtBuildArtifactIndex(artifactType, bundle.artifact)
+      : null);
+
+  if (!astDbtIsPlainObject(index) || !astDbtIsPlainObject(index.byUniqueId)) {
+    return snapshot;
+  }
+
+  const keys = Object.keys(index.byUniqueId).sort();
+  keys.forEach(key => {
+    const entry = index.byUniqueId[key];
+    const uniqueId = astDbtNormalizeString(entry && entry.uniqueId, '');
+    if (!uniqueId) {
+      return;
+    }
+
+    const comparable = astDbtBuildArtifactComparableValue(artifactType, entry);
+    snapshot[uniqueId] = {
+      value: comparable,
+      hash: astDbtDigestHex(astDbtStableStringify(comparable))
+    };
+  });
+
+  return snapshot;
+}
+
+function astDbtResolveCompareArtifactsSideBundle(side = {}, options = {}) {
+  if (!astDbtIsPlainObject(side)) {
+    throw new AstDbtValidationError('compareArtifacts side must be an object');
+  }
+
+  if (side.type === 'manifest') {
+    return astDbtEnsureBundle({
+      bundle: side.bundle,
+      manifest: side.manifest,
+      source: side.source,
+      uri: side.source && side.source.uri,
+      fileId: side.source && side.source.location && side.source.location.fileId,
+      provider: side.source && side.source.provider,
+      location: side.source && side.source.location,
+      auth: side.source && side.source.auth,
+      providerOptions: side.source && side.source.providerOptions,
+      options: Object.assign({}, options, side.options || {})
+    }, {
+      options: Object.assign({}, options, side.options || {})
+    });
+  }
+
+  return astDbtEnsureArtifactBundle({
+    bundle: side.bundle,
+    artifactType: side.type,
+    artifact: side.artifact,
+    source: side.source,
+    uri: side.source && side.source.uri,
+    fileId: side.source && side.source.location && side.source.location.fileId,
+    provider: side.source && side.source.provider,
+    location: side.source && side.source.location,
+    auth: side.source && side.source.auth,
+    providerOptions: side.source && side.source.providerOptions,
+    options: Object.assign({}, options, side.options || {})
+  }, side.type, {
+    options: Object.assign({}, options, side.options || {})
+  });
+}
+
+function astDbtBuildCompareArtifactsSnapshot(side = {}, options = {}, include = {}) {
+  const bundle = astDbtResolveCompareArtifactsSideBundle(side, options);
+  const type = side.type;
+
+  if (type === 'manifest') {
+    const index = bundle.index || astDbtBuildManifestIndexes(bundle.manifest);
+    return {
+      type,
+      bundle,
+      snapshot: astDbtBuildEntitySnapshot(index, {
+        meta: include.meta !== false,
+        columns: include.columns !== false
+      })
+    };
+  }
+
+  return {
+    type,
+    bundle,
+    snapshot: astDbtBuildArtifactComparableSnapshot(bundle, type)
+  };
+}
+
+function astDbtBuildCompareArtifactDiff(leftValue, rightValue) {
+  const leftKeys = leftValue && typeof leftValue === 'object' ? Object.keys(leftValue) : [];
+  const rightKeys = rightValue && typeof rightValue === 'object' ? Object.keys(rightValue) : [];
+  const keys = Array.from(new Set(leftKeys.concat(rightKeys))).sort();
+
+  const fieldChanges = [];
+  keys.forEach(key => {
+    if (key === 'uniqueId') {
+      return;
+    }
+
+    const leftSerialized = astDbtStableStringify(leftValue ? leftValue[key] : null);
+    const rightSerialized = astDbtStableStringify(rightValue ? rightValue[key] : null);
+    if (leftSerialized !== rightSerialized) {
+      fieldChanges.push(key);
+    }
+  });
+
+  return {
+    fieldChanges
+  };
+}
+
+function astDbtBuildCompareArtifactItem(uniqueId, leftComparable, rightComparable, include = {}) {
+  let changeType = 'unchanged';
+  if (!leftComparable && rightComparable) {
+    changeType = 'added';
+  } else if (leftComparable && !rightComparable) {
+    changeType = 'removed';
+  } else if (leftComparable && rightComparable && leftComparable.hash !== rightComparable.hash) {
+    changeType = 'changed';
+  }
+
+  const item = {
+    uniqueId,
+    changeType
+  };
+
+  if (include.left !== false && leftComparable) {
+    item.left = leftComparable.value;
+  }
+
+  if (include.right !== false && rightComparable) {
+    item.right = rightComparable.value;
+  }
+
+  if (changeType === 'changed' && include.diff !== false) {
+    item.diff = astDbtBuildCompareArtifactDiff(
+      leftComparable ? leftComparable.value : null,
+      rightComparable ? rightComparable.value : null
+    );
+  }
+
+  return item;
+}
+
+function astDbtCompareArtifactsCore(request = {}) {
+  const normalized = astDbtValidateCompareArtifactsRequest(request);
+  const startedAt = Date.now();
+
+  const leftResolved = astDbtBuildCompareArtifactsSnapshot(normalized.left, normalized.options, normalized.include);
+  const rightResolved = astDbtBuildCompareArtifactsSnapshot(normalized.right, normalized.options, normalized.include);
+
+  const leftSnapshot = leftResolved.snapshot || {};
+  const rightSnapshot = rightResolved.snapshot || {};
+  const allUniqueIds = Array.from(new Set(Object.keys(leftSnapshot).concat(Object.keys(rightSnapshot)))).sort();
+
+  const summary = {
+    artifactType: normalized.artifactType,
+    leftCount: Object.keys(leftSnapshot).length,
+    rightCount: Object.keys(rightSnapshot).length,
+    added: 0,
+    removed: 0,
+    changed: 0,
+    unchanged: 0
+  };
+
+  const items = [];
+  allUniqueIds.forEach(uniqueId => {
+    const item = astDbtBuildCompareArtifactItem(
+      uniqueId,
+      leftSnapshot[uniqueId] || null,
+      rightSnapshot[uniqueId] || null,
+      normalized.include
+    );
+
+    summary[item.changeType] += 1;
+
+    if (!normalized.includeUnchanged && item.changeType === 'unchanged') {
+      return;
+    }
+
+    if (normalized.changeTypes.indexOf(item.changeType) === -1) {
+      return;
+    }
+
+    items.push(item);
+  });
+
+  const total = items.length;
+  const offset = normalized.page.offset;
+  const limit = normalized.page.limit;
+  const pagedItems = items.slice(offset, offset + limit);
+
+  const response = {
+    status: 'ok',
+    artifactType: normalized.artifactType,
+    summary,
+    page: {
+      limit,
+      offset,
+      returned: pagedItems.length,
+      total,
+      hasMore: offset + pagedItems.length < total
+    },
+    leftSummary: leftResolved.bundle && leftResolved.bundle.summary ? leftResolved.bundle.summary : null,
+    rightSummary: rightResolved.bundle && rightResolved.bundle.summary ? rightResolved.bundle.summary : null,
+    items: pagedItems
+  };
+
+  if (normalized.include.stats !== false) {
+    response.stats = {
+      comparedEntities: allUniqueIds.length,
+      elapsedMs: Date.now() - startedAt
+    };
+  }
+
+  return response;
+}
+
 function astDbtResolveImpactArtifactBundle(descriptor = null, requestOptions = {}) {
   if (!astDbtIsPlainObject(descriptor)) {
     return null;

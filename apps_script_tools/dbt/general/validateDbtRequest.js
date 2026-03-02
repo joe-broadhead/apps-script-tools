@@ -34,6 +34,20 @@ const AST_DBT_DIFF_CHANGE_TYPES = Object.freeze([
   'unchanged'
 ]);
 
+const AST_DBT_COMPARE_ARTIFACT_TYPES = Object.freeze([
+  'manifest',
+  'catalog',
+  'run_results',
+  'sources'
+]);
+
+const AST_DBT_COMPARE_CHANGE_TYPES = Object.freeze([
+  'added',
+  'removed',
+  'changed',
+  'unchanged'
+]);
+
 function astDbtNormalizeBoolean(value, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -445,6 +459,155 @@ function astDbtNormalizeDiffChangeTypes(changeTypes) {
   return output;
 }
 
+function astDbtNormalizeCompareArtifactType(value, fallback = '') {
+  const normalized = astDbtNormalizeString(value, fallback).toLowerCase().replace(/-/g, '_');
+  if (!normalized || AST_DBT_COMPARE_ARTIFACT_TYPES.indexOf(normalized) !== -1) {
+    return normalized;
+  }
+
+  throw new AstDbtValidationError(
+    `compareArtifacts side type must be one of: ${AST_DBT_COMPARE_ARTIFACT_TYPES.join(', ')}`,
+    { type: normalized }
+  );
+}
+
+function astDbtNormalizeCompareChangeTypes(changeTypes) {
+  if (typeof changeTypes === 'undefined' || changeTypes == null) {
+    return ['added', 'removed', 'changed'];
+  }
+
+  if (!Array.isArray(changeTypes)) {
+    throw new AstDbtValidationError('compareArtifacts changeTypes must be an array when provided');
+  }
+
+  const output = [];
+  const seen = {};
+
+  changeTypes.forEach(value => {
+    const normalized = astDbtNormalizeString(value, '').toLowerCase();
+    if (!normalized) {
+      return;
+    }
+
+    if (AST_DBT_COMPARE_CHANGE_TYPES.indexOf(normalized) === -1) {
+      throw new AstDbtValidationError(
+        `compareArtifacts changeTypes must be one of: ${AST_DBT_COMPARE_CHANGE_TYPES.join(', ')}`,
+        { changeType: normalized }
+      );
+    }
+
+    if (seen[normalized]) {
+      return;
+    }
+
+    seen[normalized] = true;
+    output.push(normalized);
+  });
+
+  return output;
+}
+
+function astDbtNormalizeCompareInclude(include = {}) {
+  if (!astDbtIsPlainObject(include)) {
+    throw new AstDbtValidationError('compareArtifacts include must be an object');
+  }
+
+  return {
+    left: astDbtNormalizeBoolean(include.left, true),
+    right: astDbtNormalizeBoolean(include.right, true),
+    diff: astDbtNormalizeBoolean(include.diff, true),
+    meta: astDbtNormalizeBoolean(include.meta, true),
+    columns: astDbtNormalizeBoolean(include.columns, true),
+    stats: astDbtNormalizeBoolean(include.stats, true)
+  };
+}
+
+function astDbtBuildCompareSideFromAliases(request = {}, sideName) {
+  const side = astDbtIsPlainObject(request[sideName]) ? request[sideName] : null;
+  if (side) {
+    return side;
+  }
+
+  const upper = sideName.charAt(0).toUpperCase() + sideName.slice(1);
+  const aliases = {
+    type: request[`${sideName}Type`] || request[`${sideName}ArtifactType`],
+    bundle: request[`${sideName}Bundle`],
+    manifest: request[`${sideName}Manifest`],
+    artifact: request[`${sideName}Artifact`],
+    source: request[`${sideName}Source`],
+    uri: request[`${sideName}Uri`],
+    fileId: request[`${sideName}FileId`],
+    provider: request[`${sideName}Provider`],
+    location: request[`${sideName}Location`],
+    auth: request[`${sideName}Auth`],
+    providerOptions: request[`${sideName}ProviderOptions`],
+    options: request[`${sideName}Options`]
+  };
+
+  if (sideName === 'left') {
+    aliases.bundle = aliases.bundle || request.bundleA;
+    aliases.manifest = aliases.manifest || request.manifestA;
+    aliases.artifact = aliases.artifact || request.artifactA;
+    aliases.type = aliases.type || request.typeA || request.artifactTypeA;
+  } else if (sideName === 'right') {
+    aliases.bundle = aliases.bundle || request.bundleB;
+    aliases.manifest = aliases.manifest || request.manifestB;
+    aliases.artifact = aliases.artifact || request.artifactB;
+    aliases.type = aliases.type || request.typeB || request.artifactTypeB;
+  }
+
+  const hasAliasValue = Object.keys(aliases).some(key => typeof aliases[key] !== 'undefined' && aliases[key] !== null);
+  if (!hasAliasValue) {
+    return null;
+  }
+
+  return aliases;
+}
+
+function astDbtNormalizeCompareSide(side = {}, sideName, defaultsManifest = {}, defaultsArtifact = {}) {
+  if (!astDbtIsPlainObject(side)) {
+    throw new AstDbtValidationError(`compareArtifacts ${sideName} side must be an object`);
+  }
+
+  const type = astDbtNormalizeCompareArtifactType(side.type || side.artifactType || side.kind, '');
+  if (!type) {
+    throw new AstDbtValidationError(`compareArtifacts ${sideName} side requires type`);
+  }
+
+  const sideDefaults = type === 'manifest' ? defaultsManifest : defaultsArtifact;
+  const options = astDbtNormalizeLoadOptions(side.options || {}, sideDefaults);
+  const bundle = astDbtIsPlainObject(side.bundle) ? side.bundle : null;
+  const manifest = type === 'manifest' && astDbtIsPlainObject(side.manifest) ? side.manifest : null;
+  const artifact = type !== 'manifest' && astDbtIsPlainObject(side.artifact) ? side.artifact : null;
+
+  const source = (bundle || manifest || artifact)
+    ? null
+    : astDbtNormalizeSourceObject({
+      source: side.source,
+      uri: side.uri,
+      fileId: side.fileId,
+      provider: side.provider,
+      location: side.location,
+      auth: side.auth,
+      providerOptions: side.providerOptions
+    }, sideDefaults);
+
+  if (!bundle && !manifest && !artifact && !source) {
+    throw new AstDbtValidationError(
+      `compareArtifacts ${sideName} side requires one of: bundle, manifest/artifact, or source locator`
+    );
+  }
+
+  return {
+    type,
+    bundle,
+    manifest,
+    artifact,
+    source,
+    options
+  };
+}
+
 function astDbtNormalizeImpactArtifactRef(descriptor = {}, artifactType, defaults = {}) {
   if (!astDbtIsPlainObject(descriptor)) {
     throw new AstDbtValidationError(`impact artifacts.${artifactType} must be an object when provided`);
@@ -791,6 +954,47 @@ function astDbtValidateImpactRequest(request = {}) {
   };
 }
 
+function astDbtValidateCompareArtifactsRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('compareArtifacts request must be an object');
+  }
+
+  const manifestDefaults = astDbtResolveLoadDefaults(request);
+  const artifactDefaults = astDbtResolveArtifactDefaults(request);
+
+  const leftRaw = astDbtBuildCompareSideFromAliases(request, 'left');
+  const rightRaw = astDbtBuildCompareSideFromAliases(request, 'right');
+
+  if (!leftRaw || !rightRaw) {
+    throw new AstDbtValidationError('compareArtifacts requires both left and right side descriptors');
+  }
+
+  const left = astDbtNormalizeCompareSide(leftRaw, 'left', manifestDefaults, artifactDefaults);
+  const right = astDbtNormalizeCompareSide(rightRaw, 'right', manifestDefaults, artifactDefaults);
+
+  if (left.type !== right.type) {
+    throw new AstDbtValidationError(
+      'compareArtifacts requires left and right side types to match',
+      {
+        leftType: left.type,
+        rightType: right.type
+      }
+    );
+  }
+
+  return {
+    operation: 'compare_artifacts',
+    artifactType: left.type,
+    left,
+    right,
+    includeUnchanged: astDbtNormalizeBoolean(request.includeUnchanged, false),
+    changeTypes: astDbtNormalizeCompareChangeTypes(request.changeTypes),
+    include: astDbtNormalizeCompareInclude(request.include || {}),
+    page: astDbtNormalizeSearchPage(request.page || {}),
+    options: astDbtNormalizeLoadOptions(request.options || {}, manifestDefaults)
+  };
+}
+
 function astDbtNormalizeOwnerPaths(value, fallback = ['owner.team', 'owner']) {
   const source = Array.isArray(value) ? value : fallback;
   const normalized = astDbtNormalizeStringArray(source);
@@ -895,6 +1099,8 @@ function astDbtValidateRunRequest(request = {}) {
       return astDbtValidateValidateManifestRequest(request);
     case 'diff_entities':
       return astDbtValidateDiffEntitiesRequest(request);
+    case 'compare_artifacts':
+      return astDbtValidateCompareArtifactsRequest(request);
     case 'impact':
       return astDbtValidateImpactRequest(request);
     case 'quality_report':

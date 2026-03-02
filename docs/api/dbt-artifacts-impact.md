@@ -43,6 +43,21 @@ Logger.log(diff.summary);
 Logger.log(diff.items.slice(0, 5));
 ```
 
+## Compare two artifact snapshots
+
+```javascript
+const compared = ASTX.DBT.compareArtifacts({
+  left: { type: 'catalog', bundle: previousCatalog.bundle },
+  right: { type: 'catalog', bundle: latestCatalog.bundle },
+  includeUnchanged: false,
+  changeTypes: ['added', 'removed', 'changed'],
+  page: { limit: 100, offset: 0 }
+});
+
+Logger.log(compared.summary);
+Logger.log(compared.items.slice(0, 5));
+```
+
 ## Build impact view with artifact overlays
 
 ```javascript

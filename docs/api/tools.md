@@ -1028,6 +1028,7 @@ Primary methods:
 - `ASTX.DBT.getColumn(request)`
 - `ASTX.DBT.lineage(request)`
 - `ASTX.DBT.diffEntities(request)`
+- `ASTX.DBT.compareArtifacts(request)`
 - `ASTX.DBT.impact(request)`
 - `ASTX.DBT.qualityReport(request)`
 - `ASTX.DBT.testCoverage(request)`
@@ -1108,6 +1109,21 @@ const impact = ASTX.DBT.impact({
 });
 
 Logger.log(impact.nodes);
+```
+
+Artifact comparison example:
+
+```javascript
+const compared = ASTX.DBT.compareArtifacts({
+  left: { type: 'run_results', bundle: priorRunResults.bundle },
+  right: { type: 'run_results', bundle: latestRunResults.bundle },
+  changeTypes: ['added', 'removed', 'changed'],
+  includeUnchanged: false,
+  page: { limit: 100, offset: 0 }
+});
+
+Logger.log(compared.summary);
+Logger.log(compared.items.slice(0, 10));
 ```
 
 Governance report example:
