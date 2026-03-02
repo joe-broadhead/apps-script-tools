@@ -823,6 +823,13 @@ function astDbtValidateColumnLineageRequest(request = {}) {
     : 0.55;
 
   const maxMatchesPerEdge = astDbtNormalizePositiveInt(request.maxMatchesPerEdge, 3, 1, 10);
+  const include = (typeof request.include === 'undefined' || request.include == null)
+    ? {}
+    : request.include;
+
+  if (!astDbtIsPlainObject(include)) {
+    throw new AstDbtValidationError('columnLineage include must be an object');
+  }
 
   return {
     operation: 'column_lineage',
@@ -837,8 +844,8 @@ function astDbtValidateColumnLineageRequest(request = {}) {
     confidenceThreshold: normalizedConfidenceThreshold,
     maxMatchesPerEdge,
     include: {
-      stats: astDbtNormalizeBoolean(request.include && request.include.stats, true),
-      raw: astDbtNormalizeBoolean(request.include && request.include.raw, false)
+      stats: astDbtNormalizeBoolean(include.stats, true),
+      raw: astDbtNormalizeBoolean(include.raw, false)
     },
     options: astDbtNormalizeLoadOptions(request.options || {}, astDbtResolveLoadDefaults(request))
   };

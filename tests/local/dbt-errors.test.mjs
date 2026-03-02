@@ -112,6 +112,21 @@ test('AST.DBT.columnLineage validates direction input', () => {
   );
 });
 
+test('AST.DBT.columnLineage validates include input shape', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  assert.throws(
+    () => context.AST.DBT.columnLineage({
+      manifest: createManifestFixture(),
+      uniqueId: 'model.demo.orders',
+      columnName: 'order_id',
+      include: 'raw'
+    }),
+    /columnLineage include must be an object/
+  );
+});
+
 test('AST.DBT.loadManifest throws capability error when storage runtime is unavailable', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });
