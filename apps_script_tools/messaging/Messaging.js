@@ -54,6 +54,18 @@ const AST_MESSAGING = Object.freeze({
     delete: request => astMessagingRunOperation('logs_delete', request)
   }),
 
+  templates: Object.freeze({
+    register: request => astMessagingRunOperation('template_register', request),
+    get: request => astMessagingRunOperation('template_get', request),
+    render: request => astMessagingRunOperation('template_render', request),
+    send: request => astMessagingRunOperation('template_send', request)
+  }),
+
+  registerTemplate: request => astMessagingRunOperation('template_register', request),
+  getTemplate: request => astMessagingRunOperation('template_get', request),
+  renderTemplate: request => astMessagingRunOperation('template_render', request),
+  sendTemplate: request => astMessagingRunOperation('template_send', request),
+
   operations: () => astMessagingListOperations(),
   capabilities: operationOrGroup => astMessagingGetCapabilities(operationOrGroup),
   configure: astMessagingConfigure,

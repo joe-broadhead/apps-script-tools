@@ -99,3 +99,60 @@ test('validation rejects non-chat_api transport for chat read operations', () =>
     /only chat_api transport/
   );
 });
+
+test('validation enforces template identifiers and variable object shape', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'template_get',
+      body: {}
+    }),
+    /body.templateId/
+  );
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'template_render',
+      body: {
+        templateId: 'x',
+        variables: 'not-an-object'
+      }
+    }),
+    /body.variables/
+  );
+});
+
+test('validation enforces template register content requirements by channel', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'template_register',
+      body: {
+        templateId: 'email_template',
+        channel: 'email',
+        template: {
+          textBody: 'Hello'
+        }
+      }
+    }),
+    /body.template.subject/
+  );
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'template_register',
+      body: {
+        templateId: 'chat_template',
+        channel: 'chat',
+        template: {
+          variables: []
+        }
+      }
+    }),
+    /field 'variables' must be an object/
+  );
+});

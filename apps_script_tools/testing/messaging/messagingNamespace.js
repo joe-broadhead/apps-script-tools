@@ -9,6 +9,10 @@ MESSAGING_NAMESPACE_TESTS = [
       t.equal(typeof AST.Messaging.configure, 'function', 'AST.Messaging.configure is not available');
       t.equal(typeof AST.Messaging.getConfig, 'function', 'AST.Messaging.getConfig is not available');
       t.equal(typeof AST.Messaging.clearConfig, 'function', 'AST.Messaging.clearConfig is not available');
+      t.equal(typeof AST.Messaging.registerTemplate, 'function', 'AST.Messaging.registerTemplate is not available');
+      t.equal(typeof AST.Messaging.getTemplate, 'function', 'AST.Messaging.getTemplate is not available');
+      t.equal(typeof AST.Messaging.renderTemplate, 'function', 'AST.Messaging.renderTemplate is not available');
+      t.equal(typeof AST.Messaging.sendTemplate, 'function', 'AST.Messaging.sendTemplate is not available');
 
       const emailMethods = ['send', 'sendBatch', 'createDraft', 'sendDraft', 'listThreads', 'getThread', 'searchMessages', 'getMessage', 'listLabels', 'updateMessageLabels'];
       emailMethods.forEach(method => {
@@ -28,6 +32,11 @@ MESSAGING_NAMESPACE_TESTS = [
       const logsMethods = ['list', 'get', 'delete'];
       logsMethods.forEach(method => {
         t.equal(typeof AST.Messaging.logs[method], 'function', `AST.Messaging.logs.${method} is not available`);
+      });
+
+      const templateMethods = ['register', 'get', 'render', 'send'];
+      templateMethods.forEach(method => {
+        t.equal(typeof AST.Messaging.templates[method], 'function', `AST.Messaging.templates.${method} is not available`);
       });
     })
   }

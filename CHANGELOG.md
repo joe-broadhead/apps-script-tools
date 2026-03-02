@@ -21,6 +21,10 @@
   - `chat.*` webhook/API send and read methods
   - `tracking.*` pixel/link/event helper methods
   - `logs.*` list/get/delete event logs
+- Messaging template registry/render/send APIs:
+  - `registerTemplate`, `getTemplate`, `renderTemplate`, `sendTemplate`
+  - grouped helpers under `AST.Messaging.templates.*`
+  - typed variable schema support with deterministic missing-variable/type validation
 - Messaging reliability/runtime features:
   - mutation dry-run planning (`options.dryRun`)
   - idempotent send replay protection

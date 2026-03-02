@@ -76,5 +76,68 @@ MESSAGING_CONTRACT_TESTS = [
 
       AST.Messaging.clearConfig();
     }
+  },
+  {
+    description: 'AST.Messaging templates register/render and dry-run send should be deterministic',
+    test: () => {
+      AST.Messaging.configure({
+        MESSAGING_TEMPLATE_BACKEND: 'memory',
+        MESSAGING_TEMPLATE_NAMESPACE: `ast_messaging_templates_gas_${Date.now()}`
+      });
+
+      const registered = AST.Messaging.registerTemplate({
+        body: {
+          templateId: `sample_template_${Date.now()}`,
+          channel: 'email',
+          template: {
+            subject: 'Hello {{name}}',
+            textBody: 'Status {{status}}',
+            variables: {
+              name: { type: 'string', required: true },
+              status: { type: 'string', required: true }
+            }
+          }
+        }
+      });
+
+      const templateId = registered && registered.data && registered.data.templateId;
+      if (!templateId) {
+        throw new Error(`Expected templateId in register response, got ${JSON.stringify(registered)}`);
+      }
+
+      const rendered = AST.Messaging.renderTemplate({
+        body: {
+          templateId,
+          variables: {
+            name: 'Joe',
+            status: 'ok'
+          }
+        }
+      });
+
+      if (!rendered || !rendered.data || !rendered.data.rendered || rendered.data.rendered.subject !== 'Hello Joe') {
+        throw new Error(`Expected rendered template output, got ${JSON.stringify(rendered)}`);
+      }
+
+      const dryRun = AST.Messaging.sendTemplate({
+        body: {
+          templateId,
+          to: ['user@example.com'],
+          variables: {
+            name: 'Joe',
+            status: 'ok'
+          }
+        },
+        options: {
+          dryRun: true
+        }
+      });
+
+      if (!dryRun || !dryRun.dryRun || dryRun.dryRun.enabled !== true) {
+        throw new Error(`Expected dry-run sendTemplate result, got ${JSON.stringify(dryRun)}`);
+      }
+
+      AST.Messaging.clearConfig();
+    }
   }
 ];

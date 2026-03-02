@@ -27,7 +27,13 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_ASYNC_QUEUE',
   'MESSAGING_IDEMPOTENCY_BACKEND',
   'MESSAGING_IDEMPOTENCY_NAMESPACE',
-  'MESSAGING_IDEMPOTENCY_TTL_SEC'
+  'MESSAGING_IDEMPOTENCY_TTL_SEC',
+  'MESSAGING_TEMPLATE_BACKEND',
+  'MESSAGING_TEMPLATE_NAMESPACE',
+  'MESSAGING_TEMPLATE_DRIVE_FOLDER_ID',
+  'MESSAGING_TEMPLATE_DRIVE_FILE_NAME',
+  'MESSAGING_TEMPLATE_STORAGE_URI',
+  'MESSAGING_TEMPLATE_TTL_SEC'
 ]);
 
 const AST_MESSAGING_DEFAULTS = Object.freeze({
@@ -73,6 +79,14 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
     backend: 'memory',
     namespace: 'ast_messaging_idempotency',
     ttlSec: 900
+  }),
+  templates: Object.freeze({
+    backend: 'memory',
+    namespace: 'ast_messaging_templates',
+    driveFolderId: '',
+    driveFileName: 'ast_messaging_templates.json',
+    storageUri: '',
+    ttlSec: 31536000
   })
 });
 
@@ -437,6 +451,35 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     null
   );
 
+  const templates = {
+    backend: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_TEMPLATE_BACKEND, scriptConfig.MESSAGING_TEMPLATE_BACKEND],
+      AST_MESSAGING_DEFAULTS.templates.backend
+    ),
+    namespace: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_TEMPLATE_NAMESPACE, scriptConfig.MESSAGING_TEMPLATE_NAMESPACE],
+      AST_MESSAGING_DEFAULTS.templates.namespace
+    ),
+    driveFolderId: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_TEMPLATE_DRIVE_FOLDER_ID, scriptConfig.MESSAGING_TEMPLATE_DRIVE_FOLDER_ID],
+      AST_MESSAGING_DEFAULTS.templates.driveFolderId
+    ),
+    driveFileName: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_TEMPLATE_DRIVE_FILE_NAME, scriptConfig.MESSAGING_TEMPLATE_DRIVE_FILE_NAME],
+      AST_MESSAGING_DEFAULTS.templates.driveFileName
+    ),
+    storageUri: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_TEMPLATE_STORAGE_URI, scriptConfig.MESSAGING_TEMPLATE_STORAGE_URI],
+      AST_MESSAGING_DEFAULTS.templates.storageUri
+    ),
+    ttlSec: astMessagingConfigNormalizeInteger(
+      runtimeConfig.MESSAGING_TEMPLATE_TTL_SEC,
+      astMessagingConfigNormalizeInteger(scriptConfig.MESSAGING_TEMPLATE_TTL_SEC, AST_MESSAGING_DEFAULTS.templates.ttlSec, 0, 31536000),
+      0,
+      31536000
+    )
+  };
+
   return {
     timeoutMs,
     retries,
@@ -446,6 +489,7 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     logs,
     async: asyncConfig,
     idempotency,
+    templates,
     transport
   };
 }

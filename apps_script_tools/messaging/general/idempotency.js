@@ -131,7 +131,7 @@ function astMessagingBuildIdempotencyKey(normalizedRequest = {}, resolvedConfig 
     return null;
   }
 
-  if (!['email_send', 'email_send_batch', 'email_create_draft', 'email_send_draft', 'chat_send', 'chat_send_batch'].includes(normalizedRequest.operation)) {
+  if (!['email_send', 'email_send_batch', 'email_create_draft', 'email_send_draft', 'chat_send', 'chat_send_batch', 'template_send'].includes(normalizedRequest.operation)) {
     return null;
   }
 
