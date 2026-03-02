@@ -1,4 +1,5 @@
 const AST_AI_PROVIDERS = Object.freeze([
+  'databricks',
   'openai',
   'gemini',
   'vertex_gemini',
@@ -242,7 +243,7 @@ function astValidateAiRequest(request = {}, forcedOperation) {
     || (routing && routing.candidates && routing.candidates[0] ? routing.candidates[0].provider : '');
 
   if (!AST_AI_PROVIDERS.includes(provider)) {
-    throw new AstAiValidationError('Provider must be one of: openai, gemini, vertex_gemini, openrouter, perplexity');
+    throw new AstAiValidationError('Provider must be one of: databricks, openai, gemini, vertex_gemini, openrouter, perplexity');
   }
 
   const messages = astNormalizeMessages(request.input, request.system);

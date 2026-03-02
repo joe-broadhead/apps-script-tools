@@ -2,6 +2,7 @@
 
 ## Supported providers
 
+- `databricks` (Model Serving)
 - `openai`
 - `gemini` (AI Studio)
 - `vertex_gemini` (Vertex AI)
@@ -12,6 +13,7 @@
 
 | Provider | Text | Structured | Tool Calls | Image Generation | Image Understanding |
 |---|---|---|---|---|---|
+| `databricks` | Yes | Yes | Yes | No (throws `AstAiCapabilityError`) | No (throws `AstAiCapabilityError`) |
 | `openai` | Yes | Yes | Yes | Yes | Yes |
 | `gemini` | Yes | Yes | Yes | Yes (model-dependent) | Yes |
 | `vertex_gemini` | Yes | Yes | Yes | No (throws `AstAiCapabilityError`) | Yes |
@@ -26,6 +28,14 @@ Unsupported operation/provider pairs throw `AstAiCapabilityError`.
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+
+### Databricks
+
+- `DATABRICKS_TOKEN`
+- `DATABRICKS_AI_ENDPOINT` (full URL: `https://<workspace>/serving-endpoints/<name>/invocations`)
+- `DATABRICKS_HOST` (used with `DATABRICKS_AI_SERVING_ENDPOINT` when endpoint URL is not provided)
+- `DATABRICKS_AI_SERVING_ENDPOINT`
+- `DATABRICKS_AI_MODEL` (optional; defaults to serving endpoint name when unset)
 
 ### Gemini (AI Studio)
 
@@ -70,6 +80,14 @@ For each required key:
 2. runtime config from `ASTX.AI.configure(...)`
 3. script properties
 4. throw `AstAiAuthError`
+
+Databricks endpoint resolution:
+
+1. per-call `request.providerOptions.endpointUrl` / `request.auth.endpointUrl`
+2. runtime/script property `DATABRICKS_AI_ENDPOINT`
+3. otherwise require both host + serving endpoint:
+   - `request.auth.host` / `DATABRICKS_HOST`
+   - `request.providerOptions.servingEndpoint` / `request.auth.servingEndpoint` / `DATABRICKS_AI_SERVING_ENDPOINT`
 
 For Vertex service-account JSON specifically:
 

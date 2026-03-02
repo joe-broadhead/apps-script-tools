@@ -1,4 +1,11 @@
 const AST_AI_CAPABILITY_MATRIX = Object.freeze({
+  databricks: Object.freeze({
+    text: true,
+    structured: true,
+    tools: true,
+    imageGeneration: false,
+    imageUnderstanding: false
+  }),
   openai: Object.freeze({
     text: true,
     structured: true,

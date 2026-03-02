@@ -14,6 +14,7 @@ export function loadAiScripts(context, { includeAst = false, includeSecrets = fa
     : [];
   const general = listScriptFiles('apps_script_tools/ai/general');
   const providers = [
+    'apps_script_tools/ai/databricks/runDatabricks.js',
     'apps_script_tools/ai/openai/runOpenAi.js',
     'apps_script_tools/ai/gemini/runGemini.js',
     'apps_script_tools/ai/vertexGemini/runVertexGemini.js',

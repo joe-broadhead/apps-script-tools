@@ -1,4 +1,9 @@
 const AST_AI_CONFIG_KEYS = Object.freeze([
+  'DATABRICKS_HOST',
+  'DATABRICKS_TOKEN',
+  'DATABRICKS_AI_ENDPOINT',
+  'DATABRICKS_AI_SERVING_ENDPOINT',
+  'DATABRICKS_AI_MODEL',
   'OPENAI_API_KEY',
   'OPENAI_MODEL',
   'GEMINI_API_KEY',
@@ -265,6 +270,81 @@ function astResolveAiConfig(request) {
   const runtimeConfig = astGetAiRuntimeConfig();
 
   switch (provider) {
+    case 'databricks': {
+      const token = astResolveConfigString({
+        requestValue: auth.token || auth.apiKey,
+        authValue: auth.DATABRICKS_TOKEN,
+        runtimeConfig,
+        scriptProperties,
+        scriptKey: 'DATABRICKS_TOKEN',
+        required: true,
+        field: 'token'
+      });
+
+      const endpointUrl = astResolveConfigString({
+        requestValue: request.providerOptions.endpointUrl || auth.endpointUrl,
+        authValue: auth.DATABRICKS_AI_ENDPOINT,
+        runtimeConfig,
+        scriptProperties,
+        scriptKey: 'DATABRICKS_AI_ENDPOINT',
+        required: false,
+        field: 'endpointUrl'
+      });
+
+      const host = astResolveConfigString({
+        requestValue: auth.host,
+        authValue: auth.DATABRICKS_HOST,
+        runtimeConfig,
+        scriptProperties,
+        scriptKey: 'DATABRICKS_HOST',
+        required: false,
+        field: 'host'
+      });
+
+      const servingEndpoint = astResolveConfigString({
+        requestValue: request.providerOptions.servingEndpoint || auth.servingEndpoint,
+        authValue: auth.DATABRICKS_AI_SERVING_ENDPOINT,
+        runtimeConfig,
+        scriptProperties,
+        scriptKey: 'DATABRICKS_AI_SERVING_ENDPOINT',
+        required: false,
+        field: 'servingEndpoint'
+      });
+
+      const resolvedModel = astResolveConfigString({
+        requestValue: request.model,
+        authValue: auth.model,
+        runtimeConfig,
+        scriptProperties,
+        scriptKey: 'DATABRICKS_AI_MODEL',
+        required: false,
+        field: 'model'
+      });
+
+      const model = resolvedModel || servingEndpoint || null;
+
+      if (!endpointUrl && (!host || !servingEndpoint)) {
+        throw new AstAiAuthError(
+          "Missing required Databricks AI configuration: provide 'endpointUrl' or both 'host' and 'servingEndpoint'",
+          {
+            provider,
+            hostConfigured: Boolean(host),
+            servingEndpointConfigured: Boolean(servingEndpoint),
+            endpointUrlConfigured: Boolean(endpointUrl)
+          }
+        );
+      }
+
+      return {
+        provider,
+        token,
+        endpointUrl,
+        host,
+        servingEndpoint,
+        model
+      };
+    }
+
     case 'openai': {
       const apiKey = astResolveConfigString({
         requestValue: auth.apiKey,

@@ -8,6 +8,10 @@
   - `request`, `requestBatch`
   - `capabilities`
   - `configure`, `getConfig`, `clearConfig`
+- `AST.AI` now supports `databricks` as a first-class provider for:
+  - `text`, `structured`, and `tools` operations
+  - Databricks Model Serving endpoint URL and host+serving-endpoint composition
+  - script-property/runtime/per-call config precedence via `DATABRICKS_*` keys
 - HTTP docs:
   - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:

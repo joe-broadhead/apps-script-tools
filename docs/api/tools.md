@@ -853,6 +853,7 @@ See:
 
 Unified AI surface across:
 
+- `databricks`
 - `openai`
 - `gemini`
 - `vertex_gemini`

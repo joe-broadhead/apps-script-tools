@@ -15,6 +15,12 @@ test('astGetAiCapabilities reports capability matrix values', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
+  const databricksCapabilities = context.astGetAiCapabilities('databricks');
+  assert.equal(databricksCapabilities.text, true);
+  assert.equal(databricksCapabilities.tools, true);
+  assert.equal(databricksCapabilities.imageGeneration, false);
+  assert.equal(databricksCapabilities.imageUnderstanding, false);
+
   const capabilities = context.astGetAiCapabilities('vertex_gemini');
   assert.equal(capabilities.text, true);
   assert.equal(capabilities.imageGeneration, false);
@@ -75,4 +81,22 @@ test('astRunAiRequest includeRaw=true includes provider raw payload', () => {
   assert.equal(output.output.text, 'ok');
   assert.ok(output.raw);
   assert.equal(output.raw.id, 'resp_raw');
+});
+
+test('astRunAiRequest throws AstAiCapabilityError for databricks image generation', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.astRunAiRequest({
+      provider: 'databricks',
+      operation: 'image',
+      input: 'draw chart',
+      auth: {
+        token: 'db-token',
+        endpointUrl: 'https://workspace.cloud.databricks.com/serving-endpoints/demo/invocations'
+      }
+    }),
+    /does not support 'image'/
+  );
 });
