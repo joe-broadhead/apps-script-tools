@@ -20,6 +20,8 @@ function astDbtRun(request = {}) {
       return astDbtGetColumnCore(normalized);
     case 'lineage':
       return astDbtLineageCore(normalized);
+    case 'column_lineage':
+      return astDbtColumnLineageCore(normalized);
     case 'validate_manifest':
       return astDbtValidateManifestCore(normalized);
     case 'diff_entities':
@@ -73,6 +75,10 @@ function astDbtGetColumn(request = {}) {
 
 function astDbtLineage(request = {}) {
   return astDbtLineageCore(request);
+}
+
+function astDbtColumnLineage(request = {}) {
+  return astDbtColumnLineageCore(request);
 }
 
 function astDbtDiffEntities(request = {}) {
@@ -177,6 +183,7 @@ const AST_DBT = Object.freeze({
   getEntity: astDbtGetEntity,
   getColumn: astDbtGetColumn,
   lineage: astDbtLineage,
+  columnLineage: astDbtColumnLineage,
   diffEntities: astDbtDiffEntities,
   compareArtifacts: astDbtCompareArtifacts,
   impact: astDbtImpact,

@@ -83,6 +83,33 @@ test('AST.DBT.getEntity/getColumn throws typed not-found errors', () => {
       return true;
     }
   );
+
+  assert.throws(
+    () => context.AST.DBT.columnLineage({
+      manifest: createManifestFixture(),
+      uniqueId: 'model.demo.orders',
+      columnName: 'missing_col'
+    }),
+    error => {
+      assert.equal(error.name, 'AstDbtNotFoundError');
+      return true;
+    }
+  );
+});
+
+test('AST.DBT.columnLineage validates direction input', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  assert.throws(
+    () => context.AST.DBT.columnLineage({
+      manifest: createManifestFixture(),
+      uniqueId: 'model.demo.orders',
+      columnName: 'order_id',
+      direction: 'sideways'
+    }),
+    /columnLineage.direction must be one of/
+  );
 });
 
 test('AST.DBT.loadManifest throws capability error when storage runtime is unavailable', () => {

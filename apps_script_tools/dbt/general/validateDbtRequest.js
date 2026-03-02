@@ -795,6 +795,55 @@ function astDbtValidateLineageRequest(request = {}) {
   };
 }
 
+function astDbtValidateColumnLineageRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('columnLineage request must be an object');
+  }
+
+  const uniqueId = astDbtNormalizeString(request.uniqueId, '');
+  if (!uniqueId) {
+    throw new AstDbtValidationError('columnLineage requires uniqueId');
+  }
+
+  const columnName = astDbtNormalizeString(request.columnName, '');
+  if (!columnName) {
+    throw new AstDbtValidationError('columnLineage requires columnName');
+  }
+
+  const direction = astDbtNormalizeString(request.direction, 'both').toLowerCase();
+  if (['upstream', 'downstream', 'both'].indexOf(direction) === -1) {
+    throw new AstDbtValidationError('columnLineage.direction must be one of: upstream, downstream, both', {
+      direction
+    });
+  }
+
+  const confidenceThreshold = Number(request.confidenceThreshold);
+  const normalizedConfidenceThreshold = Number.isFinite(confidenceThreshold)
+    ? Math.max(0, Math.min(1, confidenceThreshold))
+    : 0.55;
+
+  const maxMatchesPerEdge = astDbtNormalizePositiveInt(request.maxMatchesPerEdge, 3, 1, 10);
+
+  return {
+    operation: 'column_lineage',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    uniqueId,
+    columnName,
+    direction,
+    depth: astDbtNormalizePositiveInt(request.depth, 2, 1, 20),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    confidenceThreshold: normalizedConfidenceThreshold,
+    maxMatchesPerEdge,
+    include: {
+      stats: astDbtNormalizeBoolean(request.include && request.include.stats, true),
+      raw: astDbtNormalizeBoolean(request.include && request.include.raw, false)
+    },
+    options: astDbtNormalizeLoadOptions(request.options || {}, astDbtResolveLoadDefaults(request))
+  };
+}
+
 function astDbtValidateValidateManifestRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('validateManifest request must be an object');
@@ -1095,6 +1144,8 @@ function astDbtValidateRunRequest(request = {}) {
       return astDbtValidateGetColumnRequest(request);
     case 'lineage':
       return astDbtValidateLineageRequest(request);
+    case 'column_lineage':
+      return astDbtValidateColumnLineageRequest(request);
     case 'validate_manifest':
       return astDbtValidateValidateManifestRequest(request);
     case 'diff_entities':

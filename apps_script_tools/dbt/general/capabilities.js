@@ -21,6 +21,7 @@ const AST_DBT_RUN_OPERATIONS = Object.freeze([
   'get_entity',
   'get_column',
   'lineage',
+  'column_lineage',
   'validate_manifest',
   'diff_entities',
   'compare_artifacts',

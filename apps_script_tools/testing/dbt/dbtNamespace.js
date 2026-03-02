@@ -15,6 +15,7 @@ DBT_NAMESPACE_TESTS = [
         'getEntity',
         'getColumn',
         'lineage',
+        'columnLineage',
         'diffEntities',
         'compareArtifacts',
         'impact',

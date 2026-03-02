@@ -13,6 +13,7 @@ ASTX.DBT.search(request)
 ASTX.DBT.getEntity(request)
 ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
+ASTX.DBT.columnLineage(request)
 ASTX.DBT.diffEntities(request)
 ASTX.DBT.compareArtifacts(request)
 ASTX.DBT.impact(request)
@@ -83,7 +84,7 @@ ASTX.DBT.clearConfig()
 }
 ```
 
-`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
+`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `columnLineage`, `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
 
 ## `loadArtifact(...)` request
 
@@ -185,6 +186,69 @@ Response is deterministic and pagination-safe:
 ```
 
 `impact(...)` returns lineage plus optional artifact overlays per node (`runResults`, `catalog`, `sources`).
+
+## `columnLineage(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  uniqueId: 'model.pkg.orders',
+  columnName: 'customer_id',
+  direction: 'upstream|downstream|both',
+  depth: 2,
+  includeDisabled: false,
+  confidenceThreshold: 0.55, // 0..1
+  maxMatchesPerEdge: 3,      // 1..10
+  include: {
+    stats: true,
+    raw: false
+  }
+}
+```
+
+Response:
+
+```javascript
+{
+  status: 'ok',
+  uniqueId: 'model.pkg.orders',
+  columnName: 'customer_id',
+  direction: 'both',
+  depth: 2,
+  confidenceThreshold: 0.55,
+  maxMatchesPerEdge: 3,
+  nodes: [
+    {
+      id: 'model.pkg.orders::customer_id',
+      uniqueId: 'model.pkg.orders',
+      columnName: 'customer_id',
+      depth: 0,
+      confidence: 1,
+      confidenceLabel: 'high',
+      origin: true
+    }
+  ],
+  edges: [
+    {
+      direction: 'upstream',
+      depth: 1,
+      confidence: 0.97,
+      confidenceLabel: 'high',
+      matchedBy: 'exact_name',
+      from: { uniqueId: 'model.pkg.orders', columnName: 'customer_id' },
+      to: { uniqueId: 'model.pkg.customers', columnName: 'customer_id' }
+    }
+  ],
+  stats: {
+    traversedEntityEdges,
+    scannedColumnCandidates,
+    nodeCount,
+    edgeCount
+  }
+}
+```
+
+`columnLineage(...)` uses manifest relationship maps (`parent_map`, `child_map`) with deterministic column-name/type/meta/tag heuristics to infer per-edge column links.
 
 ## `compareArtifacts(...)`
 

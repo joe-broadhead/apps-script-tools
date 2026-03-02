@@ -18,6 +18,7 @@ test('AST exposes DBT namespace and helper methods', () => {
   assert.equal(typeof context.AST.DBT.getEntity, 'function');
   assert.equal(typeof context.AST.DBT.getColumn, 'function');
   assert.equal(typeof context.AST.DBT.lineage, 'function');
+  assert.equal(typeof context.AST.DBT.columnLineage, 'function');
   assert.equal(typeof context.AST.DBT.diffEntities, 'function');
   assert.equal(typeof context.AST.DBT.compareArtifacts, 'function');
   assert.equal(typeof context.AST.DBT.impact, 'function');
