@@ -579,13 +579,6 @@ test('buildIndex + syncIndex update source and chunk counts deterministically', 
   });
 
   loadRagScripts(context, { includeAst: true });
-  const originalReadSourceText = context.astRagReadSourceText;
-  let readSourceCalls = 0;
-  context.astRagReadSourceText = function wrappedReadSourceText() {
-    readSourceCalls += 1;
-    return originalReadSourceText.apply(this, arguments);
-  };
-
   const built = context.AST.RAG.buildIndex({
     source: {
       folderId: 'root',

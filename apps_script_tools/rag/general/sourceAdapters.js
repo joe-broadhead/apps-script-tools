@@ -151,7 +151,15 @@ function astRagCreateStorageSourceDescriptor(uri, metadata = {}, providerOptions
     metadata.modifiedTime || metadata.modifiedAt || metadata.updated || metadata.lastModified,
     null
   );
-  const sizeBytesRaw = metadata.sizeBytes || metadata.size || metadata.contentLength || metadata.bytes;
+  const sizeCandidates = [metadata.sizeBytes, metadata.size, metadata.contentLength, metadata.bytes];
+  let sizeBytesRaw = null;
+  for (let idx = 0; idx < sizeCandidates.length; idx += 1) {
+    const candidate = sizeCandidates[idx];
+    if (candidate !== null && typeof candidate !== 'undefined') {
+      sizeBytesRaw = candidate;
+      break;
+    }
+  }
   const sizeBytes = typeof sizeBytesRaw === 'number' && isFinite(sizeBytesRaw)
     ? sizeBytesRaw
     : (astRagNormalizeString(sizeBytesRaw, null) ? Number(sizeBytesRaw) : null);
