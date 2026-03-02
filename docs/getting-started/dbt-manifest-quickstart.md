@@ -108,6 +108,20 @@ Logger.log(lineage.nodes);
 Logger.log(lineage.edges);
 ```
 
+```javascript
+const columnLineage = ASTX.DBT.columnLineage({
+  bundle: loaded.bundle,
+  uniqueId: 'model.analytics.orders',
+  columnName: 'customer_id',
+  direction: 'upstream',
+  depth: 2,
+  confidenceThreshold: 0.55,
+  maxMatchesPerEdge: 3
+});
+
+Logger.log(columnLineage.edges);
+```
+
 ## 5) Validate only
 
 ```javascript

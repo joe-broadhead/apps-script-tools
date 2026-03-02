@@ -260,6 +260,7 @@ ASTX.DBT.search(request)
 ASTX.DBT.getEntity(request)
 ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
+ASTX.DBT.columnLineage(request)
 ASTX.DBT.diffEntities(request)
 ASTX.DBT.compareArtifacts(request)
 ASTX.DBT.impact(request)
@@ -618,6 +619,7 @@ ASTX.GitHub.clearConfig()
 - `ASTX.DBT.search(...)` uses structured filters over entities/columns (tags/meta/depends_on/resourceType/section) with deterministic pagination/sorting.
 - `ASTX.DBT.getEntity(...)` and `ASTX.DBT.getColumn(...)` provide deep model/column metadata retrieval from preindexed bundles.
 - `ASTX.DBT.lineage(...)` traverses `parent_map`/`child_map` with `depends_on.nodes` fallback when lineage maps are missing.
+- `ASTX.DBT.columnLineage(...)` infers column links across lineage edges with deterministic confidence scoring (`confidenceThreshold`, `maxMatchesPerEdge`).
 - `ASTX.DBT.diffEntities(...)` compares two manifest snapshots deterministically with stable pagination and change typing (`added|removed|modified|unchanged`).
 - `ASTX.DBT.compareArtifacts(...)` compares two `manifest|catalog|run_results|sources` snapshots with normalized change typing (`added|removed|changed|unchanged`).
 - `ASTX.DBT.impact(...)` overlays lineage nodes with `run_results`, `catalog`, and `sources` artifact status when bundles/artifacts are supplied.

@@ -1027,6 +1027,7 @@ Primary methods:
 - `ASTX.DBT.getEntity(request)`
 - `ASTX.DBT.getColumn(request)`
 - `ASTX.DBT.lineage(request)`
+- `ASTX.DBT.columnLineage(request)`
 - `ASTX.DBT.diffEntities(request)`
 - `ASTX.DBT.compareArtifacts(request)`
 - `ASTX.DBT.impact(request)`
@@ -1050,6 +1051,10 @@ Manifest validation modes:
 - `strict` (full required sections + structural checks)
 - `basic` (required sections + parse sanity)
 - `off` (skip validation)
+
+Column lineage notes:
+
+- `ASTX.DBT.columnLineage(...)` infers per-edge column links along entity lineage with confidence-scored heuristics and deterministic tie-breaking.
 
 Example:
 

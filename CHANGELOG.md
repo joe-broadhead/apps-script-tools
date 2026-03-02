@@ -43,7 +43,7 @@
   - `.security/secret-scan-allowlist.json`
 - New `AST.DBT` namespace with:
   - `run`, `loadManifest`, `loadArtifact`, `inspectManifest`, `inspectArtifact`
-  - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`
+  - `listEntities`, `search`, `getEntity`, `getColumn`, `lineage`, `columnLineage`
   - `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, `owners`
   - `providers`, `capabilities`
   - `validateManifest`, `configure`, `getConfig`, `clearConfig`

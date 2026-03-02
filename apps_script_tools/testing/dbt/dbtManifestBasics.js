@@ -255,6 +255,26 @@ DBT_MANIFEST_BASICS_TESTS = [
       if (!upstreamFound) {
         throw new Error('Expected lineage to include model.demo.customers');
       }
+
+      manifest.nodes['model.demo.orders'].columns.customer_id = {
+        name: 'customer_id',
+        description: 'Customer id',
+        data_type: 'string',
+        meta: { pii: true },
+        tags: ['id']
+      };
+
+      const columnLineageOut = AST.DBT.columnLineage({
+        manifest,
+        uniqueId: 'model.demo.orders',
+        columnName: 'customer_id',
+        direction: 'upstream',
+        depth: 2
+      });
+
+      if (!Array.isArray(columnLineageOut.edges) || columnLineageOut.edges.length === 0) {
+        throw new Error('Expected columnLineage to return inferred edges');
+      }
     }
   },
   {

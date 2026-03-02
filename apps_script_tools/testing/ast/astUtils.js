@@ -87,6 +87,7 @@ AST_UTILS_TESTS = [
         'getEntity',
         'getColumn',
         'lineage',
+        'columnLineage',
         'diffEntities',
         'impact',
         'providers',
