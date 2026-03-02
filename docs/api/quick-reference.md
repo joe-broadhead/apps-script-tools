@@ -267,6 +267,8 @@ ASTX.DBT.impact(request)
 ASTX.DBT.qualityReport(request)
 ASTX.DBT.testCoverage(request)
 ASTX.DBT.owners(request)
+ASTX.DBT.searchOwners(request)
+ASTX.DBT.ownerCoverage(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -626,6 +628,8 @@ ASTX.GitHub.clearConfig()
 - `ASTX.DBT.qualityReport(...)` returns documentation/ownership/test-coverage readiness metrics and top gap lists.
 - `ASTX.DBT.testCoverage(...)` reports per-entity test coverage with `uncoveredOnly` filtering.
 - `ASTX.DBT.owners(...)` groups entities by owner meta paths with an explicit unassigned bucket.
+- `ASTX.DBT.searchOwners(...)` searches owner groups with deterministic match ordering.
+- `ASTX.DBT.ownerCoverage(...)` reports ownership coverage by resource type/package plus missing-owner entities.
 - RAG retrieval supports `vector` (default), `hybrid` (vector + lexical fusion), and `lexical` (no embedding call) modes.
 - RAG retrieval supports lexical prefiltering in vector/hybrid mode via `retrieval.lexicalPrefilterTopN`.
 - RAG retrieval supports optional reranking on top-N chunks via `retrieval.rerank`.

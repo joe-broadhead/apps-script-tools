@@ -20,6 +20,8 @@ ASTX.DBT.impact(request)
 ASTX.DBT.qualityReport(request)
 ASTX.DBT.testCoverage(request)
 ASTX.DBT.owners(request)
+ASTX.DBT.searchOwners(request)
+ASTX.DBT.ownerCoverage(request)
 ASTX.DBT.providers()
 ASTX.DBT.capabilities(provider)
 ASTX.DBT.validateManifest(request)
@@ -84,7 +86,7 @@ ASTX.DBT.clearConfig()
 }
 ```
 
-`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `columnLineage`, `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
+`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `columnLineage`, `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, `owners`, `searchOwners`, and `ownerCoverage`.
 
 ## `loadArtifact(...)` request
 
@@ -376,6 +378,37 @@ Returns summary counts plus per-entity `covered` / `testsCount`.
 ```
 
 Returns owner groups with entity counts and resource/package breakdowns.
+
+### `searchOwners(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  filters: { ...searchFilters },
+  ownerPaths: ['owner.team', 'owner'],
+  includeDisabled: false,
+  unassignedOwnerLabel: 'unassigned',
+  query: 'rev', // optional, case-insensitive owner search
+  topK: 100
+}
+```
+
+Returns grouped owners filtered by `query` with deterministic ordering and matched-owner summary counts.
+
+### `ownerCoverage(...)`
+
+```javascript
+{
+  bundle | manifest | source,
+  filters: { ...searchFilters },
+  ownerPaths: ['owner.team', 'owner'],
+  includeDisabled: false,
+  unassignedOwnerLabel: 'unassigned',
+  topK: 200
+}
+```
+
+Returns overall ownership percentage, breakdowns by `resourceType` and `packageName`, and deterministic missing-owner entity gaps.
 
 ## Typed errors
 

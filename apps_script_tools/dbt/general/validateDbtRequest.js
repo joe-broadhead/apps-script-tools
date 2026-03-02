@@ -1125,6 +1125,49 @@ function astDbtValidateOwnersRequest(request = {}) {
   };
 }
 
+function astDbtValidateSearchOwnersRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('searchOwners request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+
+  return {
+    operation: 'search_owners',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    filters: astDbtNormalizeSearchFilters(request.filters || {}),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    ownerPaths: astDbtNormalizeOwnerPaths(request.ownerPaths, ['owner.team', 'owner']),
+    unassignedOwnerLabel: astDbtNormalizeString(request.unassignedOwnerLabel, 'unassigned'),
+    query: astDbtNormalizeString(request.query, ''),
+    topK: astDbtNormalizePositiveInt(request.topK, 100, 1, 1000),
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
+function astDbtValidateOwnerCoverageRequest(request = {}) {
+  if (!astDbtIsPlainObject(request)) {
+    throw new AstDbtValidationError('ownerCoverage request must be an object');
+  }
+
+  const defaults = astDbtResolveLoadDefaults(request);
+
+  return {
+    operation: 'owner_coverage',
+    bundle: request.bundle || null,
+    manifest: request.manifest || null,
+    source: request.source || null,
+    filters: astDbtNormalizeSearchFilters(request.filters || {}),
+    includeDisabled: astDbtNormalizeBoolean(request.includeDisabled, false),
+    ownerPaths: astDbtNormalizeOwnerPaths(request.ownerPaths, ['owner.team', 'owner']),
+    unassignedOwnerLabel: astDbtNormalizeString(request.unassignedOwnerLabel, 'unassigned'),
+    topK: astDbtNormalizePositiveInt(request.topK, 200, 1, 5000),
+    options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
+  };
+}
+
 function astDbtValidateRunRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('DBT run request must be an object');
@@ -1167,6 +1210,10 @@ function astDbtValidateRunRequest(request = {}) {
       return astDbtValidateTestCoverageRequest(request);
     case 'owners':
       return astDbtValidateOwnersRequest(request);
+    case 'search_owners':
+      return astDbtValidateSearchOwnersRequest(request);
+    case 'owner_coverage':
+      return astDbtValidateOwnerCoverageRequest(request);
     default:
       throw new AstDbtValidationError(`Unsupported operation '${operation}'`);
   }

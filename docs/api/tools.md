@@ -1034,6 +1034,8 @@ Primary methods:
 - `ASTX.DBT.qualityReport(request)`
 - `ASTX.DBT.testCoverage(request)`
 - `ASTX.DBT.owners(request)`
+- `ASTX.DBT.searchOwners(request)`
+- `ASTX.DBT.ownerCoverage(request)`
 - `ASTX.DBT.providers()` / `ASTX.DBT.capabilities(provider)`
 - `ASTX.DBT.validateManifest(request)`
 - `ASTX.DBT.configure(config)` / `ASTX.DBT.getConfig()` / `ASTX.DBT.clearConfig()`
@@ -1158,7 +1160,25 @@ const owners = ASTX.DBT.owners({
   }
 });
 
+const ownerSearch = ASTX.DBT.searchOwners({
+  bundle: loaded.bundle,
+  query: 'rev',
+  filters: {
+    resourceTypes: ['model']
+  }
+});
+
+const ownerCoverage = ASTX.DBT.ownerCoverage({
+  bundle: loaded.bundle,
+  filters: {
+    resourceTypes: ['model']
+  },
+  topK: 100
+});
+
 Logger.log(quality.summary);
 Logger.log(coverage.summary);
 Logger.log(owners.items);
+Logger.log(ownerSearch.items);
+Logger.log(ownerCoverage.summary);
 ```

@@ -25,6 +25,8 @@ test('AST exposes DBT namespace and helper methods', () => {
   assert.equal(typeof context.AST.DBT.qualityReport, 'function');
   assert.equal(typeof context.AST.DBT.testCoverage, 'function');
   assert.equal(typeof context.AST.DBT.owners, 'function');
+  assert.equal(typeof context.AST.DBT.searchOwners, 'function');
+  assert.equal(typeof context.AST.DBT.ownerCoverage, 'function');
   assert.equal(typeof context.AST.DBT.providers, 'function');
   assert.equal(typeof context.AST.DBT.capabilities, 'function');
   assert.equal(typeof context.AST.DBT.validateManifest, 'function');

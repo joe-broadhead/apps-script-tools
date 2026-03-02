@@ -36,6 +36,10 @@ function astDbtRun(request = {}) {
       return astDbtTestCoverageCore(normalized);
     case 'owners':
       return astDbtOwnersCore(normalized);
+    case 'search_owners':
+      return astDbtSearchOwnersCore(normalized);
+    case 'owner_coverage':
+      return astDbtOwnerCoverageCore(normalized);
     default:
       throw new AstDbtValidationError(`Unsupported DBT operation '${normalized.operation}'`);
   }
@@ -103,6 +107,14 @@ function astDbtTestCoverage(request = {}) {
 
 function astDbtOwners(request = {}) {
   return astDbtOwnersCore(request);
+}
+
+function astDbtSearchOwners(request = {}) {
+  return astDbtSearchOwnersCore(request);
+}
+
+function astDbtOwnerCoverage(request = {}) {
+  return astDbtOwnerCoverageCore(request);
 }
 
 function astDbtValidateManifestCore(request = {}) {
@@ -190,6 +202,8 @@ const AST_DBT = Object.freeze({
   qualityReport: astDbtQualityReport,
   testCoverage: astDbtTestCoverage,
   owners: astDbtOwners,
+  searchOwners: astDbtSearchOwners,
+  ownerCoverage: astDbtOwnerCoverage,
   providers: astDbtListProviders,
   capabilities: astDbtGetProviderCapabilities,
   validateManifest: astDbtValidateManifest,

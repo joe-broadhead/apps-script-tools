@@ -22,6 +22,8 @@ DBT_NAMESPACE_TESTS = [
         'qualityReport',
         'testCoverage',
         'owners',
+        'searchOwners',
+        'ownerCoverage',
         'providers',
         'capabilities',
         'validateManifest',
