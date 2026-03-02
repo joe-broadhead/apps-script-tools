@@ -41,6 +41,25 @@ function astDatabricksNormalizeHost(rawHost) {
     .replace(/\/+$/, '');
 }
 
+function astDatabricksValidateHost(rawHost) {
+  const host = astDatabricksNormalizeHost(rawHost);
+  if (!host) {
+    return '';
+  }
+
+  if (/[\s]/.test(host) || /[/?#\\]/.test(host)) {
+    throw new AstAiValidationError(
+      "Databricks host must be a bare hostname (with optional port), without scheme or path",
+      {
+        provider: 'databricks',
+        host
+      }
+    );
+  }
+
+  return host;
+}
+
 function astDatabricksNormalizeServingEndpoint(rawServingEndpoint) {
   const servingEndpoint = typeof rawServingEndpoint === 'string' ? rawServingEndpoint.trim() : '';
   return servingEndpoint;
@@ -61,7 +80,7 @@ function astDatabricksValidateEndpointUrl(rawEndpointUrl) {
     );
   }
 
-  const endpointPattern = /\/serving-endpoints\/[^/?#]+\/invocations(?:[?#].*)?$/i;
+  const endpointPattern = /\/serving-endpoints\/[^/?#]+\/invocations\/?(?:[?#].*)?$/i;
   if (!endpointPattern.test(endpointUrl)) {
     throw new AstAiValidationError(
       'Databricks endpointUrl must end with /serving-endpoints/<name>/invocations',
@@ -80,7 +99,7 @@ function astDatabricksExtractServingEndpointFromUrl(endpointUrl) {
     return '';
   }
 
-  const match = endpointUrl.match(/\/serving-endpoints\/([^/?#]+)\/invocations(?:[?#].*)?$/i);
+  const match = endpointUrl.match(/\/serving-endpoints\/([^/?#]+)\/invocations\/?(?:[?#].*)?$/i);
   if (!match || typeof match[1] !== 'string') {
     return '';
   }
@@ -103,7 +122,7 @@ function astDatabricksResolveEndpoint(request, config) {
     return endpointUrl;
   }
 
-  const host = astDatabricksNormalizeHost(auth.host || config.host);
+  const host = astDatabricksValidateHost(auth.host || config.host);
   const servingEndpoint = astDatabricksNormalizeServingEndpoint(
     providerOptions.servingEndpoint || auth.servingEndpoint || config.servingEndpoint
   );

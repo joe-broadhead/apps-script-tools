@@ -82,6 +82,39 @@ test('astRunDatabricks uses explicit endpointUrl and normalizes text output', ()
   assert.equal(output.provider, 'databricks');
 });
 
+test('astRunDatabricks accepts endpointUrl with trailing invocations slash', () => {
+  let capturedUrl = null;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url) => {
+        capturedUrl = url;
+        return asResponse({
+          id: 'dbx_trailing_slash',
+          choices: [{
+            finish_reason: 'stop',
+            message: { content: 'ok' }
+          }]
+        });
+      }
+    }
+  });
+
+  loadAiScripts(context);
+
+  context.astRunDatabricks(baseRequest('text'), {
+    provider: 'databricks',
+    token: 'db-token',
+    endpointUrl: 'https://workspace.cloud.databricks.com/serving-endpoints/databricks-claude-opus-4-6/invocations/',
+    model: 'databricks-claude-opus-4-6'
+  });
+
+  assert.equal(
+    capturedUrl,
+    'https://workspace.cloud.databricks.com/serving-endpoints/databricks-claude-opus-4-6/invocations/'
+  );
+});
+
 test('astRunDatabricks composes endpoint URL from host + servingEndpoint', () => {
   let capturedUrl = null;
   let capturedPayload = null;
@@ -117,6 +150,22 @@ test('astRunDatabricks composes endpoint URL from host + servingEndpoint', () =>
     'https://workspace.cloud.databricks.com/serving-endpoints/databricks-claude-opus-4-6/invocations'
   );
   assert.equal(capturedPayload.model, 'databricks-claude-opus-4-6');
+});
+
+test('astRunDatabricks rejects host values containing path/query fragments', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  assert.throws(
+    () => context.astRunDatabricks(baseRequest('text'), {
+      provider: 'databricks',
+      token: 'db-token',
+      host: 'workspace.cloud.databricks.com/path?x=1',
+      servingEndpoint: 'databricks-claude-opus-4-6',
+      model: null
+    }),
+    /host must be a bare hostname/
+  );
 });
 
 test('astRunDatabricks structured operation sends response_format and parses JSON output', () => {
