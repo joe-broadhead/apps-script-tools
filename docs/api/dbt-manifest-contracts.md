@@ -14,6 +14,7 @@ ASTX.DBT.getEntity(request)
 ASTX.DBT.getColumn(request)
 ASTX.DBT.lineage(request)
 ASTX.DBT.diffEntities(request)
+ASTX.DBT.compareArtifacts(request)
 ASTX.DBT.impact(request)
 ASTX.DBT.qualityReport(request)
 ASTX.DBT.testCoverage(request)
@@ -82,7 +83,7 @@ ASTX.DBT.clearConfig()
 }
 ```
 
-`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
+`bundle` is reusable for `search`, `getEntity`, `getColumn`, `lineage`, `diffEntities`, `compareArtifacts`, `impact`, `qualityReport`, `testCoverage`, and `owners`.
 
 ## `loadArtifact(...)` request
 
@@ -184,6 +185,66 @@ Response is deterministic and pagination-safe:
 ```
 
 `impact(...)` returns lineage plus optional artifact overlays per node (`runResults`, `catalog`, `sources`).
+
+## `compareArtifacts(...)`
+
+```javascript
+{
+  left: {
+    type: 'manifest|catalog|run_results|sources',
+    bundle | manifest | artifact | source | uri | fileId | provider | location
+  },
+  right: {
+    type: 'manifest|catalog|run_results|sources',
+    bundle | manifest | artifact | source | uri | fileId | provider | location
+  },
+  includeUnchanged: false,
+  changeTypes: ['added', 'removed', 'changed'],
+  include: {
+    left: true,
+    right: true,
+    diff: true,
+    meta: true,    // manifest compare only
+    columns: true, // manifest compare only
+    stats: true
+  },
+  page: {
+    limit: 50,
+    offset: 0
+  }
+}
+```
+
+Response:
+
+```javascript
+{
+  status: 'ok',
+  artifactType: 'manifest|catalog|run_results|sources',
+  summary: {
+    artifactType,
+    leftCount,
+    rightCount,
+    added,
+    removed,
+    changed,
+    unchanged
+  },
+  page: { limit, offset, returned, total, hasMore },
+  leftSummary,
+  rightSummary,
+  items: [
+    {
+      uniqueId,
+      changeType: 'added|removed|changed|unchanged',
+      left,  // optional by include.left
+      right, // optional by include.right
+      diff   // optional by include.diff
+    }
+  ],
+  stats
+}
+```
 
 ## Governance/report operations
 

@@ -11,6 +11,30 @@ import {
   createSourcesArtifactFixture
 } from './dbt-fixture.mjs';
 
+function createCatalogFixtureVariant() {
+  const next = JSON.parse(JSON.stringify(createCatalogFixture()));
+  next.nodes['model.demo.orders'].columns.amount.type = 'DECIMAL(18,2)';
+  next.nodes['model.demo.payments'] = {
+    unique_id: 'model.demo.payments',
+    resource_type: 'model',
+    package_name: 'demo',
+    name: 'payments',
+    original_file_path: 'models/marts/payments.sql',
+    database: 'analytics',
+    schema: 'marts',
+    alias: 'payments',
+    relation_name: 'analytics.marts.payments',
+    columns: {
+      payment_id: {
+        name: 'payment_id',
+        type: 'STRING'
+      }
+    }
+  };
+  delete next.sources['source.demo.raw_orders'];
+  return next;
+}
+
 test('AST.DBT.loadArtifact + inspectArtifact supports run_results artifact', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });
@@ -246,4 +270,101 @@ test('AST.DBT.run routes new dbt artifact and diff/impact operations', () => {
 
   assert.equal(impact.status, 'ok');
   assert.equal(Array.isArray(impact.nodes), true);
+});
+
+test('AST.DBT.compareArtifacts compares manifest bundles with changed taxonomy', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const leftBundle = context.AST.DBT.loadManifest({
+    manifest: createManifestFixture(),
+    options: {
+      validate: 'strict',
+      buildIndex: true
+    }
+  }).bundle;
+
+  const rightBundle = context.AST.DBT.loadManifest({
+    manifest: createManifestFixtureVariant(),
+    options: {
+      validate: 'strict',
+      buildIndex: true
+    }
+  }).bundle;
+
+  const compared = context.AST.DBT.compareArtifacts({
+    left: { type: 'manifest', bundle: leftBundle },
+    right: { type: 'manifest', bundle: rightBundle },
+    page: { limit: 100, offset: 0 },
+    includeUnchanged: false
+  });
+
+  assert.equal(compared.status, 'ok');
+  assert.equal(compared.artifactType, 'manifest');
+  assert.equal(compared.summary.added >= 1, true);
+  assert.equal(compared.summary.removed >= 1, true);
+  assert.equal(compared.summary.changed >= 1, true);
+  assert.equal(compared.items.some(item => item.changeType === 'changed'), true);
+});
+
+test('AST.DBT.compareArtifacts compares catalog artifacts deterministically', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const compared = context.AST.DBT.compareArtifacts({
+    left: {
+      type: 'catalog',
+      artifact: createCatalogFixture()
+    },
+    right: {
+      type: 'catalog',
+      artifact: createCatalogFixtureVariant()
+    },
+    changeTypes: ['added', 'removed', 'changed'],
+    page: { limit: 100, offset: 0 }
+  });
+
+  assert.equal(compared.status, 'ok');
+  assert.equal(compared.artifactType, 'catalog');
+  assert.equal(compared.summary.added, 1);
+  assert.equal(compared.summary.removed, 1);
+  assert.equal(compared.summary.changed, 1);
+
+  const ordered = compared.items.map(item => item.uniqueId);
+  const sorted = ordered.slice().sort();
+  assert.deepEqual(ordered, sorted);
+});
+
+test('AST.DBT.run routes compare_artifacts operation', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const response = context.AST.DBT.run({
+    operation: 'compare_artifacts',
+    left: {
+      type: 'run_results',
+      artifact: createRunResultsFixture()
+    },
+    right: {
+      type: 'run_results',
+      artifact: {
+        ...createRunResultsFixture(),
+        results: [
+          {
+            unique_id: 'model.demo.orders',
+            status: 'error',
+            execution_time: 4.2,
+            thread_id: 'Thread-1',
+            message: 'failed',
+            failures: 1
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.artifactType, 'run_results');
+  assert.equal(response.summary.changed, 1);
+  assert.equal(response.summary.removed, 1);
 });

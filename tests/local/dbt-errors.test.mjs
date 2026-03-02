@@ -38,6 +38,25 @@ test('AST.DBT.loadArtifact rejects unsupported artifactType', () => {
   );
 });
 
+test('AST.DBT.compareArtifacts rejects mismatched side types', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  assert.throws(
+    () => context.AST.DBT.compareArtifacts({
+      left: {
+        type: 'manifest',
+        manifest: createManifestFixture()
+      },
+      right: {
+        type: 'catalog',
+        artifact: {}
+      }
+    }),
+    /left and right side types to match/
+  );
+});
+
 test('AST.DBT.getEntity/getColumn throws typed not-found errors', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });

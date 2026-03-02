@@ -16,6 +16,7 @@ DBT_NAMESPACE_TESTS = [
         'getColumn',
         'lineage',
         'diffEntities',
+        'compareArtifacts',
         'impact',
         'qualityReport',
         'testCoverage',
