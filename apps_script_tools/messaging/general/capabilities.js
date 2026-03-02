@@ -22,7 +22,12 @@ const AST_MESSAGING_OPERATION_SPECS = Object.freeze({
 
   logs_list: Object.freeze({ group: 'logs', channel: 'tracking', mutation: false, read: true, transport: ['cache'] }),
   logs_get: Object.freeze({ group: 'logs', channel: 'tracking', mutation: false, read: true, transport: ['cache'] }),
-  logs_delete: Object.freeze({ group: 'logs', channel: 'tracking', mutation: true, read: false, transport: ['cache'], dryRun: true })
+  logs_delete: Object.freeze({ group: 'logs', channel: 'tracking', mutation: true, read: false, transport: ['cache'], dryRun: true }),
+
+  template_register: Object.freeze({ group: 'templates', channel: 'template', mutation: true, read: false, transport: ['cache'], dryRun: true }),
+  template_get: Object.freeze({ group: 'templates', channel: 'template', mutation: false, read: true, transport: ['cache'] }),
+  template_render: Object.freeze({ group: 'templates', channel: 'template', mutation: false, read: true, transport: ['internal'] }),
+  template_send: Object.freeze({ group: 'templates', channel: 'template', mutation: true, read: false, transport: ['gmailapp', 'chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'], dryRun: true })
 });
 
 const AST_MESSAGING_OPERATION_GROUPS = Object.freeze({
@@ -54,6 +59,12 @@ const AST_MESSAGING_OPERATION_GROUPS = Object.freeze({
     'logs_list',
     'logs_get',
     'logs_delete'
+  ]),
+  templates: Object.freeze([
+    'template_register',
+    'template_get',
+    'template_render',
+    'template_send'
   ])
 });
 
@@ -91,13 +102,19 @@ function astMessagingGetCapabilities(operationOrGroup) {
       groups: Object.keys(AST_MESSAGING_OPERATION_GROUPS).sort(),
       transports: {
         email: ['gmailapp'],
-        chat: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook']
+        chat: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'],
+        templates: ['cache', 'internal']
       },
       dryRun: true,
       asyncJobs: true,
       tracking: {
         delivery: true,
         openClickOptIn: true
+      },
+      templates: {
+        registry: true,
+        render: true,
+        send: true
       }
     };
   }

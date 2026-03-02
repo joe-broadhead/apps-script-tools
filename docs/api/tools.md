@@ -759,6 +759,7 @@ Primary methods:
 - `ASTX.Messaging.chat.*` for Google Chat, Slack, and Teams sends plus Google Chat API message reads.
 - `ASTX.Messaging.tracking.*` for pixel URL generation, link wrapping, event recording, and web event handling.
 - `ASTX.Messaging.logs.*` for delivery/event log list/get/delete flows.
+- `ASTX.Messaging.templates.*` plus `registerTemplate/getTemplate/renderTemplate/sendTemplate` for reusable typed templates.
 - `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
 - `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.clearConfig()`.
 
@@ -786,6 +787,36 @@ const out = ASTX.Messaging.email.send({
 });
 
 Logger.log(JSON.stringify(out.tracking, null, 2));
+```
+
+```javascript
+ASTX.Messaging.registerTemplate({
+  body: {
+    templateId: 'deploy_email',
+    channel: 'email',
+    template: {
+      subject: 'Deploy {{release}}',
+      textBody: 'Status {{status}}',
+      variables: {
+        release: { type: 'string', required: true },
+        status: { type: 'string', required: true }
+      }
+    }
+  }
+});
+
+const sent = ASTX.Messaging.sendTemplate({
+  body: {
+    templateId: 'deploy_email',
+    to: ['ops@example.com'],
+    variables: {
+      release: '2026.03.03',
+      status: 'ok'
+    }
+  }
+});
+
+Logger.log(sent.transport);
 ```
 
 ## `ASTX.GitHub`

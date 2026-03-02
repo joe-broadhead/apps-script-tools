@@ -65,7 +65,7 @@
         "dryRunRelativePct": 40
       },
       "cache.batch_profile": {
-        "setManyRelativePct": 90,
+        "setManyRelativePct": 92,
         "getManyRelativePct": 90
       }
     }

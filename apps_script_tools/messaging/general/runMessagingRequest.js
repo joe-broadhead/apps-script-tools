@@ -92,6 +92,23 @@ function astMessagingDispatchTrackingOperation(normalizedRequest = {}, resolvedC
   }
 }
 
+function astMessagingDispatchTemplateOperation(normalizedRequest = {}, resolvedConfig = {}) {
+  switch (normalizedRequest.operation) {
+    case 'template_register':
+      return astMessagingTemplateRegister(normalizedRequest, resolvedConfig);
+    case 'template_get':
+      return astMessagingTemplateGet(normalizedRequest, resolvedConfig);
+    case 'template_render':
+      return astMessagingTemplateRender(normalizedRequest, resolvedConfig);
+    case 'template_send':
+      return astMessagingTemplateSend(normalizedRequest, resolvedConfig);
+    default:
+      throw new AstMessagingCapabilityError('Unsupported template messaging operation', {
+        operation: normalizedRequest.operation
+      });
+  }
+}
+
 function astMessagingDispatchOperation(normalizedRequest = {}, resolvedConfig = {}) {
   if (normalizedRequest.channel === 'email') {
     return astMessagingRunEmailOperation(normalizedRequest, resolvedConfig);
@@ -103,6 +120,10 @@ function astMessagingDispatchOperation(normalizedRequest = {}, resolvedConfig = 
 
   if (normalizedRequest.channel === 'tracking') {
     return astMessagingDispatchTrackingOperation(normalizedRequest, resolvedConfig);
+  }
+
+  if (normalizedRequest.channel === 'template') {
+    return astMessagingDispatchTemplateOperation(normalizedRequest, resolvedConfig);
   }
 
   throw new AstMessagingCapabilityError('Unsupported messaging channel', {
@@ -154,7 +175,15 @@ function astMessagingBuildTrackingFromResult(result = {}) {
 }
 
 function astMessagingShouldWriteDeliveryLog(normalizedRequest = {}) {
-  return astMessagingIsMutationOperation(normalizedRequest.operation);
+  if (!astMessagingIsMutationOperation(normalizedRequest.operation)) {
+    return false;
+  }
+
+  if (normalizedRequest.channel === 'template') {
+    return normalizedRequest.operation === 'template_send';
+  }
+
+  return true;
 }
 
 function astMessagingWriteDeliveryLog(normalizedRequest = {}, result = {}, resolvedConfig = {}) {

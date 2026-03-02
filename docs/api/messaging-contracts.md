@@ -25,6 +25,14 @@ ASTX.Messaging.tracking.handleWebEvent(request)
 ASTX.Messaging.logs.list(request)
 ASTX.Messaging.logs.get(request)
 ASTX.Messaging.logs.delete(request)
+ASTX.Messaging.templates.register(request)
+ASTX.Messaging.templates.get(request)
+ASTX.Messaging.templates.render(request)
+ASTX.Messaging.templates.send(request)
+ASTX.Messaging.registerTemplate(request)
+ASTX.Messaging.getTemplate(request)
+ASTX.Messaging.renderTemplate(request)
+ASTX.Messaging.sendTemplate(request)
 ASTX.Messaging.operations()
 ASTX.Messaging.capabilities(operationOrGroup)
 ASTX.Messaging.configure(config, options)
@@ -36,7 +44,7 @@ ASTX.Messaging.clearConfig()
 
 ```javascript
 {
-  operation: 'email_send' | 'chat_send' | 'tracking_record_event' | ...,
+  operation: 'email_send' | 'chat_send' | 'tracking_record_event' | 'template_register' | 'template_render' | 'template_send' | ...,
   body: { ... },
   auth: {
     oauthToken: 'optional',
@@ -92,6 +100,7 @@ ASTX.Messaging.clearConfig()
 - `chat`: Google Chat + Slack + Teams sends, Google Chat message reads
 - `tracking`: pixel URL build, link wrapping, event recording, web event handling
 - `logs`: event list/get/delete
+- `templates`: template register/get/render/send for email/chat channels
 
 ## Dry-run
 
@@ -102,8 +111,16 @@ ASTX.Messaging.clearConfig()
 ## Idempotency
 
 - Send operations auto-generate idempotency keys when not provided.
+- `template_send` also supports idempotent replay behavior.
 - Optional override: `options.idempotencyKey`.
 - Replay responses include warning: `idempotentReplay=true`.
+
+## Template request notes
+
+- `template_register` stores a reusable email/chat template in the configured template backend.
+- `template_render` enforces required vars and typed vars (`string`, `number`, `boolean`, `object`, `array`, `any`).
+- Missing vars throw deterministic `AstMessagingValidationError` with token details.
+- `template_send` renders first, then routes through existing `email_send` or `chat_send` execution paths.
 
 ## Config precedence
 

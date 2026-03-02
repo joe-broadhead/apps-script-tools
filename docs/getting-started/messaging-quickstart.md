@@ -29,7 +29,10 @@ function configureMessaging() {
     MESSAGING_TRACKING_SIGNING_SECRET: 'replace-me',
     MESSAGING_LOG_BACKEND: 'drive_json',
     MESSAGING_LOG_NAMESPACE: 'ast_messaging',
-    MESSAGING_LOG_DRIVE_FILE_NAME: 'ast_messaging_logs.json'
+    MESSAGING_LOG_DRIVE_FILE_NAME: 'ast_messaging_logs.json',
+    MESSAGING_TEMPLATE_BACKEND: 'drive_json',
+    MESSAGING_TEMPLATE_NAMESPACE: 'ast_messaging_templates',
+    MESSAGING_TEMPLATE_DRIVE_FILE_NAME: 'ast_messaging_templates.json'
   });
 }
 ```
@@ -55,6 +58,42 @@ function sendEmailExample() {
           open: true,
           click: true
         }
+      }
+    }
+  });
+
+  Logger.log(JSON.stringify(out, null, 2));
+}
+```
+
+## Register and send a reusable template
+
+```javascript
+function sendTemplateExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.Messaging.registerTemplate({
+    body: {
+      templateId: 'release_email',
+      channel: 'email',
+      template: {
+        subject: 'Release {{release}}',
+        textBody: 'Status: {{status}}',
+        variables: {
+          release: { type: 'string', required: true },
+          status: { type: 'string', required: true }
+        }
+      }
+    }
+  });
+
+  const out = ASTX.Messaging.sendTemplate({
+    body: {
+      templateId: 'release_email',
+      to: ['ops@example.com'],
+      variables: {
+        release: '2026.03.03',
+        status: 'ok'
       }
     }
   });

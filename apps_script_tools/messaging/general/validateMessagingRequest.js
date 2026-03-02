@@ -228,6 +228,69 @@ function astMessagingValidateTrackingPayload(operation, body) {
   }
 }
 
+function astMessagingValidateTemplatePayload(normalized) {
+  const operation = normalized.operation;
+  const body = normalized.body || {};
+  const template = astMessagingValidateIsPlainObject(body.template)
+    ? body.template
+    : {};
+  const templatePayload = astMessagingValidateIsPlainObject(body.template)
+    ? body.template
+    : body;
+  const templateContent = astMessagingValidateIsPlainObject(templatePayload.content)
+    ? templatePayload.content
+    : {};
+  const templateId = astMessagingValidateNormalizeString(
+    body.templateId || body.id || template.templateId || template.id,
+    null
+  );
+
+  if (operation === 'template_register') {
+    astMessagingEnsureField(Boolean(templateId), 'body.templateId');
+    const channel = astMessagingValidateNormalizeString(body.channel || template.channel, null);
+    astMessagingEnsureField(Boolean(channel), 'body.channel');
+    const normalizedChannel = channel.toLowerCase();
+    if (normalizedChannel !== 'email' && normalizedChannel !== 'chat') {
+      throw new AstMessagingValidationError('Template channel must be email or chat', {
+        field: 'body.channel',
+        channel
+      });
+    }
+
+    if (templatePayload.variables != null && !astMessagingValidateIsPlainObject(templatePayload.variables)) {
+      throw new AstMessagingValidationError("Messaging template field 'variables' must be an object", {
+        field: 'body.template.variables'
+      });
+    }
+
+    if (normalizedChannel === 'email') {
+      const subject = astMessagingValidateNormalizeString(templatePayload.subject || templateContent.subject, null);
+      const textBody = astMessagingValidateNormalizeString(templatePayload.textBody || templateContent.textBody, null);
+      const htmlBody = astMessagingValidateNormalizeString(templatePayload.htmlBody || templateContent.htmlBody, null);
+      astMessagingEnsureField(Boolean(subject), 'body.template.subject');
+      astMessagingEnsureField(Boolean(textBody || htmlBody), 'body.template.textBody|body.template.htmlBody');
+    } else {
+      const message = Object.prototype.hasOwnProperty.call(templateContent, 'message')
+        ? templateContent.message
+        : templatePayload.message;
+      const hasMessage = typeof message === 'string' || astMessagingValidateIsPlainObject(message) || Array.isArray(message);
+      astMessagingEnsureField(hasMessage, 'body.template.message');
+    }
+
+    return;
+  }
+
+  astMessagingEnsureField(Boolean(templateId), 'body.templateId');
+
+  if (operation === 'template_render' || operation === 'template_send') {
+    if (body.variables != null && !astMessagingValidateIsPlainObject(body.variables)) {
+      throw new AstMessagingValidationError("Messaging request field 'body.variables' must be an object", {
+        field: 'body.variables'
+      });
+    }
+  }
+}
+
 function astMessagingValidateByOperation(normalized) {
   if (normalized.channel === 'email') {
     astMessagingValidateEmailPayload(normalized.operation, normalized.body);
@@ -241,6 +304,11 @@ function astMessagingValidateByOperation(normalized) {
 
   if (normalized.channel === 'tracking') {
     astMessagingValidateTrackingPayload(normalized.operation, normalized.body);
+    return;
+  }
+
+  if (normalized.channel === 'template') {
+    astMessagingValidateTemplatePayload(normalized);
   }
 }
 

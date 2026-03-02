@@ -15,6 +15,14 @@
 - Use `MESSAGING_TRACKING_SIGNING_SECRET` to sign tracking events.
 - Validate signatures in `tracking.handleWebEvent` before processing redirects/events.
 
+## Template safety
+
+- Prefer `ASTX.Messaging.registerTemplate(...)` with explicit variable schemas.
+- Mark required variables with `required: true`; missing vars throw deterministic validation errors.
+- Use typed vars (`string`, `number`, `boolean`, `object`, `array`) to fail fast on malformed payloads.
+- Do not interpolate untrusted raw HTML into `htmlBody` unless it has already been sanitized for email clients.
+- Keep template IDs non-sensitive and deterministic (for example `release_email_v1`).
+
 ## Logging and data handling
 
 - Delivery/event logs default to `drive_json` backend.
