@@ -152,7 +152,7 @@ test('astRunDatabricks composes endpoint URL from host + servingEndpoint', () =>
   assert.equal(capturedPayload.model, 'databricks-claude-opus-4-6');
 });
 
-test('astRunDatabricks rejects host values containing path/query fragments', () => {
+test('astRunDatabricks rejects host values containing path/query/auth fragments', () => {
   const context = createGasContext();
   loadAiScripts(context);
 
@@ -161,6 +161,17 @@ test('astRunDatabricks rejects host values containing path/query fragments', () 
       provider: 'databricks',
       token: 'db-token',
       host: 'workspace.cloud.databricks.com/path?x=1',
+      servingEndpoint: 'databricks-claude-opus-4-6',
+      model: null
+    }),
+    /host must be a bare hostname/
+  );
+
+  assert.throws(
+    () => context.astRunDatabricks(baseRequest('text'), {
+      provider: 'databricks',
+      token: 'db-token',
+      host: 'user@workspace.cloud.databricks.com',
       servingEndpoint: 'databricks-claude-opus-4-6',
       model: null
     }),

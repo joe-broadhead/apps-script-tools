@@ -47,7 +47,7 @@ function astDatabricksValidateHost(rawHost) {
     return '';
   }
 
-  if (/[\s]/.test(host) || /[/?#\\]/.test(host)) {
+  if (/[\s]/.test(host) || /[/?#\\@]/.test(host)) {
     throw new AstAiValidationError(
       "Databricks host must be a bare hostname (with optional port), without scheme or path",
       {
