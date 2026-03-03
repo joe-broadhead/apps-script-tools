@@ -291,6 +291,56 @@ function astMessagingValidateTemplatePayload(normalized) {
   }
 }
 
+function astMessagingValidateInboundPayload(normalized) {
+  const operation = normalized.operation;
+  const body = normalized.body || {};
+
+  const hasPayload =
+    typeof body.rawBody === 'string'
+    || typeof body.payloadRaw === 'string'
+    || typeof body.raw === 'string'
+    || typeof body.payload === 'string'
+    || astMessagingValidateIsPlainObject(body.payload)
+    || Array.isArray(body.payload)
+    || (astMessagingValidateIsPlainObject(body.event)
+      && astMessagingValidateIsPlainObject(body.event.postData)
+      && typeof body.event.postData.contents === 'string');
+
+  astMessagingEnsureField(hasPayload, 'body.payload|body.rawBody|body.event.postData.contents');
+
+  if (body.headers != null && !astMessagingValidateIsPlainObject(body.headers)) {
+    throw new AstMessagingValidationError("Messaging request field 'body.headers' must be an object", {
+      field: 'body.headers'
+    });
+  }
+
+  const provider = astMessagingValidateNormalizeString(body.provider, null);
+  if (provider) {
+    const lowered = provider.toLowerCase();
+    if (!['google_chat', 'googlechat', 'chat', 'gchat', 'google', 'slack', 'slack_webhook', 'teams', 'msteams', 'teams_webhook'].includes(lowered)) {
+      throw new AstMessagingValidationError('Inbound provider must be google_chat, slack, or teams', {
+        field: 'body.provider',
+        provider
+      });
+    }
+  }
+
+  if (body.verify != null && !astMessagingValidateIsPlainObject(body.verify)) {
+    throw new AstMessagingValidationError("Messaging request field 'body.verify' must be an object", {
+      field: 'body.verify'
+    });
+  }
+
+  if (operation === 'inbound_route') {
+    if (!astMessagingValidateIsPlainObject(body.routes)) {
+      throw new AstMessagingValidationError("Messaging request field 'body.routes' must be an object for inbound_route", {
+        field: 'body.routes'
+      });
+    }
+    astMessagingEnsureField(Object.keys(body.routes).length > 0, 'body.routes');
+  }
+}
+
 function astMessagingValidateByOperation(normalized) {
   if (normalized.channel === 'email') {
     astMessagingValidateEmailPayload(normalized.operation, normalized.body);
@@ -309,6 +359,11 @@ function astMessagingValidateByOperation(normalized) {
 
   if (normalized.channel === 'template') {
     astMessagingValidateTemplatePayload(normalized);
+    return;
+  }
+
+  if (normalized.channel === 'inbound') {
+    astMessagingValidateInboundPayload(normalized);
   }
 }
 

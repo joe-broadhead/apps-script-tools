@@ -27,7 +27,11 @@ const AST_MESSAGING_OPERATION_SPECS = Object.freeze({
   template_register: Object.freeze({ group: 'templates', channel: 'template', mutation: true, read: false, transport: ['cache'], dryRun: true }),
   template_get: Object.freeze({ group: 'templates', channel: 'template', mutation: false, read: true, transport: ['cache'] }),
   template_render: Object.freeze({ group: 'templates', channel: 'template', mutation: false, read: true, transport: ['internal'] }),
-  template_send: Object.freeze({ group: 'templates', channel: 'template', mutation: true, read: false, transport: ['gmailapp', 'chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'], dryRun: true })
+  template_send: Object.freeze({ group: 'templates', channel: 'template', mutation: true, read: false, transport: ['gmailapp', 'chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'], dryRun: true }),
+
+  inbound_verify: Object.freeze({ group: 'inbound', channel: 'inbound', mutation: false, read: true, transport: ['inbound'] }),
+  inbound_parse: Object.freeze({ group: 'inbound', channel: 'inbound', mutation: false, read: true, transport: ['inbound'] }),
+  inbound_route: Object.freeze({ group: 'inbound', channel: 'inbound', mutation: false, read: true, transport: ['inbound'] })
 });
 
 const AST_MESSAGING_OPERATION_GROUPS = Object.freeze({
@@ -65,6 +69,11 @@ const AST_MESSAGING_OPERATION_GROUPS = Object.freeze({
     'template_get',
     'template_render',
     'template_send'
+  ]),
+  inbound: Object.freeze([
+    'inbound_verify',
+    'inbound_parse',
+    'inbound_route'
   ])
 });
 
@@ -103,7 +112,8 @@ function astMessagingGetCapabilities(operationOrGroup) {
       transports: {
         email: ['gmailapp'],
         chat: ['chat_webhook', 'chat_api', 'slack_webhook', 'slack_api', 'teams_webhook'],
-        templates: ['cache', 'internal']
+        templates: ['cache', 'internal'],
+        inbound: ['inbound']
       },
       dryRun: true,
       asyncJobs: true,
@@ -115,6 +125,12 @@ function astMessagingGetCapabilities(operationOrGroup) {
         registry: true,
         render: true,
         send: true
+      },
+      inbound: {
+        verify: true,
+        parse: true,
+        route: true,
+        providers: ['google_chat', 'slack', 'teams']
       }
     };
   }

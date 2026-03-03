@@ -760,6 +760,7 @@ Primary methods:
 - `ASTX.Messaging.tracking.*` for pixel URL generation, link wrapping, event recording, and web event handling.
 - `ASTX.Messaging.logs.*` for delivery/event log list/get/delete flows.
 - `ASTX.Messaging.templates.*` plus `registerTemplate/getTemplate/renderTemplate/sendTemplate` for reusable typed templates.
+- `ASTX.Messaging.inbound.*` plus `verifyInbound/parseInbound/routeInbound` for Google Chat/Slack/Teams webhook verification and routing.
 - `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
 - `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.clearConfig()`.
 
@@ -772,6 +773,7 @@ High-signal behavior:
 - mutation sends support idempotent replay for retry-safe workflows.
 - sync execution is default; optional async enqueue via `ASTX.Jobs`.
 - durable log backend defaults to `drive_json` and can be switched to `storage_json`, `script_properties`, or `memory`.
+- inbound verification supports signature/token checks, timestamp skew guards, and replay protection.
 
 ```javascript
 const out = ASTX.Messaging.email.send({
@@ -817,6 +819,29 @@ const sent = ASTX.Messaging.sendTemplate({
 });
 
 Logger.log(sent.transport);
+```
+
+```javascript
+ASTX.Messaging.configure({
+  MESSAGING_INBOUND_SLACK_SIGNING_SECRET: 'secret://messaging/slack-signing-secret',
+  MESSAGING_INBOUND_REPLAY_BACKEND: 'storage_json',
+  MESSAGING_INBOUND_REPLAY_NAMESPACE: 'ast_messaging_inbound',
+  MESSAGING_INBOUND_REPLAY_TTL_SEC: '600'
+});
+
+const routed = ASTX.Messaging.routeInbound({
+  body: {
+    provider: 'slack',
+    rawBody: e.postData.contents,
+    headers: e.headers,
+    routes: {
+      'slack:message': ({ text }) => ({ ok: true, text }),
+      default: () => ({ ok: false })
+    }
+  }
+});
+
+Logger.log(JSON.stringify(routed.data.route, null, 2));
 ```
 
 ## `ASTX.GitHub`

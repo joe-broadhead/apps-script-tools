@@ -33,7 +33,16 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_TEMPLATE_DRIVE_FOLDER_ID',
   'MESSAGING_TEMPLATE_DRIVE_FILE_NAME',
   'MESSAGING_TEMPLATE_STORAGE_URI',
-  'MESSAGING_TEMPLATE_TTL_SEC'
+  'MESSAGING_TEMPLATE_TTL_SEC',
+  'MESSAGING_INBOUND_MAX_SKEW_SEC',
+  'MESSAGING_INBOUND_REPLAY_ENABLED',
+  'MESSAGING_INBOUND_REPLAY_BACKEND',
+  'MESSAGING_INBOUND_REPLAY_NAMESPACE',
+  'MESSAGING_INBOUND_REPLAY_TTL_SEC',
+  'MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET',
+  'MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN',
+  'MESSAGING_INBOUND_SLACK_SIGNING_SECRET',
+  'MESSAGING_INBOUND_TEAMS_SIGNING_SECRET'
 ]);
 
 const AST_MESSAGING_DEFAULTS = Object.freeze({
@@ -87,6 +96,23 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
     driveFileName: 'ast_messaging_templates.json',
     storageUri: '',
     ttlSec: 31536000
+  }),
+  inbound: Object.freeze({
+    maxSkewSec: 300,
+    replayProtection: true,
+    replayBackend: 'memory',
+    replayNamespace: 'ast_messaging_inbound_replay',
+    replayTtlSec: 600,
+    googleChat: Object.freeze({
+      signingSecret: '',
+      verificationToken: ''
+    }),
+    slack: Object.freeze({
+      signingSecret: ''
+    }),
+    teams: Object.freeze({
+      signingSecret: ''
+    })
   })
 });
 
@@ -480,6 +506,55 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     )
   };
 
+  const inbound = {
+    maxSkewSec: astMessagingConfigNormalizeInteger(
+      runtimeConfig.MESSAGING_INBOUND_MAX_SKEW_SEC,
+      astMessagingConfigNormalizeInteger(scriptConfig.MESSAGING_INBOUND_MAX_SKEW_SEC, AST_MESSAGING_DEFAULTS.inbound.maxSkewSec, 1, 3600),
+      1,
+      3600
+    ),
+    replayProtection: astMessagingConfigNormalizeBoolean(
+      runtimeConfig.MESSAGING_INBOUND_REPLAY_ENABLED,
+      astMessagingConfigNormalizeBoolean(scriptConfig.MESSAGING_INBOUND_REPLAY_ENABLED, AST_MESSAGING_DEFAULTS.inbound.replayProtection)
+    ),
+    replayBackend: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_INBOUND_REPLAY_BACKEND, scriptConfig.MESSAGING_INBOUND_REPLAY_BACKEND],
+      AST_MESSAGING_DEFAULTS.inbound.replayBackend
+    ),
+    replayNamespace: astMessagingResolveFirstString(
+      [runtimeConfig.MESSAGING_INBOUND_REPLAY_NAMESPACE, scriptConfig.MESSAGING_INBOUND_REPLAY_NAMESPACE],
+      AST_MESSAGING_DEFAULTS.inbound.replayNamespace
+    ),
+    replayTtlSec: astMessagingConfigNormalizeInteger(
+      runtimeConfig.MESSAGING_INBOUND_REPLAY_TTL_SEC,
+      astMessagingConfigNormalizeInteger(scriptConfig.MESSAGING_INBOUND_REPLAY_TTL_SEC, AST_MESSAGING_DEFAULTS.inbound.replayTtlSec, 1, 86400),
+      1,
+      86400
+    ),
+    googleChat: {
+      signingSecret: astMessagingResolveFirstString(
+        [normalizedRequest.auth && normalizedRequest.auth.googleChatSigningSecret, runtimeConfig.MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET, scriptConfig.MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET],
+        AST_MESSAGING_DEFAULTS.inbound.googleChat.signingSecret
+      ),
+      verificationToken: astMessagingResolveFirstString(
+        [normalizedRequest.auth && normalizedRequest.auth.googleChatVerificationToken, runtimeConfig.MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN, scriptConfig.MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN],
+        AST_MESSAGING_DEFAULTS.inbound.googleChat.verificationToken
+      )
+    },
+    slack: {
+      signingSecret: astMessagingResolveFirstString(
+        [normalizedRequest.auth && normalizedRequest.auth.slackSigningSecret, runtimeConfig.MESSAGING_INBOUND_SLACK_SIGNING_SECRET, scriptConfig.MESSAGING_INBOUND_SLACK_SIGNING_SECRET],
+        AST_MESSAGING_DEFAULTS.inbound.slack.signingSecret
+      )
+    },
+    teams: {
+      signingSecret: astMessagingResolveFirstString(
+        [normalizedRequest.auth && normalizedRequest.auth.teamsSigningSecret, runtimeConfig.MESSAGING_INBOUND_TEAMS_SIGNING_SECRET, scriptConfig.MESSAGING_INBOUND_TEAMS_SIGNING_SECRET],
+        AST_MESSAGING_DEFAULTS.inbound.teams.signingSecret
+      )
+    }
+  };
+
   return {
     timeoutMs,
     retries,
@@ -490,6 +565,7 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     async: asyncConfig,
     idempotency,
     templates,
+    inbound,
     transport
   };
 }

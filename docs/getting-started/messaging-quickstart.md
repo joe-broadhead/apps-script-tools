@@ -32,7 +32,12 @@ function configureMessaging() {
     MESSAGING_LOG_DRIVE_FILE_NAME: 'ast_messaging_logs.json',
     MESSAGING_TEMPLATE_BACKEND: 'drive_json',
     MESSAGING_TEMPLATE_NAMESPACE: 'ast_messaging_templates',
-    MESSAGING_TEMPLATE_DRIVE_FILE_NAME: 'ast_messaging_templates.json'
+    MESSAGING_TEMPLATE_DRIVE_FILE_NAME: 'ast_messaging_templates.json',
+    MESSAGING_INBOUND_SLACK_SIGNING_SECRET: 'replace-me',
+    MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN: 'replace-me',
+    MESSAGING_INBOUND_REPLAY_BACKEND: 'memory',
+    MESSAGING_INBOUND_REPLAY_NAMESPACE: 'ast_messaging_inbound_replay',
+    MESSAGING_INBOUND_REPLAY_TTL_SEC: '600'
   });
 }
 ```
@@ -225,5 +230,34 @@ function dryRunEmailSend() {
   });
 
   Logger.log(JSON.stringify(plan.dryRun.plannedRequest, null, 2));
+}
+```
+
+## Verify and route inbound webhook events
+
+```javascript
+function routeSlackWebhookExample(e) {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Messaging.routeInbound({
+    body: {
+      provider: 'slack',
+      rawBody: e.postData.contents,
+      headers: e.headers,
+      routes: {
+        'slack:message': routeContext => ({
+          ok: true,
+          text: routeContext.text
+        }),
+        default: routeContext => ({
+          ok: false,
+          provider: routeContext.provider
+        })
+      }
+    }
+  });
+
+  Logger.log(JSON.stringify(out.data.route, null, 2));
+  return out;
 }
 ```

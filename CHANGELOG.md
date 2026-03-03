@@ -31,6 +31,11 @@
   - bounded retry handling for transient provider failures
   - optional async enqueue via `AST.Jobs`
   - default durable log backend (`drive_json`) with backend overrides
+- Messaging inbound webhook verification/routing APIs:
+  - `verifyInbound`, `parseInbound`, `routeInbound`
+  - grouped helpers under `AST.Messaging.inbound.*`
+  - provider coverage: Google Chat, Slack, Teams
+  - signature/token checks, bounded timestamp skew, and replay protection
 - New messaging docs:
   - `getting-started/messaging-quickstart.md`
   - `api/messaging-contracts.md`

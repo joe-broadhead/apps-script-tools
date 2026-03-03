@@ -61,10 +61,19 @@ const AST_MESSAGING = Object.freeze({
     send: request => astMessagingRunOperation('template_send', request)
   }),
 
+  inbound: Object.freeze({
+    verify: request => astMessagingRunOperation('inbound_verify', request),
+    parse: request => astMessagingRunOperation('inbound_parse', request),
+    route: request => astMessagingRunOperation('inbound_route', request)
+  }),
+
   registerTemplate: request => astMessagingRunOperation('template_register', request),
   getTemplate: request => astMessagingRunOperation('template_get', request),
   renderTemplate: request => astMessagingRunOperation('template_render', request),
   sendTemplate: request => astMessagingRunOperation('template_send', request),
+  verifyInbound: request => astMessagingRunOperation('inbound_verify', request),
+  parseInbound: request => astMessagingRunOperation('inbound_parse', request),
+  routeInbound: request => astMessagingRunOperation('inbound_route', request),
 
   operations: () => astMessagingListOperations(),
   capabilities: operationOrGroup => astMessagingGetCapabilities(operationOrGroup),

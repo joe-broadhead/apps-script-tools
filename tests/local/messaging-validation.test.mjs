@@ -156,3 +156,42 @@ test('validation enforces template register content requirements by channel', ()
     /field 'variables' must be an object/
   );
 });
+
+test('validation enforces inbound payload fields and route shape', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'inbound_verify',
+      body: {
+        provider: 'slack'
+      }
+    }),
+    /body.payload\|body.rawBody\|body.event.postData.contents/
+  );
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'inbound_route',
+      body: {
+        provider: 'slack',
+        rawBody: '{}',
+        routes: []
+      }
+    }),
+    /body.routes/
+  );
+
+  assert.throws(
+    () => context.astMessagingValidateRequest({
+      operation: 'inbound_route',
+      body: {
+        provider: 'discord',
+        rawBody: '{}',
+        routes: { default: () => ({}) }
+      }
+    }),
+    /Inbound provider must be google_chat, slack, or teams/
+  );
+});

@@ -19,6 +19,9 @@ test('AST exposes Messaging namespace with expected public surface', () => {
   assert.equal(typeof context.AST.Messaging.getTemplate, 'function');
   assert.equal(typeof context.AST.Messaging.renderTemplate, 'function');
   assert.equal(typeof context.AST.Messaging.sendTemplate, 'function');
+  assert.equal(typeof context.AST.Messaging.verifyInbound, 'function');
+  assert.equal(typeof context.AST.Messaging.parseInbound, 'function');
+  assert.equal(typeof context.AST.Messaging.routeInbound, 'function');
 
   const emailMethods = [
     'send',
@@ -56,10 +59,19 @@ test('AST exposes Messaging namespace with expected public surface', () => {
     assert.equal(typeof context.AST.Messaging.templates[method], 'function');
   });
 
+  const inboundMethods = ['verify', 'parse', 'route'];
+  inboundMethods.forEach(method => {
+    assert.equal(typeof context.AST.Messaging.inbound[method], 'function');
+  });
+
   const capabilities = context.AST.Messaging.capabilities();
   assert.equal(Array.isArray(capabilities.transports.chat), true);
   assert.equal(capabilities.transports.chat.includes('slack_webhook'), true);
   assert.equal(capabilities.transports.chat.includes('slack_api'), true);
   assert.equal(capabilities.transports.chat.includes('teams_webhook'), true);
   assert.equal(capabilities.templates.registry, true);
+  assert.equal(Array.isArray(capabilities.inbound.providers), true);
+  assert.equal(capabilities.inbound.providers.includes('slack'), true);
+  assert.equal(capabilities.inbound.providers.includes('google_chat'), true);
+  assert.equal(capabilities.inbound.providers.includes('teams'), true);
 });

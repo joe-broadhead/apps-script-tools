@@ -109,6 +109,21 @@ function astMessagingDispatchTemplateOperation(normalizedRequest = {}, resolvedC
   }
 }
 
+function astMessagingDispatchInboundOperation(normalizedRequest = {}, resolvedConfig = {}) {
+  switch (normalizedRequest.operation) {
+    case 'inbound_verify':
+      return astMessagingVerifyInbound(normalizedRequest, resolvedConfig);
+    case 'inbound_parse':
+      return astMessagingParseInbound(normalizedRequest, resolvedConfig);
+    case 'inbound_route':
+      return astMessagingRouteInbound(normalizedRequest, resolvedConfig);
+    default:
+      throw new AstMessagingCapabilityError('Unsupported inbound messaging operation', {
+        operation: normalizedRequest.operation
+      });
+  }
+}
+
 function astMessagingDispatchOperation(normalizedRequest = {}, resolvedConfig = {}) {
   if (normalizedRequest.channel === 'email') {
     return astMessagingRunEmailOperation(normalizedRequest, resolvedConfig);
@@ -124,6 +139,10 @@ function astMessagingDispatchOperation(normalizedRequest = {}, resolvedConfig = 
 
   if (normalizedRequest.channel === 'template') {
     return astMessagingDispatchTemplateOperation(normalizedRequest, resolvedConfig);
+  }
+
+  if (normalizedRequest.channel === 'inbound') {
+    return astMessagingDispatchInboundOperation(normalizedRequest, resolvedConfig);
   }
 
   throw new AstMessagingCapabilityError('Unsupported messaging channel', {
@@ -148,6 +167,10 @@ function astMessagingBuildTransport(result = {}, normalizedRequest = {}, resolve
 
   if (normalizedRequest.channel === 'tracking') {
     return 'internal';
+  }
+
+  if (normalizedRequest.channel === 'inbound') {
+    return 'inbound';
   }
 
   return null;
