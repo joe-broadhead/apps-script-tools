@@ -129,6 +129,8 @@ test('DataFrame.unstack rejects dangerous output column names from pivot values'
   ]);
 
   assert.throws(() => long.unstack(), /unsupported output column name/);
+  assert.throws(() => long.unstack({ dropIndexColumn: 'false' }), /dropIndexColumn must be boolean/);
+  assert.throws(() => long.unstack({ preserveIndex: 1 }), /preserveIndex must be boolean/);
 });
 
 test('DataFrame.unstack preserves distinct object index labels with same serialized key', () => {
@@ -207,6 +209,7 @@ test('DataFrame.resample rejects null and boolean timestamp values', () => {
 
   assert.throws(() => dfNull.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
   assert.throws(() => dfBool.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
+  assert.throws(() => dfBool.resample('1h', { on: 'ts', columns: ['value'], agg: new Date() }), /agg object must be a plain object/);
 });
 
 test('DataFrame.resample supports per-column aggregations and right-edge labels', () => {

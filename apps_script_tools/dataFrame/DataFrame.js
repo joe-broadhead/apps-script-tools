@@ -4749,8 +4749,14 @@ function __astNormalizeDataFrameUnstackOptions(dataframe, options, methodName) {
 
   const agg = options.agg == null ? 'first' : options.agg;
   const fillValue = Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null;
-  const dropIndexColumn = options.dropIndexColumn == null ? true : Boolean(options.dropIndexColumn);
-  const preserveIndex = options.preserveIndex == null ? true : Boolean(options.preserveIndex);
+  if (options.dropIndexColumn != null && typeof options.dropIndexColumn !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option dropIndexColumn must be boolean`);
+  }
+  const dropIndexColumn = options.dropIndexColumn == null ? true : options.dropIndexColumn;
+  if (options.preserveIndex != null && typeof options.preserveIndex !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option preserveIndex must be boolean`);
+  }
+  const preserveIndex = options.preserveIndex == null ? true : options.preserveIndex;
 
   return {
     indexColumn,
@@ -4850,6 +4856,9 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
   let defaultAgg = 'mean';
 
   if (agg != null && typeof agg === 'object' && !Array.isArray(agg) && typeof agg !== 'function') {
+    if (!__astDataFrameIsPlainObject(agg)) {
+      throw new Error(`DataFrame.${methodName} option agg object must be a plain object`);
+    }
     defaultAgg = 'mean';
     const keys = Object.keys(agg);
     for (let idx = 0; idx < keys.length; idx++) {

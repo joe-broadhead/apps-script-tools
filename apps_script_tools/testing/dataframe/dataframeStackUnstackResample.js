@@ -96,6 +96,26 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error('Expected unstack to reject dangerous output column names');
       }
 
+      let unstackBooleanErr = null;
+      try {
+        dangerousLong.unstack({ dropIndexColumn: 'false' });
+      } catch (error) {
+        unstackBooleanErr = error;
+      }
+      if (!unstackBooleanErr || !String(unstackBooleanErr.message || unstackBooleanErr).includes('dropIndexColumn must be boolean')) {
+        throw new Error('Expected unstack to reject non-boolean dropIndexColumn values');
+      }
+
+      let preserveBooleanErr = null;
+      try {
+        dangerousLong.unstack({ preserveIndex: 1 });
+      } catch (error) {
+        preserveBooleanErr = error;
+      }
+      if (!preserveBooleanErr || !String(preserveBooleanErr.message || preserveBooleanErr).includes('preserveIndex must be boolean')) {
+        throw new Error('Expected unstack to reject non-boolean preserveIndex values');
+      }
+
       const indexA = { id: 1 };
       const indexB = { id: 1 };
       const objectIndexLong = DataFrame.fromRecords([
@@ -181,6 +201,20 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
       }
       if (!invalidTsErr || !String(invalidTsErr.message || invalidTsErr).includes('non-date timestamp value')) {
         throw new Error('Expected resample to reject null/boolean timestamp values');
+      }
+
+      let invalidAggObjectErr = null;
+      try {
+        df.resample('1h', {
+          on: 'ts',
+          columns: ['value'],
+          agg: new Date()
+        });
+      } catch (error) {
+        invalidAggObjectErr = error;
+      }
+      if (!invalidAggObjectErr || !String(invalidAggObjectErr.message || invalidAggObjectErr).includes('agg object must be a plain object')) {
+        throw new Error('Expected resample to reject non-plain agg objects');
       }
     }
   }
