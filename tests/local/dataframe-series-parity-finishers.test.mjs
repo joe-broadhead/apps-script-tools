@@ -58,6 +58,22 @@ test('DataFrame.unstack round-trips stacked output with preserved index labels',
   ]));
 });
 
+test('DataFrame.unstack preserves schema for empty stack/unstack round-trip', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromColumns({
+    a: [],
+    b: []
+  });
+  df.index = [];
+
+  const stacked = df.stack({ dropNulls: false });
+  const unstacked = stacked.unstack();
+
+  assert.equal(unstacked.len(), 0);
+  assert.equal(JSON.stringify(unstacked.columns), JSON.stringify(['a', 'b']));
+  assert.equal(JSON.stringify(unstacked.toRecords()), JSON.stringify([]));
+});
+
 test('DataFrame.unstack preserves duplicate index labels on stack/unstack round-trip', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
@@ -236,6 +252,35 @@ test('DataFrame.resample supports per-column aggregations and right-edge labels'
   assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([
     { value: 15, qty: 2 },
     { value: 7, qty: 0 }
+  ]));
+});
+
+test('DataFrame.resample min/max aggregates comparable non-numeric values', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { ts: '2026-03-03T10:01:00Z', status: 'pending' },
+    { ts: '2026-03-03T10:45:00Z', status: 'approved' },
+    { ts: '2026-03-03T11:02:00Z', status: 'review' }
+  ]);
+
+  const minOut = df.resample('1h', {
+    on: 'ts',
+    columns: ['status'],
+    agg: 'min'
+  });
+  const maxOut = df.resample('1h', {
+    on: 'ts',
+    columns: ['status'],
+    agg: 'max'
+  });
+
+  assert.equal(JSON.stringify(minOut.toRecords()), JSON.stringify([
+    { status: 'approved' },
+    { status: 'review' }
+  ]));
+  assert.equal(JSON.stringify(maxOut.toRecords()), JSON.stringify([
+    { status: 'pending' },
+    { status: 'review' }
   ]));
 });
 

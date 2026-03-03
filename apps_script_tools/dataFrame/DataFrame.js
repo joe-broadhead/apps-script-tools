@@ -1829,7 +1829,8 @@ var DataFrame = class DataFrame {
       indexColumn: normalized.indexName,
       columnColumn: normalized.columnName,
       valueColumn: normalized.valueName,
-      rowPositions: stackRowPositions
+      rowPositions: stackRowPositions,
+      stackedColumns: [...normalized.columns]
     });
     return result;
   }
@@ -1916,6 +1917,25 @@ var DataFrame = class DataFrame {
         grouped.set(groupedKey, []);
       }
       grouped.get(groupedKey).push(value);
+    }
+
+    if (pivotEntries.length === 0
+      && stackMetadata
+      && Array.isArray(stackMetadata.stackedColumns)
+      && stackMetadata.stackedColumns.length > 0) {
+      for (let stackColIdx = 0; stackColIdx < stackMetadata.stackedColumns.length; stackColIdx++) {
+        const stackedColumnName = stackMetadata.stackedColumns[stackColIdx];
+        const pivotKey = __astBuildDataFrameLabelLookupKey(stackedColumnName);
+        if (pivotSeen.has(pivotKey)) {
+          continue;
+        }
+        pivotSeen.add(pivotKey);
+        pivotEntries.push({
+          key: pivotKey,
+          value: stackedColumnName,
+          outputName: __astBuildDataFrameUnstackOutputColumnName(stackedColumnName)
+        });
+      }
     }
 
     const outputColumns = {};
@@ -4899,7 +4919,8 @@ function __astAttachDataFrameStackMetadata(dataframe, metadata) {
       indexColumn: metadata.indexColumn,
       columnColumn: metadata.columnColumn,
       valueColumn: metadata.valueColumn,
-      rowPositions: metadata.rowPositions
+      rowPositions: metadata.rowPositions,
+      stackedColumns: Array.isArray(metadata.stackedColumns) ? [...metadata.stackedColumns] : null
     },
     enumerable: false,
     writable: true,
@@ -4927,6 +4948,16 @@ function __astGetDataFrameStackMetadata(dataframe, normalized) {
   for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
     if (!Number.isInteger(metadata.rowPositions[idx]) || metadata.rowPositions[idx] < 0) {
       return null;
+    }
+  }
+  if (metadata.stackedColumns != null) {
+    if (!Array.isArray(metadata.stackedColumns)) {
+      return null;
+    }
+    for (let idx = 0; idx < metadata.stackedColumns.length; idx++) {
+      if (typeof metadata.stackedColumns[idx] !== 'string') {
+        return null;
+      }
     }
   }
 
@@ -5069,7 +5100,7 @@ function __astApplyDataFrameResampleAggregation(values, aggregation, methodName,
     case 'mean':
     case 'min':
     case 'max': {
-      if ((aggregation === 'min' || aggregation === 'max') && methodName === 'unstack') {
+      if (aggregation === 'min' || aggregation === 'max') {
         const comparableValues = [];
         for (let idx = 0; idx < values.length; idx++) {
           if (!__astDataFrameIsMissingValue(values[idx])) {

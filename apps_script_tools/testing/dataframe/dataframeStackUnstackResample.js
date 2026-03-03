@@ -41,6 +41,19 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected duplicate-index unstack records: ${JSON.stringify(duplicateRoundTrip.toRecords())}`);
       }
 
+      const empty = DataFrame.fromColumns({
+        a: [],
+        b: []
+      });
+      empty.index = [];
+      const emptyRoundTrip = empty.stack({ dropNulls: false }).unstack();
+      if (emptyRoundTrip.len() !== 0) {
+        throw new Error(`Expected empty round-trip to preserve zero rows, got ${emptyRoundTrip.len()}`);
+      }
+      if (JSON.stringify(emptyRoundTrip.columns) !== JSON.stringify(['a', 'b'])) {
+        throw new Error(`Expected empty round-trip to preserve schema ['a','b'], got ${JSON.stringify(emptyRoundTrip.columns)}`);
+      }
+
       let stackErr = null;
       try {
         df.stack({ indexName: '__proto__' });
@@ -162,6 +175,34 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         { value: 40, qty: 3 }
       ])) {
         throw new Error(`Unexpected resample output: ${JSON.stringify(out.toRecords())}`);
+      }
+
+      const statusDf = DataFrame.fromRecords([
+        { ts: '2026-03-03T10:01:00Z', status: 'pending' },
+        { ts: '2026-03-03T10:45:00Z', status: 'approved' },
+        { ts: '2026-03-03T11:02:00Z', status: 'review' }
+      ]);
+      const statusMin = statusDf.resample('1h', {
+        on: 'ts',
+        columns: ['status'],
+        agg: 'min'
+      });
+      const statusMax = statusDf.resample('1h', {
+        on: 'ts',
+        columns: ['status'],
+        agg: 'max'
+      });
+      if (JSON.stringify(statusMin.toRecords()) !== JSON.stringify([
+        { status: 'approved' },
+        { status: 'review' }
+      ])) {
+        throw new Error(`Unexpected status min resample output: ${JSON.stringify(statusMin.toRecords())}`);
+      }
+      if (JSON.stringify(statusMax.toRecords()) !== JSON.stringify([
+        { status: 'pending' },
+        { status: 'review' }
+      ])) {
+        throw new Error(`Unexpected status max resample output: ${JSON.stringify(statusMax.toRecords())}`);
       }
 
       const sparseDf = DataFrame.fromRecords([
