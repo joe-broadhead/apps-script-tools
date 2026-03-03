@@ -4852,10 +4852,7 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
   const normalizedRule = __astNormalizeDataFrameResampleRule(rule, methodName);
   const on = options.on == null
     ? null
-    : __astValidateColumnName(options.on, `${methodName}.on`);
-  if (on != null && !dataframe.columns.includes(on)) {
-    throw new Error(`DataFrame.${methodName} option on references unknown column '${on}'`);
-  }
+    : __astNormalizeDataFrameResampleColumnName(dataframe, options.on, `${methodName}.on`);
 
   const label = options.label == null ? 'left' : String(options.label).toLowerCase();
   if (!['left', 'right'].includes(label)) {
@@ -4882,7 +4879,11 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
     defaultAgg = 'mean';
     const keys = Object.keys(agg);
     for (let idx = 0; idx < keys.length; idx++) {
-      const columnName = __astValidateColumnName(keys[idx], `${methodName}.agg key`);
+      const columnName = __astNormalizeDataFrameResampleColumnName(
+        dataframe,
+        keys[idx],
+        `${methodName}.agg key`
+      );
       if (!columns.includes(columnName)) {
         throw new Error(`DataFrame.${methodName} option agg references unknown value column '${columnName}'`);
       }
@@ -4901,6 +4902,16 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
     defaultAgg,
     aggByColumn
   };
+}
+
+function __astNormalizeDataFrameResampleColumnName(dataframe, columnName, contextName) {
+  if (typeof columnName !== 'string' || columnName.trim().length === 0) {
+    throw new Error(`${contextName} must be a non-empty string`);
+  }
+  if (!dataframe.columns.includes(columnName)) {
+    throw new Error(`${contextName} references unknown column '${columnName}'`);
+  }
+  return columnName;
 }
 
 function __astAttachDataFrameStackMetadata(dataframe, metadata) {

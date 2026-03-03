@@ -205,6 +205,28 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected status max resample output: ${JSON.stringify(statusMax.toRecords())}`);
       }
 
+      const spacedDf = DataFrame.fromColumns({
+        ' ts ': ['2026-03-03T10:01:00Z', '2026-03-03T10:45:00Z'],
+        ts: [null, null],
+        ' value ': [1, 2]
+      });
+      const spacedOut = spacedDf.resample('1h', {
+        on: ' ts ',
+        columns: [' value '],
+        agg: {
+          ' value ': 'sum'
+        }
+      });
+      if (spacedOut.len() !== 1) {
+        throw new Error(`Expected spaced-column resample to produce 1 bucket, got ${spacedOut.len()}`);
+      }
+      if (JSON.stringify(spacedOut.columns) !== JSON.stringify([' value '])) {
+        throw new Error(`Expected spaced-column output schema to preserve label, got ${JSON.stringify(spacedOut.columns)}`);
+      }
+      if (spacedOut.data[' value '].array[0] !== 3) {
+        throw new Error(`Unexpected spaced-column aggregated value: ${JSON.stringify(spacedOut.data[' value '].array)}`);
+      }
+
       const sparseDf = DataFrame.fromRecords([
         { ts: '2026-03-01T10:01:00Z', value: 10 },
         { ts: '2026-03-03T09:15:00Z', value: 30 }

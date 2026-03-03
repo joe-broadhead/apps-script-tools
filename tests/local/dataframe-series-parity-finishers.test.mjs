@@ -284,6 +284,27 @@ test('DataFrame.resample min/max aggregates comparable non-numeric values', () =
   ]));
 });
 
+test('DataFrame.resample preserves exact spaced column labels for on and agg keys', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromColumns({
+    ' ts ': ['2026-03-03T10:01:00Z', '2026-03-03T10:45:00Z'],
+    ts: [null, null],
+    ' value ': [1, 2]
+  });
+
+  const out = df.resample('1h', {
+    on: ' ts ',
+    columns: [' value '],
+    agg: {
+      ' value ': 'sum'
+    }
+  });
+
+  assert.equal(out.len(), 1);
+  assert.equal(JSON.stringify(out.columns), JSON.stringify([' value ']));
+  assert.equal(out.data[' value '].array[0], 3);
+});
+
 test('Series.expanding computes deterministic cumulative aggregations', () => {
   const context = createDataContext();
   const series = new context.Series([1, 2, null, 4], 'values');
