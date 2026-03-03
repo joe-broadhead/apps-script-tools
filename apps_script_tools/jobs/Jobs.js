@@ -54,6 +54,10 @@ function astJobsApiMapReduce(request = {}) {
   return astJobsMapReduce(request);
 }
 
+function astJobsApiSchedule(request = {}) {
+  return astJobsSchedule(request);
+}
+
 function astJobsApiGetConfig() {
   return astJobsGetRuntimeConfig();
 }
@@ -76,6 +80,7 @@ const AST_JOBS = Object.freeze({
   enqueueMany: astJobsApiEnqueueMany,
   chain: astJobsApiChain,
   mapReduce: astJobsApiMapReduce,
+  schedule: astJobsApiSchedule,
   configure: astJobsApiConfigure,
   getConfig: astJobsApiGetConfig,
   clearConfig: astJobsApiClearConfig

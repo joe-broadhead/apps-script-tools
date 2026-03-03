@@ -24,6 +24,7 @@ ASTX.Jobs.listFailed(filters, options)
 ASTX.Jobs.moveToDlq(jobId, options)
 ASTX.Jobs.replayDlq(request)
 ASTX.Jobs.purgeDlq(request)
+ASTX.Jobs.schedule(request)
 ASTX.Jobs.configure(config, options)
 ASTX.Jobs.getConfig()
 ASTX.Jobs.clearConfig()
@@ -180,6 +181,47 @@ Returns failed jobs with optional DLQ metadata.
   includeJob: false
 }
 ```
+
+## Scheduling bridge
+
+### `ASTX.Jobs.schedule(request)`
+
+Bridge helper that maps job definitions into `ASTX.Triggers` lifecycle operations.
+
+Supported operations:
+
+- `upsert` (default): create/update trigger bound to `dispatch.mode='jobs'`.
+- `list`: proxy to trigger list.
+- `delete`: proxy to trigger delete.
+- `run_now`: proxy to trigger runNow dispatch.
+
+`upsert` request shape:
+
+```javascript
+{
+  operation: 'upsert',
+  id: 'optional-trigger-id',
+  enabled: true,
+  schedule: {
+    type: 'every_hours',
+    every: 1
+  },
+  autoResumeJobs: false,
+  name: 'job-name', // or job: { name, steps, options }
+  steps: [
+    { id: 'step_one', handler: 'globalHandlerName', dependsOn: [], payload: {} }
+  ],
+  options: { ...job options },
+  metadata: { ... },
+  dryRun: false
+}
+```
+
+Behavior notes:
+
+- when `id` is omitted, a deterministic trigger id is derived from schedule + job definition.
+- job handlers are validated with the same contract as `ASTX.Jobs.run/enqueue`.
+- dispatch remains `jobs` mode, so enqueue/resume/cancel semantics stay consistent with existing Jobs runtime behavior.
 
 ### `ASTX.Jobs.moveToDlq(jobId, options)`
 

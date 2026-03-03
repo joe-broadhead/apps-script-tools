@@ -612,6 +612,7 @@ Primary methods:
 - `ASTX.Jobs.moveToDlq(jobId, options)` to enqueue a failed job into DLQ storage.
 - `ASTX.Jobs.replayDlq(request)` for bounded replay batches with idempotency keys.
 - `ASTX.Jobs.purgeDlq(request)` to purge replayed/queued/all DLQ entries.
+- `ASTX.Jobs.schedule(request)` to bridge Jobs definitions to `ASTX.Triggers` lifecycle.
 - `ASTX.Jobs.configure(config, options)` / `ASTX.Jobs.getConfig()` / `ASTX.Jobs.clearConfig()`.
 
 High-signal behavior:
@@ -623,6 +624,7 @@ High-signal behavior:
 - retries are bounded by `maxRetries`; jobs pause on retryable step failure.
 - orchestration helpers return `result.orchestration` with parent/child/stage status aggregation.
 - DLQ replay updates preserve retry/failure metadata and support idempotent request replays.
+- schedule bridge upserts trigger definitions with `dispatch.mode='jobs'`, preserving enqueue/resume semantics.
 - currently supported checkpoint store is `properties`.
 
 ```javascript

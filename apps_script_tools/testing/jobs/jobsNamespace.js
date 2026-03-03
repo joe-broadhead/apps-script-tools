@@ -20,6 +20,7 @@ JOBS_NAMESPACE_TESTS = [
         'moveToDlq',
         'replayDlq',
         'purgeDlq',
+        'schedule',
         'configure',
         'getConfig',
         'clearConfig'

@@ -15,6 +15,12 @@ const AST_JOBS_ORCHESTRATION_ALLOWED_MODES = Object.freeze([
 const AST_JOBS_ORCHESTRATION_MAX_ITEMS = 5000;
 const AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = 10;
 const AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = 1000;
+const AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS = Object.freeze([
+  'upsert',
+  'list',
+  'delete',
+  'run_now'
+]);
 const AST_JOBS_DLQ_ALLOWED_STATES = Object.freeze([
   'queued',
   'replayed'
@@ -393,6 +399,63 @@ function astJobsValidatePurgeDlqRequest(request = {}) {
   };
 }
 
+function astJobsValidateScheduleRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('schedule request must be an object');
+  }
+
+  const operation = astJobsNormalizeString(request.operation, 'upsert').toLowerCase();
+  if (!AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS.includes(operation)) {
+    throw new AstJobsValidationError('Invalid schedule operation', {
+      operation
+    });
+  }
+
+  const id = astJobsNormalizeString(request.id || request.triggerId, null);
+  const triggerUid = astJobsNormalizeString(request.triggerUid, null);
+  const dryRun = Boolean(request.dryRun);
+
+  if (operation === 'upsert') {
+    const rawJob = astJobsIsPlainObject(request.job)
+      ? request.job
+      : {
+        name: request.name,
+        steps: request.steps,
+        options: request.options
+      };
+    const normalizedJob = astJobsValidateRunRequest(rawJob);
+
+    if (!astJobsIsPlainObject(request.schedule)) {
+      throw new AstJobsValidationError('schedule upsert requires a schedule object');
+    }
+
+    return {
+      operation,
+      id,
+      triggerUid: null,
+      dryRun,
+      enabled: typeof request.enabled === 'undefined' ? true : Boolean(request.enabled),
+      autoResumeJobs: typeof request.autoResumeJobs === 'undefined' ? false : Boolean(request.autoResumeJobs),
+      schedule: astJobsCloneObject(request.schedule),
+      metadata: astJobsIsPlainObject(request.metadata) ? astJobsCloneObject(request.metadata) : {},
+      job: normalizedJob
+    };
+  }
+
+  if ((operation === 'delete' || operation === 'run_now') && !id && !triggerUid) {
+    throw new AstJobsValidationError('schedule request requires id or triggerUid for delete/run_now operations');
+  }
+
+  return {
+    operation,
+    id,
+    triggerUid,
+    dryRun,
+    limit: astJobsNormalizePositiveInt(request.limit, 100, 1, 1000),
+    includeOrphans: Boolean(request.includeOrphans)
+  };
+}
+
 function astJobsNormalizeOrchestrationMode(mode, fallback = 'run') {
   const fallbackMode = astJobsNormalizeString(fallback, 'run').toLowerCase();
   if (!AST_JOBS_ORCHESTRATION_ALLOWED_MODES.includes(fallbackMode)) {
@@ -591,6 +654,7 @@ __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRAT
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
+__astJobsValidateRoot.AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS = AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS;
 __astJobsValidateRoot.AST_JOBS_DLQ_ALLOWED_STATES = AST_JOBS_DLQ_ALLOWED_STATES;
 __astJobsValidateRoot.AST_JOBS_DLQ_IN_DLQ_FILTERS = AST_JOBS_DLQ_IN_DLQ_FILTERS;
 __astJobsValidateRoot.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
@@ -607,6 +671,7 @@ __astJobsValidateRoot.astJobsValidateListFailedFilters = astJobsValidateListFail
 __astJobsValidateRoot.astJobsValidateMoveToDlqRequest = astJobsValidateMoveToDlqRequest;
 __astJobsValidateRoot.astJobsValidateReplayDlqRequest = astJobsValidateReplayDlqRequest;
 __astJobsValidateRoot.astJobsValidatePurgeDlqRequest = astJobsValidatePurgeDlqRequest;
+__astJobsValidateRoot.astJobsValidateScheduleRequest = astJobsValidateScheduleRequest;
 __astJobsValidateRoot.astJobsValidateChainRequest = astJobsValidateChainRequest;
 __astJobsValidateRoot.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
 __astJobsValidateRoot.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;
@@ -615,6 +680,7 @@ this.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRATION_ALLOWED_MODES
 this.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
 this.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
 this.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
+this.AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS = AST_JOBS_SCHEDULE_ALLOWED_OPERATIONS;
 this.AST_JOBS_DLQ_ALLOWED_STATES = AST_JOBS_DLQ_ALLOWED_STATES;
 this.AST_JOBS_DLQ_IN_DLQ_FILTERS = AST_JOBS_DLQ_IN_DLQ_FILTERS;
 this.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
@@ -631,6 +697,7 @@ this.astJobsValidateListFailedFilters = astJobsValidateListFailedFilters;
 this.astJobsValidateMoveToDlqRequest = astJobsValidateMoveToDlqRequest;
 this.astJobsValidateReplayDlqRequest = astJobsValidateReplayDlqRequest;
 this.astJobsValidatePurgeDlqRequest = astJobsValidatePurgeDlqRequest;
+this.astJobsValidateScheduleRequest = astJobsValidateScheduleRequest;
 this.astJobsValidateChainRequest = astJobsValidateChainRequest;
 this.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
 this.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;
