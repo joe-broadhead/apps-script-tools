@@ -4998,7 +4998,12 @@ function __astParseDataFrameResampleDate(value, methodName) {
     return value;
   }
 
-  const parsed = new Date(value);
+  let parsed;
+  try {
+    parsed = new Date(value);
+  } catch (_error) {
+    throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
+  }
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
   }

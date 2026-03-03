@@ -297,6 +297,23 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error('Expected resample to reject null/boolean timestamp values');
       }
 
+      const dfSymbolTs = DataFrame.fromRecords([
+        { ts: Symbol('ts'), value: 10 }
+      ]);
+      let symbolTsErr = null;
+      try {
+        dfSymbolTs.resample('1h', {
+          on: 'ts',
+          columns: ['value'],
+          agg: 'sum'
+        });
+      } catch (error) {
+        symbolTsErr = error;
+      }
+      if (!symbolTsErr || !String(symbolTsErr.message || symbolTsErr).includes('non-date timestamp value')) {
+        throw new Error('Expected resample to reject symbol timestamp values with deterministic error');
+      }
+
       let invalidAggObjectErr = null;
       try {
         df.resample('1h', {

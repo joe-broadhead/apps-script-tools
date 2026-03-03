@@ -251,9 +251,13 @@ test('DataFrame.resample rejects null and boolean timestamp values', () => {
   const dfBool = context.DataFrame.fromRecords([
     { ts: false, value: 10 }
   ]);
+  const dfSymbol = context.DataFrame.fromRecords([
+    { ts: Symbol('ts'), value: 10 }
+  ]);
 
   assert.throws(() => dfNull.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
   assert.throws(() => dfBool.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
+  assert.throws(() => dfSymbol.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
   assert.throws(() => dfBool.resample('1h', { on: 'ts', columns: ['value'], agg: new Date() }), /agg object must be a plain object/);
 });
 
