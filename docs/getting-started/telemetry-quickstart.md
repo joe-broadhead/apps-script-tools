@@ -55,9 +55,37 @@ function telemetryWithSpanExample() {
 }
 ```
 
+## Alert quickstart
+
+```javascript
+function telemetryAlertExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  ASTX.Telemetry.createAlertRule({
+    id: 'alert.demo.errors',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1,
+    windowSec: 300,
+    suppressionSec: 600,
+    query: {
+      filters: { types: ['span'], modules: ['demo'] }
+    }
+  }, { upsert: true });
+
+  const evaluated = ASTX.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.demo.errors'],
+    notify: false
+  });
+
+  Logger.log(JSON.stringify(evaluated.summary));
+}
+```
+
 ## Notes
 
 - Sensitive keys are redacted automatically in span/event context.
 - Choose `drive_json` or `storage_json` sinks for durable production traces.
 - Call `ASTX.Telemetry.flush()` when using buffered/manual flush modes.
 - Use `ASTX.Telemetry.query(...)` and `ASTX.Telemetry.aggregate(...)` for in-memory diagnostics and lightweight dashboards.
+- Use `ASTX.Telemetry.evaluateAlerts(...)` on a schedule and `suppressionSec` to avoid duplicate notifications.

@@ -42,8 +42,27 @@ function astTelemetryApiExport(request = {}) {
   return astTelemetryExport(request);
 }
 
+function astTelemetryApiCreateAlertRule(request = {}, options = {}) {
+  return astTelemetryCreateAlertRule(request, options);
+}
+
+function astTelemetryApiListAlertRules(request = {}) {
+  return astTelemetryListAlertRules(request);
+}
+
+function astTelemetryApiEvaluateAlerts(request = {}) {
+  return astTelemetryEvaluateAlerts(request);
+}
+
+function astTelemetryApiNotifyAlert(request = {}) {
+  return astTelemetryNotifyAlert(request);
+}
+
 function astTelemetryApiReset() {
   astTelemetryResetStore();
+  if (typeof astTelemetryResetAlertState === 'function') {
+    astTelemetryResetAlertState();
+  }
 }
 
 const AST_TELEMETRY = Object.freeze({
@@ -58,5 +77,9 @@ const AST_TELEMETRY = Object.freeze({
   query: astTelemetryApiQuery,
   aggregate: astTelemetryApiAggregate,
   export: astTelemetryApiExport,
+  createAlertRule: astTelemetryApiCreateAlertRule,
+  listAlertRules: astTelemetryApiListAlertRules,
+  evaluateAlerts: astTelemetryApiEvaluateAlerts,
+  notifyAlert: astTelemetryApiNotifyAlert,
   _reset: astTelemetryApiReset
 });

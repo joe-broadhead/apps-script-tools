@@ -132,6 +132,10 @@ test('AST exposes Telemetry namespace and core methods', () => {
   assert.equal(typeof context.AST.Telemetry.query, 'function');
   assert.equal(typeof context.AST.Telemetry.aggregate, 'function');
   assert.equal(typeof context.AST.Telemetry.export, 'function');
+  assert.equal(typeof context.AST.Telemetry.createAlertRule, 'function');
+  assert.equal(typeof context.AST.Telemetry.listAlertRules, 'function');
+  assert.equal(typeof context.AST.Telemetry.evaluateAlerts, 'function');
+  assert.equal(typeof context.AST.Telemetry.notifyAlert, 'function');
 });
 
 test('Telemetry redacts sensitive keys in span context', () => {
@@ -270,6 +274,284 @@ test('Telemetry aggregate computes grouped latency and error metrics', () => {
   assert.equal(aggregate.items[0].metrics.errorRate, 0.333333);
   assert.equal(aggregate.items[0].metrics.latencyMs.p50, 20);
   assert.equal(aggregate.items[0].metrics.latencyMs.p95, 29);
+});
+
+test('Telemetry alert rules can be created and listed with deterministic paging', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  const created = context.AST.Telemetry.createAlertRule({
+    id: 'alert.orders.errors',
+    name: 'Orders errors',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 2,
+    windowSec: 600,
+    suppressionSec: 120,
+    dimensions: ['module'],
+    labels: ['ops', 'orders'],
+    query: {
+      filters: {
+        types: ['span'],
+        modules: ['orders']
+      }
+    }
+  });
+
+  assert.equal(created.status, 'ok');
+  assert.equal(created.rule.id, 'alert.orders.errors');
+  assert.equal(created.rule.metric, 'error_count');
+  assert.deepEqual(Array.from(created.rule.dimensions), ['module']);
+
+  const listed = context.AST.Telemetry.listAlertRules({
+    ids: ['alert.orders.errors'],
+    page: {
+      limit: 10,
+      offset: 0
+    }
+  });
+
+  assert.equal(listed.status, 'ok');
+  assert.equal(listed.page.total, 1);
+  assert.equal(listed.items.length, 1);
+  assert.equal(listed.items[0].name, 'Orders errors');
+  assert.deepEqual(Array.from(listed.items[0].labels), ['ops', 'orders']);
+});
+
+test('Telemetry evaluateAlerts applies suppression windows deterministically', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  context.AST.Telemetry.createAlertRule({
+    id: 'alert.billing.errors',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1,
+    windowSec: 600,
+    suppressionSec: 300,
+    query: {
+      filters: {
+        modules: ['billing'],
+        types: ['span']
+      }
+    }
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('billing.charge', {
+    module: 'billing'
+  });
+  context.AST.Telemetry.endSpan(spanId, {
+    status: 'error'
+  });
+
+  const first = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.billing.errors']
+  });
+  assert.equal(first.status, 'ok');
+  assert.equal(first.summary.triggered, 1);
+  assert.equal(first.summary.suppressed, 0);
+
+  const second = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.billing.errors']
+  });
+  assert.equal(second.status, 'ok');
+  assert.equal(second.summary.triggered, 0);
+  assert.equal(second.summary.suppressed, 1);
+
+  const forcedTime = new Date(new Date(first.evaluatedAt).getTime() + 301000).toISOString();
+  const third = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.billing.errors'],
+    now: forcedTime
+  });
+  assert.equal(third.status, 'ok');
+  assert.equal(third.summary.triggered, 1);
+});
+
+test('Telemetry evaluateAlerts accepts now=0 without falling back to current time', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  context.AST.Telemetry.createAlertRule({
+    id: 'alert.now.epoch',
+    metric: 'count',
+    operator: 'gte',
+    threshold: 1,
+    windowSec: 60,
+    suppressionSec: 0,
+    minSamples: 1,
+    query: {
+      filters: {
+        types: ['span']
+      }
+    }
+  });
+
+  const evaluated = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.now.epoch'],
+    now: 0
+  });
+
+  assert.equal(evaluated.status, 'ok');
+  assert.equal(evaluated.evaluatedAt, '1970-01-01T00:00:00.000Z');
+});
+
+test('Telemetry notifyAlert supports logger/chat/email channels with dryRun mode', () => {
+  const logger = createLoggerCapture();
+  const fetchCalls = [];
+  const emailCalls = [];
+  const context = createGasContext({
+    Logger: logger.Logger,
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        fetchCalls.push({
+          url,
+          options
+        });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => '{}'
+        };
+      }
+    },
+    MailApp: {
+      sendEmail: (to, subject, body) => {
+        emailCalls.push({ to, subject, body });
+      }
+    }
+  });
+
+  loadTelemetryScripts(context, { includeAst: true });
+
+  const alert = {
+    alertId: 'alert_1',
+    ruleId: 'alert.orders.errors',
+    ruleName: 'Orders errors',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1,
+    value: 3,
+    sampleSize: 10,
+    groupKey: 'module=orders',
+    window: {
+      from: '2026-02-01T00:00:00.000Z',
+      to: '2026-02-01T00:05:00.000Z'
+    }
+  };
+
+  const dryRunResult = context.AST.Telemetry.notifyAlert({
+    alert,
+    dryRun: true,
+    channels: {
+      logger: true,
+      chatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/demo/messages',
+      emailTo: ['ops@example.com']
+    }
+  });
+
+  assert.equal(dryRunResult.status, 'ok');
+  assert.equal(dryRunResult.dryRun, true);
+  assert.equal(fetchCalls.length, 0);
+  assert.equal(emailCalls.length, 0);
+
+  const liveResult = context.AST.Telemetry.notifyAlert({
+    alert,
+    channels: {
+      logger: true,
+      chatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/demo/messages',
+      emailTo: ['ops@example.com']
+    }
+  });
+
+  assert.equal(liveResult.status, 'ok');
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(emailCalls.length, 1);
+  assert.ok(logger.logs.length > 0);
+});
+
+test('Telemetry evaluateAlerts continues when notify channel fails', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => ({
+        getResponseCode: () => 500,
+        getContentText: () => '{"error":"boom"}'
+      })
+    }
+  });
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  context.AST.Telemetry.createAlertRule({
+    id: 'alert.notify.failure',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1,
+    windowSec: 600,
+    suppressionSec: 0,
+    channels: {
+      logger: false,
+      chatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/demo/messages'
+    },
+    query: {
+      filters: {
+        modules: ['billing'],
+        types: ['span']
+      }
+    }
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('billing.capture', {
+    module: 'billing'
+  });
+  context.AST.Telemetry.endSpan(spanId, {
+    status: 'error'
+  });
+
+  const evaluated = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.notify.failure'],
+    notify: true
+  });
+
+  assert.equal(evaluated.status, 'ok');
+  assert.equal(evaluated.summary.triggered, 1);
+  assert.equal(Array.isArray(evaluated.notifications), true);
+  assert.equal(evaluated.notifications.length, 1);
+  assert.equal(evaluated.notifications[0].status, 'error');
+});
+
+test('Telemetry notifyAlert rejects non-https chat webhook URLs', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  assert.throws(() => {
+    context.AST.Telemetry.notifyAlert({
+      alert: {
+        alertId: 'alert_invalid_webhook',
+        ruleId: 'alert.orders.errors',
+        metric: 'error_count',
+        operator: 'gte',
+        threshold: 1,
+        value: 2,
+        sampleSize: 10,
+        groupKey: '__all__',
+        window: { from: '2026-02-01T00:00:00.000Z', to: '2026-02-01T00:05:00.000Z' }
+      },
+      channels: {
+        logger: false,
+        chatWebhookUrl: 'http://insecure.example.com/webhook'
+      }
+    });
+  }, /chatWebhookUrl must use https/i);
 });
 
 test('Telemetry export writes ndjson payload to storage destination', () => {

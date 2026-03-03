@@ -531,6 +531,10 @@ Primary methods:
 - `ASTX.Telemetry.query(request)` to filter/paginate normalized span and event records.
 - `ASTX.Telemetry.aggregate(request)` to compute grouped counts, error-rate, and p50/p95 latency metrics.
 - `ASTX.Telemetry.export(request)` to export query output as `json`, `ndjson`, or `csv` (inline, Drive, or Storage).
+- `ASTX.Telemetry.createAlertRule(request, options)` to register threshold/window rule definitions.
+- `ASTX.Telemetry.listAlertRules(request)` to list/filter persisted in-memory alert rules.
+- `ASTX.Telemetry.evaluateAlerts(request)` to compute trigger/suppression state over current telemetry windows.
+- `ASTX.Telemetry.notifyAlert(request)` to send logger/chat/email notifications for evaluated alerts.
 
 Sink support:
 
@@ -545,6 +549,7 @@ High-signal behavior:
 - telemetry calls should never block functional execution paths.
 - span IDs and trace IDs are generated if not supplied.
 - query/aggregate operates on the in-memory telemetry store (already redacted records).
+- alert rules support deterministic suppression windows (`suppressionSec`) and grouped dimensions (`module`, `name`, etc.).
 
 ```javascript
 const traceSpan = ASTX.Telemetry.startSpan('demo.operation', {

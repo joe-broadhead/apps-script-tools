@@ -135,6 +135,10 @@
   - new methods: `AST.Telemetry.query(...)`, `AST.Telemetry.aggregate(...)`, `AST.Telemetry.export(...)`
   - grouped latency/error metrics (`count`, `errorRate`, `p50`, `p95`, `avg`, `min`, `max`)
   - export formats: `json`, `ndjson`, `csv` (inline, Drive, or Storage destinations)
+- Telemetry alert pipeline APIs:
+  - new methods: `AST.Telemetry.createAlertRule(...)`, `AST.Telemetry.listAlertRules(...)`, `AST.Telemetry.evaluateAlerts(...)`, `AST.Telemetry.notifyAlert(...)`
+  - threshold/window rule model with grouped dimensions and deterministic suppression windows
+  - built-in notification channels: logger, Google Chat webhook, and email (`MailApp`/`GmailApp`)
 - `AST.Config` typed schema binding:
   - new methods: `AST.Config.schema(...)` and `AST.Config.bind(...)`
   - typed field support: `string`, `int`, `float`, `bool`, `enum`, `json`, `secret-ref`
