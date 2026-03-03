@@ -133,6 +133,58 @@ const agg = ASTX.Telemetry.aggregate({
 });
 ```
 
+## Alert rules and runbooks
+
+Register an alert rule:
+
+```javascript
+ASTX.Telemetry.createAlertRule({
+  id: 'alert.rag.error-rate',
+  name: 'RAG error rate > 5%',
+  metric: 'error_rate',
+  operator: 'gt',
+  threshold: 5,
+  windowSec: 300,
+  suppressionSec: 900,
+  minSamples: 25,
+  dimensions: ['module'],
+  query: {
+    filters: {
+      modules: ['rag'],
+      types: ['span']
+    }
+  },
+  channels: {
+    logger: true,
+    emailTo: ['ops@example.com']
+  }
+}, { upsert: true });
+```
+
+Evaluate and notify:
+
+```javascript
+const result = ASTX.Telemetry.evaluateAlerts({
+  ruleIds: ['alert.rag.error-rate'],
+  notify: true
+});
+
+Logger.log(JSON.stringify(result.summary));
+```
+
+Alert tuning guidance:
+
+- Start with `windowSec` between `300` and `900` for noisy workloads.
+- Set `minSamples` to avoid low-volume false positives.
+- Set `suppressionSec` to at least 2x your evaluation schedule interval.
+- Prefer `dimensions: ['module']` before adding higher-cardinality keys.
+
+Operational runbook suggestions:
+
+- `triggered`: investigate recent traces/events with `ASTX.Telemetry.query(...)` for the same window.
+- `suppressed`: check remaining suppression time in `item.suppression.remainingMs`.
+- `insufficient_samples`: either increase traffic window or lower `minSamples`.
+
 Export query output to storage:
 
 ```javascript

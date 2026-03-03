@@ -456,6 +456,10 @@ ASTX.Telemetry.flush(options)
 ASTX.Telemetry.query(request)
 ASTX.Telemetry.aggregate(request)
 ASTX.Telemetry.export(request)
+ASTX.Telemetry.createAlertRule(request, options)
+ASTX.Telemetry.listAlertRules(request)
+ASTX.Telemetry.evaluateAlerts(request)
+ASTX.Telemetry.notifyAlert(request)
 ```
 
 ## `TelemetryHelpers` essentials

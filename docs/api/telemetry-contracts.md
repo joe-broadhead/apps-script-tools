@@ -22,6 +22,10 @@ ASTX.Telemetry.flush(options)
 ASTX.Telemetry.query(request)
 ASTX.Telemetry.aggregate(request)
 ASTX.Telemetry.export(request)
+ASTX.Telemetry.createAlertRule(request, options)
+ASTX.Telemetry.listAlertRules(request)
+ASTX.Telemetry.evaluateAlerts(request)
+ASTX.Telemetry.notifyAlert(request)
 ```
 
 ## Config contract
@@ -168,6 +172,80 @@ const exported = ASTX.Telemetry.export({
 ```
 
 `export(...)` returns metadata (`format`, `mimeType`, `count`, `bytes`, `destination`) and optional inline payload via `data` when `includeData=true` or no destination is provided.
+
+## Alert rule contract
+
+```javascript
+ASTX.Telemetry.createAlertRule({
+  id: 'alert.orders.errors',
+  name: 'Orders error rate',
+  enabled: true,
+  metric: 'error_rate', // count | error_count | error_rate | p95_duration_ms | avg_duration_ms
+  operator: 'gte', // gt | gte | lt | lte | eq | neq
+  threshold: 5,
+  windowSec: 300,
+  suppressionSec: 600,
+  minSamples: 20,
+  dimensions: ['module'],
+  query: {
+    filters: { types: ['span'], modules: ['orders'] }
+  },
+  channels: {
+    logger: true,
+    chatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/.../messages',
+    emailTo: ['ops@example.com'],
+    emailSubjectPrefix: '[Prod Alert]'
+  }
+}, {
+  upsert: true
+});
+```
+
+`listAlertRules(...)` response includes paged `items[]` and normalized rule metadata (`createdAt`, `updatedAt`, labels/channels/query).
+
+## Alert evaluation contract
+
+```javascript
+const evaluated = ASTX.Telemetry.evaluateAlerts({
+  ruleIds: ['alert.orders.errors'],
+  notify: true,
+  dryRun: false,
+  includeSuppressed: true
+});
+```
+
+`evaluateAlerts(...)` returns:
+
+- `status`, `evaluatedAt`, `dryRun`, `notify`
+- `summary`: `evaluatedRules`, `triggered`, `suppressed`, `insufficientSamples`, `ok`, `notified`
+- `items[]`: per-rule/per-dimension outcomes with `status` (`triggered`, `suppressed`, `ok`, `insufficient_samples`) and metric details
+- `notifications[]`: optional channel delivery summaries when `notify=true`
+
+Suppression behavior is deterministic:
+
+- suppression key is `ruleId + dimension-group key`
+- alerts are suppressed until `suppressionSec` elapses
+- `dryRun=true` computes outcomes without mutating suppression state
+
+## Notification contract
+
+```javascript
+ASTX.Telemetry.notifyAlert({
+  alert: evaluated.items[0],
+  channels: {
+    logger: true,
+    chatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/.../messages',
+    emailTo: ['ops@example.com']
+  },
+  dryRun: false
+});
+```
+
+Supported channels:
+
+- `logger`
+- `chatWebhookUrl` (`https://` required)
+- `emailTo` (via `MailApp.sendEmail` fallback `GmailApp.sendEmail`)
 
 Manual flush example:
 
