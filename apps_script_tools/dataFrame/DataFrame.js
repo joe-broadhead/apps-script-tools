@@ -1789,6 +1789,333 @@ var DataFrame = class DataFrame {
   }
 
   /**
+   * Stack wide columns into a long-form DataFrame.
+   *
+   * @param {Object} [options={}]
+   * @param {string[]|string} [options.columns] columns to stack (default: all columns)
+   * @param {string} [options.indexName='row_index']
+   * @param {string} [options.columnName='column']
+   * @param {string} [options.valueName='value']
+   * @param {boolean} [options.dropNulls=true]
+   * @returns {DataFrame}
+   */
+  stack(options = {}) {
+    const normalized = __astNormalizeDataFrameStackOptions(this, options, 'stack');
+    const outputColumns = {
+      [normalized.indexName]: [],
+      [normalized.columnName]: [],
+      [normalized.valueName]: []
+    };
+    const stackRowPositions = [];
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        const columnName = normalized.columns[colIdx];
+        const value = this.data[columnName].array[rowIdx];
+
+        if (normalized.dropNulls && __astDataFrameIsMissingValue(value)) {
+          continue;
+        }
+
+        outputColumns[normalized.indexName].push(this.index[rowIdx]);
+        outputColumns[normalized.columnName].push(columnName);
+        outputColumns[normalized.valueName].push(value);
+        stackRowPositions.push(rowIdx);
+      }
+    }
+
+    const result = DataFrame.fromColumns(outputColumns, { copy: false });
+    __astAttachDataFrameStackMetadata(result, {
+      indexColumn: normalized.indexName,
+      columnColumn: normalized.columnName,
+      valueColumn: normalized.valueName,
+      rowPositions: stackRowPositions,
+      stackedColumns: [...normalized.columns],
+      sourceIndex: [...this.index]
+    });
+    return result;
+  }
+
+  /**
+   * Unstack a long-form DataFrame produced by `stack` into wide form.
+   *
+   * @param {Object} [options={}]
+   * @param {string} [options.indexColumn='row_index']
+   * @param {string} [options.columnColumn='column']
+   * @param {string} [options.valueColumn='value']
+   * @param {'first'|'last'|'sum'|'mean'|'min'|'max'|'count'|Function} [options.agg='first']
+   * @param {*} [options.fillValue=null]
+   * @param {boolean} [options.dropIndexColumn=true]
+   * @param {boolean} [options.preserveIndex=true]
+   * @returns {DataFrame}
+   */
+  unstack(options = {}) {
+    const normalized = __astNormalizeDataFrameUnstackOptions(this, options, 'unstack');
+    const grouped = new Map();
+    const indexEntries = [];
+    const stackMetadata = __astGetDataFrameStackMetadata(this, normalized);
+    const stackIndexLookup = stackMetadata ? new Map() : null;
+    const indexLookup = new Map();
+    let indexIdentityCounter = 0;
+    const pivotEntries = [];
+    const pivotSeen = new Set();
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const indexValue = this.data[normalized.indexColumn].array[rowIdx];
+      const pivotValue = this.data[normalized.columnColumn].array[rowIdx];
+      const value = this.data[normalized.valueColumn].array[rowIdx];
+
+      const indexKey = __astBuildDataFrameLabelLookupKey(indexValue);
+      const pivotKey = __astBuildDataFrameLabelLookupKey(pivotValue);
+      let indexEntry;
+
+      if (stackMetadata) {
+        const stackRowPosition = stackMetadata.rowPositions[rowIdx];
+        indexEntry = stackIndexLookup.get(stackRowPosition);
+        if (!indexEntry) {
+          indexEntry = {
+            value: indexValue,
+            rowPosition: stackRowPosition,
+            groupedKey: `stack:${stackRowPosition}`
+          };
+          stackIndexLookup.set(stackRowPosition, indexEntry);
+          indexEntries.push(indexEntry);
+        }
+      } else {
+        indexEntry = null;
+        let indexBucket = indexLookup.get(indexKey);
+        if (!indexBucket) {
+          indexBucket = [];
+          indexLookup.set(indexKey, indexBucket);
+        }
+        for (let idx = 0; idx < indexBucket.length; idx++) {
+          if (__astAreDataFrameIndexLabelsEqual(indexBucket[idx].value, indexValue)) {
+            indexEntry = indexBucket[idx];
+            break;
+          }
+        }
+        if (!indexEntry) {
+          indexIdentityCounter += 1;
+          indexEntry = {
+            value: indexValue,
+            groupedKey: `${indexKey}::${indexIdentityCounter}`
+          };
+          indexBucket.push(indexEntry);
+          indexEntries.push(indexEntry);
+        }
+      }
+      const groupedKey = JSON.stringify([indexEntry.groupedKey, pivotKey]);
+
+      if (!pivotSeen.has(pivotKey)) {
+        pivotSeen.add(pivotKey);
+        pivotEntries.push({
+          key: pivotKey,
+          value: pivotValue,
+          outputName: __astBuildDataFrameUnstackOutputColumnName(pivotValue)
+        });
+      }
+
+      if (!grouped.has(groupedKey)) {
+        grouped.set(groupedKey, []);
+      }
+      grouped.get(groupedKey).push(value);
+    }
+
+    if (stackMetadata && Array.isArray(stackMetadata.sourceIndex)) {
+      for (let sourceRowPosition = 0; sourceRowPosition < stackMetadata.sourceIndex.length; sourceRowPosition++) {
+        if (stackIndexLookup.has(sourceRowPosition)) {
+          continue;
+        }
+        const indexEntry = {
+          value: stackMetadata.sourceIndex[sourceRowPosition],
+          rowPosition: sourceRowPosition,
+          groupedKey: `stack:${sourceRowPosition}`
+        };
+        stackIndexLookup.set(sourceRowPosition, indexEntry);
+        indexEntries.push(indexEntry);
+      }
+      indexEntries.sort((left, right) => left.rowPosition - right.rowPosition);
+    }
+
+    if (stackMetadata
+      && Array.isArray(stackMetadata.stackedColumns)
+      && stackMetadata.stackedColumns.length > 0) {
+      for (let stackColIdx = 0; stackColIdx < stackMetadata.stackedColumns.length; stackColIdx++) {
+        const stackedColumnName = stackMetadata.stackedColumns[stackColIdx];
+        const pivotKey = __astBuildDataFrameLabelLookupKey(stackedColumnName);
+        if (pivotSeen.has(pivotKey)) {
+          continue;
+        }
+        pivotSeen.add(pivotKey);
+        pivotEntries.push({
+          key: pivotKey,
+          value: stackedColumnName,
+          outputName: __astBuildDataFrameUnstackOutputColumnName(stackedColumnName)
+        });
+      }
+    }
+
+    const outputColumns = {};
+    if (!normalized.dropIndexColumn) {
+      outputColumns[normalized.indexColumn] = new Array(indexEntries.length);
+    }
+
+    for (let pivotIdx = 0; pivotIdx < pivotEntries.length; pivotIdx++) {
+      const entry = pivotEntries[pivotIdx];
+      if (Object.prototype.hasOwnProperty.call(outputColumns, entry.outputName)) {
+        throw new Error(
+          `DataFrame.unstack produced duplicate output column name '${entry.outputName}'`
+        );
+      }
+      outputColumns[entry.outputName] = new Array(indexEntries.length);
+    }
+
+    for (let rowIdx = 0; rowIdx < indexEntries.length; rowIdx++) {
+      const indexEntry = indexEntries[rowIdx];
+      if (!normalized.dropIndexColumn) {
+        outputColumns[normalized.indexColumn][rowIdx] = indexEntry.value;
+      }
+
+      for (let pivotIdx = 0; pivotIdx < pivotEntries.length; pivotIdx++) {
+        const pivotEntry = pivotEntries[pivotIdx];
+        const groupedKey = JSON.stringify([indexEntry.groupedKey, pivotEntry.key]);
+        const values = grouped.get(groupedKey) || [];
+        const aggregated = __astApplyDataFrameResampleAggregation(
+          values,
+          normalized.agg,
+          'unstack',
+          pivotEntry.outputName
+        );
+
+        outputColumns[pivotEntry.outputName][rowIdx] = aggregated == null
+          ? normalized.fillValue
+          : aggregated;
+      }
+    }
+
+    const result = DataFrame.fromColumns(outputColumns, { copy: false });
+    if (normalized.preserveIndex && result.len() === indexEntries.length) {
+      result.index = indexEntries.map(entry => entry.value);
+    }
+
+    return result;
+  }
+
+  /**
+   * Resample rows into time buckets using index labels or a datetime column.
+   *
+   * @param {string} rule bucket rule (e.g. 15m, 1h, 1d, 1w, 1M)
+   * @param {Object} [options={}]
+   * @param {string} [options.on] datetime column; defaults to index labels
+   * @param {string[]|string} [options.columns] target columns to aggregate
+   * @param {'left'|'right'} [options.label='left'] bucket label edge
+   * @param {'sum'|'mean'|'min'|'max'|'count'|'first'|'last'|Function|Object} [options.agg='mean']
+   * @param {*} [options.fillValue=null]
+   * @returns {DataFrame}
+   */
+  resample(rule, options = {}) {
+    const normalized = __astNormalizeDataFrameResampleOptions(this, rule, options, 'resample');
+    const grouped = new Map();
+    let minBucketStart = null;
+    let maxBucketStart = null;
+
+    for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
+      const rawTimestamp = normalized.on == null
+        ? this.index[rowIdx]
+        : this.data[normalized.on].array[rowIdx];
+      const timestamp = __astParseDataFrameResampleDate(rawTimestamp, 'resample');
+      const bucketStart = __astComputeDataFrameResampleBucketStart(
+        timestamp,
+        normalized.rule.unit,
+        normalized.rule.interval
+      );
+      const bucketLabel = normalized.label === 'right'
+        ? __astComputeDataFrameResampleBucketEndExclusive(bucketStart, normalized.rule.unit, normalized.rule.interval)
+        : bucketStart;
+      const bucketKey = bucketStart.toISOString();
+      const bucketTime = bucketStart.getTime();
+      if (minBucketStart == null || bucketTime < minBucketStart.getTime()) {
+        minBucketStart = bucketStart;
+      }
+      if (maxBucketStart == null || bucketTime > maxBucketStart.getTime()) {
+        maxBucketStart = bucketStart;
+      }
+
+      if (!grouped.has(bucketKey)) {
+        const columnValues = __astBuildDataFrameResampleValueColumns(normalized.columns);
+        grouped.set(bucketKey, {
+          bucketStart,
+          label: bucketLabel,
+          valuesByColumn: columnValues
+        });
+      }
+
+      const group = grouped.get(bucketKey);
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        const columnName = normalized.columns[colIdx];
+        group.valuesByColumn[columnName].push(this.data[columnName].array[rowIdx]);
+      }
+    }
+
+    const buckets = [];
+    if (minBucketStart != null && maxBucketStart != null) {
+      let cursor = new Date(minBucketStart.getTime());
+      const maxTime = maxBucketStart.getTime();
+
+      while (cursor.getTime() <= maxTime) {
+        const cursorKey = cursor.toISOString();
+        const existing = grouped.get(cursorKey);
+        if (existing) {
+          buckets.push(existing);
+        } else {
+          const bucketStart = new Date(cursor.getTime());
+          buckets.push({
+            bucketStart,
+            label: normalized.label === 'right'
+              ? __astComputeDataFrameResampleBucketEndExclusive(bucketStart, normalized.rule.unit, normalized.rule.interval)
+              : bucketStart,
+            valuesByColumn: __astBuildDataFrameResampleValueColumns(normalized.columns)
+          });
+        }
+
+        const next = __astComputeDataFrameResampleBucketEndExclusive(cursor, normalized.rule.unit, normalized.rule.interval);
+        if (!(next instanceof Date) || Number.isNaN(next.getTime()) || next.getTime() <= cursor.getTime()) {
+          throw new Error('DataFrame.resample could not advance bucket cursor');
+        }
+        cursor = next;
+      }
+    }
+
+    const outputColumns = {};
+    for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+      outputColumns[normalized.columns[colIdx]] = new Array(buckets.length);
+    }
+
+    for (let bucketIdx = 0; bucketIdx < buckets.length; bucketIdx++) {
+      const bucket = buckets[bucketIdx];
+      for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
+        const columnName = normalized.columns[colIdx];
+        const aggregation = Object.prototype.hasOwnProperty.call(normalized.aggByColumn, columnName)
+          ? normalized.aggByColumn[columnName]
+          : normalized.defaultAgg;
+        const aggregated = __astApplyDataFrameResampleAggregation(
+          bucket.valuesByColumn[columnName],
+          aggregation,
+          'resample',
+          columnName
+        );
+        outputColumns[columnName][bucketIdx] = aggregated == null
+          ? normalized.fillValue
+          : aggregated;
+      }
+    }
+
+    const result = DataFrame.fromColumns(outputColumns, { copy: false });
+    result.index = buckets.map(bucket => bucket.label);
+    return result;
+  }
+
+  /**
    * Build a pivot table with aggregation and missing-fill behavior.
    *
    * @param {Object} [options={}]
@@ -4356,6 +4683,567 @@ function __astFormatDataFrameLabel(label) {
 
 function __astFormatDataFrameLabelList(labels) {
   return labels.map(label => `'${__astFormatDataFrameLabel(label)}'`).join(', ');
+}
+
+function __astNormalizeDataFrameStackOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const columns = __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName);
+  const indexName = __astValidateColumnName(
+    options.indexName == null ? 'row_index' : options.indexName,
+    `${methodName}.indexName`
+  );
+  const columnName = __astValidateColumnName(
+    options.columnName == null ? 'column' : options.columnName,
+    `${methodName}.columnName`
+  );
+  const valueName = __astValidateColumnName(
+    options.valueName == null ? 'value' : options.valueName,
+    `${methodName}.valueName`
+  );
+  if (options.dropNulls != null && typeof options.dropNulls !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option dropNulls must be boolean`);
+  }
+  const dropNulls = options.dropNulls == null ? true : options.dropNulls;
+
+  const uniqueNames = new Set([indexName, columnName, valueName]);
+  if (uniqueNames.size !== 3) {
+    throw new Error(`DataFrame.${methodName} requires distinct indexName/columnName/valueName`);
+  }
+
+  if (__astDataFrameIsDangerousObjectKey(indexName)
+    || __astDataFrameIsDangerousObjectKey(columnName)
+    || __astDataFrameIsDangerousObjectKey(valueName)) {
+    throw new Error(`DataFrame.${methodName} output names must not be one of: __proto__, prototype, constructor`);
+  }
+
+  return {
+    columns,
+    indexName,
+    columnName,
+    valueName,
+    dropNulls
+  };
+}
+
+function __astBuildDataFrameUnstackOutputColumnName(value) {
+  let outputName = '';
+  if (typeof value === 'string' && value.trim().length > 0) {
+    outputName = value;
+  } else if (value === null) {
+    outputName = 'null';
+  } else if (value === undefined) {
+    outputName = 'undefined';
+  } else if (value instanceof Date) {
+    outputName = __astFormatDataFrameDateForKey(value);
+  } else {
+    outputName = String(value);
+  }
+
+  if (__astDataFrameIsDangerousObjectKey(outputName)) {
+    throw new Error(`DataFrame.unstack produced unsupported output column name '${outputName}'`);
+  }
+
+  return outputName;
+}
+
+function __astNormalizeDataFrameUnstackOptions(dataframe, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const indexColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
+    options.indexColumn == null ? 'row_index' : options.indexColumn,
+    `DataFrame.${methodName} option indexColumn`
+  );
+  const columnColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
+    options.columnColumn == null ? 'column' : options.columnColumn,
+    `DataFrame.${methodName} option columnColumn`
+  );
+  const valueColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
+    options.valueColumn == null ? 'value' : options.valueColumn,
+    `DataFrame.${methodName} option valueColumn`
+  );
+
+  const agg = __astNormalizeDataFrameResampleAggregation(
+    options.agg == null ? 'first' : options.agg,
+    methodName,
+    valueColumn
+  );
+  const fillValue = Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null;
+  if (options.dropIndexColumn != null && typeof options.dropIndexColumn !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option dropIndexColumn must be boolean`);
+  }
+  const dropIndexColumn = options.dropIndexColumn == null ? true : options.dropIndexColumn;
+  if (options.preserveIndex != null && typeof options.preserveIndex !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option preserveIndex must be boolean`);
+  }
+  const preserveIndex = options.preserveIndex == null ? true : options.preserveIndex;
+
+  return {
+    indexColumn,
+    columnColumn,
+    valueColumn,
+    agg,
+    fillValue,
+    dropIndexColumn,
+    preserveIndex
+  };
+}
+
+function __astNormalizeDataFrameResampleRule(rule, methodName) {
+  if (typeof rule !== 'string' || rule.trim().length === 0) {
+    throw new Error(`DataFrame.${methodName} rule must be a non-empty string`);
+  }
+
+  const parsed = rule.trim().match(/^(\d+)?\s*([A-Za-z]+)$/);
+  if (!parsed) {
+    throw new Error(`DataFrame.${methodName} rule must match <interval><unit> (e.g. 15m, 1h, 1d, 1w, 1M)`);
+  }
+
+  const interval = parsed[1] == null ? 1 : Number(parsed[1]);
+  if (!Number.isInteger(interval) || interval <= 0) {
+    throw new Error(`DataFrame.${methodName} rule interval must be a positive integer`);
+  }
+
+  const rawUnit = parsed[2];
+  let unit = '';
+  if (rawUnit === 'M') {
+    unit = 'month';
+  } else {
+    const normalizedUnit = rawUnit.toLowerCase();
+    if (normalizedUnit === 'm' || normalizedUnit === 'min') unit = 'minute';
+    else if (normalizedUnit === 'h' || normalizedUnit === 'hr' || normalizedUnit === 'hour') unit = 'hour';
+    else if (normalizedUnit === 'd' || normalizedUnit === 'day') unit = 'day';
+    else if (normalizedUnit === 'w' || normalizedUnit === 'week') unit = 'week';
+    else if (normalizedUnit === 's' || normalizedUnit === 'sec' || normalizedUnit === 'second') unit = 'second';
+  }
+
+  if (!unit) {
+    throw new Error(`DataFrame.${methodName} rule unit '${rawUnit}' is unsupported`);
+  }
+
+  return { interval, unit };
+}
+
+function __astNormalizeDataFrameResampleAggregation(agg, methodName, columnName) {
+  if (typeof agg === 'function') {
+    return agg;
+  }
+
+  const normalized = String(agg || '')
+    .trim()
+    .toLowerCase();
+  const supported = ['sum', 'mean', 'min', 'max', 'count', 'first', 'last'];
+  if (!supported.includes(normalized)) {
+    throw new Error(
+      `DataFrame.${methodName} aggregation for '${columnName}' must be one of: ${supported.join(', ')}`
+    );
+  }
+  return normalized;
+}
+
+function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`DataFrame.${methodName} options must be an object`);
+  }
+
+  const normalizedRule = __astNormalizeDataFrameResampleRule(rule, methodName);
+  const on = options.on == null
+    ? null
+    : __astNormalizeDataFrameResampleColumnName(dataframe, options.on, `${methodName}.on`);
+
+  const label = options.label == null ? 'left' : String(options.label).toLowerCase();
+  if (!['left', 'right'].includes(label)) {
+    throw new Error(`DataFrame.${methodName} option label must be one of: left, right`);
+  }
+
+  let columns = __astNormalizeDataFrameColumnList(dataframe, options.columns, 'columns', methodName);
+  if (on != null) {
+    columns = columns.filter(column => column !== on);
+  }
+
+  const fillValue = Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null;
+  const agg = options.agg == null ? 'mean' : options.agg;
+  const aggByColumn = {};
+  let defaultAgg = 'mean';
+
+  if (agg != null && typeof agg === 'object' && !Array.isArray(agg) && typeof agg !== 'function') {
+    if (!__astDataFrameIsPlainObject(agg)) {
+      throw new Error(`DataFrame.${methodName} option agg object must be a plain object`);
+    }
+    defaultAgg = 'mean';
+    const keys = Object.keys(agg);
+    for (let idx = 0; idx < keys.length; idx++) {
+      const columnName = __astNormalizeDataFrameResampleColumnName(
+        dataframe,
+        keys[idx],
+        `${methodName}.agg key`
+      );
+      aggByColumn[columnName] = __astNormalizeDataFrameResampleAggregation(agg[keys[idx]], methodName, columnName);
+    }
+  } else {
+    defaultAgg = __astNormalizeDataFrameResampleAggregation(agg, methodName, '*');
+  }
+
+  if (columns.length === 0) {
+    const aggKeys = Object.keys(aggByColumn);
+    const canFallbackToOnCount = on != null
+      && (
+        (aggKeys.length === 0 && defaultAgg === 'count')
+        || (
+          aggKeys.length === 1
+          && aggKeys[0] === on
+          && aggByColumn[on] === 'count'
+        )
+      );
+    if (canFallbackToOnCount) {
+      columns = [on];
+    } else {
+      throw new Error(`DataFrame.${methodName} requires at least one value column`);
+    }
+  }
+
+  const aggColumns = Object.keys(aggByColumn);
+  for (let idx = 0; idx < aggColumns.length; idx++) {
+    const columnName = aggColumns[idx];
+    if (!columns.includes(columnName)) {
+      throw new Error(`DataFrame.${methodName} option agg references unknown value column '${columnName}'`);
+    }
+  }
+
+  return {
+    rule: normalizedRule,
+    on,
+    columns,
+    label,
+    fillValue,
+    defaultAgg,
+    aggByColumn
+  };
+}
+
+function __astNormalizeDataFrameResampleColumnName(dataframe, columnName, contextName) {
+  if (typeof columnName !== 'string' || columnName.trim().length === 0) {
+    throw new Error(`${contextName} must be a non-empty string`);
+  }
+  if (!dataframe.columns.includes(columnName)) {
+    throw new Error(`${contextName} references unknown column '${columnName}'`);
+  }
+  return columnName;
+}
+
+function __astAttachDataFrameStackMetadata(dataframe, metadata) {
+  if (!(dataframe instanceof DataFrame)) {
+    return;
+  }
+  if (!metadata || typeof metadata !== 'object') {
+    return;
+  }
+  if (!Array.isArray(metadata.rowPositions)) {
+    return;
+  }
+
+  Object.defineProperty(dataframe, '__astStackMetadata', {
+    value: {
+      indexColumn: metadata.indexColumn,
+      columnColumn: metadata.columnColumn,
+      valueColumn: metadata.valueColumn,
+      rowPositions: [...metadata.rowPositions],
+      stackedColumns: Array.isArray(metadata.stackedColumns) ? [...metadata.stackedColumns] : null,
+      sourceIndex: Array.isArray(metadata.sourceIndex) ? [...metadata.sourceIndex] : null
+    },
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+}
+
+function __astGetDataFrameStackMetadata(dataframe, normalized) {
+  if (!dataframe || !normalized) {
+    return null;
+  }
+  const metadata = dataframe.__astStackMetadata;
+  if (!metadata || typeof metadata !== 'object') {
+    return null;
+  }
+  if (!Array.isArray(metadata.rowPositions) || metadata.rowPositions.length !== dataframe.len()) {
+    return null;
+  }
+  if (metadata.indexColumn !== normalized.indexColumn
+    || metadata.columnColumn !== normalized.columnColumn
+    || metadata.valueColumn !== normalized.valueColumn) {
+    return null;
+  }
+
+  for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
+    if (!Number.isInteger(metadata.rowPositions[idx]) || metadata.rowPositions[idx] < 0) {
+      return null;
+    }
+  }
+  if (metadata.sourceIndex != null) {
+    if (!Array.isArray(metadata.sourceIndex)) {
+      return null;
+    }
+    for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
+      if (metadata.rowPositions[idx] >= metadata.sourceIndex.length) {
+        return null;
+      }
+    }
+  }
+  if (metadata.stackedColumns != null) {
+    if (!Array.isArray(metadata.stackedColumns)) {
+      return null;
+    }
+    for (let idx = 0; idx < metadata.stackedColumns.length; idx++) {
+      if (typeof metadata.stackedColumns[idx] !== 'string') {
+        return null;
+      }
+    }
+  }
+
+  return metadata;
+}
+
+function __astBuildDataFrameResampleValueColumns(columnNames) {
+  const columnValues = {};
+  for (let idx = 0; idx < columnNames.length; idx++) {
+    columnValues[columnNames[idx]] = [];
+  }
+  return columnValues;
+}
+
+function __astParseDataFrameResampleDate(value, methodName) {
+  if (__astDataFrameIsMissingValue(value) || typeof value === 'boolean') {
+    throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new Error(`DataFrame.${methodName} encountered Invalid Date while parsing timestamps`);
+    }
+    return value;
+  }
+
+  let parsed;
+  try {
+    parsed = new Date(value);
+  } catch (_error) {
+    throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
+  }
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
+  }
+
+  return parsed;
+}
+
+function __astComputeDataFrameResampleBucketStart(dateValue, unit, interval) {
+  const time = dateValue.getTime();
+
+  if (unit === 'second') {
+    const bucketSize = interval * 1000;
+    return new Date(Math.floor(time / bucketSize) * bucketSize);
+  }
+
+  if (unit === 'minute') {
+    const bucketSize = interval * 60 * 1000;
+    return new Date(Math.floor(time / bucketSize) * bucketSize);
+  }
+
+  if (unit === 'hour') {
+    const bucketSize = interval * 60 * 60 * 1000;
+    return new Date(Math.floor(time / bucketSize) * bucketSize);
+  }
+
+  if (unit === 'day') {
+    const bucketSize = interval * 24 * 60 * 60 * 1000;
+    return new Date(Math.floor(time / bucketSize) * bucketSize);
+  }
+
+  if (unit === 'week') {
+    const weekSize = interval * 7 * 24 * 60 * 60 * 1000;
+    const mondayEpoch = Date.UTC(1970, 0, 5, 0, 0, 0, 0);
+    return new Date(Math.floor((time - mondayEpoch) / weekSize) * weekSize + mondayEpoch);
+  }
+
+  if (unit === 'month') {
+    const year = dateValue.getUTCFullYear();
+    const month = dateValue.getUTCMonth();
+    const monthIndex = year * 12 + month;
+    const bucketMonthIndex = Math.floor(monthIndex / interval) * interval;
+    const bucketYear = Math.floor(bucketMonthIndex / 12);
+    const bucketMonth = bucketMonthIndex % 12;
+    return new Date(Date.UTC(bucketYear, bucketMonth, 1, 0, 0, 0, 0));
+  }
+
+  return new Date(time);
+}
+
+function __astComputeDataFrameResampleBucketEndExclusive(bucketStart, unit, interval) {
+  if (!(bucketStart instanceof Date) || Number.isNaN(bucketStart.getTime())) {
+    return bucketStart;
+  }
+
+  if (unit === 'month') {
+    return new Date(Date.UTC(
+      bucketStart.getUTCFullYear(),
+      bucketStart.getUTCMonth() + interval,
+      1,
+      0,
+      0,
+      0,
+      0
+    ));
+  }
+
+  const unitMs = {
+    second: 1000,
+    minute: 60 * 1000,
+    hour: 60 * 60 * 1000,
+    day: 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000
+  }[unit];
+
+  if (!unitMs) {
+    return new Date(bucketStart.getTime());
+  }
+
+  return new Date(bucketStart.getTime() + interval * unitMs);
+}
+
+function __astApplyDataFrameResampleAggregation(values, aggregation, methodName, columnName) {
+  if (!Array.isArray(values) || values.length === 0) {
+    if (aggregation === 'count') {
+      return 0;
+    }
+    return null;
+  }
+
+  if (typeof aggregation === 'function') {
+    const output = aggregation([...values]);
+    if (output && typeof output.then === 'function') {
+      throw new Error(`DataFrame.${methodName} aggregation for '${columnName}' returned a Promise; async aggregations are not supported`);
+    }
+    return output;
+  }
+
+  switch (aggregation) {
+    case 'first':
+      return values[0];
+    case 'last':
+      return values[values.length - 1];
+    case 'count': {
+      let count = 0;
+      for (let idx = 0; idx < values.length; idx++) {
+        if (!__astDataFrameIsMissingValue(values[idx])) {
+          count += 1;
+        }
+      }
+      return count;
+    }
+    case 'sum':
+    case 'mean':
+    case 'min':
+    case 'max': {
+      if (aggregation === 'min' || aggregation === 'max') {
+        const comparableValues = [];
+        for (let idx = 0; idx < values.length; idx++) {
+          if (!__astDataFrameIsMissingValue(values[idx])) {
+            comparableValues.push(values[idx]);
+          }
+        }
+
+        if (comparableValues.length === 0) {
+          return null;
+        }
+
+        let best = comparableValues[0];
+        for (let idx = 1; idx < comparableValues.length; idx++) {
+          const candidate = comparableValues[idx];
+          const compared = __astCompareDataFrameAggregationValues(candidate, best);
+          if ((aggregation === 'min' && compared < 0) || (aggregation === 'max' && compared > 0)) {
+            best = candidate;
+          }
+        }
+        return best;
+      }
+
+      const numericValues = [];
+      for (let idx = 0; idx < values.length; idx++) {
+        const numeric = normalizeValues(values[idx]);
+        if (typeof numeric === 'number' && Number.isFinite(numeric)) {
+          numericValues.push(numeric);
+        }
+      }
+
+      if (numericValues.length === 0) {
+        return null;
+      }
+
+      if (aggregation === 'sum') return arraySum(numericValues);
+      if (aggregation === 'mean') return arrayMean(numericValues);
+      if (aggregation === 'min') return arrayMin(numericValues);
+      if (aggregation === 'max') return arrayMax(numericValues);
+      return null;
+    }
+    default:
+      throw new Error(`DataFrame.${methodName} received unsupported aggregation '${String(aggregation)}'`);
+  }
+}
+
+function __astCompareDataFrameAggregationValues(left, right) {
+  if (Object.is(left, right)) {
+    return 0;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+      return leftTime < rightTime ? -1 : 1;
+    }
+  }
+
+  if (typeof left === 'number' && typeof right === 'number') {
+    const leftNumber = Number.isNaN(left) ? null : left;
+    const rightNumber = Number.isNaN(right) ? null : right;
+    if (leftNumber == null && rightNumber == null) return 0;
+    if (leftNumber == null) return -1;
+    if (rightNumber == null) return 1;
+    return leftNumber < rightNumber ? -1 : 1;
+  }
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  }
+
+  if (typeof left === 'boolean' && typeof right === 'boolean') {
+    if (left === right) return 0;
+    return left ? 1 : -1;
+  }
+
+  const leftText = __astDataFrameLabelToStableText(left);
+  const rightText = __astDataFrameLabelToStableText(right);
+  if (leftText < rightText) return -1;
+  if (leftText > rightText) return 1;
+  return 0;
 }
 
 function __astNormalizeDataFrameDropNullOptions(dataframe, options, methodName) {

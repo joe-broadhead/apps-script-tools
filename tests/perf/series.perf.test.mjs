@@ -14,5 +14,17 @@ export function runSeriesPerf(context, options = {}) {
     { samples }
   );
 
-  return [multiply];
+  const expanding = measureBenchmark(
+    `series.expanding_mean_${rows}`,
+    () => series.expanding('mean'),
+    { samples }
+  );
+
+  const ewm = measureBenchmark(
+    `series.ewm_${rows}`,
+    () => series.ewm({ alpha: 0.4, adjust: false }),
+    { samples }
+  );
+
+  return [multiply, expanding, ewm];
 }

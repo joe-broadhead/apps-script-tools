@@ -24,8 +24,23 @@
  * - This function relies on the `CryptoJS` library for AES decryption.
  */
 function decrypt(encrypted, secret) {
+  if (typeof encrypted !== 'string') {
+    return '';
+  }
+
+  const normalizedEncrypted = encrypted.trim().replace(/\s+/g, '');
+  if (normalizedEncrypted.length === 0) {
+    return '';
+  }
+
+  // Guard malformed ciphertext up front to keep behavior deterministic across runtimes.
+  // Allow unpadded base64 payloads since CryptoJS accepts them.
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalizedEncrypted)) {
+    return '';
+  }
+
   try {
-    return CryptoJS.AES.decrypt(encrypted, secret).toString(CryptoJS.enc.Utf8);
+    return CryptoJS.AES.decrypt(normalizedEncrypted, secret).toString(CryptoJS.enc.Utf8);
   } catch (error) {
     const message = error && error.message ? String(error.message) : String(error);
     if (message.indexOf('Malformed UTF-8 data') !== -1) {

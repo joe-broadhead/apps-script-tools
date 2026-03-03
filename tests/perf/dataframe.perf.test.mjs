@@ -138,6 +138,31 @@ export function runDataFramePerf(context, options = {}) {
     }
   );
 
+  const resampleRows = Math.min(rows, 60000);
+  const resampleRecords = new Array(resampleRows);
+  const baseTimestamp = Date.UTC(2026, 0, 1, 0, 0, 0, 0);
+  for (let idx = 0; idx < resampleRows; idx++) {
+    resampleRecords[idx] = {
+      ts: new Date(baseTimestamp + idx * 5 * 60 * 1000).toISOString(),
+      amount: (idx % 100) + 1,
+      qty: idx % 5
+    };
+  }
+  const resampleDf = DataFrame.fromRecords(resampleRecords);
+  const resample = measureBenchmark(
+    `dataframe.resample_mean_${resampleRows}`,
+    () => resampleDf.resample('1h', {
+      on: 'ts',
+      columns: ['amount', 'qty'],
+      agg: 'mean'
+    }),
+    {
+      samples,
+      resetCounters: () => DataFrame.__resetPerfCounters(),
+      readCounters: () => DataFrame.__getPerfCounters()
+    }
+  );
+
   return [
     fromRecords,
     toRecords,
@@ -148,6 +173,7 @@ export function runDataFramePerf(context, options = {}) {
     sample,
     joinInner,
     applyRowsScalar,
-    pivotTable
+    pivotTable,
+    resample
   ];
 }
