@@ -373,6 +373,78 @@ test('Telemetry evaluateAlerts applies suppression windows deterministically', (
   assert.equal(third.summary.triggered, 1);
 });
 
+test('Telemetry evaluateAlerts honors suppressionSec=0 without suppressing repeats', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  context.AST.Telemetry.createAlertRule({
+    id: 'alert.no.suppression',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1,
+    windowSec: 600,
+    suppressionSec: 0,
+    query: {
+      filters: {
+        modules: ['billing'],
+        types: ['span']
+      }
+    }
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('billing.charge', {
+    module: 'billing'
+  });
+  context.AST.Telemetry.endSpan(spanId, {
+    status: 'error'
+  });
+
+  const first = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.no.suppression']
+  });
+  const second = context.AST.Telemetry.evaluateAlerts({
+    ruleIds: ['alert.no.suppression']
+  });
+
+  assert.equal(first.status, 'ok');
+  assert.equal(second.status, 'ok');
+  assert.equal(first.summary.triggered, 1);
+  assert.equal(second.summary.triggered, 1);
+  assert.equal(second.summary.suppressed, 0);
+});
+
+test('Telemetry createAlertRule honors request.options fallback for upsert', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+
+  context.AST.Telemetry.createAlertRule({
+    id: 'alert.request.options',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 1
+  });
+
+  const upserted = context.AST.Telemetry.createAlertRule({
+    id: 'alert.request.options',
+    metric: 'error_count',
+    operator: 'gte',
+    threshold: 3,
+    options: {
+      upsert: true
+    }
+  });
+
+  assert.equal(upserted.status, 'ok');
+  assert.equal(upserted.created, false);
+  assert.equal(upserted.rule.threshold, 3);
+});
+
 test('Telemetry evaluateAlerts accepts now=0 without falling back to current time', () => {
   const context = createGasContext();
   loadTelemetryScripts(context, { includeAst: true });

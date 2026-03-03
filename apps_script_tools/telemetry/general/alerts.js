@@ -201,22 +201,31 @@ function astTelemetryAlertNormalizeRule(request = {}, options = {}) {
     Number.MAX_SAFE_INTEGER
   );
 
+  const windowSecSource = typeof source.windowSec !== 'undefined'
+    ? source.windowSec
+    : (astTelemetryIsPlainObject(source.window) ? source.window.seconds : undefined);
   const windowSec = astTelemetryNormalizeNumber(
-    source.windowSec || (astTelemetryIsPlainObject(source.window) ? source.window.seconds : undefined),
+    windowSecSource,
     AST_TELEMETRY_ALERT_DEFAULTS.windowSec,
     10,
     86400
   );
 
+  const suppressionSecSource = typeof source.suppressionSec !== 'undefined'
+    ? source.suppressionSec
+    : (astTelemetryIsPlainObject(source.suppression) ? source.suppression.seconds : undefined);
   const suppressionSec = astTelemetryNormalizeNumber(
-    source.suppressionSec || (astTelemetryIsPlainObject(source.suppression) ? source.suppression.seconds : undefined),
+    suppressionSecSource,
     AST_TELEMETRY_ALERT_DEFAULTS.suppressionSec,
     0,
     86400
   );
 
+  const minSamplesSource = typeof source.minSamples !== 'undefined'
+    ? source.minSamples
+    : source.minSampleSize;
   const minSamples = astTelemetryNormalizeNumber(
-    source.minSamples || source.minSampleSize,
+    minSamplesSource,
     AST_TELEMETRY_ALERT_DEFAULTS.minSamples,
     1,
     1000000
@@ -321,11 +330,14 @@ function astTelemetryAlertUpsertRule(normalizedRule, options = {}) {
 
 function astTelemetryCreateAlertRule(request = {}, options = {}) {
   const normalizedRule = astTelemetryAlertNormalizeRule(request, options);
+  const callOptions = astTelemetryIsPlainObject(options) ? options : {};
+  const requestOptions = astTelemetryIsPlainObject(request.options) ? request.options : {};
+  const resolvedOptions = Object.keys(callOptions).length > 0
+    ? callOptions
+    : requestOptions;
   const upsertResult = astTelemetryAlertUpsertRule(
     normalizedRule,
-    astTelemetryIsPlainObject(options)
-      ? options
-      : (astTelemetryIsPlainObject(request.options) ? request.options : {})
+    resolvedOptions
   );
 
   return {
