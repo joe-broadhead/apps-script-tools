@@ -29,10 +29,16 @@ ASTX.Messaging.templates.register(request)
 ASTX.Messaging.templates.get(request)
 ASTX.Messaging.templates.render(request)
 ASTX.Messaging.templates.send(request)
+ASTX.Messaging.inbound.verify(request)
+ASTX.Messaging.inbound.parse(request)
+ASTX.Messaging.inbound.route(request)
 ASTX.Messaging.registerTemplate(request)
 ASTX.Messaging.getTemplate(request)
 ASTX.Messaging.renderTemplate(request)
 ASTX.Messaging.sendTemplate(request)
+ASTX.Messaging.verifyInbound(request)
+ASTX.Messaging.parseInbound(request)
+ASTX.Messaging.routeInbound(request)
 ASTX.Messaging.operations()
 ASTX.Messaging.capabilities(operationOrGroup)
 ASTX.Messaging.configure(config, options)
@@ -44,7 +50,7 @@ ASTX.Messaging.clearConfig()
 
 ```javascript
 {
-  operation: 'email_send' | 'chat_send' | 'tracking_record_event' | 'template_register' | 'template_render' | 'template_send' | ...,
+  operation: 'email_send' | 'chat_send' | 'tracking_record_event' | 'template_register' | 'template_render' | 'template_send' | 'inbound_verify' | 'inbound_parse' | 'inbound_route' | ...,
   body: { ... },
   auth: {
     oauthToken: 'optional',
@@ -101,6 +107,7 @@ ASTX.Messaging.clearConfig()
 - `tracking`: pixel URL build, link wrapping, event recording, web event handling
 - `logs`: event list/get/delete
 - `templates`: template register/get/render/send for email/chat channels
+- `inbound`: webhook verification/parsing/routing for Google Chat, Slack, Teams
 
 ## Dry-run
 
@@ -121,6 +128,14 @@ ASTX.Messaging.clearConfig()
 - `template_render` enforces required vars and typed vars (`string`, `number`, `boolean`, `object`, `array`, `any`).
 - Missing vars throw deterministic `AstMessagingValidationError` with token details.
 - `template_send` renders first, then routes through existing `email_send` or `chat_send` execution paths.
+
+## Inbound webhook notes
+
+- `inbound_verify` validates provider signature/token contracts, timestamp skew, and replay protection.
+- `inbound_parse` normalizes inbound payloads into a deterministic event envelope (`provider`, `eventType`, `eventId`, `timestampMs`, `payload`).
+- `inbound_route` selects handlers in this order: `provider:eventType`, `eventType`, `provider`, `default`.
+- Signature-based verification requires raw request bytes via `body.rawBody` / `body.payloadRaw`.
+- Replay protection uses cache/memory keys and throws deterministic `AstMessagingAuthError` on duplicates.
 
 ## Config precedence
 

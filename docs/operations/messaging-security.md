@@ -8,6 +8,14 @@
 - Slack API transport uses `auth.slackBotToken` or `MESSAGING_SLACK_BOT_TOKEN`.
 - Slack/Teams webhook transports should use dedicated incoming webhook URLs with least-privilege scopes.
 
+## Inbound webhook hardening
+
+- Enforce signature/token validation with `ASTX.Messaging.inbound.verify(...)` or `routeInbound(...)`.
+- Configure bounded skew (`MESSAGING_INBOUND_MAX_SKEW_SEC`) to reject stale requests.
+- Keep replay protection enabled and backed by shared cache for multi-instance deployments.
+- For Slack/Teams and Google Chat signature mode, pass exact request bytes via `body.rawBody`.
+- Never disable replay protection in production unless upstream already enforces one-time delivery IDs.
+
 ## Tracking safety
 
 - Tracking is disabled by default.
@@ -48,5 +56,14 @@ Recommended keys:
 - `MESSAGING_TRACKING_SIGNING_SECRET`
 - `MESSAGING_LOG_BACKEND`
 - `MESSAGING_LOG_STORAGE_URI` (if `storage_json`)
+- `MESSAGING_INBOUND_MAX_SKEW_SEC`
+- `MESSAGING_INBOUND_REPLAY_ENABLED`
+- `MESSAGING_INBOUND_REPLAY_BACKEND`
+- `MESSAGING_INBOUND_REPLAY_NAMESPACE`
+- `MESSAGING_INBOUND_REPLAY_TTL_SEC`
+- `MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET`
+- `MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN`
+- `MESSAGING_INBOUND_SLACK_SIGNING_SECRET`
+- `MESSAGING_INBOUND_TEAMS_SIGNING_SECRET`
 
 Never log raw OAuth tokens, webhook secrets, or signing secrets.

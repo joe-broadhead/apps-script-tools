@@ -139,5 +139,57 @@ MESSAGING_CONTRACT_TESTS = [
 
       AST.Messaging.clearConfig();
     }
+  },
+  {
+    description: 'AST.Messaging inbound verify/route should parse and dispatch deterministic handlers',
+    test: () => {
+      AST.Messaging.configure({
+        MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN: 'gas-chat-token'
+      });
+
+      const verified = AST.Messaging.verifyInbound({
+        body: {
+          provider: 'google_chat',
+          payload: {
+            type: 'MESSAGE',
+            token: 'gas-chat-token',
+            eventId: `evt_${Date.now()}`,
+            message: { text: 'hello' }
+          }
+        }
+      });
+
+      if (!verified || verified.status !== 'ok' || !verified.data || verified.data.verified !== true) {
+        throw new Error(`Expected successful inbound verify response, got ${JSON.stringify(verified)}`);
+      }
+
+      const routed = AST.Messaging.routeInbound({
+        body: {
+          provider: 'google_chat',
+          payload: {
+            type: 'MESSAGE',
+            token: 'gas-chat-token',
+            eventId: `evt_route_${Date.now()}`,
+            message: { text: 'route me' }
+          },
+          routes: {
+            'google_chat:MESSAGE': routeContext => ({
+              ok: true,
+              text: routeContext.text
+            }),
+            default: () => ({ ok: false })
+          }
+        }
+      });
+
+      if (!routed || !routed.data || !routed.data.route || routed.data.route.key !== 'google_chat:MESSAGE') {
+        throw new Error(`Expected routed key google_chat:MESSAGE, got ${JSON.stringify(routed)}`);
+      }
+      if (!routed.data.output || routed.data.output.ok !== true || routed.data.output.text !== 'route me') {
+        throw new Error(`Expected routed handler output, got ${JSON.stringify(routed)}`);
+      }
+
+      AST.Messaging.clearConfig();
+    }
   }
 ];
