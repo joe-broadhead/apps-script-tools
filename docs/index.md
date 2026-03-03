@@ -18,10 +18,10 @@
 - `AST.Sheets`: sheet open helpers and enhanced sheet classes.
 - `AST.Drive`: read/write helpers for drive-backed file workflows.
 - `AST.Http`: shared transport helpers for retries, timeout budgets, and typed request errors.
-- `AST.AI`: multi-provider text, structured output, tool calling, and image generation.
-- `AST.RAG`: Drive + Storage URI indexing (`gcs://`, `s3://`, `dbfs:/`), retrieval, and grounded answering with citations.
+- `AST.AI`: multi-provider text/structured/tools/image workflows (`openai`, `gemini`, `vertex_gemini`, `openrouter`, `perplexity`, `databricks`).
+- `AST.RAG`: Drive + Storage URI indexing (`gcs://`, `s3://`, `dbfs:/`), hybrid retrieval, reranking, query transforms, incremental sync, and grounded citation answers.
 - `AST.DBT`: dbt artifact loading (`manifest`, `catalog`, `run_results`, `sources`) with search, lineage, diff, and impact overlays.
-- `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS.
+- `AST.Storage`: cross-provider object storage for GCS, S3, and DBFS (CRUD + transfer/sync helpers).
 - `AST.Secrets`: secure secret resolution from script properties and Google Secret Manager.
 - `AST.Cache`: backend-agnostic cache layer for repeated computations and API responses (single-key + batch ops, invalidation, stats).
 - `AST.Config`: script-properties snapshots + typed schema binding for resolver config.
@@ -31,8 +31,8 @@
 - `AST.Jobs`: script-properties checkpointed multi-step job runner with retry/resume and status controls.
 - `AST.Triggers`: declarative time-based trigger upsert/list/delete with optional Jobs dispatch.
 - `AST.Chat`: durable user-scoped thread persistence and bounded history assembly.
-- `AST.Messaging`: Google Email + Chat sends with tracking, logs, and dry-run planning.
-- `AST.GitHub`: GitHub REST + GraphQL automation with typed errors, dry-run planning, and cache/ETag support.
+- `AST.Messaging`: Google Email + Google Chat/Slack/Teams sends, template registry/render/send, inbound webhook verify/parse/route, tracking, and logs.
+- `AST.GitHub`: GitHub REST + GraphQL automation with dry-run planning, cache/ETag, Actions, Checks, and Projects v2 helpers.
 - `AST.Sql`: validated SQL execution for Databricks and BigQuery.
 - `AST.Utils`: utility helpers (`arraySum`, `dateAdd`, `toSnakeCase`, and others).
 
@@ -60,8 +60,8 @@ flowchart LR
     B --> GH[AST.GitHub]
     D --> F[BigQuery]
     D --> G[Databricks SQL API]
-    I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity]
-    K --> L[Drive JSON Index + Cosine Retrieval]
+    I --> J[OpenAI / Gemini / Vertex / OpenRouter / Perplexity / Databricks]
+    K --> L[Drive+Storage Index + Hybrid Retrieval + Rerank]
     Y --> Z[dbt manifest + artifacts + diff/impact]
     M --> N[GCS / S3 / DBFS APIs]
     AA --> AB["Script Properties / Secret Manager"]
@@ -70,8 +70,8 @@ flowchart LR
     T --> U["Script Properties Checkpoints"]
     AC --> AD["ScriptApp Time Triggers"]
     W --> X["Durable Thread Store"]
-    ME --> MM["GmailApp + Chat Webhook/API"]
-    GH --> GHAPI[GitHub REST + GraphQL APIs]
+    ME --> MM["Gmail + Google Chat/Slack/Teams + Inbound Router"]
+    GH --> GHAPI[GitHub REST + GraphQL + Actions/Checks/Projects]
     C --> H[Records / Arrays / Sheets]
 ```
 
@@ -84,15 +84,17 @@ flowchart LR
 
 ## `v0.0.5` (unreleased) highlights
 
-- `AST.GitHub` module for GitHub REST + GraphQL automation.
-- Mutation dry-run planning support and typed error mapping for GitHub API calls.
-- Read cache + ETag revalidation support for GitHub read/list/search and GraphQL query operations.
-- `AST.DBT` namespace now includes artifact loaders (`catalog`, `run_results`, `sources`) plus `diffEntities` and `impact`.
-- Multi-provider artifact loading (`drive://`, `gcs://`, `s3://`, `dbfs:/`) with Drive fileId fallback.
-- v12 validation modes (`strict`, `basic`, `off`) with typed schema/load/parse errors.
-- Fast preindexed bundle for repeated `search`, `getEntity`, `getColumn`, and `lineage` queries.
-- `AST.Secrets` namespace for typed secret resolution (`script_properties`, `secret_manager`).
-- `AST.Triggers` namespace for idempotent schedule management and trigger-to-jobs dispatch.
+- `AST.GitHub` expanded with Actions (`listWorkflows`, `listWorkflowRuns`, `rerunWorkflowRun`), Checks (`listCheckRuns`, `createCheckRun`), and Projects v2 helpers.
+- `AST.RAG` expanded with `answerStream`, `incrementalSync`, `rerank`, `rewriteQuery`, and `decomposeQuestion`.
+- `AST.DBT` expanded with artifact loaders/inspectors, `compareArtifacts`, `columnLineage`, and governance helpers (`owners`, `searchOwners`, `ownerCoverage`).
+- `AST.Messaging` expanded with template APIs (`register/get/render/send`) and inbound webhook verification/routing (`verify/parse/route`) plus Slack/Teams transports.
+- `AST.Jobs` expanded with DLQ lifecycle (`listFailed`, `moveToDlq`, `replayDlq`, `purgeDlq`) and orchestration helpers (`enqueueMany`, `chain`, `mapReduce`, `schedule`).
+- `AST.Cache` expanded with batch APIs (`getMany`, `setMany`, `fetchMany`, `deleteMany`) plus `invalidateByPrefix`, `invalidateByPredicate`, and `lock`.
+- `AST.Storage` expanded with `transfer`, `walk`, `copyPrefix`, `deletePrefix`, and `sync`.
+- `AST.Telemetry` expanded with query/aggregation/export plus alert rules and notification pipeline APIs.
+- `AST.Secrets` expanded with `rotate`, `listVersions`, and `getVersionMetadata`.
+- `AST.Config` expanded with typed schema/profile APIs (`schema`, `bind`, `setProfile`, `getProfile`, `resolveProfile`).
+- DataFrame/Series parity finishers shipped: `DataFrame.stack/unstack/resample` and `Series.expanding/ewm`.
 
 For released highlights, use `CHANGELOG.md` (for example `v0.0.4`).
 
