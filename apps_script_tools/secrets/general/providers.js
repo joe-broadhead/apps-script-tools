@@ -268,6 +268,10 @@ function astSecretsDecodeBase64ToText(base64Value) {
     return '';
   }
 
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(base64Value, 'base64').toString('utf8');
+  }
+
   if (
     typeof Utilities !== 'undefined' &&
     Utilities &&
@@ -281,7 +285,15 @@ function astSecretsDecodeBase64ToText(base64Value) {
   }
 
   if (typeof atob === 'function') {
-    return atob(base64Value);
+    const binary = atob(base64Value);
+    if (typeof TextDecoder !== 'undefined') {
+      const bytes = new Uint8Array(binary.length);
+      for (let idx = 0; idx < binary.length; idx += 1) {
+        bytes[idx] = binary.charCodeAt(idx);
+      }
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    return binary;
   }
 
   throw new AstSecretsCapabilityError(
@@ -293,6 +305,10 @@ function astSecretsDecodeBase64ToText(base64Value) {
 function astSecretsEncodeTextToBase64(value) {
   const text = String(value == null ? '' : value);
 
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(text, 'utf8').toString('base64');
+  }
+
   if (
     typeof Utilities !== 'undefined' &&
     Utilities &&
@@ -302,12 +318,20 @@ function astSecretsEncodeTextToBase64(value) {
     return Utilities.base64Encode(Utilities.newBlob(text).getBytes());
   }
 
-  if (typeof btoa === 'function') {
-    return btoa(text);
+  if (typeof btoa === 'function' && typeof TextEncoder !== 'undefined') {
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (let idx = 0; idx < bytes.length; idx += 1) {
+      binary += String.fromCharCode(bytes[idx]);
+    }
+    return btoa(binary);
   }
 
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.from(text, 'utf8').toString('base64');
+  if (typeof btoa === 'function') {
+    const utf8Binary = encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (_match, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
+    return btoa(utf8Binary);
   }
 
   throw new AstSecretsCapabilityError(

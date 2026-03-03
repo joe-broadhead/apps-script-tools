@@ -443,3 +443,56 @@ test('AST.Secrets.listVersions throws capability error for script_properties', (
     }
   );
 });
+
+test('AST.Secrets.rotate uses UTF-8-safe base64 fallback when Utilities is unavailable', () => {
+  const requests = [];
+  const btoaLatin1Only = value => {
+    const input = String(value || '');
+    for (let idx = 0; idx < input.length; idx += 1) {
+      if (input.charCodeAt(idx) > 255) {
+        throw new Error('InvalidCharacterError');
+      }
+    }
+    return Buffer.from(input, 'binary').toString('base64');
+  };
+
+  const context = createGasContext({
+    Utilities: undefined,
+    Buffer,
+    btoa: btoaLatin1Only,
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        requests.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            name: 'projects/p/secrets/s/versions/9',
+            createTime: '2026-03-03T00:00:00.000Z',
+            etag: 'etag-9',
+            state: 'ENABLED'
+          })
+        };
+      }
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+
+  const value = 'emoji 🚴 and café';
+  const out = context.AST.Secrets.rotate({
+    provider: 'secret_manager',
+    key: 'utf8-secret',
+    value,
+    auth: {
+      projectId: 'p',
+      oauthToken: 'token'
+    }
+  });
+
+  assert.equal(out.operation, 'rotate');
+  assert.equal(out.metadata.versionName, 'projects/p/secrets/s/versions/9');
+
+  const requestPayload = JSON.parse(requests[0].options.payload);
+  const decoded = Buffer.from(requestPayload.payload.data, 'base64').toString('utf8');
+  assert.equal(decoded, value);
+});
