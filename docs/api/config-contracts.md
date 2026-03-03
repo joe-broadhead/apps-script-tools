@@ -8,6 +8,9 @@
 ASTX.Config.fromScriptProperties(options)
 ASTX.Config.schema(definition)
 ASTX.Config.bind(definitionOrSchema, options)
+ASTX.Config.setProfile(profileOrOptions, options)
+ASTX.Config.getProfile(options)
+ASTX.Config.resolveProfile(definitionOrSchema, options)
 ```
 
 ## `fromScriptProperties(options)`
@@ -60,6 +63,43 @@ const cfg = ASTX.Config.bind(schema, {
   scriptProperties: PropertiesService.getScriptProperties()
 });
 ```
+
+## Profile helpers
+
+Use runtime/script-property environment profiles (`dev`, `stage`, `prod`) without duplicating per-key precedence code.
+
+```javascript
+ASTX.Config.setProfile('prod', {
+  profiles: {
+    prod: { GITHUB_TIMEOUT_MS: '45000', GITHUB_CACHE_ENABLED: 'true' }
+  }
+});
+
+const cfg = ASTX.Config.resolveProfile(schema, {
+  request: requestConfig,
+  runtime: runtimeConfig,
+  scriptProperties: PropertiesService.getScriptProperties()
+});
+```
+
+Default precedence for `resolveProfile(...)` is:
+
+1. `request`
+2. `profile`
+3. `runtime`
+4. `script_properties`
+
+Profile selection precedence is:
+
+1. `options.profile` / `options.profileName`
+2. runtime profile from `ASTX.Config.setProfile(...)`
+3. script property `AST_CONFIG_PROFILE`
+
+Script-property profile sources:
+
+- `AST_CONFIG_PROFILE` (active profile name)
+- `AST_CONFIG_PROFILES_JSON` (JSON object map of profile -> config object)
+- `AST_CONFIG_PROFILE_<PROFILE>_JSON` (optional per-profile JSON override, for example `AST_CONFIG_PROFILE_PROD_JSON`)
 
 ### Bind options
 

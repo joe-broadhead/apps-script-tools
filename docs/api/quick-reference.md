@@ -437,6 +437,9 @@ ASTX.Cache.clear(options)
 ASTX.Config.fromScriptProperties(options)
 ASTX.Config.schema(definition)
 ASTX.Config.bind(definitionOrSchema, options)
+ASTX.Config.setProfile(profileOrOptions, options)
+ASTX.Config.getProfile(options)
+ASTX.Config.resolveProfile(definitionOrSchema, options)
 ```
 
 ## `Runtime` essentials
@@ -681,6 +684,7 @@ ASTX.GitHub.clearConfig()
 - Telemetry records redact secrets by default and can emit to `logger`, Drive partitioned NDJSON batches (`drive_json`), or storage NDJSON batches (`storage_json`).
 - `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
 - `ASTX.Config.schema(...)` / `ASTX.Config.bind(...)` provide typed config coercion (`string|int|float|bool|enum|json|secret-ref`) with default precedence `request > runtime > script_properties`.
+- `ASTX.Config.resolveProfile(...)` adds profile-aware precedence `request > profile > runtime > script_properties` with profile selection from request, runtime `setProfile(...)`, or `AST_CONFIG_PROFILE`.
 - `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`).
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.

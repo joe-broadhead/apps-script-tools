@@ -68,5 +68,31 @@ CONFIG_SCHEMA_TESTS = [
       t.equal(captured && captured.name, 'AstConfigValidationError', 'Expected AstConfigValidationError');
       t.match(captured && captured.message, /expected integer/i, 'Expected integer coercion message');
     })
+  },
+  {
+    description: 'AST.Config profile helpers should resolve profile overrides deterministically',
+    test: () => astTestRunWithAssertions(t => {
+      AST.Config.setProfile('dev', {
+        profiles: {
+          dev: { MODE: 'fast', TIMEOUT_MS: '16000' }
+        }
+      });
+
+      const result = AST.Config.resolveProfile({
+        MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+        TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+      }, {
+        request: { TIMEOUT_MS: '22000' },
+        runtime: { MODE: 'safe' },
+        includeMeta: true
+      });
+
+      t.equal(result.values.TIMEOUT_MS, 22000, 'Expected request override to win for TIMEOUT_MS');
+      t.equal(result.values.MODE, 'fast', 'Expected active profile to override runtime MODE');
+      t.equal(result.profile, 'dev', 'Expected active profile metadata');
+      t.equal(result.sourceByKey.MODE, 'profile', 'Expected MODE source=profile');
+
+      AST.Config.setProfile('', { clearProfiles: true });
+    })
   }
 ];

@@ -23,6 +23,7 @@ const AST_CONFIG_SCHEMA_SUPPORTED_TYPES = Object.freeze([
 
 const AST_CONFIG_BIND_SOURCE_ALIASES = Object.freeze({
   request: 'request',
+  profile: 'profile',
   runtime: 'runtime',
   script_properties: 'script_properties',
   scriptproperties: 'script_properties',
@@ -35,6 +36,21 @@ const AST_CONFIG_BIND_DEFAULT_PRECEDENCE = Object.freeze([
   'script_properties'
 ]);
 
+const AST_CONFIG_PROFILE_DEFAULT_PRECEDENCE = Object.freeze([
+  'request',
+  'profile',
+  'runtime',
+  'script_properties'
+]);
+
+const AST_CONFIG_SCRIPT_PROPERTY_ACTIVE_PROFILE = 'AST_CONFIG_PROFILE';
+const AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS = 'AST_CONFIG_PROFILES_JSON';
+const AST_CONFIG_SCRIPT_PROPERTY_PROFILE_PREFIX = 'AST_CONFIG_PROFILE_';
+const AST_CONFIG_SCRIPT_PROPERTY_PROFILE_SUFFIX = '_JSON';
+
+let AST_CONFIG_RUNTIME_ACTIVE_PROFILE = '';
+let AST_CONFIG_RUNTIME_PROFILE_MAPS = Object.create(null);
+
 function astConfigIsSchema(value) {
   return (
     astConfigIsPlainObject(value)
@@ -46,6 +62,362 @@ function astConfigIsSchema(value) {
 
 function astConfigBuildSchemaValidationError(message, details = {}, cause = null) {
   return new AST_CONFIG_VALIDATION_ERROR_CLASS_SCHEMA_BINDING(message, details, cause);
+}
+
+function astConfigNormalizeProfileName(profileName, options = {}) {
+  const fallback = Object.prototype.hasOwnProperty.call(options, 'fallback')
+    ? options.fallback
+    : '';
+  const allowEmpty = astConfigNormalizeBoolean(options.allowEmpty, true);
+  const raw = astConfigNormalizeString(profileName, '')
+    .toLowerCase();
+
+  if (!raw) {
+    if (allowEmpty) {
+      return fallback;
+    }
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config profile name is required',
+      { profile: profileName }
+    );
+  }
+
+  if (!/^[a-z0-9._-]+$/.test(raw)) {
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config profile name contains unsupported characters',
+      { profile: profileName, normalized: raw }
+    );
+  }
+
+  return raw;
+}
+
+function astConfigBuildScriptPropertyKeyForProfile(profileName) {
+  const normalized = astConfigNormalizeProfileName(profileName, { allowEmpty: false });
+  const encoded = normalized
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '_');
+  return `${AST_CONFIG_SCRIPT_PROPERTY_PROFILE_PREFIX}${encoded}${AST_CONFIG_SCRIPT_PROPERTY_PROFILE_SUFFIX}`;
+}
+
+function astConfigCloneProfileConfigMap(profileMap) {
+  if (!astConfigIsPlainObject(profileMap)) {
+    return Object.create(null);
+  }
+
+  const output = Object.create(null);
+  const names = Object.keys(profileMap);
+  for (let idx = 0; idx < names.length; idx += 1) {
+    const name = names[idx];
+    if (!astConfigIsPlainObject(profileMap[name])) {
+      continue;
+    }
+    output[name] = astConfigCloneJsonValue(profileMap[name]);
+  }
+
+  return output;
+}
+
+function astConfigNormalizeProfileConfigMap(rawProfiles, options = {}) {
+  if (!astConfigIsPlainObject(rawProfiles)) {
+    return Object.create(null);
+  }
+
+  const source = astConfigNormalizeString(options.source, '') || 'profile';
+  const output = Object.create(null);
+  const names = Object.keys(rawProfiles);
+  for (let idx = 0; idx < names.length; idx += 1) {
+    const rawName = names[idx];
+    const profileName = astConfigNormalizeProfileName(rawName, { allowEmpty: true, fallback: '' });
+    if (!profileName) {
+      continue;
+    }
+
+    const profileConfig = rawProfiles[rawName];
+    if (!astConfigIsPlainObject(profileConfig)) {
+      throw astConfigBuildSchemaValidationError(
+        `AST.Config profile '${profileName}' must map to an object`,
+        { profile: profileName, source, value: profileConfig }
+      );
+    }
+
+    output[profileName] = astConfigCloneJsonValue(profileConfig);
+  }
+
+  return output;
+}
+
+function astConfigMergeProfileConfigMaps(baseMap, overrideMap) {
+  const merged = astConfigCloneProfileConfigMap(baseMap);
+  if (!astConfigIsPlainObject(overrideMap)) {
+    return merged;
+  }
+
+  const names = Object.keys(overrideMap);
+  for (let idx = 0; idx < names.length; idx += 1) {
+    const name = names[idx];
+    const incoming = overrideMap[name];
+    if (!astConfigIsPlainObject(incoming)) {
+      continue;
+    }
+
+    const existing = astConfigIsPlainObject(merged[name])
+      ? merged[name]
+      : Object.create(null);
+    merged[name] = Object.assign({}, existing, astConfigCloneJsonValue(incoming));
+  }
+
+  return merged;
+}
+
+function astConfigMergeProfileValueMap(baseMap, overrideMap) {
+  const output = Object.create(null);
+
+  if (astConfigIsPlainObject(baseMap)) {
+    const baseKeys = Object.keys(baseMap);
+    for (let idx = 0; idx < baseKeys.length; idx += 1) {
+      const key = baseKeys[idx];
+      output[key] = astConfigCloneJsonValue(baseMap[key]);
+    }
+  }
+
+  if (astConfigIsPlainObject(overrideMap)) {
+    const overrideKeys = Object.keys(overrideMap);
+    for (let idx = 0; idx < overrideKeys.length; idx += 1) {
+      const key = overrideKeys[idx];
+      output[key] = astConfigCloneJsonValue(overrideMap[key]);
+    }
+  }
+
+  return output;
+}
+
+function astConfigResolveBindScriptOptions(options = {}) {
+  const scriptOptions = astConfigIsPlainObject(options.script) ? options.script : {};
+  const mergedOptions = Object.assign({}, scriptOptions);
+
+  if (astConfigIsPlainObject(options.properties) && !Object.prototype.hasOwnProperty.call(mergedOptions, 'properties')) {
+    mergedOptions.properties = options.properties;
+  }
+
+  if (options.scriptProperties && !Object.prototype.hasOwnProperty.call(mergedOptions, 'scriptProperties')) {
+    mergedOptions.scriptProperties = options.scriptProperties;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'cacheScopeId')) {
+    mergedOptions.cacheScopeId = options.cacheScopeId;
+  }
+  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'disableCache')) {
+    mergedOptions.disableCache = options.disableCache;
+  }
+  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'forceRefresh')) {
+    mergedOptions.forceRefresh = options.forceRefresh;
+  }
+  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'cacheDefaultHandle')) {
+    mergedOptions.cacheDefaultHandle = options.cacheDefaultHandle;
+  }
+
+  return mergedOptions;
+}
+
+function astConfigReadScriptPropertySnapshot(scriptOptions = {}, keys = null) {
+  const scriptReaderOptions = {
+    properties: scriptOptions.properties,
+    scriptProperties: scriptOptions.scriptProperties,
+    keys: Array.isArray(keys) ? keys : null,
+    prefix: scriptOptions.prefix,
+    stripPrefix: scriptOptions.stripPrefix,
+    includeEmpty: astConfigResolveFirstBoolean([scriptOptions.includeEmpty], false),
+    cacheScopeId: scriptOptions.cacheScopeId,
+    disableCache: scriptOptions.disableCache,
+    forceRefresh: scriptOptions.forceRefresh,
+    cacheDefaultHandle: scriptOptions.cacheDefaultHandle
+  };
+
+  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
+    return astConfigGetScriptPropertiesSnapshotMemoized(scriptReaderOptions);
+  }
+
+  if (typeof astConfigFromScriptProperties === 'function') {
+    return astConfigFromScriptProperties(scriptReaderOptions);
+  }
+
+  return {};
+}
+
+function astConfigParseProfileConfigJson(rawJson, context = {}) {
+  const source = astConfigNormalizeString(context.source, '') || 'script_properties';
+  const key = astConfigNormalizeString(context.key, '') || AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS;
+  const parsed = astConfigParseJsonSafe(rawJson, null);
+  if (!astConfigIsPlainObject(parsed)) {
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config profile JSON must parse to an object',
+      { source, key }
+    );
+  }
+  return parsed;
+}
+
+function astConfigResolveScriptProfileContext(options = {}) {
+  const scriptOptions = astConfigResolveBindScriptOptions(options);
+  const baseEntries = astConfigReadScriptPropertySnapshot(scriptOptions, [
+    AST_CONFIG_SCRIPT_PROPERTY_ACTIVE_PROFILE,
+    AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS
+  ]);
+
+  const profileMapText = astConfigResolveFirstString([
+    baseEntries[AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS]
+  ], '');
+  let mergedProfileMap = Object.create(null);
+  if (profileMapText) {
+    const parsed = astConfigParseProfileConfigJson(profileMapText, {
+      source: 'script_properties',
+      key: AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS
+    });
+    mergedProfileMap = astConfigNormalizeProfileConfigMap(parsed, { source: 'script_properties' });
+  }
+
+  const scriptProfileName = astConfigNormalizeProfileName(
+    astConfigResolveFirstString([baseEntries[AST_CONFIG_SCRIPT_PROPERTY_ACTIVE_PROFILE]], ''),
+    { allowEmpty: true, fallback: '' }
+  );
+
+  const requestedProfileName = astConfigNormalizeProfileName(
+    astConfigResolveFirstString([options.profile, options.profileName], ''),
+    { allowEmpty: true, fallback: '' }
+  );
+  const runtimeProfileName = astConfigNormalizeProfileName(AST_CONFIG_RUNTIME_ACTIVE_PROFILE, { allowEmpty: true, fallback: '' });
+
+  const candidateNames = [];
+  if (requestedProfileName) candidateNames.push(requestedProfileName);
+  if (runtimeProfileName && !candidateNames.includes(runtimeProfileName)) candidateNames.push(runtimeProfileName);
+  if (scriptProfileName && !candidateNames.includes(scriptProfileName)) candidateNames.push(scriptProfileName);
+
+  for (let idx = 0; idx < candidateNames.length; idx += 1) {
+    const profileName = candidateNames[idx];
+    const profileKey = astConfigBuildScriptPropertyKeyForProfile(profileName);
+    const profileEntries = astConfigReadScriptPropertySnapshot(scriptOptions, [profileKey]);
+    const profileText = astConfigResolveFirstString([profileEntries[profileKey]], '');
+    if (!profileText) {
+      continue;
+    }
+
+    const parsedProfile = astConfigParseProfileConfigJson(profileText, {
+      source: 'script_properties',
+      key: profileKey
+    });
+
+    const nextMap = Object.create(null);
+    nextMap[profileName] = parsedProfile;
+    mergedProfileMap = astConfigMergeProfileConfigMaps(
+      mergedProfileMap,
+      astConfigNormalizeProfileConfigMap(nextMap, { source: 'script_properties' })
+    );
+  }
+
+  return {
+    activeProfile: scriptProfileName,
+    profileMap: mergedProfileMap
+  };
+}
+
+function astConfigResolveExplicitProfileConfig(options = {}) {
+  if (astConfigIsPlainObject(options.profileConfig)) {
+    return astConfigCloneJsonValue(options.profileConfig);
+  }
+  if (astConfigIsPlainObject(options.profileValues)) {
+    return astConfigCloneJsonValue(options.profileValues);
+  }
+  return Object.create(null);
+}
+
+function astConfigResolveRequestProfileMap(options = {}) {
+  const requestProfiles = astConfigIsPlainObject(options.profiles)
+    ? options.profiles
+    : (astConfigIsPlainObject(options.profileMaps) ? options.profileMaps : null);
+  if (requestProfiles == null) {
+    return Object.create(null);
+  }
+  return astConfigNormalizeProfileConfigMap(requestProfiles, { source: 'request' });
+}
+
+function astConfigSetProfile(profileOrOptions = null, options = {}) {
+  const request = astConfigIsPlainObject(profileOrOptions)
+    ? profileOrOptions
+    : (astConfigIsPlainObject(options) ? options : {});
+  const hasExplicitProfileArg = !astConfigIsPlainObject(profileOrOptions) && typeof profileOrOptions !== 'undefined';
+
+  if (!astConfigIsPlainObject(request)) {
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config.setProfile options must be an object',
+      { value: request }
+    );
+  }
+
+  const clearProfiles = astConfigResolveFirstBoolean([request.clearProfiles], false);
+  if (clearProfiles) {
+    AST_CONFIG_RUNTIME_PROFILE_MAPS = Object.create(null);
+  }
+
+  const inputProfiles = astConfigIsPlainObject(request.profiles)
+    ? request.profiles
+    : (astConfigIsPlainObject(request.profileMaps) ? request.profileMaps : null);
+  if (inputProfiles != null) {
+    const normalizedMap = astConfigNormalizeProfileConfigMap(inputProfiles, { source: 'runtime' });
+    const mergeProfiles = astConfigResolveFirstBoolean([request.mergeProfiles], true);
+    AST_CONFIG_RUNTIME_PROFILE_MAPS = mergeProfiles
+      ? astConfigMergeProfileConfigMaps(AST_CONFIG_RUNTIME_PROFILE_MAPS, normalizedMap)
+      : astConfigCloneProfileConfigMap(normalizedMap);
+  }
+
+  const directProfileValues = astConfigResolveExplicitProfileConfig(request);
+  const profileSourceValue = hasExplicitProfileArg
+    ? profileOrOptions
+    : (Object.prototype.hasOwnProperty.call(request, 'profile') ? request.profile : request.profileName);
+  const hasProfileSelection = hasExplicitProfileArg
+    || Object.prototype.hasOwnProperty.call(request, 'profile')
+    || Object.prototype.hasOwnProperty.call(request, 'profileName')
+    || astConfigResolveFirstBoolean([request.clear], false);
+
+  if (hasProfileSelection) {
+    const nextProfile = astConfigNormalizeProfileName(profileSourceValue, { allowEmpty: true, fallback: '' });
+    AST_CONFIG_RUNTIME_ACTIVE_PROFILE = nextProfile;
+  }
+
+  if (Object.keys(directProfileValues).length > 0) {
+    const targetProfile = astConfigNormalizeProfileName(AST_CONFIG_RUNTIME_ACTIVE_PROFILE, { allowEmpty: false });
+    const next = Object.create(null);
+    next[targetProfile] = directProfileValues;
+    AST_CONFIG_RUNTIME_PROFILE_MAPS = astConfigMergeProfileConfigMaps(
+      AST_CONFIG_RUNTIME_PROFILE_MAPS,
+      astConfigNormalizeProfileConfigMap(next, { source: 'runtime' })
+    );
+  }
+
+  return astConfigGetProfile({ includeProfiles: true });
+}
+
+function astConfigGetProfile(options = {}) {
+  if (!astConfigIsPlainObject(options)) {
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config.getProfile options must be an object',
+      { value: options }
+    );
+  }
+
+  const includeProfiles = astConfigResolveFirstBoolean([options.includeProfiles], false);
+  const profile = astConfigNormalizeProfileName(AST_CONFIG_RUNTIME_ACTIVE_PROFILE, { allowEmpty: true, fallback: '' });
+  const output = {
+    profile,
+    hasProfile: Boolean(profile)
+  };
+
+  if (includeProfiles) {
+    output.profiles = astConfigCloneProfileConfigMap(AST_CONFIG_RUNTIME_PROFILE_MAPS);
+    output.profileCount = Object.keys(output.profiles).length;
+  }
+
+  return output;
 }
 
 function astConfigCloneJsonValue(value) {
@@ -496,52 +868,8 @@ function astConfigResolveBindPrecedence(options = {}) {
 }
 
 function astConfigResolveBindScriptSource(schema, options = {}) {
-  const scriptOptions = astConfigIsPlainObject(options.script) ? options.script : {};
-  const mergedOptions = Object.assign({}, scriptOptions);
-
-  if (astConfigIsPlainObject(options.properties) && !Object.prototype.hasOwnProperty.call(mergedOptions, 'properties')) {
-    mergedOptions.properties = options.properties;
-  }
-
-  if (options.scriptProperties && !Object.prototype.hasOwnProperty.call(mergedOptions, 'scriptProperties')) {
-    mergedOptions.scriptProperties = options.scriptProperties;
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'cacheScopeId')) {
-    mergedOptions.cacheScopeId = options.cacheScopeId;
-  }
-  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'disableCache')) {
-    mergedOptions.disableCache = options.disableCache;
-  }
-  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'forceRefresh')) {
-    mergedOptions.forceRefresh = options.forceRefresh;
-  }
-  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'cacheDefaultHandle')) {
-    mergedOptions.cacheDefaultHandle = options.cacheDefaultHandle;
-  }
-
-  const scriptReaderOptions = {
-    properties: mergedOptions.properties,
-    scriptProperties: mergedOptions.scriptProperties,
-    keys: schema.keys,
-    prefix: mergedOptions.prefix,
-    stripPrefix: mergedOptions.stripPrefix,
-    includeEmpty: astConfigResolveFirstBoolean([mergedOptions.includeEmpty], false),
-    cacheScopeId: mergedOptions.cacheScopeId,
-    disableCache: mergedOptions.disableCache,
-    forceRefresh: mergedOptions.forceRefresh,
-    cacheDefaultHandle: mergedOptions.cacheDefaultHandle
-  };
-
-  if (typeof astConfigGetScriptPropertiesSnapshotMemoized === 'function') {
-    return astConfigGetScriptPropertiesSnapshotMemoized(scriptReaderOptions);
-  }
-
-  if (typeof astConfigFromScriptProperties === 'function') {
-    return astConfigFromScriptProperties(scriptReaderOptions);
-  }
-
-  return {};
+  const scriptOptions = astConfigResolveBindScriptOptions(options);
+  return astConfigReadScriptPropertySnapshot(scriptOptions, schema.keys);
 }
 
 function astConfigResolveBindSourceMaps(schema, options, precedence) {
@@ -549,6 +877,13 @@ function astConfigResolveBindSourceMaps(schema, options, precedence) {
     request: astConfigIsPlainObject(options.request)
       ? options.request
       : (astConfigIsPlainObject(options.requestConfig) ? options.requestConfig : {}),
+    profile: astConfigIsPlainObject(options.profile)
+      ? options.profile
+      : (
+        astConfigIsPlainObject(options.profileConfig)
+          ? options.profileConfig
+          : (astConfigIsPlainObject(options.profileValues) ? options.profileValues : {})
+      ),
     runtime: astConfigIsPlainObject(options.runtime)
       ? options.runtime
       : (astConfigIsPlainObject(options.runtimeConfig) ? options.runtimeConfig : {}),
@@ -560,6 +895,72 @@ function astConfigResolveBindSourceMaps(schema, options, precedence) {
   }
 
   return maps;
+}
+
+function astConfigResolveProfile(definitionOrSchema, options = {}) {
+  if (!astConfigIsPlainObject(options)) {
+    throw astConfigBuildSchemaValidationError(
+      'AST.Config.resolveProfile options must be an object',
+      { value: options }
+    );
+  }
+
+  const schema = astConfigIsSchema(definitionOrSchema)
+    ? definitionOrSchema
+    : astConfigSchema(definitionOrSchema);
+
+  const requestedProfile = astConfigNormalizeProfileName(
+    astConfigResolveFirstString([options.profile, options.profileName], ''),
+    { allowEmpty: true, fallback: '' }
+  );
+  const runtimeProfile = astConfigNormalizeProfileName(AST_CONFIG_RUNTIME_ACTIVE_PROFILE, { allowEmpty: true, fallback: '' });
+  const scriptProfileContext = astConfigResolveScriptProfileContext(options);
+  const scriptProfile = astConfigNormalizeProfileName(scriptProfileContext.activeProfile, { allowEmpty: true, fallback: '' });
+
+  let selectedProfile = requestedProfile;
+  let profileSource = selectedProfile ? 'request' : '';
+  if (!selectedProfile && runtimeProfile) {
+    selectedProfile = runtimeProfile;
+    profileSource = 'runtime';
+  }
+  if (!selectedProfile && scriptProfile) {
+    selectedProfile = scriptProfile;
+    profileSource = 'script_properties';
+  }
+
+  const requestProfileMap = astConfigResolveRequestProfileMap(options);
+  const runtimeProfileMap = astConfigCloneProfileConfigMap(AST_CONFIG_RUNTIME_PROFILE_MAPS);
+  const scriptProfileMap = astConfigCloneProfileConfigMap(scriptProfileContext.profileMap);
+
+  const mergedProfiles = astConfigMergeProfileConfigMaps(
+    astConfigMergeProfileConfigMaps(scriptProfileMap, runtimeProfileMap),
+    requestProfileMap
+  );
+
+  const selectedFromMaps = selectedProfile && astConfigIsPlainObject(mergedProfiles[selectedProfile])
+    ? mergedProfiles[selectedProfile]
+    : Object.create(null);
+  const explicitProfileConfig = astConfigResolveExplicitProfileConfig(options);
+  const profileConfig = astConfigMergeProfileValueMap(selectedFromMaps, explicitProfileConfig);
+  const precedence = Array.isArray(options.precedence)
+    ? options.precedence
+    : AST_CONFIG_PROFILE_DEFAULT_PRECEDENCE;
+
+  const bindOptions = Object.assign({}, options, {
+    profileConfig,
+    precedence
+  });
+
+  const bound = astConfigBind(schema, bindOptions);
+  if (!astConfigNormalizeBoolean(options.includeMeta, false)) {
+    return bound;
+  }
+
+  return Object.assign({}, bound, {
+    profile: selectedProfile || '',
+    profileSource: profileSource || '',
+    availableProfiles: Object.keys(mergedProfiles).sort()
+  });
 }
 
 function astConfigBind(definitionOrSchema, options = {}) {

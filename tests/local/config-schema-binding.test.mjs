@@ -14,12 +14,15 @@ function loadConfigContext(overrides = {}) {
   return context;
 }
 
-test('AST.Config exposes schema and bind methods', () => {
+test('AST.Config exposes schema/bind/profile methods', () => {
   const context = loadConfigContext();
 
   assert.equal(typeof context.AST.Config.fromScriptProperties, 'function');
   assert.equal(typeof context.AST.Config.schema, 'function');
   assert.equal(typeof context.AST.Config.bind, 'function');
+  assert.equal(typeof context.AST.Config.setProfile, 'function');
+  assert.equal(typeof context.AST.Config.getProfile, 'function');
+  assert.equal(typeof context.AST.Config.resolveProfile, 'function');
 });
 
 test('AST.Config.schema builds deterministic typed schema', () => {
@@ -166,6 +169,110 @@ test('AST.Config.bind includeMeta returns value/source metadata', () => {
   assert.equal(result.sourceByKey.ENABLED, 'runtime');
   assert.equal(Array.isArray(result.precedence), true);
   assert.equal(result.schema.__astConfigSchema, true);
+});
+
+test('AST.Config.setProfile/getProfile manages runtime profile state', () => {
+  const context = loadConfigContext();
+
+  const set = context.AST.Config.setProfile('dev', {
+    profiles: {
+      dev: { MODE: 'fast', TIMEOUT_MS: '15000' }
+    }
+  });
+  const state = context.AST.Config.getProfile({ includeProfiles: true });
+
+  assert.equal(set.profile, 'dev');
+  assert.equal(state.profile, 'dev');
+  assert.equal(state.hasProfile, true);
+  assert.equal(state.profileCount, 1);
+  assert.equal(state.profiles.dev.MODE, 'fast');
+
+  context.AST.Config.setProfile('', { clearProfiles: true });
+  const cleared = context.AST.Config.getProfile({ includeProfiles: true });
+  assert.equal(cleared.profile, '');
+  assert.equal(cleared.profileCount, 0);
+});
+
+test('AST.Config.resolveProfile applies precedence request > profile > runtime > script_properties', () => {
+  const context = loadConfigContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: JSON.stringify({
+            prod: { MODE: 'safe', TIMEOUT_MS: '9000' }
+          }),
+          AST_CONFIG_PROFILE_PROD_JSON: JSON.stringify({
+            TIMEOUT_MS: '12000',
+            ENABLED: 'false'
+          })
+        })
+      })
+    }
+  });
+
+  context.AST.Config.setProfile('dev', {
+    profiles: {
+      dev: { MODE: 'fast', TIMEOUT_MS: '16000', ENABLED: 'true' }
+    }
+  });
+
+  const result = context.AST.Config.resolveProfile({
+    MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+    TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 },
+    ENABLED: { type: 'bool', default: false }
+  }, {
+    request: {
+      TIMEOUT_MS: '22000'
+    },
+    runtime: {
+      MODE: 'safe'
+    },
+    includeMeta: true
+  });
+
+  assert.equal(result.values.TIMEOUT_MS, 22000);
+  assert.equal(result.values.MODE, 'fast');
+  assert.equal(result.values.ENABLED, true);
+  assert.equal(result.sourceByKey.TIMEOUT_MS, 'request');
+  assert.equal(result.sourceByKey.MODE, 'profile');
+  assert.equal(result.sourceByKey.ENABLED, 'profile');
+  assert.equal(result.profile, 'dev');
+  assert.equal(result.profileSource, 'runtime');
+});
+
+test('AST.Config.resolveProfile reads active script profile when runtime/request profile missing', () => {
+  const context = loadConfigContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: JSON.stringify({
+            prod: { MODE: 'safe' }
+          }),
+          AST_CONFIG_PROFILE_PROD_JSON: JSON.stringify({
+            TIMEOUT_MS: '18000',
+            ENABLED: 'true'
+          })
+        })
+      })
+    }
+  });
+
+  const result = context.AST.Config.resolveProfile({
+    MODE: { type: 'enum', values: ['fast', 'safe'], default: 'fast' },
+    TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 },
+    ENABLED: { type: 'bool', default: false }
+  }, {
+    includeMeta: true
+  });
+
+  assert.equal(result.values.MODE, 'safe');
+  assert.equal(result.values.TIMEOUT_MS, 18000);
+  assert.equal(result.values.ENABLED, true);
+  assert.equal(result.profile, 'prod');
+  assert.equal(result.profileSource, 'script_properties');
+  assert.equal(result.sourceByKey.MODE, 'profile');
 });
 
 test('AST.Config.bind uses memoized script-properties snapshots for explicit handles', () => {
