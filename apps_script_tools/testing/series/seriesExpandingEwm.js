@@ -35,6 +35,11 @@ SERIES_EXPANDING_EWM_TESTS = [
       if (JSON.stringify(minPeriods.array) !== JSON.stringify([null, null, 2])) {
         throw new Error(`Unexpected ewm minPeriods output: ${JSON.stringify(minPeriods.array)}`);
       }
+
+      const gapAware = withNull.ewm({ alpha: 0.5, adjust: false, ignoreNulls: false });
+      if (JSON.stringify(gapAware.array) !== JSON.stringify([1, null, 1.75])) {
+        throw new Error(`Unexpected ewm gap-aware output: ${JSON.stringify(gapAware.array)}`);
+      }
     }
   }
 ];

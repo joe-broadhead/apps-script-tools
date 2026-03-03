@@ -1813,6 +1813,13 @@ var Series = class Series {
           output[idx] = validCount >= normalized.minPeriods ? lastEwm : null;
           continue;
         }
+        if (normalized.adjust) {
+          adjustedNumerator = decay * adjustedNumerator;
+          adjustedDenominator = decay * adjustedDenominator;
+          lastEwm = adjustedDenominator === 0 ? null : adjustedNumerator / adjustedDenominator;
+        } else if (lastEwm != null) {
+          lastEwm = decay * lastEwm;
+        }
         output[idx] = null;
         continue;
       }

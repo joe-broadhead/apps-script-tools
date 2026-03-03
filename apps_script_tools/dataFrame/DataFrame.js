@@ -4904,6 +4904,29 @@ function __astApplyDataFrameResampleAggregation(values, aggregation, methodName,
     case 'mean':
     case 'min':
     case 'max': {
+      if ((aggregation === 'min' || aggregation === 'max') && methodName === 'unstack') {
+        const comparableValues = [];
+        for (let idx = 0; idx < values.length; idx++) {
+          if (!__astDataFrameIsMissingValue(values[idx])) {
+            comparableValues.push(values[idx]);
+          }
+        }
+
+        if (comparableValues.length === 0) {
+          return null;
+        }
+
+        let best = comparableValues[0];
+        for (let idx = 1; idx < comparableValues.length; idx++) {
+          const candidate = comparableValues[idx];
+          const compared = __astCompareDataFrameAggregationValues(candidate, best);
+          if ((aggregation === 'min' && compared < 0) || (aggregation === 'max' && compared > 0)) {
+            best = candidate;
+          }
+        }
+        return best;
+      }
+
       const numericValues = [];
       for (let idx = 0; idx < values.length; idx++) {
         const numeric = normalizeValues(values[idx]);
@@ -4925,6 +4948,46 @@ function __astApplyDataFrameResampleAggregation(values, aggregation, methodName,
     default:
       throw new Error(`DataFrame.${methodName} received unsupported aggregation '${String(aggregation)}'`);
   }
+}
+
+function __astCompareDataFrameAggregationValues(left, right) {
+  if (Object.is(left, right)) {
+    return 0;
+  }
+
+  if (left instanceof Date && right instanceof Date) {
+    const leftTime = left.getTime();
+    const rightTime = right.getTime();
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+      return leftTime < rightTime ? -1 : 1;
+    }
+  }
+
+  if (typeof left === 'number' && typeof right === 'number') {
+    const leftNumber = Number.isNaN(left) ? null : left;
+    const rightNumber = Number.isNaN(right) ? null : right;
+    if (leftNumber == null && rightNumber == null) return 0;
+    if (leftNumber == null) return -1;
+    if (rightNumber == null) return 1;
+    return leftNumber < rightNumber ? -1 : 1;
+  }
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  }
+
+  if (typeof left === 'boolean' && typeof right === 'boolean') {
+    if (left === right) return 0;
+    return left ? 1 : -1;
+  }
+
+  const leftText = __astDataFrameLabelToStableText(left);
+  const rightText = __astDataFrameLabelToStableText(right);
+  if (leftText < rightText) return -1;
+  if (leftText > rightText) return 1;
+  return 0;
 }
 
 function __astNormalizeDataFrameDropNullOptions(dataframe, options, methodName) {

@@ -21,6 +21,16 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
       ])) {
         throw new Error(`Unexpected unstacked records: ${JSON.stringify(unstacked.toRecords())}`);
       }
+
+      const textLong = DataFrame.fromRecords([
+        { row_index: 'r1', column: 'city', value: 'zurich' },
+        { row_index: 'r1', column: 'city', value: 'amsterdam' }
+      ]);
+      const minText = textLong.unstack({ agg: 'min' });
+      const maxText = textLong.unstack({ agg: 'max' });
+      if (minText.toRecords()[0].city !== 'amsterdam' || maxText.toRecords()[0].city !== 'zurich') {
+        throw new Error(`Unexpected text unstack min/max: min=${minText.toRecords()[0].city} max=${maxText.toRecords()[0].city}`);
+      }
     }
   },
   {

@@ -62,6 +62,22 @@ test('DataFrame.unstack supports duplicate index/column pairs via agg option', (
   assert.equal(last.toRecords()[0].b, 9);
 });
 
+test('DataFrame.unstack min/max aggregate comparable non-numeric values deterministically', () => {
+  const context = createDataContext();
+  const long = context.DataFrame.fromRecords([
+    { row_index: 'row1', column: 'city', value: 'zurich' },
+    { row_index: 'row1', column: 'city', value: 'amsterdam' },
+    { row_index: 'row1', column: 'region', value: 'eu' }
+  ]);
+
+  const minOut = long.unstack({ agg: 'min' });
+  const maxOut = long.unstack({ agg: 'max' });
+
+  assert.equal(minOut.toRecords()[0].city, 'amsterdam');
+  assert.equal(maxOut.toRecords()[0].city, 'zurich');
+  assert.equal(maxOut.toRecords()[0].region, 'eu');
+});
+
 test('DataFrame.resample buckets on datetime column with mean aggregation', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
@@ -135,6 +151,14 @@ test('Series.ewm honors minPeriods and ignoreNulls behavior', () => {
 
   const out = series.ewm({ alpha: 0.5, adjust: false, minPeriods: 2, ignoreNulls: true });
   assert.equal(JSON.stringify(out.array), JSON.stringify([null, null, 2]));
+});
+
+test('Series.ewm decays state across null gaps when ignoreNulls=false', () => {
+  const context = createDataContext();
+  const series = new context.Series([1, null, 3], 'values');
+
+  const out = series.ewm({ alpha: 0.5, adjust: false, ignoreNulls: false });
+  assert.equal(JSON.stringify(out.array), JSON.stringify([1, null, 1.75]));
 });
 
 test('Parity finisher methods validate invalid contracts deterministically', () => {
