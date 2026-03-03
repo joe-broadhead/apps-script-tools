@@ -413,6 +413,27 @@ test('DataFrame.resample allows valid second-level spans beyond 200k buckets', (
   assert.equal(out.data.value.array[1], 0);
 });
 
+test('DataFrame.resample supports count on timestamp-only inputs via on-column fallback', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { ts: '2026-03-03T10:01:00Z' },
+    { ts: '2026-03-03T10:45:00Z' },
+    { ts: '2026-03-03T11:02:00Z' }
+  ]);
+
+  const out = df.resample('1h', {
+    on: 'ts',
+    agg: 'count'
+  });
+
+  assert.equal(out.len(), 2);
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['ts']));
+  assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([
+    { ts: 2 },
+    { ts: 1 }
+  ]));
+});
+
 test('Series.expanding computes deterministic cumulative aggregations', () => {
   const context = createDataContext();
   const series = new context.Series([1, 2, null, 4], 'values');
@@ -420,6 +441,7 @@ test('Series.expanding computes deterministic cumulative aggregations', () => {
   assert.equal(JSON.stringify(series.expanding('sum').array), JSON.stringify([1, 3, 3, 7]));
   assert.equal(JSON.stringify(series.expanding('count').array), JSON.stringify([1, 2, 2, 3]));
   assert.equal(JSON.stringify(series.expanding({ operation: 'mean', minPeriods: 2 }).array), JSON.stringify([null, 1.5, 1.5, 7 / 3]));
+  assert.equal(JSON.stringify(series.expanding({ operation: 'sum' }, { minPeriods: 3 }).array), JSON.stringify([null, null, null, 7]));
 });
 
 test('Series.expanding count includes non-missing non-numeric values', () => {

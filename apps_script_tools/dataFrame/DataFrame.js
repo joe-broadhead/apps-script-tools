@@ -4876,9 +4876,6 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
   if (on != null) {
     columns = columns.filter(column => column !== on);
   }
-  if (columns.length === 0) {
-    throw new Error(`DataFrame.${methodName} requires at least one value column`);
-  }
 
   const fillValue = Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null;
   const agg = options.agg == null ? 'mean' : options.agg;
@@ -4897,13 +4894,36 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
         keys[idx],
         `${methodName}.agg key`
       );
-      if (!columns.includes(columnName)) {
-        throw new Error(`DataFrame.${methodName} option agg references unknown value column '${columnName}'`);
-      }
       aggByColumn[columnName] = __astNormalizeDataFrameResampleAggregation(agg[keys[idx]], methodName, columnName);
     }
   } else {
     defaultAgg = __astNormalizeDataFrameResampleAggregation(agg, methodName, '*');
+  }
+
+  if (columns.length === 0) {
+    const aggKeys = Object.keys(aggByColumn);
+    const canFallbackToOnCount = on != null
+      && (
+        (aggKeys.length === 0 && defaultAgg === 'count')
+        || (
+          aggKeys.length === 1
+          && aggKeys[0] === on
+          && aggByColumn[on] === 'count'
+        )
+      );
+    if (canFallbackToOnCount) {
+      columns = [on];
+    } else {
+      throw new Error(`DataFrame.${methodName} requires at least one value column`);
+    }
+  }
+
+  const aggColumns = Object.keys(aggByColumn);
+  for (let idx = 0; idx < aggColumns.length; idx++) {
+    const columnName = aggColumns[idx];
+    if (!columns.includes(columnName)) {
+      throw new Error(`DataFrame.${methodName} option agg references unknown value column '${columnName}'`);
+    }
   }
 
   return {

@@ -250,6 +250,28 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected resample output: ${JSON.stringify(out.toRecords())}`);
       }
 
+      const countOnlyDf = DataFrame.fromRecords([
+        { ts: '2026-03-03T10:01:00Z' },
+        { ts: '2026-03-03T10:45:00Z' },
+        { ts: '2026-03-03T11:02:00Z' }
+      ]);
+      const countOnlyOut = countOnlyDf.resample('1h', {
+        on: 'ts',
+        agg: 'count'
+      });
+      if (countOnlyOut.len() !== 2) {
+        throw new Error(`Expected timestamp-only count resample to produce 2 buckets, got ${countOnlyOut.len()}`);
+      }
+      if (JSON.stringify(countOnlyOut.columns) !== JSON.stringify(['ts'])) {
+        throw new Error(`Expected timestamp-only count output schema ['ts'], got ${JSON.stringify(countOnlyOut.columns)}`);
+      }
+      if (JSON.stringify(countOnlyOut.toRecords()) !== JSON.stringify([
+        { ts: 2 },
+        { ts: 1 }
+      ])) {
+        throw new Error(`Unexpected timestamp-only count output: ${JSON.stringify(countOnlyOut.toRecords())}`);
+      }
+
       const statusDf = DataFrame.fromRecords([
         { ts: '2026-03-03T10:01:00Z', status: 'pending' },
         { ts: '2026-03-03T10:45:00Z', status: 'approved' },

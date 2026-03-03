@@ -4009,7 +4009,7 @@ function astSeriesNormalizeExpandingOptions(operationOrOptions, options, methodN
     && typeof operationOrOptions === 'object'
     && !Array.isArray(operationOrOptions)
   ) {
-    mergedOptions = operationOrOptions;
+    mergedOptions = Object.assign({}, operationOrOptions, options);
   } else if (operationOrOptions == null) {
     mergedOptions = options;
   } else {

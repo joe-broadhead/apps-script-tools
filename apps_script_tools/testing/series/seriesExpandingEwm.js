@@ -19,6 +19,11 @@ SERIES_EXPANDING_EWM_TESTS = [
         throw new Error(`Unexpected expanding mean output: ${JSON.stringify(meanOut.array)}`);
       }
 
+      const mergedOptionsOut = series.expanding({ operation: 'sum' }, { minPeriods: 3 });
+      if (JSON.stringify(mergedOptionsOut.array) !== JSON.stringify([null, null, null, 7])) {
+        throw new Error(`Unexpected expanding merged-options output: ${JSON.stringify(mergedOptionsOut.array)}`);
+      }
+
       const mixed = new Series([1, 'ok', 'err', null, 4], 'mixed');
       const mixedCount = mixed.expanding('count');
       if (JSON.stringify(mixedCount.array) !== JSON.stringify([1, 2, 3, 3, 4])) {
