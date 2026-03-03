@@ -4611,19 +4611,24 @@ function __astNormalizeDataFrameStackOptions(dataframe, options, methodName) {
 }
 
 function __astBuildDataFrameUnstackOutputColumnName(value) {
+  let outputName = '';
   if (typeof value === 'string' && value.trim().length > 0) {
-    return value.trim();
+    outputName = value.trim();
+  } else if (value === null) {
+    outputName = 'null';
+  } else if (value === undefined) {
+    outputName = 'undefined';
+  } else if (value instanceof Date) {
+    outputName = __astFormatDataFrameDateForKey(value);
+  } else {
+    outputName = String(value);
   }
-  if (value === null) {
-    return 'null';
+
+  if (__astDataFrameIsDangerousObjectKey(outputName)) {
+    throw new Error(`DataFrame.unstack produced unsupported output column name '${outputName}'`);
   }
-  if (value === undefined) {
-    return 'undefined';
-  }
-  if (value instanceof Date) {
-    return __astFormatDataFrameDateForKey(value);
-  }
-  return String(value);
+
+  return outputName;
 }
 
 function __astNormalizeDataFrameUnstackOptions(dataframe, options, methodName) {
@@ -4781,6 +4786,10 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
 }
 
 function __astParseDataFrameResampleDate(value, methodName) {
+  if (__astDataFrameIsMissingValue(value) || typeof value === 'boolean') {
+    throw new Error(`DataFrame.${methodName} encountered non-date timestamp value '${String(value)}'`);
+  }
+
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
       throw new Error(`DataFrame.${methodName} encountered Invalid Date while parsing timestamps`);

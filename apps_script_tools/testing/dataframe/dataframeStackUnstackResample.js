@@ -31,6 +31,19 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
       if (minText.toRecords()[0].city !== 'amsterdam' || maxText.toRecords()[0].city !== 'zurich') {
         throw new Error(`Unexpected text unstack min/max: min=${minText.toRecords()[0].city} max=${maxText.toRecords()[0].city}`);
       }
+
+      const dangerousLong = DataFrame.fromRecords([
+        { row_index: 'r1', column: '__proto__', value: 1 }
+      ]);
+      let dangerousErr = null;
+      try {
+        dangerousLong.unstack();
+      } catch (error) {
+        dangerousErr = error;
+      }
+      if (!dangerousErr || !String(dangerousErr.message || dangerousErr).includes('unsupported output column name')) {
+        throw new Error('Expected unstack to reject dangerous output column names');
+      }
     }
   },
   {
@@ -61,6 +74,24 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         { value: 40, qty: 3 }
       ])) {
         throw new Error(`Unexpected resample output: ${JSON.stringify(out.toRecords())}`);
+      }
+
+      const dfInvalidTs = DataFrame.fromRecords([
+        { ts: null, value: 10 },
+        { ts: false, value: 20 }
+      ]);
+      let invalidTsErr = null;
+      try {
+        dfInvalidTs.resample('1h', {
+          on: 'ts',
+          columns: ['value'],
+          agg: 'sum'
+        });
+      } catch (error) {
+        invalidTsErr = error;
+      }
+      if (!invalidTsErr || !String(invalidTsErr.message || invalidTsErr).includes('non-date timestamp value')) {
+        throw new Error('Expected resample to reject null/boolean timestamp values');
       }
     }
   }

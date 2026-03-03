@@ -78,6 +78,15 @@ test('DataFrame.unstack min/max aggregate comparable non-numeric values determin
   assert.equal(maxOut.toRecords()[0].region, 'eu');
 });
 
+test('DataFrame.unstack rejects dangerous output column names from pivot values', () => {
+  const context = createDataContext();
+  const long = context.DataFrame.fromRecords([
+    { row_index: 'row1', column: '__proto__', value: 1 }
+  ]);
+
+  assert.throws(() => long.unstack(), /unsupported output column name/);
+});
+
 test('DataFrame.resample buckets on datetime column with mean aggregation', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
@@ -99,6 +108,19 @@ test('DataFrame.resample buckets on datetime column with mean aggregation', () =
     { value: 15, qty: 1.5 },
     { value: 40, qty: 3 }
   ]));
+});
+
+test('DataFrame.resample rejects null and boolean timestamp values', () => {
+  const context = createDataContext();
+  const dfNull = context.DataFrame.fromRecords([
+    { ts: null, value: 10 }
+  ]);
+  const dfBool = context.DataFrame.fromRecords([
+    { ts: false, value: 10 }
+  ]);
+
+  assert.throws(() => dfNull.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
+  assert.throws(() => dfBool.resample('1h', { on: 'ts', columns: ['value'], agg: 'sum' }), /non-date timestamp value/);
 });
 
 test('DataFrame.resample supports per-column aggregations and right-edge labels', () => {
