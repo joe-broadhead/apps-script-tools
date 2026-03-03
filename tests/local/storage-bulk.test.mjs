@@ -493,3 +493,22 @@ test('AST.Storage.transfer auto mode resolves to sync when deleteExtra is enable
   assert.equal(runtime.objects['gcs://bucket/target/old.txt'], undefined);
   assert.equal(runtime.objects['gcs://bucket/target/a.txt'].text, 'A');
 });
+
+test('AST.Storage.transfer does not force target provider from request.provider when toUri is explicit', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/source/a.txt': { text: 'A' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    provider: 'gcs',
+    fromLocation: { bucket: 'bucket', key: 'source/a.txt' },
+    toUri: 's3://archive/target/a.txt',
+    mode: 'object'
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'object');
+  assert.equal(runtime.objects['s3://archive/target/a.txt'].text, 'A');
+});

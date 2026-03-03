@@ -225,7 +225,7 @@ function storageBulkExample() {
 - `transfer/copyPrefix/deletePrefix/sync` support `options.dryRun`, `options.maxObjects`, and per-item failure reporting in `output.items`.
 - `transfer` mode `auto` resolves to:
   - `sync` when `options.deleteExtra=true`
-  - `prefix` when source or target looks like a prefix (trailing `/` or empty key/path)
+  - `prefix` when source looks like a prefix (trailing `/` or empty key/path)
   - `object` otherwise
 - Payloads are normalized to base64 internally (`text`/`json` are helper inputs).
 - Config resolution precedence: request auth > `ASTX.Storage.configure(...)` > script properties.

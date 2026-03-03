@@ -149,7 +149,8 @@ Bulk prefix operation notes:
 
 - `walk` lists normalized prefix entries with deterministic ordering.
 - `transfer` unifies object, prefix-copy, and sync flows under one API.
-- `transfer` mode `auto` resolves to `sync` (`deleteExtra=true`), else `prefix` for trailing `/` inputs, else `object`.
+- `transfer` mode `auto` resolves to `sync` (`deleteExtra=true`), else `prefix` when the source is a prefix (trailing `/` or empty key/path), else `object`.
+- In `object` mode, target URIs that look like a prefix append the source object basename to build the final destination URI.
 - `copy_prefix` supports same-provider copy and cross-provider read+write fallback.
 - `delete_prefix` deletes all matched entries under a prefix.
 - `sync` copies source->target and optionally removes extra target objects (`deleteExtra=true`).

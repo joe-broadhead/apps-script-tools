@@ -144,7 +144,7 @@ function astStorageBulkResolveTransferEndpoints(request = {}) {
     location: request.fromLocation
   };
   const toInput = request.to || {
-    provider: request.toProvider || request.provider,
+    provider: request.toProvider,
     uri: request.toUri || request.uri,
     location: request.toLocation || request.location
   };
@@ -180,7 +180,6 @@ function astStorageBulkNormalizeTransferMode(request = {}, endpoints = null, opt
   }
 
   const fromPrefix = astStorageBulkGetPrefixValue(endpoints.from.provider, endpoints.from.location);
-  const toPrefix = astStorageBulkGetPrefixValue(endpoints.to.provider, endpoints.to.location);
   const fromLooksLikePrefix = !fromPrefix || fromPrefix.endsWith('/');
 
   if (fromLooksLikePrefix) {
