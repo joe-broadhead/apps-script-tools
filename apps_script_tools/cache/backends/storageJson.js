@@ -876,6 +876,46 @@ function astCacheStorageListEntryUris(config, runtimeOptions = {}, options = {})
     .filter(uri => /\/entries\/[^\/]+\.json$/.test(uri));
 }
 
+function astCacheStorageListEntries(config, runtimeOptions = {}, options = {}) {
+  const includeInternal = options.includeInternal === true;
+  const maxItems = astCacheNormalizePositiveInt(options.maxItems, 10000, 1, 1000000);
+  const nowMs = astCacheNowMs();
+  const output = [];
+
+  const entryUris = astCacheStorageListEntryUris(config, runtimeOptions, {
+    maxItemsOverride: maxItems
+  });
+
+  for (let idx = 0; idx < entryUris.length; idx += 1) {
+    const keyHash = astCacheStorageExtractKeyHashFromUri(entryUris[idx]);
+    if (!keyHash) {
+      continue;
+    }
+
+    const entry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
+    if (!entry) {
+      continue;
+    }
+
+    if (astCacheIsExpired(entry, nowMs)) {
+      astCacheStorageDeleteEntryArtifacts(config, keyHash, entry.tags, runtimeOptions);
+      astCacheStorageBumpPendingStats(config, { expired: 1 });
+      continue;
+    }
+
+    if (!includeInternal && astCacheIsInternalNormalizedKey(entry.normalizedKey)) {
+      continue;
+    }
+
+    output.push(astCacheJsonClone(entry));
+    if (output.length >= maxItems) {
+      break;
+    }
+  }
+
+  return output;
+}
+
 function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
   const maxEntries = astCacheNormalizePositiveInt(
     config.maxMemoryEntries,
@@ -1136,6 +1176,17 @@ function astCacheStorageInvalidateByTag(tag, config, runtimeOptions = {}) {
   }
 
   return removed;
+}
+
+function astCacheStorageRecordInvalidations(count, config, runtimeOptions = {}) {
+  const safeCount = astCacheNormalizePositiveInt(count, 0, 0, 1000000);
+  if (safeCount <= 0) {
+    return 0;
+  }
+  astCacheStorageUpdateStats(config, runtimeOptions, {
+    invalidations: safeCount
+  });
+  return safeCount;
 }
 
 function astCacheStorageStats(config, runtimeOptions = {}) {

@@ -415,6 +415,9 @@ ASTX.Cache.fetchMany(keys, resolver, options)
 ASTX.Cache.delete(key, options)
 ASTX.Cache.deleteMany(keys, options)
 ASTX.Cache.invalidateByTag(tag, options)
+ASTX.Cache.invalidateByPrefix(prefix, options)
+ASTX.Cache.invalidateByPredicate(predicate, options)
+ASTX.Cache.lock(key, task, options)
 ASTX.Cache.stats(options)
 ASTX.Cache.backends()
 ASTX.Cache.capabilities(backend)
@@ -659,7 +662,7 @@ ASTX.GitHub.clearConfig()
 - `RAG.previewSources(...)` returns citation-ready cards and optional reusable retrieval payloads.
 - retrieval payload interop APIs (`buildRetrievalCacheKey`/`put`/`get`/`delete`) support search-to-answer reuse without re-search.
 - `RAG.IndexManager.create(...).ensure/sync/fastState` wraps index lifecycle operations for app-level orchestration.
-- Cache supports deterministic TTL (`ttlSec`) and tag-based invalidation.
+- Cache supports deterministic TTL (`ttlSec`), tag invalidation, prefix invalidation, and predicate invalidation.
 - Cache backend options are `memory`, `drive_json`, `script_properties`, and `storage_json` (`gcs://`, `s3://`, `dbfs:/` via `storageUri`).
 - Cache `updateStatsOnGet` defaults to `true`; set `updateStatsOnGet: false` to avoid write-on-read for high-throughput reads.
 - Cache production default should be `storage_json`; keep `memory`/`drive_json`/`script_properties` for low-scale or execution-local workloads.

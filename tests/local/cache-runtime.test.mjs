@@ -367,6 +367,9 @@ test('AST exposes Cache surface and backend helpers', () => {
     'delete',
     'deleteMany',
     'invalidateByTag',
+    'invalidateByPrefix',
+    'invalidateByPredicate',
+    'lock',
     'stats',
     'backends',
     'capabilities',
@@ -389,6 +392,9 @@ test('AST exposes Cache surface and backend helpers', () => {
   assert.equal(memoryCapabilities.setMany, true);
   assert.equal(memoryCapabilities.fetchMany, true);
   assert.equal(memoryCapabilities.deleteMany, true);
+  assert.equal(memoryCapabilities.invalidateByPrefix, true);
+  assert.equal(memoryCapabilities.invalidateByPredicate, true);
+  assert.equal(memoryCapabilities.lock, true);
 });
 
 ['memory', 'drive_json', 'script_properties', 'storage_json'].forEach(backend => {
@@ -493,6 +499,159 @@ test('cache setMany tags remain compatible with invalidateByTag', () => {
     JSON.stringify(context.AST.Cache.get('batch:b')),
     JSON.stringify({ id: 'b' })
   );
+});
+
+['memory', 'drive_json', 'script_properties', 'storage_json'].forEach(backend => {
+  test(`cache invalidateByPrefix removes matching keys for ${backend}`, () => {
+    const setup = createBatchBackendContext(backend);
+    const context = setup.context;
+
+    context.AST.Cache.clearConfig();
+    const configurePayload = {
+      backend,
+      namespace: `cache_prefix_${backend}_${Date.now()}`
+    };
+    if (backend === 'drive_json') {
+      configurePayload.driveFileName = `cache-prefix-${Date.now()}.json`;
+    }
+    if (backend === 'storage_json') {
+      configurePayload.storageUri = `gcs://cache-bucket/prefix-${Date.now()}/cache.json`;
+    }
+    context.AST.Cache.configure(configurePayload);
+
+    context.AST.Cache.set('pref:a1', { id: 'a1' }, { tags: ['pref'] });
+    context.AST.Cache.set('pref:a2', { id: 'a2' }, { tags: ['pref'] });
+    context.AST.Cache.set('other:b1', { id: 'b1' }, { tags: ['other'] });
+
+    setInternalCacheEntry(context, {
+      backend,
+      namespace: configurePayload.namespace,
+      baseKey: 'pref:a1',
+      suffix: 'scoped_lock',
+      value: {
+        ownerId: 'test-owner'
+      },
+      ttlSec: 120
+    });
+
+    const out = context.AST.Cache.invalidateByPrefix('pref:');
+    assert.equal(out.operation, 'invalidate_by_prefix');
+    assert.equal(out.deleted, 2);
+    assert.equal(out.failed, 0);
+    assert.equal(out.details.prefix, 'pref:');
+
+    assert.equal(context.AST.Cache.get('pref:a1'), null);
+    assert.equal(context.AST.Cache.get('pref:a2'), null);
+    assert.equal(
+      JSON.stringify(context.AST.Cache.get('other:b1')),
+      JSON.stringify({ id: 'b1' })
+    );
+
+    const stats = context.AST.Cache.stats();
+    assert.equal((stats.stats.invalidations || 0) >= 2, true);
+  });
+});
+
+test('cache invalidateByPredicate removes entries selected by callback', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_predicate_invalidation'
+  });
+
+  context.AST.Cache.set('pred:a', { score: 10 }, { tags: ['alpha'] });
+  context.AST.Cache.set('pred:b', { score: 20 }, { tags: ['beta'] });
+  context.AST.Cache.set('pred:c', { score: 30 }, { tags: ['gamma'] });
+
+  const out = context.AST.Cache.invalidateByPredicate(entry => entry.value.score >= 20);
+  assert.equal(out.operation, 'invalidate_by_predicate');
+  assert.equal(out.deleted, 2);
+  assert.equal(out.failed, 0);
+
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('pred:a')),
+    JSON.stringify({ score: 10 })
+  );
+  assert.equal(context.AST.Cache.get('pred:b'), null);
+  assert.equal(context.AST.Cache.get('pred:c'), null);
+});
+
+test('cache invalidateByPredicate validates predicate callback', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_predicate_validation'
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.invalidateByPredicate(null);
+  }, /must be a function/);
+});
+
+test('cache lock runs task and releases scoped lock for follow-up callers', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_lock_success'
+  });
+
+  const first = context.AST.Cache.lock('resource:key', lockCtx => {
+    context.AST.Cache.set('resource:inside', {
+      ownerId: lockCtx.ownerId
+    });
+    return {
+      ok: true,
+      attempts: lockCtx.attempts
+    };
+  }, {
+    timeoutMs: 100,
+    leaseMs: 5000
+  });
+
+  assert.equal(first.operation, 'lock');
+  assert.equal(first.result.ok, true);
+  assert.equal(first.attempts >= 1, true);
+
+  const second = context.AST.Cache.lock('resource:key', () => 'second', {
+    timeoutMs: 100,
+    leaseMs: 5000
+  });
+  assert.equal(second.result, 'second');
+});
+
+test('cache lock fails with timeout when scoped lock is already held', () => {
+  const context = createGasContext();
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'memory',
+    namespace: 'cache_lock_timeout'
+  });
+
+  setInternalCacheEntry(context, {
+    backend: 'memory',
+    namespace: 'cache_lock_timeout',
+    baseKey: 'resource:held',
+    suffix: 'scoped_lock',
+    value: {
+      ownerId: 'other-owner'
+    },
+    ttlSec: 120
+  });
+
+  assert.throws(() => {
+    context.AST.Cache.lock('resource:held', () => true, {
+      timeoutMs: 0,
+      leaseMs: 5000
+    });
+  }, /timeout exceeded/);
 });
 
 test('cache batch APIs validate request contracts', () => {

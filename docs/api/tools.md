@@ -265,6 +265,9 @@ Primary methods:
 - `ASTX.Cache.delete(key, options)`
 - `ASTX.Cache.deleteMany(keys, options)`
 - `ASTX.Cache.invalidateByTag(tag, options)`
+- `ASTX.Cache.invalidateByPrefix(prefix, options)`
+- `ASTX.Cache.invalidateByPredicate(predicate, options)`
+- `ASTX.Cache.lock(key, task, options)`
 - `ASTX.Cache.stats(options)`
 - `ASTX.Cache.backends()` and `ASTX.Cache.capabilities(backend)`
 - `ASTX.Cache.configure(config)` / `ASTX.Cache.getConfig()` / `ASTX.Cache.clearConfig()`
@@ -275,6 +278,8 @@ High-signal behavior:
 - config precedence is per-call options, then runtime `configure(...)`, then script properties.
 - deterministic TTL semantics via `ttlSec`.
 - tags are normalized and de-duplicated for invalidation workflows.
+- prefix/predicate invalidation scans are bounded by `options.maxScan` (default `10000`).
+- `lock(...)` uses scoped lease keys with bounded `timeoutMs` and `leaseMs`.
 - `stats()` returns backend/namespace entry counts and hit/miss counters.
 
 ```javascript

@@ -114,6 +114,38 @@ function astCacheMemoryDelete(keyHash, nowMs, config) {
   return true;
 }
 
+function astCacheMemoryDeleteMany(keyHashes, nowMs, config) {
+  const store = astCacheMemoryGetNamespaceStore(config);
+  astCacheMemoryPruneExpired(store, nowMs);
+
+  const safeKeyHashes = Array.isArray(keyHashes) ? keyHashes : [];
+  let removed = 0;
+  for (let idx = 0; idx < safeKeyHashes.length; idx += 1) {
+    const keyHash = astCacheNormalizeString(safeKeyHashes[idx], '');
+    if (!keyHash || !store.entries[keyHash]) {
+      continue;
+    }
+    delete store.entries[keyHash];
+    removed += 1;
+  }
+
+  if (removed > 0) {
+    store.stats.deletes += removed;
+  }
+
+  return removed;
+}
+
+function astCacheMemoryRecordInvalidations(count, nowMs, config) {
+  const store = astCacheMemoryGetNamespaceStore(config);
+  astCacheMemoryPruneExpired(store, nowMs);
+  const safeCount = astCacheNormalizePositiveInt(count, 0, 0, 1000000);
+  if (safeCount > 0) {
+    store.stats.invalidations += safeCount;
+  }
+  return safeCount;
+}
+
 function astCacheMemoryInvalidateByTag(tag, nowMs, config) {
   const store = astCacheMemoryGetNamespaceStore(config);
   astCacheMemoryPruneExpired(store, nowMs);
@@ -137,6 +169,35 @@ function astCacheMemoryInvalidateByTag(tag, nowMs, config) {
 
   store.stats.invalidations += removed;
   return removed;
+}
+
+function astCacheMemoryListEntries(nowMs, config, options = {}) {
+  const store = astCacheMemoryGetNamespaceStore(config);
+  astCacheMemoryPruneExpired(store, nowMs);
+
+  const includeInternal = options.includeInternal === true;
+  const maxItems = astCacheNormalizePositiveInt(options.maxItems, 10000, 1, 1000000);
+  const keyHashes = Object.keys(store.entries).sort();
+  const output = [];
+
+  for (let idx = 0; idx < keyHashes.length; idx += 1) {
+    const keyHash = keyHashes[idx];
+    const entry = store.entries[keyHash];
+    if (!entry) {
+      continue;
+    }
+
+    if (!includeInternal && astCacheIsInternalNormalizedKey(entry.normalizedKey)) {
+      continue;
+    }
+
+    output.push(astCacheJsonClone(entry));
+    if (output.length >= maxItems) {
+      break;
+    }
+  }
+
+  return output;
 }
 
 function astCacheMemoryStats(nowMs, config) {

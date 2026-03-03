@@ -202,6 +202,46 @@ function astCacheScriptPropertiesDelete(keyHash, config) {
   });
 }
 
+function astCacheScriptPropertiesDeleteMany(keyHashes, config) {
+  const safeKeyHashes = Array.isArray(keyHashes)
+    ? keyHashes
+      .map(value => astCacheNormalizeString(value, ''))
+      .filter(Boolean)
+    : [];
+
+  if (safeKeyHashes.length === 0) {
+    return 0;
+  }
+
+  return astCacheScriptPropertiesWithDocument(config, (document, _nowMs, stats) => {
+    let removed = 0;
+    for (let idx = 0; idx < safeKeyHashes.length; idx += 1) {
+      const keyHash = safeKeyHashes[idx];
+      if (!document.entries[keyHash]) {
+        continue;
+      }
+      delete document.entries[keyHash];
+      removed += 1;
+    }
+    if (removed > 0) {
+      stats.deletes += removed;
+    }
+    return removed;
+  });
+}
+
+function astCacheScriptPropertiesRecordInvalidations(count, config) {
+  const safeCount = astCacheNormalizePositiveInt(count, 0, 0, 1000000);
+  if (safeCount <= 0) {
+    return 0;
+  }
+
+  return astCacheScriptPropertiesWithDocument(config, (document, _nowMs, stats) => {
+    stats.invalidations += safeCount;
+    return safeCount;
+  });
+}
+
 function astCacheScriptPropertiesInvalidateByTag(tag, config) {
   const normalizedTag = astCacheNormalizeString(tag, '');
   if (!normalizedTag) {
@@ -225,6 +265,35 @@ function astCacheScriptPropertiesInvalidateByTag(tag, config) {
 
     stats.invalidations += removed;
     return removed;
+  });
+}
+
+function astCacheScriptPropertiesListEntries(config, options = {}) {
+  const includeInternal = options.includeInternal === true;
+  const maxItems = astCacheNormalizePositiveInt(options.maxItems, 10000, 1, 1000000);
+
+  return astCacheScriptPropertiesWithDocument(config, (document) => {
+    const keyHashes = Object.keys(document.entries || {}).sort();
+    const output = [];
+
+    for (let idx = 0; idx < keyHashes.length; idx += 1) {
+      const keyHash = keyHashes[idx];
+      const entry = document.entries[keyHash];
+      if (!entry) {
+        continue;
+      }
+
+      if (!includeInternal && astCacheIsInternalNormalizedKey(entry.normalizedKey)) {
+        continue;
+      }
+
+      output.push(astCacheJsonClone(entry));
+      if (output.length >= maxItems) {
+        break;
+      }
+    }
+
+    return output;
   });
 }
 

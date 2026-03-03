@@ -339,6 +339,50 @@ function runBackendBatchProfile(backend, sampleIdx, keyCount) {
   };
 }
 
+function runInvalidationProfile(sampleIdx, keyCount) {
+  const buildEntries = (tagPrefix) => {
+    const entries = [];
+    for (let idx = 0; idx < keyCount; idx += 1) {
+      const isPrefix = idx % 2 === 0;
+      entries.push({
+        key: `${isPrefix ? 'pref' : 'other'}:${idx}`,
+        value: { idx, bucket: isPrefix ? 'pref' : 'other' },
+        options: {
+          tags: [isPrefix ? `${tagPrefix}:pref` : `${tagPrefix}:other`]
+        }
+      });
+    }
+    return entries;
+  };
+
+  const prefixContext = createBackendContext('memory', `prefix_${sampleIdx}`);
+  prefixContext.AST.Cache.setMany(buildEntries(`prefix_${sampleIdx}`), {
+    ttlSec: 300
+  });
+  const prefixMs = measureMs(() => {
+    prefixContext.AST.Cache.invalidateByPrefix('pref:');
+  });
+  const prefixRemaining = prefixContext.AST.Cache.stats().entries;
+
+  const predicateContext = createBackendContext('memory', `predicate_${sampleIdx}`);
+  predicateContext.AST.Cache.setMany(buildEntries(`predicate_${sampleIdx}`), {
+    ttlSec: 300
+  });
+  const predicateMs = measureMs(() => {
+    predicateContext.AST.Cache.invalidateByPredicate(entry => Array.isArray(entry.tags) && entry.tags.indexOf(`predicate_${sampleIdx}:pref`) !== -1);
+  });
+  const predicateRemaining = predicateContext.AST.Cache.stats().entries;
+
+  return {
+    keyCount,
+    prefixMs,
+    predicateMs,
+    prefixRemaining,
+    predicateRemaining,
+    predicateRelativePct: prefixMs > 0 ? (predicateMs / prefixMs) * 100 : 0
+  };
+}
+
 export function runCachePerf(_context, options = {}) {
   const samples = Number.isInteger(options.samples) ? Math.max(1, options.samples) : 1;
   const backendKeyCounts = {
@@ -350,6 +394,7 @@ export function runCachePerf(_context, options = {}) {
   const backendNames = Object.keys(backendKeyCounts);
 
   const metrics = [];
+  const invalidationMetrics = [];
   for (let sampleIdx = 0; sampleIdx < samples; sampleIdx += 1) {
     const backendProfiles = [];
     for (let idx = 0; idx < backendNames.length; idx += 1) {
@@ -381,6 +426,8 @@ export function runCachePerf(_context, options = {}) {
       aggregate,
       backendProfiles
     });
+
+    invalidationMetrics.push(runInvalidationProfile(sampleIdx, 20000));
   }
 
   const bestSample = metrics
@@ -402,21 +449,46 @@ export function runCachePerf(_context, options = {}) {
     profileLookup[profile.backend] = profile;
   }
 
-  return [{
-    name: 'cache.batch_profile',
-    bestMs: Number((bestSample.aggregate.batchGetMs + bestSample.aggregate.batchSetMs).toFixed(3)),
-    medianMs: Number((medianSample.aggregate.singleGetMs + medianSample.aggregate.singleSetMs).toFixed(3)),
-    maxHeapDeltaBytes: 0,
-    samples,
-    counters: {
-      backendCount: bestSample.backendProfiles.length,
-      setManyRelativePct: Number(bestSample.aggregate.setManyRelativePct.toFixed(3)),
-      getManyRelativePct: Number(bestSample.aggregate.getManyRelativePct.toFixed(3)),
-      memorySetManyRelativePct: Number(profileLookup.memory.setManyRelativePct.toFixed(3)),
-      memoryGetManyRelativePct: Number(profileLookup.memory.getManyRelativePct.toFixed(3)),
-      storageSetManyRelativePct: Number(profileLookup.storage_json.setManyRelativePct.toFixed(3)),
-      storageGetManyRelativePct: Number(profileLookup.storage_json.getManyRelativePct.toFixed(3))
+  const bestInvalidation = invalidationMetrics
+    .slice()
+    .sort((left, right) => (left.prefixMs + left.predicateMs) - (right.prefixMs + right.predicateMs))[0];
+  const medianInvalidation = invalidationMetrics
+    .slice()
+    .sort((left, right) => left.prefixMs - right.prefixMs)[Math.floor(invalidationMetrics.length / 2)];
+
+  return [
+    {
+      name: 'cache.batch_profile',
+      bestMs: Number((bestSample.aggregate.batchGetMs + bestSample.aggregate.batchSetMs).toFixed(3)),
+      medianMs: Number((medianSample.aggregate.singleGetMs + medianSample.aggregate.singleSetMs).toFixed(3)),
+      maxHeapDeltaBytes: 0,
+      samples,
+      counters: {
+        backendCount: bestSample.backendProfiles.length,
+        setManyRelativePct: Number(bestSample.aggregate.setManyRelativePct.toFixed(3)),
+        getManyRelativePct: Number(bestSample.aggregate.getManyRelativePct.toFixed(3)),
+        memorySetManyRelativePct: Number(profileLookup.memory.setManyRelativePct.toFixed(3)),
+        memoryGetManyRelativePct: Number(profileLookup.memory.getManyRelativePct.toFixed(3)),
+        storageSetManyRelativePct: Number(profileLookup.storage_json.setManyRelativePct.toFixed(3)),
+        storageGetManyRelativePct: Number(profileLookup.storage_json.getManyRelativePct.toFixed(3))
+      },
+      outputType: 'Object'
     },
-    outputType: 'Object'
-  }];
+    {
+      name: 'cache.invalidation_profile',
+      bestMs: Number((bestInvalidation.prefixMs + bestInvalidation.predicateMs).toFixed(3)),
+      medianMs: Number(medianInvalidation.prefixMs.toFixed(3)),
+      maxHeapDeltaBytes: 0,
+      samples,
+      counters: {
+        keyCount: bestInvalidation.keyCount,
+        prefixMs: Number(bestInvalidation.prefixMs.toFixed(3)),
+        predicateMs: Number(bestInvalidation.predicateMs.toFixed(3)),
+        predicateRelativePct: Number(bestInvalidation.predicateRelativePct.toFixed(3)),
+        prefixRemaining: bestInvalidation.prefixRemaining,
+        predicateRemaining: bestInvalidation.predicateRemaining
+      },
+      outputType: 'Object'
+    }
+  ];
 }
