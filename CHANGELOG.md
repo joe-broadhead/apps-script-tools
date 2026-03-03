@@ -12,6 +12,10 @@
   - `text`, `structured`, and `tools` operations
   - Databricks Model Serving endpoint URL and host+serving-endpoint composition
   - script-property/runtime/per-call config precedence via `DATABRICKS_*` keys
+- `AST.Jobs` dead-letter queue and replay APIs:
+  - `listFailed`, `moveToDlq`, `replayDlq`, `purgeDlq`
+  - replay request idempotency keys and bounded replay batch width
+  - DLQ metadata preserves retry and failure context for triage
 - HTTP docs:
   - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:

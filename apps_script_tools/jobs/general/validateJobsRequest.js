@@ -15,6 +15,15 @@ const AST_JOBS_ORCHESTRATION_ALLOWED_MODES = Object.freeze([
 const AST_JOBS_ORCHESTRATION_MAX_ITEMS = 5000;
 const AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = 10;
 const AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = 1000;
+const AST_JOBS_DLQ_ALLOWED_STATES = Object.freeze([
+  'queued',
+  'replayed'
+]);
+const AST_JOBS_DLQ_IN_DLQ_FILTERS = Object.freeze([
+  'any',
+  'only',
+  'exclude'
+]);
 
 const AST_JOBS_DEFAULT_OPTIONS = Object.freeze({
   maxRetries: 2,
@@ -304,6 +313,86 @@ function astJobsValidateListFilters(filters = {}) {
   };
 }
 
+function astJobsValidateListFailedFilters(filters = {}) {
+  if (!astJobsIsPlainObject(filters)) {
+    throw new AstJobsValidationError('Failed-job filters must be an object');
+  }
+
+  const inDlq = astJobsNormalizeString(filters.inDlq, 'any');
+  if (!AST_JOBS_DLQ_IN_DLQ_FILTERS.includes(inDlq)) {
+    throw new AstJobsValidationError('Invalid inDlq filter', {
+      inDlq
+    });
+  }
+
+  const dlqState = astJobsNormalizeString(filters.dlqState, null);
+  if (dlqState && !AST_JOBS_DLQ_ALLOWED_STATES.includes(dlqState)) {
+    throw new AstJobsValidationError('Invalid dlqState filter', {
+      dlqState
+    });
+  }
+
+  return {
+    name: astJobsNormalizeString(filters.name, null),
+    limit: astJobsNormalizePositiveInt(filters.limit, 100, 1, 1000),
+    includeJob: Boolean(filters.includeJob),
+    inDlq,
+    dlqState: dlqState || null
+  };
+}
+
+function astJobsValidateMoveToDlqRequest(jobId, options = {}) {
+  if (!astJobsIsPlainObject(options)) {
+    throw new AstJobsValidationError('moveToDlq options must be an object');
+  }
+
+  return {
+    jobId: astJobsNormalizeJobId(jobId),
+    options: {
+      propertyPrefix: astJobsNormalizeString(options.propertyPrefix, null),
+      lockTimeoutMs: astJobsNormalizePositiveInt(options.lockTimeoutMs, null, 1, 60000)
+    }
+  };
+}
+
+function astJobsValidateReplayDlqRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('replayDlq request must be an object');
+  }
+
+  const idempotencyKey = astJobsNormalizeString(request.idempotencyKey, null);
+
+  return {
+    name: astJobsNormalizeString(request.name, null),
+    limit: astJobsNormalizePositiveInt(request.limit, 20, 1, 500),
+    maxConcurrency: astJobsNormalizePositiveInt(request.maxConcurrency, 10, 1, 100),
+    idempotencyKey,
+    lockTimeoutMs: astJobsNormalizePositiveInt(request.lockTimeoutMs, null, 1, 60000),
+    propertyPrefix: astJobsNormalizeString(request.propertyPrefix, null)
+  };
+}
+
+function astJobsValidatePurgeDlqRequest(request = {}) {
+  if (!astJobsIsPlainObject(request)) {
+    throw new AstJobsValidationError('purgeDlq request must be an object');
+  }
+
+  const state = astJobsNormalizeString(request.state, 'replayed');
+  if (state !== 'all' && !AST_JOBS_DLQ_ALLOWED_STATES.includes(state)) {
+    throw new AstJobsValidationError('Invalid purgeDlq state filter', {
+      state
+    });
+  }
+
+  return {
+    name: astJobsNormalizeString(request.name, null),
+    state,
+    limit: astJobsNormalizePositiveInt(request.limit, 200, 1, 2000),
+    lockTimeoutMs: astJobsNormalizePositiveInt(request.lockTimeoutMs, null, 1, 60000),
+    propertyPrefix: astJobsNormalizeString(request.propertyPrefix, null)
+  };
+}
+
 function astJobsNormalizeOrchestrationMode(mode, fallback = 'run') {
   const fallbackMode = astJobsNormalizeString(fallback, 'run').toLowerCase();
   if (!AST_JOBS_ORCHESTRATION_ALLOWED_MODES.includes(fallbackMode)) {
@@ -502,6 +591,8 @@ __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRAT
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
 __astJobsValidateRoot.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
+__astJobsValidateRoot.AST_JOBS_DLQ_ALLOWED_STATES = AST_JOBS_DLQ_ALLOWED_STATES;
+__astJobsValidateRoot.AST_JOBS_DLQ_IN_DLQ_FILTERS = AST_JOBS_DLQ_IN_DLQ_FILTERS;
 __astJobsValidateRoot.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
 __astJobsValidateRoot.astJobsIsPlainObject = astJobsIsPlainObject;
 __astJobsValidateRoot.astJobsNormalizeString = astJobsNormalizeString;
@@ -512,6 +603,10 @@ __astJobsValidateRoot.astJobsNormalizeOptions = astJobsNormalizeOptions;
 __astJobsValidateRoot.astJobsValidateRunRequest = astJobsValidateRunRequest;
 __astJobsValidateRoot.astJobsValidateEnqueueRequest = astJobsValidateEnqueueRequest;
 __astJobsValidateRoot.astJobsValidateListFilters = astJobsValidateListFilters;
+__astJobsValidateRoot.astJobsValidateListFailedFilters = astJobsValidateListFailedFilters;
+__astJobsValidateRoot.astJobsValidateMoveToDlqRequest = astJobsValidateMoveToDlqRequest;
+__astJobsValidateRoot.astJobsValidateReplayDlqRequest = astJobsValidateReplayDlqRequest;
+__astJobsValidateRoot.astJobsValidatePurgeDlqRequest = astJobsValidatePurgeDlqRequest;
 __astJobsValidateRoot.astJobsValidateChainRequest = astJobsValidateChainRequest;
 __astJobsValidateRoot.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
 __astJobsValidateRoot.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;
@@ -520,6 +615,8 @@ this.AST_JOBS_ORCHESTRATION_ALLOWED_MODES = AST_JOBS_ORCHESTRATION_ALLOWED_MODES
 this.AST_JOBS_ORCHESTRATION_MAX_ITEMS = AST_JOBS_ORCHESTRATION_MAX_ITEMS;
 this.AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_DEFAULT_MAX_CONCURRENCY;
 this.AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY = AST_JOBS_ORCHESTRATION_MAX_CONCURRENCY;
+this.AST_JOBS_DLQ_ALLOWED_STATES = AST_JOBS_DLQ_ALLOWED_STATES;
+this.AST_JOBS_DLQ_IN_DLQ_FILTERS = AST_JOBS_DLQ_IN_DLQ_FILTERS;
 this.AST_JOBS_DEFAULT_OPTIONS = AST_JOBS_DEFAULT_OPTIONS;
 this.astJobsIsPlainObject = astJobsIsPlainObject;
 this.astJobsNormalizeString = astJobsNormalizeString;
@@ -530,6 +627,10 @@ this.astJobsNormalizeOptions = astJobsNormalizeOptions;
 this.astJobsValidateRunRequest = astJobsValidateRunRequest;
 this.astJobsValidateEnqueueRequest = astJobsValidateEnqueueRequest;
 this.astJobsValidateListFilters = astJobsValidateListFilters;
+this.astJobsValidateListFailedFilters = astJobsValidateListFailedFilters;
+this.astJobsValidateMoveToDlqRequest = astJobsValidateMoveToDlqRequest;
+this.astJobsValidateReplayDlqRequest = astJobsValidateReplayDlqRequest;
+this.astJobsValidatePurgeDlqRequest = astJobsValidatePurgeDlqRequest;
 this.astJobsValidateChainRequest = astJobsValidateChainRequest;
 this.astJobsValidateEnqueueManyRequest = astJobsValidateEnqueueManyRequest;
 this.astJobsValidateMapReduceRequest = astJobsValidateMapReduceRequest;

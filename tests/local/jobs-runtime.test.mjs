@@ -10,7 +10,8 @@ function createPropertiesService(seed = {}) {
     getProperty: 0,
     getProperties: 0,
     setProperty: 0,
-    setProperties: 0
+    setProperties: 0,
+    deleteProperty: 0
   };
   const handle = {
     getProperty: key => {
@@ -36,6 +37,10 @@ function createPropertiesService(seed = {}) {
       Object.keys(source).forEach(key => {
         store[String(key)] = String(source[key]);
       });
+    },
+    deleteProperty: key => {
+      counters.deleteProperty += 1;
+      delete store[String(key)];
     }
   };
 
@@ -117,6 +122,10 @@ test('AST exposes Jobs namespace methods', () => {
     'status',
     'list',
     'cancel',
+    'listFailed',
+    'moveToDlq',
+    'replayDlq',
+    'purgeDlq',
     'configure',
     'getConfig',
     'clearConfig'
@@ -409,6 +418,184 @@ test('AST.Jobs.cancel marks queued jobs as canceled and list filters include the
 
   const canceledJobs = context.AST.Jobs.list({ status: 'canceled', limit: 50 });
   assert.ok(canceledJobs.some(job => job.id === queued.id));
+});
+
+test('AST.Jobs.moveToDlq stores failed jobs and listFailed exposes DLQ metadata', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_DLQ_MOVE_${Date.now()}_`;
+
+  context.jobsDlqAlwaysFail = () => {
+    throw new Error('dlq-fail');
+  };
+  context.jobsDlqNoop = () => true;
+
+  const failed = context.AST.Jobs.run({
+    name: 'dlq-move-failed',
+    options: {
+      propertyPrefix,
+      maxRetries: 0
+    },
+    steps: [
+      {
+        id: 'failing_step',
+        handler: 'jobsDlqAlwaysFail'
+      }
+    ]
+  });
+  assert.equal(failed.status, 'failed');
+
+  const moved = context.AST.Jobs.moveToDlq(failed.id);
+  assert.equal(moved.jobId, failed.id);
+  assert.equal(moved.state, 'queued');
+  assert.equal(moved.retry.maxRetries, 0);
+  assert.equal(moved.retry.failedStepIds.includes('failing_step'), true);
+
+  const failedWithDlq = context.AST.Jobs.listFailed({
+    inDlq: 'only',
+    includeJob: false,
+    limit: 20
+  });
+  const listed = failedWithDlq.find(item => item.jobId === failed.id);
+  assert.ok(listed);
+  assert.equal(listed.inDlq, true);
+  assert.equal(listed.dlq.state, 'queued');
+
+  const queued = context.AST.Jobs.enqueue({
+    name: 'dlq-move-queued',
+    options: {
+      propertyPrefix
+    },
+    steps: [
+      {
+        id: 'queued_step',
+        handler: 'jobsDlqNoop'
+      }
+    ]
+  });
+  assert.throws(
+    () => context.AST.Jobs.moveToDlq(queued.id),
+    /Only failed jobs/
+  );
+});
+
+test('AST.Jobs.replayDlq replays failed jobs with idempotent request support', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_DLQ_REPLAY_${Date.now()}_`;
+
+  context.__jobsReplayAttempts = 0;
+  context.jobsReplayFlaky = () => {
+    context.__jobsReplayAttempts += 1;
+    if (context.__jobsReplayAttempts === 1) {
+      throw new Error('first-attempt-failure');
+    }
+    return {
+      ok: true,
+      attempts: context.__jobsReplayAttempts
+    };
+  };
+
+  const failed = context.AST.Jobs.run({
+    name: 'dlq-replay-job',
+    options: {
+      propertyPrefix,
+      maxRetries: 0
+    },
+    steps: [
+      {
+        id: 'flaky_step',
+        handler: 'jobsReplayFlaky'
+      }
+    ]
+  });
+  assert.equal(failed.status, 'failed');
+  context.AST.Jobs.moveToDlq(failed.id);
+
+  const idempotencyKey = `replay_key_${Date.now()}`;
+  const firstReplay = context.AST.Jobs.replayDlq({
+    propertyPrefix,
+    limit: 10,
+    maxConcurrency: 10,
+    idempotencyKey
+  });
+
+  assert.equal(firstReplay.status, 'ok');
+  assert.equal(firstReplay.idempotent, false);
+  assert.equal(firstReplay.counts.replayed, 1);
+  assert.equal(firstReplay.items[0].resultStatus, 'completed');
+
+  const afterReplay = context.AST.Jobs.status(failed.id);
+  assert.equal(afterReplay.status, 'completed');
+  assert.equal(afterReplay.results.flaky_step.ok, true);
+
+  const secondReplay = context.AST.Jobs.replayDlq({
+    propertyPrefix,
+    limit: 10,
+    maxConcurrency: 10,
+    idempotencyKey
+  });
+  assert.equal(secondReplay.idempotent, true);
+  assert.deepEqual(secondReplay.items, firstReplay.items);
+});
+
+test('AST.Jobs.purgeDlq removes replayed entries', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_DLQ_PURGE_${Date.now()}_`;
+
+  context.__jobsPurgeReplayAttempt = 0;
+  context.jobsPurgeReplayFlaky = () => {
+    context.__jobsPurgeReplayAttempt += 1;
+    if (context.__jobsPurgeReplayAttempt === 1) {
+      throw new Error('purge-replay-fail');
+    }
+    return { ok: true };
+  };
+
+  const failed = context.AST.Jobs.run({
+    name: 'dlq-purge-job',
+    options: {
+      propertyPrefix,
+      maxRetries: 0
+    },
+    steps: [
+      {
+        id: 'flaky_step',
+        handler: 'jobsPurgeReplayFlaky'
+      }
+    ]
+  });
+  assert.equal(failed.status, 'failed');
+  context.AST.Jobs.moveToDlq(failed.id);
+  context.AST.Jobs.replayDlq({
+    propertyPrefix,
+    limit: 10,
+    maxConcurrency: 1
+  });
+
+  const beforePurge = context.astJobsListDlqEntriesInternal({
+    jobId: failed.id,
+    limit: 10
+  }, {
+    propertyPrefix
+  });
+  assert.equal(beforePurge.length, 1);
+  assert.equal(beforePurge[0].state, 'replayed');
+
+  const purged = context.AST.Jobs.purgeDlq({
+    propertyPrefix,
+    state: 'replayed',
+    limit: 10
+  });
+  assert.equal(purged.status, 'ok');
+  assert.equal(purged.deletedCount, 1);
+  assert.equal(purged.deletedJobIds.includes(failed.id), true);
+
+  const afterPurge = context.astJobsListDlqEntriesInternal({
+    jobId: failed.id,
+    limit: 10
+  }, {
+    propertyPrefix
+  });
+  assert.equal(afterPurge.length, 0);
 });
 
 test('AST.Jobs.run fails deterministically when step output is non-serializable', () => {

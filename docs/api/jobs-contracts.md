@@ -20,6 +20,10 @@ ASTX.Jobs.resume(jobId, options)
 ASTX.Jobs.status(jobId, options)
 ASTX.Jobs.list(filters, options)
 ASTX.Jobs.cancel(jobId, options)
+ASTX.Jobs.listFailed(filters, options)
+ASTX.Jobs.moveToDlq(jobId, options)
+ASTX.Jobs.replayDlq(request)
+ASTX.Jobs.purgeDlq(request)
 ASTX.Jobs.configure(config, options)
 ASTX.Jobs.getConfig()
 ASTX.Jobs.clearConfig()
@@ -158,6 +162,55 @@ Step status values:
   status: 'queued|running|paused|failed|completed|canceled',
   name: 'optional exact job name',
   limit: 100 // 1..1000
+}
+```
+
+## Dead-letter queue (DLQ) operations
+
+### `ASTX.Jobs.listFailed(filters, options)`
+
+Returns failed jobs with optional DLQ metadata.
+
+```javascript
+{
+  name: 'optional exact job name',
+  limit: 100, // 1..1000
+  inDlq: 'any|only|exclude', // default any
+  dlqState: 'queued|replayed', // optional
+  includeJob: false
+}
+```
+
+### `ASTX.Jobs.moveToDlq(jobId, options)`
+
+Moves a failed job into DLQ triage storage. Only `status='failed'` jobs are eligible.
+
+### `ASTX.Jobs.replayDlq(request)`
+
+Replays queued DLQ entries with bounded batch width and idempotent request support.
+
+```javascript
+{
+  name: 'optional exact job name',
+  propertyPrefix: 'optional property prefix scope',
+  limit: 20,          // max selected entries
+  maxConcurrency: 10, // bounded replay width per call
+  idempotencyKey: 'optional stable key',
+  lockTimeoutMs: 30000
+}
+```
+
+### `ASTX.Jobs.purgeDlq(request)`
+
+Deletes DLQ entries by state.
+
+```javascript
+{
+  name: 'optional exact job name',
+  propertyPrefix: 'optional property prefix scope',
+  state: 'replayed|queued|all', // default replayed
+  limit: 200,
+  lockTimeoutMs: 30000
 }
 ```
 

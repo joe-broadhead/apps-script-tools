@@ -60,6 +60,33 @@ function jobsCancelExample(jobId) {
 }
 ```
 
+## Dead-letter queue triage and replay
+
+```javascript
+function jobsDlqReplayExample(jobId) {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  // 1) Move failed job into DLQ queue
+  const moved = ASTX.Jobs.moveToDlq(jobId);
+  Logger.log(JSON.stringify(moved));
+
+  // 2) Replay one DLQ batch deterministically
+  const replayed = ASTX.Jobs.replayDlq({
+    limit: 10,
+    maxConcurrency: 5,
+    idempotencyKey: `replay_${jobId}_${new Date().toISOString().slice(0, 10)}`
+  });
+  Logger.log(JSON.stringify(replayed));
+
+  // 3) Purge replayed entries after triage window
+  const purged = ASTX.Jobs.purgeDlq({
+    state: 'replayed',
+    limit: 100
+  });
+  Logger.log(JSON.stringify(purged));
+}
+```
+
 ## Orchestration recipes
 
 ```javascript
@@ -119,4 +146,5 @@ function jobsReduce_(ctx) {
 - Jobs are checkpointed and resumable; each step must be deterministic and serializable.
 - `resume(...)` enforces lease ownership to avoid concurrent worker collisions.
 - `chain`, `enqueueMany`, and `mapReduce` compile to normal job steps and use the same retry/cancel/checkpoint semantics.
+- `moveToDlq`, `replayDlq`, and `purgeDlq` provide deterministic failed-job triage/replay lifecycle.
 - Keep job payloads compact; store large artifacts in `AST.Storage` and pass references.

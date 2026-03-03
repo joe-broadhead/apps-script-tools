@@ -22,6 +22,22 @@ function astJobsApiCancel(jobId, options = {}) {
   return astJobsCancel(jobId, options);
 }
 
+function astJobsApiListFailed(filters = {}, options = {}) {
+  return astJobsListFailed(filters, options);
+}
+
+function astJobsApiMoveToDlq(jobId, options = {}) {
+  return astJobsMoveToDlq(jobId, options);
+}
+
+function astJobsApiReplayDlq(request = {}) {
+  return astJobsReplayDlq(request);
+}
+
+function astJobsApiPurgeDlq(request = {}) {
+  return astJobsPurgeDlq(request);
+}
+
 function astJobsApiConfigure(config = {}, options = {}) {
   return astJobsSetRuntimeConfig(config, options);
 }
@@ -53,6 +69,10 @@ const AST_JOBS = Object.freeze({
   status: astJobsApiStatus,
   list: astJobsApiList,
   cancel: astJobsApiCancel,
+  listFailed: astJobsApiListFailed,
+  moveToDlq: astJobsApiMoveToDlq,
+  replayDlq: astJobsApiReplayDlq,
+  purgeDlq: astJobsApiPurgeDlq,
   enqueueMany: astJobsApiEnqueueMany,
   chain: astJobsApiChain,
   mapReduce: astJobsApiMapReduce,
