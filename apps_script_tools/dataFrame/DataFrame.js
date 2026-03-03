@@ -4619,7 +4619,7 @@ function __astNormalizeDataFrameStackOptions(dataframe, options, methodName) {
 function __astBuildDataFrameUnstackOutputColumnName(value) {
   let outputName = '';
   if (typeof value === 'string' && value.trim().length > 0) {
-    outputName = value.trim();
+    outputName = value;
   } else if (value === null) {
     outputName = 'null';
   } else if (value === undefined) {

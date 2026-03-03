@@ -89,6 +89,19 @@ test('DataFrame.unstack min/max aggregate comparable non-numeric values determin
   assert.equal(maxOut.toRecords()[0].region, 'eu');
 });
 
+test('DataFrame.unstack preserves string pivot labels verbatim', () => {
+  const context = createDataContext();
+  const long = context.DataFrame.fromRecords([
+    { row_index: 'row1', column: 'a', value: 1 },
+    { row_index: 'row1', column: ' a ', value: 2 }
+  ]);
+
+  const out = long.unstack({ agg: 'first' });
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['a', ' a ']));
+  assert.equal(out.data.a.array[0], 1);
+  assert.equal(out.data[' a '].array[0], 2);
+});
+
 test('DataFrame.unstack rejects dangerous output column names from pivot values', () => {
   const context = createDataContext();
   const long = context.DataFrame.fromRecords([

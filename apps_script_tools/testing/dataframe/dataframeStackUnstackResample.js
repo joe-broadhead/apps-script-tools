@@ -42,6 +42,18 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected text unstack min/max: min=${minText.toRecords()[0].city} max=${maxText.toRecords()[0].city}`);
       }
 
+      const spacedLong = DataFrame.fromRecords([
+        { row_index: 'r1', column: 'a', value: 1 },
+        { row_index: 'r1', column: ' a ', value: 2 }
+      ]);
+      const spacedOut = spacedLong.unstack({ agg: 'first' });
+      if (JSON.stringify(spacedOut.columns) !== JSON.stringify(['a', ' a '])) {
+        throw new Error(`Expected unstack to preserve label spacing: ${JSON.stringify(spacedOut.columns)}`);
+      }
+      if (spacedOut.data.a.array[0] !== 1 || spacedOut.data[' a '].array[0] !== 2) {
+        throw new Error(`Unexpected unstack values for spaced labels: ${JSON.stringify(spacedOut.toColumns())}`);
+      }
+
       const dangerousLong = DataFrame.fromRecords([
         { row_index: 'r1', column: '__proto__', value: 1 }
       ]);
