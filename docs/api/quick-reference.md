@@ -153,7 +153,8 @@ series.dt.*
 
 ## Global structures (utility classes)
 
-These classes are available globally once the library is loaded:
+These classes are available globally once the library is loaded.
+Use them as globals (for example `new Queue()`), not as `ASTX.Queue`.
 
 ```javascript
 Queue
@@ -535,6 +536,7 @@ store.newThread({ userKey: 'user-1' }, { title: 'New chat' });
 store.switchThread({ userKey: 'user-1' }, { threadId: 'thread_123' });
 store.appendTurn({ userKey: 'user-1' }, { turn: { role: 'user', content: 'Hello' } });
 store.buildHistory({ userKey: 'user-1' }, { maxPairs: 10, systemMessage: 'You are helpful.' });
+```
 
 ## `GitHub` essentials
 
