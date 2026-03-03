@@ -2043,7 +2043,6 @@ var DataFrame = class DataFrame {
     if (minBucketStart != null && maxBucketStart != null) {
       let cursor = new Date(minBucketStart.getTime());
       const maxTime = maxBucketStart.getTime();
-      let guardCount = 0;
 
       while (cursor.getTime() <= maxTime) {
         const cursorKey = cursor.toISOString();
@@ -2066,10 +2065,6 @@ var DataFrame = class DataFrame {
           throw new Error('DataFrame.resample could not advance bucket cursor');
         }
         cursor = next;
-        guardCount += 1;
-        if (guardCount > 200000) {
-          throw new Error('DataFrame.resample exceeded maximum generated bucket count');
-        }
       }
     }
 

@@ -338,6 +338,28 @@ test('DataFrame.resample preserves exact spaced column labels for on and agg key
   assert.equal(out.data[' value '].array[0], 3);
 });
 
+test('DataFrame.resample allows valid second-level spans beyond 200k buckets', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { ts: '2026-03-01T00:00:00Z', value: 1 },
+    { ts: '2026-03-03T07:33:21Z', value: 2 }
+  ]);
+
+  const out = df.resample('1s', {
+    on: 'ts',
+    columns: ['value'],
+    agg: 'sum',
+    fillValue: 0
+  });
+
+  assert.equal(out.len(), 200002);
+  assert.equal(out.index[0].toISOString(), '2026-03-01T00:00:00.000Z');
+  assert.equal(out.index[out.len() - 1].toISOString(), '2026-03-03T07:33:21.000Z');
+  assert.equal(out.data.value.array[0], 1);
+  assert.equal(out.data.value.array[out.len() - 1], 2);
+  assert.equal(out.data.value.array[1], 0);
+});
+
 test('Series.expanding computes deterministic cumulative aggregations', () => {
   const context = createDataContext();
   const series = new context.Series([1, 2, null, 4], 'values');
