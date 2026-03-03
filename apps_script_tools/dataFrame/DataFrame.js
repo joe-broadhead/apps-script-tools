@@ -1994,7 +1994,7 @@ var DataFrame = class DataFrame {
     }
 
     const result = DataFrame.fromColumns(outputColumns, { copy: false });
-    if (normalized.preserveIndex) {
+    if (normalized.preserveIndex && result.len() === indexEntries.length) {
       result.index = indexEntries.map(entry => entry.value);
     }
 

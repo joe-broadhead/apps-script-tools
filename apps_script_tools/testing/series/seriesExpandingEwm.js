@@ -18,6 +18,12 @@ SERIES_EXPANDING_EWM_TESTS = [
       if (JSON.stringify(meanOut.array) !== JSON.stringify([null, 1.5, 1.5, 7 / 3])) {
         throw new Error(`Unexpected expanding mean output: ${JSON.stringify(meanOut.array)}`);
       }
+
+      const mixed = new Series([1, 'ok', 'err', null, 4], 'mixed');
+      const mixedCount = mixed.expanding('count');
+      if (JSON.stringify(mixedCount.array) !== JSON.stringify([1, 2, 3, 3, 4])) {
+        throw new Error(`Unexpected expanding mixed count output: ${JSON.stringify(mixedCount.array)}`);
+      }
     }
   },
   {
@@ -64,6 +70,13 @@ SERIES_EXPANDING_EWM_TESTS = [
       const undefinedDecayParam = base.ewm({ span: 10, alpha: undefined, adjust: false });
       if (undefinedDecayParam.len() !== 3 || undefinedDecayParam.array[0] !== 1) {
         throw new Error(`Unexpected ewm output when undefined decay params are present: ${JSON.stringify(undefinedDecayParam.array)}`);
+      }
+
+      const defaultDecay = base.ewm({ adjust: false });
+      if (Math.abs(defaultDecay.array[0] - 1) > 1e-12
+        || Math.abs(defaultDecay.array[1] - (5 / 3)) > 1e-12
+        || Math.abs(defaultDecay.array[2] - (23 / 9)) > 1e-12) {
+        throw new Error(`Unexpected ewm default-decay output: ${JSON.stringify(defaultDecay.array)}`);
       }
     }
   }

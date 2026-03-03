@@ -54,6 +54,14 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Expected empty round-trip to preserve schema ['a','b'], got ${JSON.stringify(emptyRoundTrip.columns)}`);
       }
 
+      const noValueColumns = df.stack({ columns: [] }).unstack();
+      if (noValueColumns.len() !== 0 || noValueColumns.index.length !== 0) {
+        throw new Error(`Expected empty-column unstack to keep index aligned (len=0,index=0), got len=${noValueColumns.len()} index=${noValueColumns.index.length}`);
+      }
+      if (JSON.stringify(noValueColumns.columns) !== JSON.stringify([])) {
+        throw new Error(`Expected empty-column unstack to keep empty columns, got ${JSON.stringify(noValueColumns.columns)}`);
+      }
+
       let stackErr = null;
       try {
         df.stack({ indexName: '__proto__' });

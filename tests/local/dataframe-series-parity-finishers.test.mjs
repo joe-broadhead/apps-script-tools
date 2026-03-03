@@ -112,6 +112,22 @@ test('DataFrame.unstack preserves schema for empty stack/unstack round-trip', ()
   assert.equal(JSON.stringify(unstacked.toRecords()), JSON.stringify([]));
 });
 
+test('DataFrame.unstack keeps index length aligned when stacked columns are empty', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
+  ]);
+  df.index = ['r1', 'r2'];
+
+  const stacked = df.stack({ columns: [] });
+  const unstacked = stacked.unstack();
+
+  assert.equal(unstacked.len(), 0);
+  assert.equal(unstacked.index.length, unstacked.len());
+  assert.equal(JSON.stringify(unstacked.columns), JSON.stringify([]));
+});
+
 test('DataFrame.unstack preserves duplicate index labels on stack/unstack round-trip', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
@@ -389,12 +405,30 @@ test('Series.expanding computes deterministic cumulative aggregations', () => {
   assert.equal(JSON.stringify(series.expanding({ operation: 'mean', minPeriods: 2 }).array), JSON.stringify([null, 1.5, 1.5, 7 / 3]));
 });
 
+test('Series.expanding count includes non-missing non-numeric values', () => {
+  const context = createDataContext();
+  const series = new context.Series([1, 'ok', 'err', null, 4], 'mixed');
+
+  assert.equal(JSON.stringify(series.expanding('count').array), JSON.stringify([1, 2, 3, 3, 4]));
+});
+
 test('Series.ewm computes exponentially weighted means with adjust=false', () => {
   const context = createDataContext();
   const series = new context.Series([1, 2, 3], 'values');
 
   const out = series.ewm({ alpha: 0.5, adjust: false });
   assert.equal(JSON.stringify(out.array), JSON.stringify([1, 1.5, 2.25]));
+});
+
+test('Series.ewm defaults align with pandas com=0.5 decay', () => {
+  const context = createDataContext();
+  const series = new context.Series([1, 2, 3], 'values');
+
+  const out = series.ewm({ adjust: false });
+  assert.equal(out.len(), 3);
+  assert.ok(Math.abs(out.array[0] - 1) < 1e-12);
+  assert.ok(Math.abs(out.array[1] - (5 / 3)) < 1e-12);
+  assert.ok(Math.abs(out.array[2] - (23 / 9)) < 1e-12);
 });
 
 test('Series.ewm honors minPeriods and ignoreNulls behavior', () => {

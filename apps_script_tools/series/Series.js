@@ -1736,21 +1736,27 @@ var Series = class Series {
     const normalized = astSeriesNormalizeExpandingOptions(operationOrOptions, options, 'expanding');
     const output = new Array(this.len());
 
-    let count = 0;
+    let numericCount = 0;
+    let observedCount = 0;
     let runningSum = 0;
     let runningMin = null;
     let runningMax = null;
 
     for (let idx = 0; idx < this.len(); idx++) {
-      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      const value = this.array[idx];
+      const numeric = astSeriesNormalizeFiniteNumber(value);
+      if (!astSeriesIsMissingValue(value)) {
+        observedCount += 1;
+      }
       if (numeric != null) {
-        count += 1;
+        numericCount += 1;
         runningSum += numeric;
         runningMin = runningMin == null ? numeric : Math.min(runningMin, numeric);
         runningMax = runningMax == null ? numeric : Math.max(runningMax, numeric);
       }
 
-      if (count < normalized.minPeriods) {
+      const countForWindow = normalized.operation === 'count' ? observedCount : numericCount;
+      if (countForWindow < normalized.minPeriods) {
         output[idx] = null;
         continue;
       }
@@ -1760,7 +1766,7 @@ var Series = class Series {
           output[idx] = runningSum;
           break;
         case 'mean':
-          output[idx] = count > 0 ? runningSum / count : null;
+          output[idx] = numericCount > 0 ? runningSum / numericCount : null;
           break;
         case 'min':
           output[idx] = runningMin;
@@ -1769,7 +1775,7 @@ var Series = class Series {
           output[idx] = runningMax;
           break;
         case 'count':
-          output[idx] = count;
+          output[idx] = observedCount;
           break;
         default:
           output[idx] = null;
@@ -4071,7 +4077,8 @@ function astSeriesResolveEwmAlpha(options, methodName) {
     return 1 - Math.exp(Math.log(0.5) / halflife);
   }
 
-  return 0.5;
+  // Match pandas default: com=0.5 when no decay parameter is provided.
+  return 2 / 3;
 }
 
 function astSeriesNormalizeEwmOptions(options, methodName) {
