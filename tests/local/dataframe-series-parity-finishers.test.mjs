@@ -192,6 +192,23 @@ test('DataFrame.unstack preserves string pivot labels verbatim', () => {
   assert.equal(out.data[' a '].array[0], 2);
 });
 
+test('DataFrame.unstack preserves exact spaced key column names in options', () => {
+  const context = createDataContext();
+  const long = context.DataFrame.fromRecords([
+    { ' row_index ': 'row1', ' column ': 'a', ' value ': 1 },
+    { ' row_index ': 'row1', ' column ': 'b', ' value ': 2 }
+  ]);
+
+  const out = long.unstack({
+    indexColumn: ' row_index ',
+    columnColumn: ' column ',
+    valueColumn: ' value '
+  });
+
+  assert.equal(JSON.stringify(out.columns), JSON.stringify(['a', 'b']));
+  assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([{ a: 1, b: 2 }]));
+});
+
 test('DataFrame.unstack rejects dangerous output column names from pivot values', () => {
   const context = createDataContext();
   const long = context.DataFrame.fromRecords([
@@ -471,5 +488,6 @@ test('Parity finisher methods validate invalid contracts deterministically', () 
 
   assert.throws(() => df.resample('bad', { on: 'ts' }), /rule/);
   assert.throws(() => series.expanding('bad-op'), /operation/);
+  assert.throws(() => series.expanding('sum', 1), /options must be an object/);
   assert.throws(() => series.ewm({ alpha: 0.2, span: 5 }), /mutually exclusive/);
 });

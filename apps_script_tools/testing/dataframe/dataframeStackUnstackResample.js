@@ -104,6 +104,22 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected unstack values for spaced labels: ${JSON.stringify(spacedOut.toColumns())}`);
       }
 
+      const spacedKeyLong = DataFrame.fromRecords([
+        { ' row_index ': 'r1', ' column ': 'x', ' value ': 10 },
+        { ' row_index ': 'r1', ' column ': 'y', ' value ': 20 }
+      ]);
+      const spacedKeyOut = spacedKeyLong.unstack({
+        indexColumn: ' row_index ',
+        columnColumn: ' column ',
+        valueColumn: ' value '
+      });
+      if (JSON.stringify(spacedKeyOut.columns) !== JSON.stringify(['x', 'y'])) {
+        throw new Error(`Expected unstack to preserve exact key column labels, got ${JSON.stringify(spacedKeyOut.columns)}`);
+      }
+      if (JSON.stringify(spacedKeyOut.toRecords()) !== JSON.stringify([{ x: 10, y: 20 }])) {
+        throw new Error(`Unexpected spaced-key unstack output: ${JSON.stringify(spacedKeyOut.toRecords())}`);
+      }
+
       const allNullColumnDf = DataFrame.fromRecords([
         { a: 1, b: null },
         { a: 2, b: null }

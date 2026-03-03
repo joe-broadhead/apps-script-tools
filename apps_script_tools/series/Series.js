@@ -3996,6 +3996,13 @@ function astSeriesNormalizeQuantileOptions(q, options, methodName) {
 }
 
 function astSeriesNormalizeExpandingOptions(operationOrOptions, options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
   let mergedOptions = {};
   if (
     operationOrOptions != null

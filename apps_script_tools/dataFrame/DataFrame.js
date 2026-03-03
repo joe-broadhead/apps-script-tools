@@ -4760,24 +4760,21 @@ function __astNormalizeDataFrameUnstackOptions(dataframe, options, methodName) {
     throw new Error(`DataFrame.${methodName} options must be an object`);
   }
 
-  const indexColumn = __astValidateColumnName(
+  const indexColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
     options.indexColumn == null ? 'row_index' : options.indexColumn,
-    `${methodName}.indexColumn`
+    `DataFrame.${methodName} option indexColumn`
   );
-  const columnColumn = __astValidateColumnName(
+  const columnColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
     options.columnColumn == null ? 'column' : options.columnColumn,
-    `${methodName}.columnColumn`
+    `DataFrame.${methodName} option columnColumn`
   );
-  const valueColumn = __astValidateColumnName(
+  const valueColumn = __astNormalizeDataFrameResampleColumnName(
+    dataframe,
     options.valueColumn == null ? 'value' : options.valueColumn,
-    `${methodName}.valueColumn`
+    `DataFrame.${methodName} option valueColumn`
   );
-
-  const requiredColumns = [indexColumn, columnColumn, valueColumn];
-  const missing = requiredColumns.filter(column => !dataframe.columns.includes(column));
-  if (missing.length > 0) {
-    throw new Error(`DataFrame.${methodName} received unknown columns: ${missing.join(', ')}`);
-  }
 
   const agg = __astNormalizeDataFrameResampleAggregation(
     options.agg == null ? 'first' : options.agg,

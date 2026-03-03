@@ -24,6 +24,16 @@ SERIES_EXPANDING_EWM_TESTS = [
       if (JSON.stringify(mixedCount.array) !== JSON.stringify([1, 2, 3, 3, 4])) {
         throw new Error(`Unexpected expanding mixed count output: ${JSON.stringify(mixedCount.array)}`);
       }
+
+      let optionsErr = null;
+      try {
+        series.expanding('sum', 1);
+      } catch (error) {
+        optionsErr = error;
+      }
+      if (!optionsErr || !String(optionsErr.message || optionsErr).includes('options must be an object')) {
+        throw new Error('Expected expanding to reject non-object options argument');
+      }
     }
   },
   {
