@@ -496,3 +496,76 @@ test('AST.Secrets.rotate uses UTF-8-safe base64 fallback when Utilities is unava
   const decoded = Buffer.from(requestPayload.payload.data, 'base64').toString('utf8');
   assert.equal(decoded, value);
 });
+
+test('AST.Secrets accepts regional full resource keys for rotate/list/version metadata', () => {
+  const requests = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        requests.push({ url, options });
+        if (url.includes(':addVersion')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              name: 'projects/p/locations/eu/secrets/s/versions/10',
+              createTime: '2026-03-03T00:00:00.000Z',
+              state: 'ENABLED'
+            })
+          };
+        }
+        if (url.includes('/versions?')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              versions: [
+                {
+                  name: 'projects/p/locations/eu/secrets/s/versions/10',
+                  state: 'ENABLED'
+                }
+              ]
+            })
+          };
+        }
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            name: 'projects/p/locations/eu/secrets/s/versions/10',
+            state: 'ENABLED'
+          })
+        };
+      }
+    }
+  });
+  loadSecretsScripts(context, { includeAst: true });
+
+  const fullVersionKey = 'projects/p/locations/eu/secrets/s/versions/10';
+
+  context.AST.Secrets.rotate({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    value: 'rotated',
+    auth: { oauthToken: 'token' }
+  });
+
+  context.AST.Secrets.listVersions({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    auth: { oauthToken: 'token' }
+  });
+
+  context.AST.Secrets.getVersionMetadata({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    auth: { oauthToken: 'token' }
+  });
+
+  assert.ok(
+    requests.some(entry => entry.url.endsWith('/projects/p/locations/eu/secrets/s:addVersion'))
+  );
+  assert.ok(
+    requests.some(entry => entry.url.includes('/projects/p/locations/eu/secrets/s/versions?'))
+  );
+  assert.ok(
+    requests.some(entry => entry.url.endsWith('/projects/p/locations/eu/secrets/s/versions/10'))
+  );
+});

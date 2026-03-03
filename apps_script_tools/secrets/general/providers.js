@@ -181,16 +181,18 @@ function astSecretsResolveSecretManagerSecretResource(request = {}, resolvedConf
 
   if (rawKey.startsWith('projects/')) {
     const trimmed = rawKey.replace(/^\/+|\/+$/g, '');
-    const secretMatch = trimmed.match(/^projects\/[^/]+\/secrets\/[^/]+/);
-    if (!secretMatch) {
+    const withoutVersion = trimmed.replace(/\/versions\/[^/]+$/, '');
+    const isGlobalResource = /^projects\/[^/]+\/secrets\/[^/]+$/.test(withoutVersion);
+    const isRegionalResource = /^projects\/[^/]+\/locations\/[^/]+\/secrets\/[^/]+$/.test(withoutVersion);
+    if (!isGlobalResource && !isRegionalResource) {
       throw new AstSecretsValidationError(
-        'Secret Manager key must include projects/{project}/secrets/{secret}',
+        'Secret Manager key must include projects/{project}/secrets/{secret} or projects/{project}/locations/{location}/secrets/{secret}',
         { key: rawKey }
       );
     }
 
     return {
-      resource: secretMatch[0],
+      resource: withoutVersion,
       projectId: null
     };
   }
