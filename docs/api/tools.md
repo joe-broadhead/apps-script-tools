@@ -460,6 +460,9 @@ Primary methods:
 - `ASTX.Config.fromScriptProperties(options)` to read and normalize script properties.
 - `ASTX.Config.schema(definition)` to compile typed config schemas.
 - `ASTX.Config.bind(definitionOrSchema, options)` to bind typed values with precedence.
+- `ASTX.Config.setProfile(profileOrOptions, options)` to set runtime profile defaults (`dev`, `stage`, `prod`).
+- `ASTX.Config.getProfile(options)` to inspect active runtime profile and optional profile maps.
+- `ASTX.Config.resolveProfile(definitionOrSchema, options)` to bind typed values with profile-aware precedence.
 
 High-signal behavior:
 
@@ -469,6 +472,9 @@ High-signal behavior:
 - default implicit-handle reads are fresh (no shared memoized snapshot). Set `cacheDefaultHandle: true` to opt into implicit-handle memoization.
 - gracefully returns `{}` when script properties are unavailable.
 - bind precedence defaults to `request > runtime > script_properties`.
+- resolveProfile precedence defaults to `request > profile > runtime > script_properties`.
+- profile selection precedence is `options.profile`/`profileName` -> runtime `setProfile(...)` -> script property `AST_CONFIG_PROFILE`.
+- per-profile script-property overrides use encoded keys: `AST_CONFIG_PROFILE_<ENCODED_PROFILE>_JSON` (`qa-prod` => `AST_CONFIG_PROFILE_QA_2D_PROD_JSON`).
 
 ```javascript
 const props = ASTX.Config.fromScriptProperties({
@@ -484,6 +490,18 @@ const schema = ASTX.Config.schema({
 
 const cfg = ASTX.Config.bind(schema, {
   request: { GITHUB_TIMEOUT_MS: 20000 },
+  runtime: {},
+  scriptProperties: PropertiesService.getScriptProperties()
+});
+
+ASTX.Config.setProfile('prod', {
+  profiles: {
+    prod: { GITHUB_TIMEOUT_MS: '60000', GITHUB_CACHE_ENABLED: 'true' }
+  }
+});
+
+const profileCfg = ASTX.Config.resolveProfile(schema, {
+  request: {},
   runtime: {},
   scriptProperties: PropertiesService.getScriptProperties()
 });

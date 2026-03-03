@@ -146,8 +146,10 @@
   - built-in notification channels: logger, Google Chat webhook, and email (`MailApp`/`GmailApp`)
 - `AST.Config` typed schema binding:
   - new methods: `AST.Config.schema(...)` and `AST.Config.bind(...)`
+  - profile methods: `AST.Config.setProfile(...)`, `AST.Config.getProfile(...)`, `AST.Config.resolveProfile(...)`
   - typed field support: `string`, `int`, `float`, `bool`, `enum`, `json`, `secret-ref`
   - deterministic precedence defaults (`request > runtime > script_properties`)
+  - profile-aware precedence for `resolveProfile(...)` (`request > profile > runtime > script_properties`)
   - typed validation errors with structured key/type/source details
 
 ### Changed
