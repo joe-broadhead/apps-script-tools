@@ -281,11 +281,15 @@ function astConfigResolveScriptProfileContext(options = {}) {
   ], '');
   let mergedProfileMap = Object.create(null);
   if (profileMapText) {
-    const parsed = astConfigParseProfileConfigJson(profileMapText, {
-      source: 'script_properties',
-      key: AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS
-    });
-    mergedProfileMap = astConfigNormalizeProfileConfigMap(parsed, { source: 'script_properties' });
+    try {
+      const parsed = astConfigParseProfileConfigJson(profileMapText, {
+        source: 'script_properties',
+        key: AST_CONFIG_SCRIPT_PROPERTY_PROFILE_MAPS
+      });
+      mergedProfileMap = astConfigNormalizeProfileConfigMap(parsed, { source: 'script_properties' });
+    } catch (_error) {
+      mergedProfileMap = Object.create(null);
+    }
   }
 
   const scriptProfileName = astConfigNormalizeProfileName(
@@ -344,11 +348,15 @@ function astConfigResolveRequestProfileMap(options = {}) {
   return astConfigNormalizeProfileConfigMap(requestProfiles, { source: 'request' });
 }
 
-function astConfigSetProfile(profileOrOptions = null, options = {}) {
+function astConfigSetProfile(profileOrOptions, options = {}) {
+  const hasProfileArgument = arguments.length > 0;
   const request = astConfigIsPlainObject(profileOrOptions)
     ? profileOrOptions
     : (astConfigIsPlainObject(options) ? options : {});
-  const hasExplicitProfileArg = !astConfigIsPlainObject(profileOrOptions) && typeof profileOrOptions !== 'undefined';
+  const hasExplicitProfileArg = hasProfileArgument
+    && !astConfigIsPlainObject(profileOrOptions)
+    && profileOrOptions !== null
+    && typeof profileOrOptions !== 'undefined';
 
   if (!astConfigIsPlainObject(request)) {
     throw astConfigBuildSchemaValidationError(

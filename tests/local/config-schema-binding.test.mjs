@@ -193,6 +193,29 @@ test('AST.Config.setProfile/getProfile manages runtime profile state', () => {
   assert.equal(cleared.profileCount, 0);
 });
 
+test('AST.Config.setProfile without explicit profile preserves active profile', () => {
+  const context = loadConfigContext();
+
+  context.AST.Config.setProfile('dev', {
+    profiles: {
+      dev: { MODE: 'fast' }
+    }
+  });
+
+  const updated = context.AST.Config.setProfile({
+    profiles: {
+      prod: { MODE: 'safe' }
+    }
+  });
+
+  const state = context.AST.Config.getProfile({ includeProfiles: true });
+  assert.equal(updated.profile, 'dev');
+  assert.equal(state.profile, 'dev');
+  assert.equal(state.profileCount, 2);
+  assert.equal(state.profiles.dev.MODE, 'fast');
+  assert.equal(state.profiles.prod.MODE, 'safe');
+});
+
 test('AST.Config.resolveProfile applies precedence request > profile > runtime > script_properties', () => {
   const context = loadConfigContext({
     PropertiesService: {
@@ -239,6 +262,38 @@ test('AST.Config.resolveProfile applies precedence request > profile > runtime >
   assert.equal(result.sourceByKey.ENABLED, 'profile');
   assert.equal(result.profile, 'dev');
   assert.equal(result.profileSource, 'runtime');
+});
+
+test('AST.Config.resolveProfile ignores malformed AST_CONFIG_PROFILES_JSON when higher-precedence profiles exist', () => {
+  const context = loadConfigContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: '{invalid-json'
+        })
+      })
+    }
+  });
+
+  const result = context.AST.Config.resolveProfile({
+    MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+    TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+  }, {
+    profile: 'dev',
+    profiles: {
+      dev: {
+        MODE: 'fast',
+        TIMEOUT_MS: '12000'
+      }
+    },
+    includeMeta: true
+  });
+
+  assert.equal(result.values.MODE, 'fast');
+  assert.equal(result.values.TIMEOUT_MS, 12000);
+  assert.equal(result.profile, 'dev');
+  assert.equal(result.profileSource, 'request');
 });
 
 test('AST.Config.resolveProfile reads active script profile when runtime/request profile missing', () => {

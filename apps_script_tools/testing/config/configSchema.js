@@ -122,5 +122,54 @@ CONFIG_SCHEMA_TESTS = [
       t.equal(result.values.TIMEOUT_MS, 12000, 'Expected requested profile timeout');
       t.equal(result.profile, 'dev', 'Expected profile selected from request');
     })
+  },
+  {
+    description: 'AST.Config.setProfile should preserve active profile when called without profile arg',
+    test: () => astTestRunWithAssertions(t => {
+      AST.Config.setProfile('dev', {
+        profiles: {
+          dev: { MODE: 'fast' }
+        }
+      });
+
+      const next = AST.Config.setProfile({
+        profiles: {
+          prod: { MODE: 'safe' }
+        }
+      });
+
+      t.equal(next.profile, 'dev', 'Expected active profile to remain unchanged');
+      t.equal(next.profiles.dev.MODE, 'fast', 'Expected existing profile map retained');
+      t.equal(next.profiles.prod.MODE, 'safe', 'Expected new profile map merged');
+
+      AST.Config.setProfile('', { clearProfiles: true });
+    })
+  },
+  {
+    description: 'AST.Config.resolveProfile should ignore malformed profile map JSON when request profile config is present',
+    test: () => astTestRunWithAssertions(t => {
+      const scriptProperties = {
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: '{bad-json'
+        })
+      };
+
+      const result = AST.Config.resolveProfile({
+        MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+        TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+      }, {
+        profile: 'dev',
+        profiles: {
+          dev: { MODE: 'fast', TIMEOUT_MS: '12345' }
+        },
+        includeMeta: true,
+        scriptProperties
+      });
+
+      t.equal(result.values.MODE, 'fast', 'Expected request profile MODE');
+      t.equal(result.values.TIMEOUT_MS, 12345, 'Expected request profile TIMEOUT_MS');
+      t.equal(result.profile, 'dev', 'Expected profile selected from request');
+    })
   }
 ];
