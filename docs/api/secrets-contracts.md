@@ -13,6 +13,9 @@ ASTX.Secrets.run(request)
 ASTX.Secrets.get(request)
 ASTX.Secrets.set(request)
 ASTX.Secrets.delete(request)
+ASTX.Secrets.rotate(request)
+ASTX.Secrets.listVersions(request)
+ASTX.Secrets.getVersionMetadata(request)
 ASTX.Secrets.providers()
 ASTX.Secrets.capabilities(provider)
 ASTX.Secrets.configure(config, options)
@@ -23,22 +26,23 @@ ASTX.Secrets.resolveValue(value, options)
 
 ## Providers
 
-- `script_properties`: Apps Script script properties (`get/set/delete`)
-- `secret_manager`: Google Secret Manager (`get` only)
+- `script_properties`: Apps Script script properties (`get/set/delete/rotate`)
+- `secret_manager`: Google Secret Manager (`get/rotate/list_versions/get_version_metadata`)
 
 ```javascript
 ASTX.Secrets.providers(); // ['script_properties', 'secret_manager']
-ASTX.Secrets.capabilities('secret_manager'); // { get: true, set: false, delete: false }
+ASTX.Secrets.capabilities('secret_manager');
+// { get: true, set: false, delete: false, rotate: true, list_versions: true, get_version_metadata: true }
 ```
 
 ## Request shape
 
 ```javascript
 {
-  operation: 'get' | 'set' | 'delete', // helper methods set this automatically
+  operation: 'get' | 'set' | 'delete' | 'rotate' | 'list_versions' | 'get_version_metadata', // helper methods set this automatically
   provider: 'script_properties' | 'secret_manager', // optional, defaults from config
   key: 'OPENAI_API_KEY', // required
-  value: 'secret-value', // set only
+  value: 'secret-value', // set/rotate
   secretId: 'optional-secret-id-override', // secret_manager only
   version: 'latest', // secret_manager only
   projectId: 'my-gcp-project', // secret_manager only
@@ -51,7 +55,10 @@ ASTX.Secrets.capabilities('secret_manager'); // { get: true, set: false, delete:
     defaultValue: undefined,
     parseJson: false,
     includeRaw: false,
-    maxReferenceDepth: 3
+    maxReferenceDepth: 3,
+    pageSize: 50, // list_versions
+    pageToken: null, // list_versions
+    includeStates: ['ENABLED'] // list_versions optional filter
   }
 }
 ```

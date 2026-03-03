@@ -408,14 +408,17 @@ Secrets surface for secure runtime secret resolution.
 
 Providers:
 
-- `script_properties` (`get/set/delete`)
-- `secret_manager` (`get`)
+- `script_properties` (`get/set/delete/rotate`)
+- `secret_manager` (`get/rotate/list_versions/get_version_metadata`)
 
 Primary methods:
 
 - `ASTX.Secrets.get(request)`
 - `ASTX.Secrets.set(request)`
 - `ASTX.Secrets.delete(request)`
+- `ASTX.Secrets.rotate(request)`
+- `ASTX.Secrets.listVersions(request)`
+- `ASTX.Secrets.getVersionMetadata(request)`
 - `ASTX.Secrets.resolveValue(value, options)` for `secret://...` references
 - `ASTX.Secrets.providers()` / `ASTX.Secrets.capabilities(provider)`
 - `ASTX.Secrets.configure(config)` / `ASTX.Secrets.getConfig()` / `ASTX.Secrets.clearConfig()`

@@ -1,4 +1,11 @@
-const AST_SECRETS_OPERATIONS = Object.freeze(['get', 'set', 'delete']);
+const AST_SECRETS_OPERATIONS = Object.freeze([
+  'get',
+  'set',
+  'delete',
+  'rotate',
+  'list_versions',
+  'get_version_metadata'
+]);
 
 function astSecretsIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -158,13 +165,20 @@ function astSecretsValidateRequest(request = {}, overrides = {}) {
       parseJson: astSecretsNormalizeBoolean(options.parseJson, false),
       includeRaw: astSecretsNormalizeBoolean(options.includeRaw, false),
       maxReferenceDepth: astSecretsNormalizeInteger(options.maxReferenceDepth, 3, 1, 20),
+      pageSize: astSecretsNormalizeInteger(options.pageSize, 50, 1, 1000),
+      pageToken: astSecretsNormalizeString(options.pageToken, null),
+      includeStates: Array.isArray(options.includeStates)
+        ? options.includeStates
+          .map(state => astSecretsNormalizeString(state, '').toUpperCase())
+          .filter(Boolean)
+        : [],
       defaultValue: Object.prototype.hasOwnProperty.call(options, 'defaultValue')
         ? options.defaultValue
         : undefined
     }
   };
 
-  if (operation === 'set') {
+  if (operation === 'set' || operation === 'rotate') {
     normalized.value = astSecretsNormalizeSetValue(
       Object.prototype.hasOwnProperty.call(rawRequest, 'value')
         ? rawRequest.value

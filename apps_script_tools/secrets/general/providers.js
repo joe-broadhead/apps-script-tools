@@ -173,6 +173,96 @@ function astSecretsResolveSecretManagerResource(request = {}, resolvedConfig = {
   };
 }
 
+function astSecretsResolveSecretManagerSecretResource(request = {}, resolvedConfig = {}) {
+  const rawKey = astSecretsNormalizeString(request.key, '');
+  if (!rawKey) {
+    throw new AstSecretsValidationError('Secret Manager request is missing key');
+  }
+
+  if (rawKey.startsWith('projects/')) {
+    const trimmed = rawKey.replace(/^\/+|\/+$/g, '');
+    const secretMatch = trimmed.match(/^projects\/[^/]+\/secrets\/[^/]+/);
+    if (!secretMatch) {
+      throw new AstSecretsValidationError(
+        'Secret Manager key must include projects/{project}/secrets/{secret}',
+        { key: rawKey }
+      );
+    }
+
+    return {
+      resource: secretMatch[0],
+      projectId: null
+    };
+  }
+
+  const secretId = astSecretsResolveFirstString([
+    request.secretId,
+    request.options && request.options.secretId,
+    rawKey
+  ], null);
+  const projectId = astSecretsResolveFirstString([
+    request.projectId,
+    request.auth && request.auth.projectId,
+    request.auth && request.auth.SECRET_MANAGER_PROJECT_ID,
+    resolvedConfig.projectId
+  ], null);
+
+  if (!projectId) {
+    throw new AstSecretsAuthError(
+      'Missing projectId for Secret Manager provider',
+      {
+        provider: 'secret_manager',
+        field: 'projectId'
+      }
+    );
+  }
+
+  if (!secretId) {
+    throw new AstSecretsValidationError(
+      'Missing secretId for Secret Manager provider',
+      {
+        provider: 'secret_manager',
+        field: 'secretId'
+      }
+    );
+  }
+
+  return {
+    resource: `projects/${projectId}/secrets/${secretId}`,
+    projectId
+  };
+}
+
+function astSecretsResolveSecretManagerVersionResource(request = {}, resolvedConfig = {}) {
+  const rawKey = astSecretsNormalizeString(request.key, '');
+  const explicitVersion = astSecretsResolveFirstString([
+    request.version,
+    request.options && request.options.version
+  ], null);
+
+  if (rawKey.startsWith('projects/')) {
+    const trimmed = rawKey.replace(/^\/+|\/+$/g, '');
+    if (/\/versions\/[^/]+$/.test(trimmed)) {
+      return {
+        resource: trimmed,
+        version: trimmed.slice(trimmed.lastIndexOf('/') + 1)
+      };
+    }
+    const version = explicitVersion || 'latest';
+    return {
+      resource: `${trimmed}/versions/${version}`,
+      version
+    };
+  }
+
+  const secretResource = astSecretsResolveSecretManagerSecretResource(request, resolvedConfig);
+  const version = explicitVersion || 'latest';
+  return {
+    resource: `${secretResource.resource}/versions/${version}`,
+    version
+  };
+}
+
 function astSecretsDecodeBase64ToText(base64Value) {
   if (typeof base64Value !== 'string' || base64Value.length === 0) {
     return '';
@@ -196,6 +286,32 @@ function astSecretsDecodeBase64ToText(base64Value) {
 
   throw new AstSecretsCapabilityError(
     'No base64 decoding implementation is available',
+    { provider: 'secret_manager' }
+  );
+}
+
+function astSecretsEncodeTextToBase64(value) {
+  const text = String(value == null ? '' : value);
+
+  if (
+    typeof Utilities !== 'undefined' &&
+    Utilities &&
+    typeof Utilities.base64Encode === 'function' &&
+    typeof Utilities.newBlob === 'function'
+  ) {
+    return Utilities.base64Encode(Utilities.newBlob(text).getBytes());
+  }
+
+  if (typeof btoa === 'function') {
+    return btoa(text);
+  }
+
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(text, 'utf8').toString('base64');
+  }
+
+  throw new AstSecretsCapabilityError(
+    'No base64 encoding implementation is available',
     { provider: 'secret_manager' }
   );
 }
@@ -265,6 +381,85 @@ function astSecretsFetchSecretManagerAccessResponse(resource, token) {
   };
 }
 
+function astSecretsFetchSecretManagerJson(path, token, requestOptions = {}) {
+  if (
+    typeof UrlFetchApp === 'undefined' ||
+    !UrlFetchApp ||
+    typeof UrlFetchApp.fetch !== 'function'
+  ) {
+    throw new AstSecretsCapabilityError(
+      'Secret Manager provider requires UrlFetchApp.fetch()',
+      { provider: 'secret_manager' }
+    );
+  }
+
+  const method = astSecretsNormalizeString(requestOptions.method, 'get').toLowerCase();
+  const requestBody = Object.prototype.hasOwnProperty.call(requestOptions, 'body')
+    ? requestOptions.body
+    : null;
+  const headers = Object.assign({}, requestOptions.headers || {}, {
+    Authorization: `Bearer ${token}`
+  });
+
+  const fetchOptions = {
+    method,
+    muteHttpExceptions: true,
+    headers
+  };
+
+  if (requestBody != null) {
+    fetchOptions.payload = typeof requestBody === 'string'
+      ? requestBody
+      : JSON.stringify(requestBody);
+    if (!fetchOptions.headers['Content-Type']) {
+      fetchOptions.headers['Content-Type'] = 'application/json; charset=UTF-8';
+    }
+  }
+
+  const url = `https://secretmanager.googleapis.com/v1/${path.replace(/^\/+/, '')}`;
+  const response = UrlFetchApp.fetch(url, fetchOptions);
+  const status = Number(response.getResponseCode());
+  const responseText = response.getContentText() || '';
+  let payload = {};
+  if (responseText) {
+    try {
+      payload = JSON.parse(responseText);
+    } catch (_error) {
+      payload = {};
+    }
+  }
+
+  if (status === 404) {
+    throw new AstSecretsNotFoundError(
+      'Secret Manager resource not found',
+      { provider: 'secret_manager', path, status }
+    );
+  }
+  if (status === 401 || status === 403) {
+    throw new AstSecretsAuthError(
+      'Secret Manager authorization failed',
+      { provider: 'secret_manager', path, status }
+    );
+  }
+  if (status < 200 || status >= 300) {
+    throw new AstSecretsProviderError(
+      `Secret Manager request failed with status ${status}`,
+      {
+        provider: 'secret_manager',
+        path,
+        status,
+        error: payload && payload.error ? payload.error : null
+      }
+    );
+  }
+
+  return {
+    payload,
+    status,
+    rawText: responseText
+  };
+}
+
 function astSecretsProviderGetScriptProperties(request) {
   const rawValue = astSecretsReadScriptPropertyValue(request.key);
 
@@ -305,6 +500,21 @@ function astSecretsProviderDeleteScriptProperties(request) {
   };
 }
 
+function astSecretsProviderRotateScriptProperties(request) {
+  const existing = astSecretsReadScriptPropertyValue(request.key);
+  astSecretsWriteScriptPropertyValue(request.key, request.value);
+  astSecretsInvalidateScriptPropertiesSnapshotCache();
+
+  return {
+    metadata: {
+      provider: 'script_properties',
+      previousExists: existing != null && String(existing).length > 0,
+      rotatedAt: new Date().toISOString(),
+      versionId: null
+    }
+  };
+}
+
 function astSecretsProviderGetSecretManager(request, resolvedConfig) {
   const token = astSecretsResolveSecretManagerToken(request.auth || {});
   const resource = astSecretsResolveSecretManagerResource(request, resolvedConfig);
@@ -330,6 +540,108 @@ function astSecretsProviderGetSecretManager(request, resolvedConfig) {
       createTime: astSecretsNormalizeString(payload.createTime, null)
     },
     raw: response.payload
+  };
+}
+
+function astSecretsProviderRotateSecretManager(request, resolvedConfig) {
+  const token = astSecretsResolveSecretManagerToken(request.auth || {});
+  const secretResource = astSecretsResolveSecretManagerSecretResource(request, resolvedConfig);
+  const payloadBase64 = astSecretsEncodeTextToBase64(request.value);
+  const response = astSecretsFetchSecretManagerJson(
+    `${secretResource.resource}:addVersion`,
+    token,
+    {
+      method: 'post',
+      body: {
+        payload: {
+          data: payloadBase64
+        }
+      }
+    }
+  );
+  const body = response.payload || {};
+
+  return {
+    metadata: {
+      provider: 'secret_manager',
+      resource: secretResource.resource,
+      versionName: astSecretsNormalizeString(body.name, null),
+      createTime: astSecretsNormalizeString(body.createTime, null),
+      etag: astSecretsNormalizeString(body.etag, null),
+      state: astSecretsNormalizeString(body.state, null)
+    },
+    raw: body
+  };
+}
+
+function astSecretsProviderListVersionsSecretManager(request, resolvedConfig) {
+  const token = astSecretsResolveSecretManagerToken(request.auth || {});
+  const secretResource = astSecretsResolveSecretManagerSecretResource(request, resolvedConfig);
+  const pageSize = astSecretsNormalizeInteger(request.options && request.options.pageSize, 50, 1, 1000);
+  const pageToken = astSecretsNormalizeString(request.options && request.options.pageToken, null);
+  const includeStates = Array.isArray(request.options && request.options.includeStates)
+    ? request.options.includeStates
+    : [];
+
+  const query = [
+    `pageSize=${encodeURIComponent(String(pageSize))}`
+  ];
+  if (pageToken) {
+    query.push(`pageToken=${encodeURIComponent(pageToken)}`);
+  }
+
+  const response = astSecretsFetchSecretManagerJson(
+    `${secretResource.resource}/versions?${query.join('&')}`,
+    token,
+    { method: 'get' }
+  );
+  const payload = response.payload || {};
+  const versions = Array.isArray(payload.versions) ? payload.versions : [];
+  const filtered = versions.filter(version => {
+    if (!includeStates.length) {
+      return true;
+    }
+    const state = astSecretsNormalizeString(version && version.state, '').toUpperCase();
+    return includeStates.indexOf(state) !== -1;
+  });
+
+  return {
+    items: filtered.map(version => ({
+      name: astSecretsNormalizeString(version && version.name, null),
+      state: astSecretsNormalizeString(version && version.state, null),
+      createTime: astSecretsNormalizeString(version && version.createTime, null),
+      destroyTime: astSecretsNormalizeString(version && version.destroyTime, null),
+      etag: astSecretsNormalizeString(version && version.etag, null),
+      replicationStatus: version && version.replicationStatus ? version.replicationStatus : null,
+      clientSpecifiedPayloadChecksum: Boolean(version && version.clientSpecifiedPayloadChecksum)
+    })),
+    nextPageToken: astSecretsNormalizeString(payload.nextPageToken, null),
+    metadata: {
+      provider: 'secret_manager',
+      resource: secretResource.resource
+    },
+    raw: payload
+  };
+}
+
+function astSecretsProviderGetVersionMetadataSecretManager(request, resolvedConfig) {
+  const token = astSecretsResolveSecretManagerToken(request.auth || {});
+  const versionResource = astSecretsResolveSecretManagerVersionResource(request, resolvedConfig);
+  const response = astSecretsFetchSecretManagerJson(versionResource.resource, token, { method: 'get' });
+  const payload = response.payload || {};
+
+  return {
+    metadata: {
+      provider: 'secret_manager',
+      versionName: astSecretsNormalizeString(payload.name, null),
+      state: astSecretsNormalizeString(payload.state, null),
+      createTime: astSecretsNormalizeString(payload.createTime, null),
+      destroyTime: astSecretsNormalizeString(payload.destroyTime, null),
+      etag: astSecretsNormalizeString(payload.etag, null),
+      replicationStatus: payload && payload.replicationStatus ? payload.replicationStatus : null,
+      clientSpecifiedPayloadChecksum: Boolean(payload && payload.clientSpecifiedPayloadChecksum)
+    },
+    raw: payload
   };
 }
 
@@ -366,6 +678,43 @@ function astSecretsProviderDelete(provider, request) {
 
   throw new AstSecretsCapabilityError(
     `Secrets provider '${provider}' does not support delete()`,
+    { provider }
+  );
+}
+
+function astSecretsProviderRotate(provider, request, resolvedConfig) {
+  if (provider === 'script_properties') {
+    return astSecretsProviderRotateScriptProperties(request);
+  }
+
+  if (provider === 'secret_manager') {
+    return astSecretsProviderRotateSecretManager(request, resolvedConfig);
+  }
+
+  throw new AstSecretsCapabilityError(
+    `Secrets provider '${provider}' does not support rotate()`,
+    { provider }
+  );
+}
+
+function astSecretsProviderListVersions(provider, request, resolvedConfig) {
+  if (provider === 'secret_manager') {
+    return astSecretsProviderListVersionsSecretManager(request, resolvedConfig);
+  }
+
+  throw new AstSecretsCapabilityError(
+    `Secrets provider '${provider}' does not support list_versions()`,
+    { provider }
+  );
+}
+
+function astSecretsProviderGetVersionMetadata(provider, request, resolvedConfig) {
+  if (provider === 'secret_manager') {
+    return astSecretsProviderGetVersionMetadataSecretManager(request, resolvedConfig);
+  }
+
+  throw new AstSecretsCapabilityError(
+    `Secrets provider '${provider}' does not support get_version_metadata()`,
     { provider }
   );
 }

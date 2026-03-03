@@ -88,13 +88,14 @@
   - `api/dbt-manifest-search.md`
   - `api/dbt-artifacts-impact.md`
 - New `AST.Secrets` namespace with:
-  - `run`, `get`, `set`, `delete`
+  - `run`, `get`, `set`, `delete`, `rotate`
+  - `listVersions`, `getVersionMetadata`
   - `providers`, `capabilities`
   - `configure`, `getConfig`, `clearConfig`
   - `resolveValue` for `secret://...` references
 - Secret providers:
-  - `script_properties` (`get/set/delete`)
-  - `secret_manager` (`get`)
+  - `script_properties` (`get/set/delete/rotate`)
+  - `secret_manager` (`get/rotate/list_versions/get_version_metadata`)
 - New typed secrets errors:
   - `AstSecretsError`, `AstSecretsValidationError`, `AstSecretsAuthError`
   - `AstSecretsCapabilityError`, `AstSecretsProviderError`, `AstSecretsNotFoundError`

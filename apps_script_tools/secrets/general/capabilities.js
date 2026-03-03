@@ -2,12 +2,18 @@ const AST_SECRETS_PROVIDER_CAPABILITIES = Object.freeze({
   script_properties: Object.freeze({
     get: true,
     set: true,
-    delete: true
+    delete: true,
+    rotate: true,
+    list_versions: false,
+    get_version_metadata: false
   }),
   secret_manager: Object.freeze({
     get: true,
     set: false,
-    delete: false
+    delete: false,
+    rotate: true,
+    list_versions: true,
+    get_version_metadata: true
   })
 });
 

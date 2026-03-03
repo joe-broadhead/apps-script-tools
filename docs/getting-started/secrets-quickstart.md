@@ -51,6 +51,49 @@ function secretsSetExample() {
 }
 ```
 
+## Rotate a secret
+
+```javascript
+function secretsRotateExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Secrets.rotate({
+    provider: 'secret_manager',
+    key: 'OPENAI_API_KEY',
+    value: 'new-key-value',
+    auth: {
+      projectId: 'my-gcp-project'
+    }
+  });
+
+  Logger.log(out.metadata.versionName);
+}
+```
+
+## List versions + metadata (Secret Manager)
+
+```javascript
+function secretsVersionMetadataExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const list = ASTX.Secrets.listVersions({
+    provider: 'secret_manager',
+    key: 'OPENAI_API_KEY',
+    auth: { projectId: 'my-gcp-project' },
+    options: { pageSize: 20 }
+  });
+  Logger.log(list.items.length);
+
+  const meta = ASTX.Secrets.getVersionMetadata({
+    provider: 'secret_manager',
+    key: 'OPENAI_API_KEY',
+    version: 'latest',
+    auth: { projectId: 'my-gcp-project' }
+  });
+  Logger.log(meta.metadata.state);
+}
+```
+
 ## Resolve `secret://` references
 
 ```javascript
@@ -69,3 +112,4 @@ function secretsResolveValueExample() {
 
 - Precedence for auth/config: request overrides, then `ASTX.Secrets.configure(...)`, then script properties.
 - Use `resolveValue(...)` when you want runtime modules to consume secret URIs without embedding plaintext values.
+- `listVersions` and `getVersionMetadata` are Secret Manager-only; script properties will throw `AstSecretsCapabilityError`.
