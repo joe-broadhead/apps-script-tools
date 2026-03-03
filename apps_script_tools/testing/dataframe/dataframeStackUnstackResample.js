@@ -22,6 +22,25 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected unstacked records: ${JSON.stringify(unstacked.toRecords())}`);
       }
 
+      const duplicateIndexDf = DataFrame.fromRecords([
+        { a: 1, b: 10 },
+        { a: 2, b: 20 }
+      ]);
+      duplicateIndexDf.index = ['r1', 'r1'];
+      const duplicateRoundTrip = duplicateIndexDf.stack({ dropNulls: false }).unstack();
+      if (duplicateRoundTrip.len() !== 2) {
+        throw new Error(`Expected duplicate-index round-trip to preserve 2 rows, got ${duplicateRoundTrip.len()}`);
+      }
+      if (JSON.stringify(duplicateRoundTrip.index) !== JSON.stringify(['r1', 'r1'])) {
+        throw new Error(`Expected duplicate index labels preserved: ${JSON.stringify(duplicateRoundTrip.index)}`);
+      }
+      if (JSON.stringify(duplicateRoundTrip.toRecords()) !== JSON.stringify([
+        { a: 1, b: 10 },
+        { a: 2, b: 20 }
+      ])) {
+        throw new Error(`Unexpected duplicate-index unstack records: ${JSON.stringify(duplicateRoundTrip.toRecords())}`);
+      }
+
       let stackErr = null;
       try {
         df.stack({ indexName: '__proto__' });

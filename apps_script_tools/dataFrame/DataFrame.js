@@ -1806,6 +1806,7 @@ var DataFrame = class DataFrame {
       [normalized.columnName]: [],
       [normalized.valueName]: []
     };
+    const stackRowPositions = [];
 
     for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
       for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
@@ -1819,10 +1820,18 @@ var DataFrame = class DataFrame {
         outputColumns[normalized.indexName].push(this.index[rowIdx]);
         outputColumns[normalized.columnName].push(columnName);
         outputColumns[normalized.valueName].push(value);
+        stackRowPositions.push(rowIdx);
       }
     }
 
-    return DataFrame.fromColumns(outputColumns, { copy: false });
+    const result = DataFrame.fromColumns(outputColumns, { copy: false });
+    __astAttachDataFrameStackMetadata(result, {
+      indexColumn: normalized.indexName,
+      columnColumn: normalized.columnName,
+      valueColumn: normalized.valueName,
+      rowPositions: stackRowPositions
+    });
+    return result;
   }
 
   /**
@@ -1842,6 +1851,8 @@ var DataFrame = class DataFrame {
     const normalized = __astNormalizeDataFrameUnstackOptions(this, options, 'unstack');
     const grouped = new Map();
     const indexEntries = [];
+    const stackMetadata = __astGetDataFrameStackMetadata(this, normalized);
+    const stackIndexLookup = stackMetadata ? new Map() : null;
     const indexLookup = new Map();
     let indexIdentityCounter = 0;
     const pivotEntries = [];
@@ -1854,26 +1865,41 @@ var DataFrame = class DataFrame {
 
       const indexKey = __astBuildDataFrameLabelLookupKey(indexValue);
       const pivotKey = __astBuildDataFrameLabelLookupKey(pivotValue);
-      let indexEntry = null;
-      let indexBucket = indexLookup.get(indexKey);
-      if (!indexBucket) {
-        indexBucket = [];
-        indexLookup.set(indexKey, indexBucket);
-      }
-      for (let idx = 0; idx < indexBucket.length; idx++) {
-        if (__astAreDataFrameIndexLabelsEqual(indexBucket[idx].value, indexValue)) {
-          indexEntry = indexBucket[idx];
-          break;
+      let indexEntry;
+
+      if (stackMetadata) {
+        const stackRowPosition = stackMetadata.rowPositions[rowIdx];
+        indexEntry = stackIndexLookup.get(stackRowPosition);
+        if (!indexEntry) {
+          indexEntry = {
+            value: indexValue,
+            groupedKey: `stack:${stackRowPosition}`
+          };
+          stackIndexLookup.set(stackRowPosition, indexEntry);
+          indexEntries.push(indexEntry);
         }
-      }
-      if (!indexEntry) {
-        indexIdentityCounter += 1;
-        indexEntry = {
-          value: indexValue,
-          groupedKey: `${indexKey}::${indexIdentityCounter}`
-        };
-        indexBucket.push(indexEntry);
-        indexEntries.push(indexEntry);
+      } else {
+        indexEntry = null;
+        let indexBucket = indexLookup.get(indexKey);
+        if (!indexBucket) {
+          indexBucket = [];
+          indexLookup.set(indexKey, indexBucket);
+        }
+        for (let idx = 0; idx < indexBucket.length; idx++) {
+          if (__astAreDataFrameIndexLabelsEqual(indexBucket[idx].value, indexValue)) {
+            indexEntry = indexBucket[idx];
+            break;
+          }
+        }
+        if (!indexEntry) {
+          indexIdentityCounter += 1;
+          indexEntry = {
+            value: indexValue,
+            groupedKey: `${indexKey}::${indexIdentityCounter}`
+          };
+          indexBucket.push(indexEntry);
+          indexEntries.push(indexEntry);
+        }
       }
       const groupedKey = JSON.stringify([indexEntry.groupedKey, pivotKey]);
 
@@ -4843,6 +4869,56 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
     defaultAgg,
     aggByColumn
   };
+}
+
+function __astAttachDataFrameStackMetadata(dataframe, metadata) {
+  if (!(dataframe instanceof DataFrame)) {
+    return;
+  }
+  if (!metadata || typeof metadata !== 'object') {
+    return;
+  }
+  if (!Array.isArray(metadata.rowPositions)) {
+    return;
+  }
+
+  Object.defineProperty(dataframe, '__astStackMetadata', {
+    value: {
+      indexColumn: metadata.indexColumn,
+      columnColumn: metadata.columnColumn,
+      valueColumn: metadata.valueColumn,
+      rowPositions: metadata.rowPositions
+    },
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+}
+
+function __astGetDataFrameStackMetadata(dataframe, normalized) {
+  if (!dataframe || !normalized) {
+    return null;
+  }
+  const metadata = dataframe.__astStackMetadata;
+  if (!metadata || typeof metadata !== 'object') {
+    return null;
+  }
+  if (!Array.isArray(metadata.rowPositions) || metadata.rowPositions.length !== dataframe.len()) {
+    return null;
+  }
+  if (metadata.indexColumn !== normalized.indexColumn
+    || metadata.columnColumn !== normalized.columnColumn
+    || metadata.valueColumn !== normalized.valueColumn) {
+    return null;
+  }
+
+  for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
+    if (!Number.isInteger(metadata.rowPositions[idx]) || metadata.rowPositions[idx] < 0) {
+      return null;
+    }
+  }
+
+  return metadata;
 }
 
 function __astBuildDataFrameResampleValueColumns(columnNames) {

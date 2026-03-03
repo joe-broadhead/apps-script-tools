@@ -57,6 +57,25 @@ test('DataFrame.unstack round-trips stacked output with preserved index labels',
   ]));
 });
 
+test('DataFrame.unstack preserves duplicate index labels on stack/unstack round-trip', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
+  ]);
+  df.index = ['r1', 'r1'];
+
+  const stacked = df.stack({ dropNulls: false });
+  const unstacked = stacked.unstack();
+
+  assert.equal(unstacked.len(), 2);
+  assert.equal(JSON.stringify(unstacked.index), JSON.stringify(['r1', 'r1']));
+  assert.equal(JSON.stringify(unstacked.toRecords()), JSON.stringify([
+    { a: 1, b: 10 },
+    { a: 2, b: 20 }
+  ]));
+});
+
 test('DataFrame.unstack supports duplicate index/column pairs via agg option', () => {
   const context = createDataContext();
   const long = context.DataFrame.fromRecords([
