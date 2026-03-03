@@ -24,6 +24,10 @@
   - `invalidateByPrefix(prefix, options)` for bounded keyspace invalidation
   - `invalidateByPredicate(predicate, options)` for callback-driven invalidation
   - `lock(key, task, options)` scoped lock helper with timeout/lease controls
+- `AST.Storage.transfer(request)` unified transfer API:
+  - supports `mode: auto|object|prefix|sync`
+  - bridges GCS/S3/DBFS provider pairs using read+write fallback when needed
+  - preserves bulk summary accounting (`processed/copied/skipped/failed/deleted`)
 - HTTP docs:
   - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:

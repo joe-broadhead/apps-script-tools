@@ -93,6 +93,7 @@ function astStorageBulkNormalizeOperation(operation) {
   const input = astStorageNormalizeString(operation, '').toLowerCase();
   const aliases = {
     walk: 'walk',
+    transfer: 'transfer',
     copyprefix: 'copy_prefix',
     copy_prefix: 'copy_prefix',
     deleteprefix: 'delete_prefix',
@@ -105,7 +106,17 @@ function astStorageBulkNormalizeOperation(operation) {
 function astStorageBulkResolveEndpointFromInput(input = {}, fallbackProvider = '') {
   const source = astStorageBulkClonePlainObject(input);
   const parsedUri = source.uri ? astParseStorageUri(source.uri) : null;
-  const provider = astStorageNormalizeProvider(source.provider || fallbackProvider || (parsedUri ? parsedUri.provider : ''));
+  const explicitProvider = astStorageNormalizeProvider(source.provider || '');
+  if (explicitProvider && parsedUri && explicitProvider !== parsedUri.provider) {
+    throw new AstStorageValidationError('Storage bulk endpoint provider conflicts with uri provider', {
+      provider: explicitProvider,
+      uriProvider: parsedUri.provider,
+      uri: source.uri
+    });
+  }
+
+  const provider = explicitProvider
+    || (parsedUri ? parsedUri.provider : astStorageNormalizeProvider(fallbackProvider || ''));
   if (!provider) {
     throw new AstStorageValidationError('Storage bulk operation requires provider or uri');
   }
@@ -142,6 +153,78 @@ function astStorageBulkResolveTransferEndpoints(request = {}) {
   const to = astStorageBulkResolveEndpointFromInput(toInput, from.provider);
 
   return { from, to };
+}
+
+function astStorageBulkNormalizeTransferMode(request = {}, endpoints = null, options = {}) {
+  const input = astStorageNormalizeString(
+    request.mode || (astStorageIsPlainObject(request.options) ? request.options.mode : ''),
+    'auto'
+  ).toLowerCase();
+
+  if (['auto', 'object', 'prefix', 'sync'].indexOf(input) === -1) {
+    throw new AstStorageValidationError('Storage transfer mode must be one of: auto, object, prefix, sync', {
+      mode: input
+    });
+  }
+
+  if (input !== 'auto') {
+    return input;
+  }
+
+  if (astStorageBulkNormalizeBoolean(options.deleteExtra, false)) {
+    return 'sync';
+  }
+
+  if (!endpoints || !endpoints.from || !endpoints.to) {
+    return 'object';
+  }
+
+  const fromPrefix = astStorageBulkGetPrefixValue(endpoints.from.provider, endpoints.from.location);
+  const toPrefix = astStorageBulkGetPrefixValue(endpoints.to.provider, endpoints.to.location);
+  const fromLooksLikePrefix = !fromPrefix || fromPrefix.endsWith('/');
+
+  if (fromLooksLikePrefix) {
+    return 'prefix';
+  }
+
+  return 'object';
+}
+
+function astStorageBulkLooksLikePrefixPath(pathValue) {
+  const normalized = astStorageNormalizeString(pathValue, '');
+  return !normalized || normalized.endsWith('/');
+}
+
+function astStorageBulkPathBasename(pathValue) {
+  const normalized = astStorageNormalizeString(pathValue, '').replace(/\/+$/, '');
+  if (!normalized) {
+    return '';
+  }
+  const parts = normalized.split('/').filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : '';
+}
+
+function astStorageBulkResolveObjectTargetUri(fromEndpoint, toEndpoint) {
+  const sourcePath = astStorageBulkGetPrefixValue(fromEndpoint.provider, fromEndpoint.location);
+  const targetPath = astStorageBulkGetPrefixValue(toEndpoint.provider, toEndpoint.location);
+
+  if (astStorageBulkLooksLikePrefixPath(targetPath)) {
+    const basename = astStorageBulkPathBasename(sourcePath);
+    if (!basename) {
+      throw new AstStorageValidationError('Storage transfer object mode requires source object key/path with basename', {
+        sourceUri: fromEndpoint.uri
+      });
+    }
+    const targetLocation = astStorageBulkBuildLocation(
+      toEndpoint.provider,
+      toEndpoint.location,
+      targetPath,
+      basename
+    );
+    return astStorageBuildUri(toEndpoint.provider, targetLocation);
+  }
+
+  return toEndpoint.uri;
 }
 
 function astStorageBulkGetPrefixValue(provider, location = {}) {
@@ -569,6 +652,107 @@ function astStorageBulkCopySingleItem({
         + Number(writeResponse.usage && writeResponse.usage.requestCount ? writeResponse.usage.requestCount : 1)
     }
   };
+}
+
+function astStorageBulkWrapTransferResponse(baseResponse, mode, fromEndpoint, toEndpoint) {
+  const safeResponse = astStorageIsPlainObject(baseResponse)
+    ? astStorageCloneObject(baseResponse)
+    : {};
+  const safeOutput = astStorageIsPlainObject(safeResponse.output)
+    ? astStorageCloneObject(safeResponse.output)
+    : {};
+  const safeSummary = astStorageIsPlainObject(safeOutput.summary)
+    ? astStorageCloneObject(safeOutput.summary)
+    : {};
+
+  safeSummary.mode = mode;
+  safeOutput.summary = safeSummary;
+
+  safeResponse.provider = fromEndpoint.provider;
+  safeResponse.operation = 'transfer';
+  safeResponse.uri = toEndpoint.uri;
+  safeResponse.output = safeOutput;
+  return safeResponse;
+}
+
+function astStorageTransfer(request = {}) {
+  const endpoints = astStorageBulkResolveTransferEndpoints(request);
+  const options = astStorageBulkNormalizeOptions(request.options || {});
+  const transferMode = astStorageBulkNormalizeTransferMode(request, endpoints, options);
+
+  if (transferMode === 'prefix') {
+    const copied = astStorageCopyPrefix(request);
+    return astStorageBulkWrapTransferResponse(copied, 'prefix', endpoints.from, endpoints.to);
+  }
+
+  if (transferMode === 'sync') {
+    const synced = astStorageSyncPrefixes(request);
+    return astStorageBulkWrapTransferResponse(synced, 'sync', endpoints.from, endpoints.to);
+  }
+
+  const sourceObjectPath = astStorageBulkGetPrefixValue(endpoints.from.provider, endpoints.from.location);
+  if (astStorageBulkLooksLikePrefixPath(sourceObjectPath)) {
+    throw new AstStorageValidationError('Storage transfer object mode requires fromUri/fromLocation to reference a single object', {
+      fromUri: endpoints.from.uri
+    });
+  }
+  const objectTargetUri = astStorageBulkResolveObjectTargetUri(endpoints.from, endpoints.to);
+
+  const item = {
+    sourceUri: endpoints.from.uri,
+    targetUri: objectTargetUri,
+    relativePath: astStorageNormalizeString(sourceObjectPath, '')
+  };
+  let requestCount = 0;
+  let copied = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  if (options.dryRun) {
+    item.status = 'planned';
+    skipped = 1;
+  } else {
+    try {
+      const operationResponse = astStorageBulkCopySingleItem({
+        sourceProvider: endpoints.from.provider,
+        sourceUri: endpoints.from.uri,
+        targetProvider: endpoints.to.provider,
+        targetUri: objectTargetUri,
+        request,
+        options
+      });
+      requestCount += Number(operationResponse.usage && operationResponse.usage.requestCount ? operationResponse.usage.requestCount : 1);
+      copied = 1;
+      item.status = 'copied';
+    } catch (error) {
+      failed = 1;
+      item.status = 'failed';
+      item.error = {
+        name: astStorageNormalizeString(error && error.name, 'Error'),
+        message: astStorageNormalizeString(error && error.message, String(error || 'Unknown error'))
+      };
+      if (!options.continueOnError) {
+        throw error;
+      }
+    }
+  }
+
+  return astStorageBulkBuildResponse({
+    provider: endpoints.from.provider,
+    operation: 'transfer',
+    uri: objectTargetUri,
+    items: [item],
+    summary: {
+      mode: 'object',
+      processed: 1,
+      copied,
+      skipped,
+      failed,
+      dryRun: options.dryRun,
+      truncated: false
+    },
+    requestCount: requestCount || 1
+  });
 }
 
 function astStorageCopyPrefix(request = {}) {

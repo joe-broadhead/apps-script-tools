@@ -3,6 +3,9 @@ function astStorageRun(request = {}) {
   if (operation === 'walk') {
     return astStorageWalkPrefix(request);
   }
+  if (operation === 'transfer') {
+    return astStorageTransfer(request);
+  }
   if (operation === 'copy_prefix') {
     return astStorageCopyPrefix(request);
   }
@@ -72,10 +75,15 @@ function astStorageSync(request = {}) {
   return astStorageSyncPrefixes(request);
 }
 
+function astStorageTransferApi(request = {}) {
+  return astStorageTransfer(request);
+}
+
 function astStorageCapabilities(provider) {
   const base = astStorageGetCapabilities(provider);
   return Object.assign({}, base, {
     walk: true,
+    transfer: true,
     copy_prefix: true,
     delete_prefix: true,
     sync: true
@@ -107,6 +115,7 @@ const AST_STORAGE = Object.freeze({
   signedUrl: astStorageSignedUrl,
   multipartWrite: astStorageMultipartWrite,
   walk: astStorageWalk,
+  transfer: astStorageTransferApi,
   copyPrefix: astStorageCopyPrefixApi,
   deletePrefix: astStorageDeletePrefixApi,
   sync: astStorageSync,

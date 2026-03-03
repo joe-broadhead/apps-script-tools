@@ -191,6 +191,18 @@ function storageBulkExample() {
   });
   Logger.log(JSON.stringify(plan.output.summary));
 
+  // Transfer API (auto mode): object, prefix, or sync based on inputs/options.
+  const transfer = ASTX.Storage.transfer({
+    fromUri: 'gcs://my-bucket/inbound/',
+    toUri: 's3://archive-bucket/inbound/',
+    options: {
+      mode: 'auto',     // auto | object | prefix | sync
+      overwrite: true,
+      dryRun: false
+    }
+  });
+  Logger.log(JSON.stringify(transfer.output.summary));
+
   // Sync source->target and delete extra target objects not in source.
   ASTX.Storage.sync({
     fromUri: 's3://raw/events/',
@@ -210,6 +222,10 @@ function storageBulkExample() {
 - Not found in `head`, `read`, or `delete` throws `AstStorageNotFoundError`.
 - `exists` returns `output.exists.exists=false` for missing objects.
 - `copy/move` requires same-provider `fromUri` and `toUri`.
-- `copyPrefix/deletePrefix/sync` support `options.dryRun`, `options.maxObjects`, and per-item failure reporting in `output.items`.
+- `transfer/copyPrefix/deletePrefix/sync` support `options.dryRun`, `options.maxObjects`, and per-item failure reporting in `output.items`.
+- `transfer` mode `auto` resolves to:
+  - `sync` when `options.deleteExtra=true`
+  - `prefix` when source or target looks like a prefix (trailing `/` or empty key/path)
+  - `object` otherwise
 - Payloads are normalized to base64 internally (`text`/`json` are helper inputs).
 - Config resolution precedence: request auth > `ASTX.Storage.configure(...)` > script properties.
