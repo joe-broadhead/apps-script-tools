@@ -1,4 +1,5 @@
-const AST_CACHE_RESERVED_KEY_SUFFIX_PATTERN = /::__ast_cache_internal__:(stale|lease)$/;
+const AST_CACHE_RESERVED_KEY_SUFFIX_PATTERN = /::__ast_cache_internal__:(stale|lease|scoped_lock)$/;
+const AST_CACHE_INTERNAL_KEY_MARKER = '::__ast_cache_internal__:';
 
 function astCacheIsPlainObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -100,6 +101,15 @@ function astCacheNormalizeKey(key) {
   }
 
   return normalized;
+}
+
+function astCacheIsInternalNormalizedKey(normalizedKey) {
+  const safeNormalizedKey = astCacheNormalizeString(normalizedKey, '');
+  if (!safeNormalizedKey) {
+    return false;
+  }
+
+  return safeNormalizedKey.indexOf(AST_CACHE_INTERNAL_KEY_MARKER) !== -1;
 }
 
 function astCacheNormalizeTags(tags) {

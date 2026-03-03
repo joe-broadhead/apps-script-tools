@@ -113,11 +113,26 @@ function astCacheSelectBackendAdapter(config, requestOptions = {}) {
           astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
           requestOptions
         ),
+        deleteManyByKeyHashes: keyHashes => astCacheMemoryDeleteMany(
+          keyHashes,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'deleteManyByKeyHashes')
+        ),
+        recordInvalidations: count => astCacheMemoryRecordInvalidations(
+          count,
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'recordInvalidations')
+        ),
         invalidateByTag: tag => astCacheMemoryInvalidateByTag(
           tag,
           astCacheNowMs(),
           astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
           requestOptions
+        ),
+        listEntries: options => astCacheMemoryListEntries(
+          astCacheNowMs(),
+          astCacheBuildOperationConfig(config, requestOptions, 'listEntries', options),
+          options
         ),
         stats: () => astCacheMemoryStats(
           astCacheNowMs(),
@@ -144,10 +159,22 @@ function astCacheSelectBackendAdapter(config, requestOptions = {}) {
           astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
           requestOptions
         ),
+        deleteManyByKeyHashes: keyHashes => astCacheDriveDeleteMany(
+          keyHashes,
+          astCacheBuildOperationConfig(config, requestOptions, 'deleteManyByKeyHashes')
+        ),
+        recordInvalidations: count => astCacheDriveRecordInvalidations(
+          count,
+          astCacheBuildOperationConfig(config, requestOptions, 'recordInvalidations')
+        ),
         invalidateByTag: tag => astCacheDriveInvalidateByTag(
           tag,
           astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
           requestOptions
+        ),
+        listEntries: options => astCacheDriveListEntries(
+          astCacheBuildOperationConfig(config, requestOptions, 'listEntries', options),
+          options
         ),
         stats: () => astCacheDriveStats(
           astCacheBuildOperationConfig(config, requestOptions, 'stats')
@@ -173,10 +200,22 @@ function astCacheSelectBackendAdapter(config, requestOptions = {}) {
           astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
           requestOptions
         ),
+        deleteManyByKeyHashes: keyHashes => astCacheScriptPropertiesDeleteMany(
+          keyHashes,
+          astCacheBuildOperationConfig(config, requestOptions, 'deleteManyByKeyHashes')
+        ),
+        recordInvalidations: count => astCacheScriptPropertiesRecordInvalidations(
+          count,
+          astCacheBuildOperationConfig(config, requestOptions, 'recordInvalidations')
+        ),
         invalidateByTag: tag => astCacheScriptPropertiesInvalidateByTag(
           tag,
           astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
           requestOptions
+        ),
+        listEntries: options => astCacheScriptPropertiesListEntries(
+          astCacheBuildOperationConfig(config, requestOptions, 'listEntries', options),
+          options
         ),
         stats: () => astCacheScriptPropertiesStatsSnapshot(
           astCacheBuildOperationConfig(config, requestOptions, 'stats')
@@ -202,10 +241,38 @@ function astCacheSelectBackendAdapter(config, requestOptions = {}) {
           astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
           requestOptions
         ),
+        deleteManyByKeyHashes: keyHashes => {
+          const safeKeyHashes = Array.isArray(keyHashes) ? keyHashes : [];
+          let removed = 0;
+          for (let idx = 0; idx < safeKeyHashes.length; idx += 1) {
+            const keyHash = astCacheNormalizeString(safeKeyHashes[idx], '');
+            if (!keyHash) {
+              continue;
+            }
+            if (astCacheStorageDelete(
+              keyHash,
+              astCacheBuildOperationConfig(config, requestOptions, 'delete', { keyHash }),
+              requestOptions
+            )) {
+              removed += 1;
+            }
+          }
+          return removed;
+        },
+        recordInvalidations: count => astCacheStorageRecordInvalidations(
+          count,
+          astCacheBuildOperationConfig(config, requestOptions, 'recordInvalidations'),
+          requestOptions
+        ),
         invalidateByTag: tag => astCacheStorageInvalidateByTag(
           tag,
           astCacheBuildOperationConfig(config, requestOptions, 'invalidateByTag', { tag }),
           requestOptions
+        ),
+        listEntries: options => astCacheStorageListEntries(
+          astCacheBuildOperationConfig(config, requestOptions, 'listEntries', options),
+          requestOptions,
+          options
         ),
         stats: () => astCacheStorageStats(
           astCacheBuildOperationConfig(config, requestOptions, 'stats'),
@@ -243,6 +310,187 @@ function astCacheBuildResolvedContext(options = {}) {
     config,
     adapter
   };
+}
+
+function astCacheResolveScanOptions(options = {}) {
+  return {
+    includeInternal: options.includeInternal === true,
+    maxScan: astCacheResolveConfigNumber([
+      options.maxScan,
+      options.limit
+    ], 10000, 1, 1000000)
+  };
+}
+
+function astCacheListEntriesWithContext(context, options = {}) {
+  if (!context || !context.adapter || typeof context.adapter.listEntries !== 'function') {
+    throw new AstCacheCapabilityError('Cache backend does not support entry enumeration', {
+      backend: context && context.config ? context.config.backend : null
+    });
+  }
+
+  const scanOptions = astCacheResolveScanOptions(options);
+  return context.adapter.listEntries({
+    includeInternal: scanOptions.includeInternal,
+    maxItems: scanOptions.maxScan
+  });
+}
+
+function astCacheDeleteMatchingEntries(context, entries, matcher, operation, details = {}) {
+  const output = {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation,
+    scanned: 0,
+    matched: 0,
+    deleted: 0,
+    failed: 0,
+    details: astCacheIsPlainObject(details) ? astCacheJsonClone(details) : {}
+  };
+
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const matchedKeyHashes = [];
+  for (let idx = 0; idx < safeEntries.length; idx += 1) {
+    const entry = safeEntries[idx];
+    output.scanned += 1;
+
+    if (!entry || !entry.keyHash) {
+      continue;
+    }
+
+    let matched = false;
+    try {
+      matched = matcher(entry) === true;
+    } catch (error) {
+      throw new AstCacheValidationError('Cache invalidation matcher threw an error', {
+        operation,
+        keyHash: entry.keyHash,
+        normalizedKey: astCacheNormalizeString(entry.normalizedKey, '')
+      }, error);
+    }
+
+    if (!matched) {
+      continue;
+    }
+
+    output.matched += 1;
+    matchedKeyHashes.push(entry.keyHash);
+  }
+
+  if (matchedKeyHashes.length === 0) {
+    return output;
+  }
+
+  const uniqueKeyHashes = [];
+  const seen = {};
+  for (let idx = 0; idx < matchedKeyHashes.length; idx += 1) {
+    const keyHash = astCacheNormalizeString(matchedKeyHashes[idx], '');
+    if (!keyHash || seen[keyHash]) {
+      continue;
+    }
+    seen[keyHash] = true;
+    uniqueKeyHashes.push(keyHash);
+  }
+
+  if (typeof context.adapter.deleteManyByKeyHashes === 'function') {
+    output.deleted = astCacheNormalizePositiveInt(
+      astCacheTryOrFallback(() => context.adapter.deleteManyByKeyHashes(uniqueKeyHashes), 0),
+      0,
+      0,
+      uniqueKeyHashes.length
+    );
+    output.failed = Math.max(0, uniqueKeyHashes.length - output.deleted);
+    if (output.deleted > 0 && typeof context.adapter.recordInvalidations === 'function') {
+      astCacheTryOrFallback(() => context.adapter.recordInvalidations(output.deleted), null);
+    }
+    return output;
+  }
+
+  for (let idx = 0; idx < uniqueKeyHashes.length; idx += 1) {
+    const deleted = astCacheTryOrFallback(() => context.adapter.delete(uniqueKeyHashes[idx]), false);
+    if (deleted) {
+      output.deleted += 1;
+      continue;
+    }
+    output.failed += 1;
+  }
+
+  if (output.deleted > 0 && typeof context.adapter.recordInvalidations === 'function') {
+    astCacheTryOrFallback(() => context.adapter.recordInvalidations(output.deleted), null);
+  }
+
+  return output;
+}
+
+function astCacheBuildLockOwnerId(normalizedKey, options = {}) {
+  const explicitOwnerId = astCacheNormalizeString(options.ownerId, '');
+  if (explicitOwnerId) {
+    return explicitOwnerId;
+  }
+
+  const entropySource = `${normalizedKey}|${astCacheNowMs()}|${Math.random()}`;
+  return `lock_${astCacheHashKey(entropySource).slice(0, 24)}`;
+}
+
+function astCacheResolveLockOptions(context, options = {}) {
+  const lockScope = astCacheNormalizeString(options.lockScope, context.config.lockScope).toLowerCase();
+  if (['script', 'user', 'none'].indexOf(lockScope) === -1) {
+    throw new AstCacheValidationError('Cache lock lockScope must be one of: script, user, none', {
+      lockScope
+    });
+  }
+
+  return {
+    timeoutMs: astCacheResolveConfigNumber([
+      options.timeoutMs,
+      options.waitMs
+    ], context.config.lockTimeoutMs, 0, 300000),
+    leaseMs: astCacheResolveConfigNumber([
+      options.leaseMs,
+      options.ttlMs
+    ], 30000, 250, 300000),
+    pollMs: astCacheResolveConfigNumber([
+      options.pollMs,
+      options.intervalMs
+    ], 75, 0, 10000),
+    lockScope
+  };
+}
+
+function astCacheTryAcquireScopedLock(context, normalizedLockKey, lockKeyHash, ownerId, lockOptions) {
+  function attemptAcquire() {
+    const existing = astCacheFetchReadEntry(context, lockKeyHash, true);
+    if (existing && existing.value && existing.value.ownerId) {
+      return false;
+    }
+
+    const nowMs = astCacheNowMs();
+    const lockEntry = astCacheBuildEntry({
+      normalizedKey: normalizedLockKey,
+      keyHash: lockKeyHash,
+      value: {
+        ownerId,
+        acquiredAtMs: nowMs
+      },
+      tags: [],
+      ttlSec: Math.max(1, Math.ceil(lockOptions.leaseMs / 1000)),
+      nowMs
+    });
+    context.adapter.set(lockEntry);
+
+    const confirmed = astCacheFetchReadEntry(context, lockKeyHash, true);
+    return Boolean(confirmed && confirmed.value && confirmed.value.ownerId === ownerId);
+  }
+
+  const lockConfig = Object.assign({}, context.config, {
+    lockScope: lockOptions.lockScope
+  });
+
+  try {
+    return astCacheRunWithLock(attemptAcquire, lockConfig);
+  } catch (_error) {
+    return attemptAcquire();
+  }
 }
 
 function astCacheFetchStatsKey(config) {
@@ -1164,6 +1412,137 @@ function astCacheFetchManyValues(keys, resolver, options = {}) {
 function astCacheInvalidateTag(tag, options = {}) {
   const context = astCacheBuildResolvedContext(options);
   return context.adapter.invalidateByTag(tag);
+}
+
+function astCacheInvalidatePrefix(prefix, options = {}) {
+  const normalizedPrefix = astCacheNormalizeString(prefix, '');
+  if (!normalizedPrefix) {
+    throw new AstCacheValidationError('Cache invalidateByPrefix prefix must be a non-empty string');
+  }
+
+  const context = astCacheBuildResolvedContext(options);
+  const entries = astCacheListEntriesWithContext(context, options);
+  return astCacheDeleteMatchingEntries(
+    context,
+    entries,
+    entry => String(entry.normalizedKey || '').indexOf(normalizedPrefix) === 0,
+    'invalidate_by_prefix',
+    {
+      prefix: normalizedPrefix
+    }
+  );
+}
+
+function astCacheInvalidatePredicate(predicate, options = {}) {
+  if (typeof predicate !== 'function') {
+    throw new AstCacheValidationError('Cache invalidateByPredicate predicate must be a function');
+  }
+
+  const context = astCacheBuildResolvedContext(options);
+  const entries = astCacheListEntriesWithContext(context, options);
+  return astCacheDeleteMatchingEntries(
+    context,
+    entries,
+    entry => {
+      const payload = {
+        key: astCacheJsonClone(entry.normalizedKey),
+        keyHash: entry.keyHash,
+        tags: astCacheJsonClone(entry.tags || []),
+        value: astCacheEnsureSerializable(entry.value, 'entry.value'),
+        createdAtMs: entry.createdAtMs,
+        updatedAtMs: entry.updatedAtMs,
+        expiresAtMs: entry.expiresAtMs
+      };
+      return predicate(payload) === true;
+    },
+    'invalidate_by_predicate'
+  );
+}
+
+function astCacheLock(key, task, options = {}) {
+  if (typeof task !== 'function') {
+    throw new AstCacheValidationError('Cache lock task must be a function');
+  }
+
+  const context = astCacheBuildResolvedContext(options);
+  const normalizedKey = astCacheNormalizeKey(key);
+  const normalizedLockKey = astCacheBuildInternalKey(normalizedKey, 'scoped_lock');
+  const lockKeyHash = astCacheHashKey(normalizedLockKey);
+  const lockOptions = astCacheResolveLockOptions(context, options);
+  const ownerId = astCacheBuildLockOwnerId(normalizedKey, options);
+  const startedAtMs = astCacheNowMs();
+  const timeoutAtMs = startedAtMs + lockOptions.timeoutMs;
+  const pollMs = lockOptions.pollMs > 0 ? lockOptions.pollMs : 25;
+
+  let acquired = false;
+  let attempts = 0;
+  while (!acquired) {
+    attempts += 1;
+    acquired = astCacheTryAcquireScopedLock(
+      context,
+      normalizedLockKey,
+      lockKeyHash,
+      ownerId,
+      lockOptions
+    );
+
+    if (acquired) {
+      break;
+    }
+
+    if (astCacheNowMs() >= timeoutAtMs) {
+      throw new AstCacheCapabilityError('Cache lock timeout exceeded', {
+        keyHash: lockKeyHash,
+        timeoutMs: lockOptions.timeoutMs,
+        leaseMs: lockOptions.leaseMs,
+        attempts
+      });
+    }
+
+    astCacheSleepMs(pollMs);
+  }
+
+  const waitMs = Math.max(0, astCacheNowMs() - startedAtMs);
+  let taskResult;
+  let taskError = null;
+
+  try {
+    taskResult = task({
+      backend: context.config.backend,
+      namespace: context.config.namespace,
+      keyHash: lockKeyHash,
+      ownerId,
+      waitMs,
+      leaseMs: lockOptions.leaseMs,
+      timeoutMs: lockOptions.timeoutMs,
+      attempts
+    });
+  } catch (error) {
+    taskError = error;
+  } finally {
+    astCacheFetchReleaseLease(context, lockKeyHash, ownerId);
+  }
+
+  if (taskError) {
+    throw taskError;
+  }
+
+  const serializedTaskResult = typeof taskResult === 'undefined'
+    ? null
+    : astCacheEnsureSerializable(taskResult, 'lock.result');
+
+  return {
+    backend: context.config.backend,
+    namespace: context.config.namespace,
+    operation: 'lock',
+    keyHash: lockKeyHash,
+    ownerId,
+    waitMs,
+    leaseMs: lockOptions.leaseMs,
+    timeoutMs: lockOptions.timeoutMs,
+    attempts,
+    result: serializedTaskResult
+  };
 }
 
 function astCacheStats(options = {}) {

@@ -14,6 +14,9 @@ CACHE_NAMESPACE_TESTS = [
         'delete',
         'deleteMany',
         'invalidateByTag',
+        'invalidateByPrefix',
+        'invalidateByPredicate',
+        'lock',
         'stats',
         'backends',
         'capabilities',
@@ -63,6 +66,44 @@ CACHE_NAMESPACE_TESTS = [
       const expired = AST.Cache.get('ttl:key');
 
       t.equal(expired, null, `Expected null for ttlSec=0 expired entry, got ${JSON.stringify(expired)}`);
+    })
+  },
+  {
+    description: 'AST.Cache.invalidateByPrefix should remove matching keys',
+    test: () => astTestRunWithAssertions(t => {
+      AST.Cache.clearConfig();
+      AST.Cache.configure({
+        CACHE_BACKEND: 'memory',
+        CACHE_NAMESPACE: `gas_cache_prefix_${new Date().getTime()}`
+      });
+
+      AST.Cache.set('pref:a', { id: 'a' });
+      AST.Cache.set('pref:b', { id: 'b' });
+      AST.Cache.set('other:c', { id: 'c' });
+
+      const result = AST.Cache.invalidateByPrefix('pref:');
+      t.equal(result.deleted, 2, `Expected deleted=2, got ${JSON.stringify(result)}`);
+      t.equal(AST.Cache.get('pref:a'), null, 'Expected pref:a to be removed');
+      t.equal(AST.Cache.get('pref:b'), null, 'Expected pref:b to be removed');
+      const remaining = AST.Cache.get('other:c');
+      t.ok(remaining && remaining.id === 'c', `Expected other:c to remain, got ${JSON.stringify(remaining)}`);
+    })
+  },
+  {
+    description: 'AST.Cache.lock should execute callback in scoped lock context',
+    test: () => astTestRunWithAssertions(t => {
+      AST.Cache.clearConfig();
+      AST.Cache.configure({
+        CACHE_BACKEND: 'memory',
+        CACHE_NAMESPACE: `gas_cache_lock_${new Date().getTime()}`
+      });
+
+      const result = AST.Cache.lock('lock:key', lockCtx => ({
+        ok: true,
+        ownerId: lockCtx.ownerId
+      }));
+      t.equal(result.operation, 'lock', `Expected lock operation, got ${JSON.stringify(result)}`);
+      t.equal(result.result.ok, true, `Expected lock result ok=true, got ${JSON.stringify(result.result)}`);
     })
   },
   {

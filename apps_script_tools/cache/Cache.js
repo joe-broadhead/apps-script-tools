@@ -34,6 +34,27 @@ function astCacheApiInvalidateByTag(tag, options = {}) {
   return astCacheInvalidateTag(tag, options);
 }
 
+function astCacheApiInvalidateByPrefix(prefix, options = {}) {
+  return astCacheInvalidatePrefix(prefix, options);
+}
+
+function astCacheApiInvalidateByPredicate(predicate, options = {}) {
+  return astCacheInvalidatePredicate(predicate, options);
+}
+
+function astCacheApiLock(key, taskOrOptions = {}, options = {}) {
+  if (typeof taskOrOptions === 'function') {
+    return astCacheLock(key, taskOrOptions, options);
+  }
+
+  const lockOptions = astCacheIsPlainObject(taskOrOptions)
+    ? Object.assign({}, taskOrOptions)
+    : {};
+  const task = lockOptions.task;
+  delete lockOptions.task;
+  return astCacheLock(key, task, lockOptions);
+}
+
 function astCacheApiStats(options = {}) {
   return astCacheStats(options);
 }
@@ -64,6 +85,9 @@ const AST_CACHE = Object.freeze({
   delete: astCacheApiDelete,
   deleteMany: astCacheApiDeleteMany,
   invalidateByTag: astCacheApiInvalidateByTag,
+  invalidateByPrefix: astCacheApiInvalidateByPrefix,
+  invalidateByPredicate: astCacheApiInvalidateByPredicate,
+  lock: astCacheApiLock,
   stats: astCacheApiStats,
   backends: astCacheListBackends,
   capabilities: astCacheGetCapabilities,

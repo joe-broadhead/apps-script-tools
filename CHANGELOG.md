@@ -20,6 +20,10 @@
   - trigger upsert/list/delete/run_now via Jobs-centric wrapper
   - deterministic trigger id derivation when `id` is omitted
   - dispatch preserved as `mode='jobs'` for existing enqueue/resume semantics
+- `AST.Cache` advanced maintenance APIs:
+  - `invalidateByPrefix(prefix, options)` for bounded keyspace invalidation
+  - `invalidateByPredicate(predicate, options)` for callback-driven invalidation
+  - `lock(key, task, options)` scoped lock helper with timeout/lease controls
 - HTTP docs:
   - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:
@@ -165,6 +169,7 @@
   - `Series`: `agg`, `interpolate`, `toFrame`
 - `AST.AI`, `AST.RAG`, and `AST.Storage` config resolution now supports optional `secret://...` values through `AST.Secrets.resolveValue(...)`.
 - `AST.Cache` now includes batch primitives for high-throughput workloads: `getMany`, `setMany`, `fetchMany`, and `deleteMany` with per-item status/aggregate stats outputs.
+- `AST.Cache` perf suite now includes `cache.invalidation_profile` benchmark for large-keyspace prefix/predicate invalidation.
 - `AST.Storage` now includes bulk prefix operations: `walk`, `copyPrefix`, `deletePrefix`, and `sync` (with `dryRun`, `maxObjects`, filter controls, and per-item progress/failure summaries).
 - `AST.Jobs` now includes orchestration helpers:
   - `chain(request)` for sequential task plans

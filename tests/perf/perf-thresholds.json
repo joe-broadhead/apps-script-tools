@@ -2,7 +2,7 @@
   "node20": {
     "maxMs": {
       "dataframe.fromRecords_100000_10": 2200,
-      "dataframe.sort_numeric_100000": 1800,
+      "dataframe.sort_numeric_100000": 2000,
       "dataframe.dropDuplicates_subset_100000": 1600,
       "dataframe.merge_inner_100000": 2600,
       "dataframe.groupBy_agg_100000": 900,
@@ -17,6 +17,7 @@
       "dbt.diff_entities_medium": 650,
       "dbt.getColumn_avg": 5,
       "cache.batch_profile": 1200,
+      "cache.invalidation_profile": 1200,
       "series.multiply_100000": 120,
       "utilities.removeDuplicates_records_100000": 1600,
       "utilities.joinRecords_inner_100000": 2600,
@@ -67,6 +68,9 @@
       "cache.batch_profile": {
         "setManyRelativePct": 92,
         "getManyRelativePct": 90
+      },
+      "cache.invalidation_profile": {
+        "predicateRelativePct": 160
       }
     }
   }

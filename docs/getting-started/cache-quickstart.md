@@ -97,8 +97,50 @@ function cacheInvalidateExample() {
 }
 ```
 
+## Invalidate by prefix and predicate
+
+```javascript
+function cacheAdvancedInvalidationExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const byPrefix = ASTX.Cache.invalidateByPrefix('daily:', {
+    maxScan: 5000
+  });
+  Logger.log(JSON.stringify(byPrefix));
+
+  const byPredicate = ASTX.Cache.invalidateByPredicate(entry => {
+    return Array.isArray(entry.tags) && entry.tags.indexOf('stale') !== -1;
+  }, {
+    maxScan: 5000
+  });
+  Logger.log(JSON.stringify(byPredicate));
+}
+```
+
+## Scoped lock helper
+
+```javascript
+function cacheLockExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const out = ASTX.Cache.lock('report:daily:lock', () => {
+    const current = ASTX.Cache.get('report:daily') || { runs: 0 };
+    current.runs += 1;
+    ASTX.Cache.set('report:daily', current, { ttlSec: 300 });
+    return current;
+  }, {
+    timeoutMs: 10000,
+    leaseMs: 30000
+  });
+
+  Logger.log(JSON.stringify(out));
+}
+```
+
 ## Notes
 
 - Backends: `memory`, `drive_json`, `script_properties`, `storage_json`.
 - For multi-instance durability, prefer `storage_json` with `CACHE_STORAGE_URI`.
 - `stats()` returns backend hit/miss counters and eviction metadata.
+- `invalidateByPrefix`/`invalidateByPredicate` are bounded scans (`maxScan` default `10000`).
+- `lock` ensures single-writer execution with timeout/lease controls.
