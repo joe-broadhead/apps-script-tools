@@ -1842,7 +1842,8 @@ var DataFrame = class DataFrame {
     const normalized = __astNormalizeDataFrameUnstackOptions(this, options, 'unstack');
     const grouped = new Map();
     const indexEntries = [];
-    const indexSeen = new Set();
+    const indexLookup = new Map();
+    let indexIdentityCounter = 0;
     const pivotEntries = [];
     const pivotSeen = new Set();
 
@@ -1853,12 +1854,28 @@ var DataFrame = class DataFrame {
 
       const indexKey = __astBuildDataFrameLabelLookupKey(indexValue);
       const pivotKey = __astBuildDataFrameLabelLookupKey(pivotValue);
-      const groupedKey = JSON.stringify([indexKey, pivotKey]);
-
-      if (!indexSeen.has(indexKey)) {
-        indexSeen.add(indexKey);
-        indexEntries.push({ key: indexKey, value: indexValue });
+      let indexEntry = null;
+      let indexBucket = indexLookup.get(indexKey);
+      if (!indexBucket) {
+        indexBucket = [];
+        indexLookup.set(indexKey, indexBucket);
       }
+      for (let idx = 0; idx < indexBucket.length; idx++) {
+        if (__astAreDataFrameIndexLabelsEqual(indexBucket[idx].value, indexValue)) {
+          indexEntry = indexBucket[idx];
+          break;
+        }
+      }
+      if (!indexEntry) {
+        indexIdentityCounter += 1;
+        indexEntry = {
+          value: indexValue,
+          groupedKey: `${indexKey}::${indexIdentityCounter}`
+        };
+        indexBucket.push(indexEntry);
+        indexEntries.push(indexEntry);
+      }
+      const groupedKey = JSON.stringify([indexEntry.groupedKey, pivotKey]);
 
       if (!pivotSeen.has(pivotKey)) {
         pivotSeen.add(pivotKey);
@@ -1898,7 +1915,7 @@ var DataFrame = class DataFrame {
 
       for (let pivotIdx = 0; pivotIdx < pivotEntries.length; pivotIdx++) {
         const pivotEntry = pivotEntries[pivotIdx];
-        const groupedKey = JSON.stringify([indexEntry.key, pivotEntry.key]);
+        const groupedKey = JSON.stringify([indexEntry.groupedKey, pivotEntry.key]);
         const values = grouped.get(groupedKey) || [];
         const aggregated = __astApplyDataFrameResampleAggregation(
           values,
@@ -1936,6 +1953,8 @@ var DataFrame = class DataFrame {
   resample(rule, options = {}) {
     const normalized = __astNormalizeDataFrameResampleOptions(this, rule, options, 'resample');
     const grouped = new Map();
+    let minBucketStart = null;
+    let maxBucketStart = null;
 
     for (let rowIdx = 0; rowIdx < this.len(); rowIdx++) {
       const rawTimestamp = normalized.on == null
@@ -1951,12 +1970,16 @@ var DataFrame = class DataFrame {
         ? __astComputeDataFrameResampleBucketEndExclusive(bucketStart, normalized.rule.unit, normalized.rule.interval)
         : bucketStart;
       const bucketKey = bucketStart.toISOString();
+      const bucketTime = bucketStart.getTime();
+      if (minBucketStart == null || bucketTime < minBucketStart.getTime()) {
+        minBucketStart = bucketStart;
+      }
+      if (maxBucketStart == null || bucketTime > maxBucketStart.getTime()) {
+        maxBucketStart = bucketStart;
+      }
 
       if (!grouped.has(bucketKey)) {
-        const columnValues = {};
-        for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
-          columnValues[normalized.columns[colIdx]] = [];
-        }
+        const columnValues = __astBuildDataFrameResampleValueColumns(normalized.columns);
         grouped.set(bucketKey, {
           bucketStart,
           label: bucketLabel,
@@ -1971,8 +1994,39 @@ var DataFrame = class DataFrame {
       }
     }
 
-    const buckets = Array.from(grouped.values());
-    buckets.sort((left, right) => left.bucketStart.getTime() - right.bucketStart.getTime());
+    const buckets = [];
+    if (minBucketStart != null && maxBucketStart != null) {
+      let cursor = new Date(minBucketStart.getTime());
+      const maxTime = maxBucketStart.getTime();
+      let guardCount = 0;
+
+      while (cursor.getTime() <= maxTime) {
+        const cursorKey = cursor.toISOString();
+        const existing = grouped.get(cursorKey);
+        if (existing) {
+          buckets.push(existing);
+        } else {
+          const bucketStart = new Date(cursor.getTime());
+          buckets.push({
+            bucketStart,
+            label: normalized.label === 'right'
+              ? __astComputeDataFrameResampleBucketEndExclusive(bucketStart, normalized.rule.unit, normalized.rule.interval)
+              : bucketStart,
+            valuesByColumn: __astBuildDataFrameResampleValueColumns(normalized.columns)
+          });
+        }
+
+        const next = __astComputeDataFrameResampleBucketEndExclusive(cursor, normalized.rule.unit, normalized.rule.interval);
+        if (!(next instanceof Date) || Number.isNaN(next.getTime()) || next.getTime() <= cursor.getTime()) {
+          throw new Error('DataFrame.resample could not advance bucket cursor');
+        }
+        cursor = next;
+        guardCount += 1;
+        if (guardCount > 200000) {
+          throw new Error('DataFrame.resample exceeded maximum generated bucket count');
+        }
+      }
+    }
 
     const outputColumns = {};
     for (let colIdx = 0; colIdx < normalized.columns.length; colIdx++) {
@@ -4789,6 +4843,14 @@ function __astNormalizeDataFrameResampleOptions(dataframe, rule, options, method
     defaultAgg,
     aggByColumn
   };
+}
+
+function __astBuildDataFrameResampleValueColumns(columnNames) {
+  const columnValues = {};
+  for (let idx = 0; idx < columnNames.length; idx++) {
+    columnValues[columnNames[idx]] = [];
+  }
+  return columnValues;
 }
 
 function __astParseDataFrameResampleDate(value, methodName) {

@@ -111,6 +111,23 @@ test('DataFrame.unstack rejects dangerous output column names from pivot values'
   assert.throws(() => long.unstack(), /unsupported output column name/);
 });
 
+test('DataFrame.unstack preserves distinct object index labels with same serialized key', () => {
+  const context = createDataContext();
+  const indexA = { id: 1 };
+  const indexB = { id: 1 };
+  const long = context.DataFrame.fromRecords([
+    { row_index: indexA, column: 'value', value: 10 },
+    { row_index: indexB, column: 'value', value: 20 }
+  ]);
+
+  const out = long.unstack({ agg: 'first' });
+  assert.equal(out.len(), 2);
+  assert.equal(out.data.value.array[0], 10);
+  assert.equal(out.data.value.array[1], 20);
+  assert.equal(out.index[0], indexA);
+  assert.equal(out.index[1], indexB);
+});
+
 test('DataFrame.resample buckets on datetime column with mean aggregation', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
@@ -131,6 +148,31 @@ test('DataFrame.resample buckets on datetime column with mean aggregation', () =
   assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([
     { value: 15, qty: 1.5 },
     { value: 40, qty: 3 }
+  ]));
+});
+
+test('DataFrame.resample materializes missing buckets across the bucket range', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { ts: '2026-03-01T10:01:00Z', value: 10 },
+    { ts: '2026-03-03T09:15:00Z', value: 30 }
+  ]);
+
+  const out = df.resample('1d', {
+    on: 'ts',
+    columns: ['value'],
+    agg: 'sum',
+    fillValue: 0
+  });
+
+  assert.equal(out.len(), 3);
+  assert.equal(out.index[0].toISOString(), '2026-03-01T00:00:00.000Z');
+  assert.equal(out.index[1].toISOString(), '2026-03-02T00:00:00.000Z');
+  assert.equal(out.index[2].toISOString(), '2026-03-03T00:00:00.000Z');
+  assert.equal(JSON.stringify(out.toRecords()), JSON.stringify([
+    { value: 10 },
+    { value: 0 },
+    { value: 30 }
   ]));
 });
 

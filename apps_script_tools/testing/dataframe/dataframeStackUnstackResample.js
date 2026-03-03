@@ -66,6 +66,23 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
       if (!dangerousErr || !String(dangerousErr.message || dangerousErr).includes('unsupported output column name')) {
         throw new Error('Expected unstack to reject dangerous output column names');
       }
+
+      const indexA = { id: 1 };
+      const indexB = { id: 1 };
+      const objectIndexLong = DataFrame.fromRecords([
+        { row_index: indexA, column: 'value', value: 10 },
+        { row_index: indexB, column: 'value', value: 20 }
+      ]);
+      const objectIndexOut = objectIndexLong.unstack({ agg: 'first' });
+      if (objectIndexOut.len() !== 2) {
+        throw new Error(`Expected 2 rows for distinct object index labels, got ${objectIndexOut.len()}`);
+      }
+      if (objectIndexOut.data.value.array[0] !== 10 || objectIndexOut.data.value.array[1] !== 20) {
+        throw new Error(`Unexpected object index unstack values: ${JSON.stringify(objectIndexOut.toRecords())}`);
+      }
+      if (objectIndexOut.index[0] !== indexA || objectIndexOut.index[1] !== indexB) {
+        throw new Error('Expected unstack output index to preserve object label identity');
+      }
     }
   },
   {
@@ -96,6 +113,27 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         { value: 40, qty: 3 }
       ])) {
         throw new Error(`Unexpected resample output: ${JSON.stringify(out.toRecords())}`);
+      }
+
+      const sparseDf = DataFrame.fromRecords([
+        { ts: '2026-03-01T10:01:00Z', value: 10 },
+        { ts: '2026-03-03T09:15:00Z', value: 30 }
+      ]);
+      const sparseOut = sparseDf.resample('1d', {
+        on: 'ts',
+        columns: ['value'],
+        agg: 'sum',
+        fillValue: 0
+      });
+      if (sparseOut.len() !== 3) {
+        throw new Error(`Expected sparse resample to materialize 3 buckets, got ${sparseOut.len()}`);
+      }
+      if (JSON.stringify(sparseOut.toRecords()) !== JSON.stringify([
+        { value: 10 },
+        { value: 0 },
+        { value: 30 }
+      ])) {
+        throw new Error(`Unexpected sparse resample output: ${JSON.stringify(sparseOut.toRecords())}`);
       }
 
       const dfInvalidTs = DataFrame.fromRecords([
