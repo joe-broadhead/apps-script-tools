@@ -608,6 +608,10 @@ Primary methods:
 - `ASTX.Jobs.status(jobId, options)` to fetch a single persisted job record.
 - `ASTX.Jobs.list(filters, options)` to list persisted job records.
 - `ASTX.Jobs.cancel(jobId, options)` to cancel a queued/paused job.
+- `ASTX.Jobs.listFailed(filters, options)` to inspect failed jobs with DLQ metadata.
+- `ASTX.Jobs.moveToDlq(jobId, options)` to enqueue a failed job into DLQ storage.
+- `ASTX.Jobs.replayDlq(request)` for bounded replay batches with idempotency keys.
+- `ASTX.Jobs.purgeDlq(request)` to purge replayed/queued/all DLQ entries.
 - `ASTX.Jobs.configure(config, options)` / `ASTX.Jobs.getConfig()` / `ASTX.Jobs.clearConfig()`.
 
 High-signal behavior:
@@ -618,6 +622,7 @@ High-signal behavior:
 - checkpoints are persisted in script properties with configurable key prefix.
 - retries are bounded by `maxRetries`; jobs pause on retryable step failure.
 - orchestration helpers return `result.orchestration` with parent/child/stage status aggregation.
+- DLQ replay updates preserve retry/failure metadata and support idempotent request replays.
 - currently supported checkpoint store is `properties`.
 
 ```javascript

@@ -16,6 +16,10 @@ JOBS_NAMESPACE_TESTS = [
         'status',
         'list',
         'cancel',
+        'listFailed',
+        'moveToDlq',
+        'replayDlq',
+        'purgeDlq',
         'configure',
         'getConfig',
         'clearConfig'
