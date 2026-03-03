@@ -94,9 +94,20 @@ function astConfigNormalizeProfileName(profileName, options = {}) {
 
 function astConfigBuildScriptPropertyKeyForProfile(profileName) {
   const normalized = astConfigNormalizeProfileName(profileName, { allowEmpty: false });
-  const encoded = normalized
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '_');
+  let encoded = '';
+  for (let idx = 0; idx < normalized.length; idx += 1) {
+    const char = normalized[idx];
+    if (/[a-z0-9]/.test(char)) {
+      encoded += char.toUpperCase();
+      continue;
+    }
+
+    const hex = char.charCodeAt(0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(2, '0');
+    encoded += `_${hex}_`;
+  }
   return `${AST_CONFIG_SCRIPT_PROPERTY_PROFILE_PREFIX}${encoded}${AST_CONFIG_SCRIPT_PROPERTY_PROFILE_SUFFIX}`;
 }
 
@@ -282,43 +293,35 @@ function astConfigResolveScriptProfileContext(options = {}) {
     { allowEmpty: true, fallback: '' }
   );
 
-  const requestedProfileName = astConfigNormalizeProfileName(
-    astConfigResolveFirstString([options.profile, options.profileName], ''),
-    { allowEmpty: true, fallback: '' }
-  );
-  const runtimeProfileName = astConfigNormalizeProfileName(AST_CONFIG_RUNTIME_ACTIVE_PROFILE, { allowEmpty: true, fallback: '' });
-
-  const candidateNames = [];
-  if (requestedProfileName) candidateNames.push(requestedProfileName);
-  if (runtimeProfileName && !candidateNames.includes(runtimeProfileName)) candidateNames.push(runtimeProfileName);
-  if (scriptProfileName && !candidateNames.includes(scriptProfileName)) candidateNames.push(scriptProfileName);
-
-  for (let idx = 0; idx < candidateNames.length; idx += 1) {
-    const profileName = candidateNames[idx];
-    const profileKey = astConfigBuildScriptPropertyKeyForProfile(profileName);
-    const profileEntries = astConfigReadScriptPropertySnapshot(scriptOptions, [profileKey]);
-    const profileText = astConfigResolveFirstString([profileEntries[profileKey]], '');
-    if (!profileText) {
-      continue;
-    }
-
-    const parsedProfile = astConfigParseProfileConfigJson(profileText, {
-      source: 'script_properties',
-      key: profileKey
-    });
-
-    const nextMap = Object.create(null);
-    nextMap[profileName] = parsedProfile;
-    mergedProfileMap = astConfigMergeProfileConfigMaps(
-      mergedProfileMap,
-      astConfigNormalizeProfileConfigMap(nextMap, { source: 'script_properties' })
-    );
-  }
-
   return {
     activeProfile: scriptProfileName,
-    profileMap: mergedProfileMap
+    profileMap: mergedProfileMap,
+    scriptOptions
   };
+}
+
+function astConfigResolveScriptProfileOverride(profileName, scriptProfileContext = {}) {
+  const normalizedProfileName = astConfigNormalizeProfileName(profileName, { allowEmpty: true, fallback: '' });
+  if (!normalizedProfileName) {
+    return Object.create(null);
+  }
+
+  const scriptOptions = astConfigIsPlainObject(scriptProfileContext.scriptOptions)
+    ? scriptProfileContext.scriptOptions
+    : astConfigResolveBindScriptOptions({});
+  const profileKey = astConfigBuildScriptPropertyKeyForProfile(normalizedProfileName);
+  const profileEntries = astConfigReadScriptPropertySnapshot(scriptOptions, [profileKey]);
+  const profileText = astConfigResolveFirstString([profileEntries[profileKey]], '');
+  if (!profileText) {
+    return Object.create(null);
+  }
+
+  const parsedProfile = astConfigParseProfileConfigJson(profileText, {
+    source: 'script_properties',
+    key: profileKey
+  });
+
+  return astConfigCloneJsonValue(parsedProfile);
 }
 
 function astConfigResolveExplicitProfileConfig(options = {}) {
@@ -930,7 +933,16 @@ function astConfigResolveProfile(definitionOrSchema, options = {}) {
 
   const requestProfileMap = astConfigResolveRequestProfileMap(options);
   const runtimeProfileMap = astConfigCloneProfileConfigMap(AST_CONFIG_RUNTIME_PROFILE_MAPS);
-  const scriptProfileMap = astConfigCloneProfileConfigMap(scriptProfileContext.profileMap);
+  let scriptProfileMap = astConfigCloneProfileConfigMap(scriptProfileContext.profileMap);
+  const selectedScriptProfileOverride = astConfigResolveScriptProfileOverride(selectedProfile, scriptProfileContext);
+  if (selectedProfile && astConfigIsPlainObject(selectedScriptProfileOverride) && Object.keys(selectedScriptProfileOverride).length > 0) {
+    const nextScriptProfileMap = Object.create(null);
+    nextScriptProfileMap[selectedProfile] = selectedScriptProfileOverride;
+    scriptProfileMap = astConfigMergeProfileConfigMaps(
+      scriptProfileMap,
+      astConfigNormalizeProfileConfigMap(nextScriptProfileMap, { source: 'script_properties' })
+    );
+  }
 
   const mergedProfiles = astConfigMergeProfileConfigMaps(
     astConfigMergeProfileConfigMaps(scriptProfileMap, runtimeProfileMap),

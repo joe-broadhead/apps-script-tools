@@ -99,7 +99,12 @@ Script-property profile sources:
 
 - `AST_CONFIG_PROFILE` (active profile name)
 - `AST_CONFIG_PROFILES_JSON` (JSON object map of profile -> config object)
-- `AST_CONFIG_PROFILE_<PROFILE>_JSON` (optional per-profile JSON override, for example `AST_CONFIG_PROFILE_PROD_JSON`)
+- `AST_CONFIG_PROFILE_<ENCODED_PROFILE>_JSON` (optional per-profile JSON override)
+  - encoding rule: uppercase alphanumerics kept as-is; non-alphanumeric chars become `_HH_` hex escapes
+  - examples:
+    - `prod` -> `AST_CONFIG_PROFILE_PROD_JSON`
+    - `qa-prod` -> `AST_CONFIG_PROFILE_QA_2D_PROD_JSON`
+    - `qa.prod` -> `AST_CONFIG_PROFILE_QA_2E_PROD_JSON`
 
 ### Bind options
 

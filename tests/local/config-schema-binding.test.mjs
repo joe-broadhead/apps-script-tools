@@ -275,6 +275,68 @@ test('AST.Config.resolveProfile reads active script profile when runtime/request
   assert.equal(result.sourceByKey.MODE, 'profile');
 });
 
+test('AST.Config.resolveProfile ignores malformed script override for inactive profile', () => {
+  const context = loadConfigContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: JSON.stringify({
+            dev: { MODE: 'fast', TIMEOUT_MS: '12000' },
+            prod: { MODE: 'safe' }
+          }),
+          AST_CONFIG_PROFILE_PROD_JSON: '{invalid-json'
+        })
+      })
+    }
+  });
+
+  const result = context.AST.Config.resolveProfile({
+    MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+    TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+  }, {
+    profile: 'dev',
+    includeMeta: true
+  });
+
+  assert.equal(result.values.MODE, 'fast');
+  assert.equal(result.values.TIMEOUT_MS, 12000);
+  assert.equal(result.profile, 'dev');
+  assert.equal(result.profileSource, 'request');
+});
+
+test('AST.Config profile override keys are collision-safe for dot/dash/underscore names', () => {
+  const context = loadConfigContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CONFIG_PROFILES_JSON: JSON.stringify({
+            ['qa-prod']: { MODE: 'safe' },
+            ['qa.prod']: { MODE: 'fast' },
+            ['qa_prod']: { MODE: 'safe' }
+          }),
+          AST_CONFIG_PROFILE_QA_2D_PROD_JSON: JSON.stringify({ MODE: 'safe', TIMEOUT_MS: '10001' }),
+          AST_CONFIG_PROFILE_QA_2E_PROD_JSON: JSON.stringify({ MODE: 'fast', TIMEOUT_MS: '10002' }),
+          AST_CONFIG_PROFILE_QA_5F_PROD_JSON: JSON.stringify({ MODE: 'safe', TIMEOUT_MS: '10003' })
+        })
+      })
+    }
+  });
+
+  const schema = {
+    MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+    TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+  };
+
+  const dash = context.AST.Config.resolveProfile(schema, { profile: 'qa-prod' });
+  const dot = context.AST.Config.resolveProfile(schema, { profile: 'qa.prod' });
+  const underscore = context.AST.Config.resolveProfile(schema, { profile: 'qa_prod' });
+
+  assert.equal(dash.TIMEOUT_MS, 10001);
+  assert.equal(dot.TIMEOUT_MS, 10002);
+  assert.equal(underscore.TIMEOUT_MS, 10003);
+});
+
 test('AST.Config.bind uses memoized script-properties snapshots for explicit handles', () => {
   let getPropertiesCalls = 0;
   const handle = {

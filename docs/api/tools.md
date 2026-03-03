@@ -474,6 +474,7 @@ High-signal behavior:
 - bind precedence defaults to `request > runtime > script_properties`.
 - resolveProfile precedence defaults to `request > profile > runtime > script_properties`.
 - profile selection precedence is `options.profile`/`profileName` -> runtime `setProfile(...)` -> script property `AST_CONFIG_PROFILE`.
+- per-profile script-property overrides use encoded keys: `AST_CONFIG_PROFILE_<ENCODED_PROFILE>_JSON` (`qa-prod` => `AST_CONFIG_PROFILE_QA_2D_PROD_JSON`).
 
 ```javascript
 const props = ASTX.Config.fromScriptProperties({

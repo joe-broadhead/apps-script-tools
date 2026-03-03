@@ -94,5 +94,33 @@ CONFIG_SCHEMA_TESTS = [
 
       AST.Config.setProfile('', { clearProfiles: true });
     })
+  },
+  {
+    description: 'AST.Config.resolveProfile should ignore malformed inactive script profile overrides',
+    test: () => astTestRunWithAssertions(t => {
+      const scriptProperties = {
+        getProperties: () => ({
+          AST_CONFIG_PROFILE: 'prod',
+          AST_CONFIG_PROFILES_JSON: JSON.stringify({
+            dev: { MODE: 'fast', TIMEOUT_MS: '12000' },
+            prod: { MODE: 'safe' }
+          }),
+          AST_CONFIG_PROFILE_PROD_JSON: '{bad-json'
+        })
+      };
+
+      const result = AST.Config.resolveProfile({
+        MODE: { type: 'enum', values: ['fast', 'safe'], default: 'safe' },
+        TIMEOUT_MS: { type: 'int', min: 1000, default: 45000 }
+      }, {
+        profile: 'dev',
+        includeMeta: true,
+        scriptProperties
+      });
+
+      t.equal(result.values.MODE, 'fast', 'Expected requested profile value');
+      t.equal(result.values.TIMEOUT_MS, 12000, 'Expected requested profile timeout');
+      t.equal(result.profile, 'dev', 'Expected profile selected from request');
+    })
   }
 ];
