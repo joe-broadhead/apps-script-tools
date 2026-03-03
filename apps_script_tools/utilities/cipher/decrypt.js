@@ -28,7 +28,7 @@ function decrypt(encrypted, secret) {
     return '';
   }
 
-  const normalizedEncrypted = encrypted.trim();
+  const normalizedEncrypted = encrypted.trim().replace(/\s+/g, '');
   if (normalizedEncrypted.length === 0) {
     return '';
   }

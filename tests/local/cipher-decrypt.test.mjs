@@ -95,3 +95,26 @@ test('decrypt accepts unpadded base64 ciphertext and delegates to CryptoJS', () 
   assert.equal(context.decrypt(unpaddedBase64, 'secret'), '');
   assert.equal(lastCiphertext, unpaddedBase64);
 });
+
+test('decrypt normalizes whitespace in base64 ciphertext before decrypting', () => {
+  let lastCiphertext = null;
+  const context = createGasContext({
+    CryptoJS: {
+      AES: {
+        decrypt: ciphertext => {
+          lastCiphertext = ciphertext;
+          return {
+            toString: () => ''
+          };
+        }
+      },
+      enc: { Utf8: {} }
+    }
+  });
+
+  loadScripts(context, ['apps_script_tools/utilities/cipher/decrypt.js']);
+
+  const wrappedBase64 = 'SGVs\nbG8g\r\nV29y bGQ=';
+  assert.equal(context.decrypt(wrappedBase64, 'secret'), '');
+  assert.equal(lastCiphertext, 'SGVsbG8gV29ybGQ=');
+});
