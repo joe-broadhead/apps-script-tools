@@ -22,6 +22,16 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected unstacked records: ${JSON.stringify(unstacked.toRecords())}`);
       }
 
+      let stackErr = null;
+      try {
+        df.stack({ indexName: '__proto__' });
+      } catch (error) {
+        stackErr = error;
+      }
+      if (!stackErr || !String(stackErr.message || stackErr).includes('must not be one of')) {
+        throw new Error('Expected stack to reject dangerous output names');
+      }
+
       const textLong = DataFrame.fromRecords([
         { row_index: 'r1', column: 'city', value: 'zurich' },
         { row_index: 'r1', column: 'city', value: 'amsterdam' }

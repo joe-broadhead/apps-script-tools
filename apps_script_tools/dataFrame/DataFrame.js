@@ -4601,6 +4601,12 @@ function __astNormalizeDataFrameStackOptions(dataframe, options, methodName) {
     throw new Error(`DataFrame.${methodName} requires distinct indexName/columnName/valueName`);
   }
 
+  if (__astDataFrameIsDangerousObjectKey(indexName)
+    || __astDataFrameIsDangerousObjectKey(columnName)
+    || __astDataFrameIsDangerousObjectKey(valueName)) {
+    throw new Error(`DataFrame.${methodName} output names must not be one of: __proto__, prototype, constructor`);
+  }
+
   return {
     columns,
     indexName,

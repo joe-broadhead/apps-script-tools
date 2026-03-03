@@ -28,6 +28,17 @@ test('DataFrame.stack stacks selected columns with index and drops nulls by defa
   ]));
 });
 
+test('DataFrame.stack rejects dangerous output column names', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1 }
+  ]);
+
+  assert.throws(() => df.stack({ indexName: '__proto__' }), /must not be one of/);
+  assert.throws(() => df.stack({ columnName: 'prototype' }), /must not be one of/);
+  assert.throws(() => df.stack({ valueName: 'constructor' }), /must not be one of/);
+});
+
 test('DataFrame.unstack round-trips stacked output with preserved index labels', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromRecords([
