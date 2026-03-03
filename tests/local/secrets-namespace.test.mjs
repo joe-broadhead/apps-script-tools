@@ -12,6 +12,9 @@ test('AST exposes Secrets namespace and helper methods', () => {
   assert.equal(typeof context.AST.Secrets.get, 'function');
   assert.equal(typeof context.AST.Secrets.set, 'function');
   assert.equal(typeof context.AST.Secrets.delete, 'function');
+  assert.equal(typeof context.AST.Secrets.rotate, 'function');
+  assert.equal(typeof context.AST.Secrets.listVersions, 'function');
+  assert.equal(typeof context.AST.Secrets.getVersionMetadata, 'function');
   assert.equal(typeof context.AST.Secrets.providers, 'function');
   assert.equal(typeof context.AST.Secrets.capabilities, 'function');
   assert.equal(typeof context.AST.Secrets.configure, 'function');

@@ -156,6 +156,78 @@ function astRunSecretsRequest(request = {}, overrides = {}) {
       };
     }
 
+    if (normalized.operation === 'rotate') {
+      const providerResult = astSecretsProviderRotate(provider, normalized, resolvedConfig);
+      astSecretsRecordTelemetry('rotate', {
+        provider,
+        key: astSecretsMaskKey(normalized.key),
+        status: 'ok',
+        elapsedMs: Date.now() - startedAtMs
+      });
+
+      const output = {
+        status: 'ok',
+        operation: 'rotate',
+        provider,
+        key: normalized.key,
+        rotated: true,
+        metadata: providerResult.metadata || {}
+      };
+      if (normalized.options.includeRaw && providerResult.raw) {
+        output.raw = providerResult.raw;
+      }
+      return output;
+    }
+
+    if (normalized.operation === 'list_versions') {
+      const providerResult = astSecretsProviderListVersions(provider, normalized, resolvedConfig);
+      astSecretsRecordTelemetry('list_versions', {
+        provider,
+        key: astSecretsMaskKey(normalized.key),
+        status: 'ok',
+        elapsedMs: Date.now() - startedAtMs
+      });
+
+      const output = {
+        status: 'ok',
+        operation: 'list_versions',
+        provider,
+        key: normalized.key,
+        items: Array.isArray(providerResult.items) ? providerResult.items : [],
+        page: {
+          nextPageToken: astSecretsNormalizeString(providerResult.nextPageToken, null),
+          returned: Array.isArray(providerResult.items) ? providerResult.items.length : 0
+        },
+        metadata: providerResult.metadata || {}
+      };
+      if (normalized.options.includeRaw && providerResult.raw) {
+        output.raw = providerResult.raw;
+      }
+      return output;
+    }
+
+    if (normalized.operation === 'get_version_metadata') {
+      const providerResult = astSecretsProviderGetVersionMetadata(provider, normalized, resolvedConfig);
+      astSecretsRecordTelemetry('get_version_metadata', {
+        provider,
+        key: astSecretsMaskKey(normalized.key),
+        status: 'ok',
+        elapsedMs: Date.now() - startedAtMs
+      });
+
+      const output = {
+        status: 'ok',
+        operation: 'get_version_metadata',
+        provider,
+        key: normalized.key,
+        metadata: providerResult.metadata || {}
+      };
+      if (normalized.options.includeRaw && providerResult.raw) {
+        output.raw = providerResult.raw;
+      }
+      return output;
+    }
+
     throw new AstSecretsValidationError(
       `Unsupported secrets operation '${normalized.operation}'`,
       { operation: normalized.operation }

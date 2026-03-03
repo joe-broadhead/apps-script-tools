@@ -290,3 +290,282 @@ test('AST.Secrets rejects unsupported operations instead of coercing to get', ()
     }
   );
 });
+
+test('AST.Secrets capabilities include rotate and version metadata support', () => {
+  const context = createGasContext();
+  loadSecretsScripts(context, { includeAst: true });
+
+  const scriptPropsCaps = context.AST.Secrets.capabilities('script_properties');
+  assert.equal(scriptPropsCaps.rotate, true);
+  assert.equal(scriptPropsCaps.list_versions, false);
+  assert.equal(scriptPropsCaps.get_version_metadata, false);
+
+  const secretManagerCaps = context.AST.Secrets.capabilities('secret_manager');
+  assert.equal(secretManagerCaps.rotate, true);
+  assert.equal(secretManagerCaps.list_versions, true);
+  assert.equal(secretManagerCaps.get_version_metadata, true);
+});
+
+test('AST.Secrets.rotate works for script_properties provider', () => {
+  const store = createScriptPropertiesStore({
+    RUNTIME_SECRET: 'old-value'
+  });
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => store.handle
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+  const out = context.AST.Secrets.rotate({
+    provider: 'script_properties',
+    key: 'RUNTIME_SECRET',
+    value: 'new-value'
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(out.operation, 'rotate');
+  assert.equal(out.rotated, true);
+  assert.equal(out.metadata.provider, 'script_properties');
+  assert.equal(out.metadata.previousExists, true);
+  assert.equal(store.values.RUNTIME_SECRET, 'new-value');
+});
+
+test('AST.Secrets secret_manager supports rotate/listVersions/getVersionMetadata', () => {
+  const requests = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        requests.push({ url, options });
+        if (url.includes(':addVersion')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              name: 'projects/p/secrets/s/versions/8',
+              createTime: '2026-03-03T00:00:00.000Z',
+              etag: 'etag-8',
+              state: 'ENABLED'
+            })
+          };
+        }
+        if (url.includes('/versions?')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              versions: [
+                {
+                  name: 'projects/p/secrets/s/versions/8',
+                  state: 'ENABLED',
+                  createTime: '2026-03-03T00:00:00.000Z',
+                  etag: 'etag-8'
+                }
+              ],
+              nextPageToken: 'next-token'
+            })
+          };
+        }
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            name: 'projects/p/secrets/s/versions/8',
+            state: 'ENABLED',
+            createTime: '2026-03-03T00:00:00.000Z',
+            etag: 'etag-8'
+          })
+        };
+      }
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+
+  const rotate = context.AST.Secrets.rotate({
+    provider: 'secret_manager',
+    key: 'my-secret',
+    value: 'rotated-value',
+    auth: {
+      projectId: 'p',
+      oauthToken: 'token'
+    }
+  });
+  assert.equal(rotate.operation, 'rotate');
+  assert.equal(rotate.metadata.versionName, 'projects/p/secrets/s/versions/8');
+
+  const listed = context.AST.Secrets.listVersions({
+    provider: 'secret_manager',
+    key: 'my-secret',
+    auth: {
+      projectId: 'p',
+      oauthToken: 'token'
+    },
+    options: {
+      pageSize: 25
+    }
+  });
+  assert.equal(listed.operation, 'list_versions');
+  assert.equal(listed.items.length, 1);
+  assert.equal(listed.page.nextPageToken, 'next-token');
+
+  const metadata = context.AST.Secrets.getVersionMetadata({
+    provider: 'secret_manager',
+    key: 'my-secret',
+    version: '8',
+    auth: {
+      projectId: 'p',
+      oauthToken: 'token'
+    }
+  });
+  assert.equal(metadata.operation, 'get_version_metadata');
+  assert.equal(metadata.metadata.versionName, 'projects/p/secrets/s/versions/8');
+
+  assert.ok(requests.some(entry => entry.url.endsWith('/projects/p/secrets/my-secret:addVersion')));
+  assert.ok(requests.some(entry => entry.url.includes('/projects/p/secrets/my-secret/versions?pageSize=25')));
+  assert.ok(requests.some(entry => entry.url.endsWith('/projects/p/secrets/my-secret/versions/8')));
+});
+
+test('AST.Secrets.listVersions throws capability error for script_properties', () => {
+  const store = createScriptPropertiesStore({});
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => store.handle
+    }
+  });
+  loadSecretsScripts(context, { includeAst: true });
+
+  assert.throws(
+    () => context.AST.Secrets.listVersions({
+      provider: 'script_properties',
+      key: 'ANY'
+    }),
+    error => {
+      assert.equal(error.name, 'AstSecretsCapabilityError');
+      return true;
+    }
+  );
+});
+
+test('AST.Secrets.rotate uses UTF-8-safe base64 fallback when Utilities is unavailable', () => {
+  const requests = [];
+  const btoaLatin1Only = value => {
+    const input = String(value || '');
+    for (let idx = 0; idx < input.length; idx += 1) {
+      if (input.charCodeAt(idx) > 255) {
+        throw new Error('InvalidCharacterError');
+      }
+    }
+    return Buffer.from(input, 'binary').toString('base64');
+  };
+
+  const context = createGasContext({
+    Utilities: undefined,
+    Buffer,
+    btoa: btoaLatin1Only,
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        requests.push({ url, options });
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            name: 'projects/p/secrets/s/versions/9',
+            createTime: '2026-03-03T00:00:00.000Z',
+            etag: 'etag-9',
+            state: 'ENABLED'
+          })
+        };
+      }
+    }
+  });
+
+  loadSecretsScripts(context, { includeAst: true });
+
+  const value = 'emoji 🚴 and café';
+  const out = context.AST.Secrets.rotate({
+    provider: 'secret_manager',
+    key: 'utf8-secret',
+    value,
+    auth: {
+      projectId: 'p',
+      oauthToken: 'token'
+    }
+  });
+
+  assert.equal(out.operation, 'rotate');
+  assert.equal(out.metadata.versionName, 'projects/p/secrets/s/versions/9');
+
+  const requestPayload = JSON.parse(requests[0].options.payload);
+  const decoded = Buffer.from(requestPayload.payload.data, 'base64').toString('utf8');
+  assert.equal(decoded, value);
+});
+
+test('AST.Secrets accepts regional full resource keys for rotate/list/version metadata', () => {
+  const requests = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        requests.push({ url, options });
+        if (url.includes(':addVersion')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              name: 'projects/p/locations/eu/secrets/s/versions/10',
+              createTime: '2026-03-03T00:00:00.000Z',
+              state: 'ENABLED'
+            })
+          };
+        }
+        if (url.includes('/versions?')) {
+          return {
+            getResponseCode: () => 200,
+            getContentText: () => JSON.stringify({
+              versions: [
+                {
+                  name: 'projects/p/locations/eu/secrets/s/versions/10',
+                  state: 'ENABLED'
+                }
+              ]
+            })
+          };
+        }
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            name: 'projects/p/locations/eu/secrets/s/versions/10',
+            state: 'ENABLED'
+          })
+        };
+      }
+    }
+  });
+  loadSecretsScripts(context, { includeAst: true });
+
+  const fullVersionKey = 'projects/p/locations/eu/secrets/s/versions/10';
+
+  context.AST.Secrets.rotate({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    value: 'rotated',
+    auth: { oauthToken: 'token' }
+  });
+
+  context.AST.Secrets.listVersions({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    auth: { oauthToken: 'token' }
+  });
+
+  context.AST.Secrets.getVersionMetadata({
+    provider: 'secret_manager',
+    key: fullVersionKey,
+    auth: { oauthToken: 'token' }
+  });
+
+  assert.ok(
+    requests.some(entry => entry.url.endsWith('/projects/p/locations/eu/secrets/s:addVersion'))
+  );
+  assert.ok(
+    requests.some(entry => entry.url.includes('/projects/p/locations/eu/secrets/s/versions?'))
+  );
+  assert.ok(
+    requests.some(entry => entry.url.endsWith('/projects/p/locations/eu/secrets/s/versions/10'))
+  );
+});

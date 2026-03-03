@@ -14,6 +14,18 @@ function astSecretsDelete(request = {}) {
   return astRunSecretsRequest(Object.assign({}, request, { operation: 'delete' }));
 }
 
+function astSecretsRotate(request = {}) {
+  return astRunSecretsRequest(Object.assign({}, request, { operation: 'rotate' }));
+}
+
+function astSecretsListVersions(request = {}) {
+  return astRunSecretsRequest(Object.assign({}, request, { operation: 'list_versions' }));
+}
+
+function astSecretsGetVersionMetadata(request = {}) {
+  return astRunSecretsRequest(Object.assign({}, request, { operation: 'get_version_metadata' }));
+}
+
 function astSecretsProviders() {
   return astSecretsListProviders();
 }
@@ -39,6 +51,9 @@ const AST_SECRETS = Object.freeze({
   get: astSecretsGet,
   set: astSecretsSet,
   delete: astSecretsDelete,
+  rotate: astSecretsRotate,
+  listVersions: astSecretsListVersions,
+  getVersionMetadata: astSecretsGetVersionMetadata,
   providers: astSecretsProviders,
   capabilities: astSecretsCapabilities,
   configure: astSecretsConfigure,
