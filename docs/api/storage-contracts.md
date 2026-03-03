@@ -21,6 +21,7 @@ ASTX.Storage.move(request)
 ASTX.Storage.signedUrl(request)
 ASTX.Storage.multipartWrite(request)
 ASTX.Storage.walk(request)
+ASTX.Storage.transfer(request)
 ASTX.Storage.copyPrefix(request)
 ASTX.Storage.deletePrefix(request)
 ASTX.Storage.sync(request)
@@ -48,14 +49,15 @@ ASTX.Storage.clearConfig()
     'signed_url' |
     'multipart_write' |
     'walk' |
+    'transfer' |
     'copy_prefix' |
     'delete_prefix' |
     'sync',
   uri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path',
   fromUri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path', // copy/move
   toUri: 'gcs://bucket/key' | 's3://bucket/key' | 'dbfs:/path',   // copy/move
-  from: { provider?, uri?, location? }, // copy_prefix/sync optional structured source
-  to: { provider?, uri?, location? },   // copy_prefix/sync optional structured target
+  from: { provider?, uri?, location? }, // transfer/copy_prefix/sync optional structured source
+  to: { provider?, uri?, location? },   // transfer/copy_prefix/sync optional structured target
   location: {
     bucket: 'gcs/s3 bucket',
     key: 'gcs/s3 object key',
@@ -81,15 +83,16 @@ ASTX.Storage.clearConfig()
     retries: 2,
     includeRaw: false,
     overwrite: true,
-    maxObjects: 10000,     // walk/copy_prefix/delete_prefix/sync guard
+    maxObjects: 10000,     // walk/transfer/copy_prefix/delete_prefix/sync guard
     includePrefixes: ['reports/2026/'],
     excludePrefixes: ['tmp/'],
     includeRegex: '^daily/.*\\.json$',
     excludeRegex: '^archive/',
     includeDirectories: false, // walk
-    dryRun: false,        // copy_prefix/delete_prefix/sync
+    dryRun: false,        // transfer/copy_prefix/delete_prefix/sync
     continueOnError: true,
     deleteExtra: false,   // sync
+    mode: 'auto',         // transfer: auto|object|prefix|sync
     expiresInSec: 900,     // signed_url
     method: 'GET',         // signed_url
     partSizeBytes: 5242880 // multipart_write
@@ -118,7 +121,7 @@ ASTX.Storage.clearConfig()
     moved,    // move
     signedUrl,        // signed_url
     multipartWritten, // multipart_write
-    summary           // walk/copy_prefix/delete_prefix/sync summary counters
+    summary           // walk/transfer/copy_prefix/delete_prefix/sync summary counters
   },
   page: {
     nextPageToken,
@@ -145,6 +148,9 @@ ASTX.Storage.clearConfig()
 Bulk prefix operation notes:
 
 - `walk` lists normalized prefix entries with deterministic ordering.
+- `transfer` unifies object, prefix-copy, and sync flows under one API.
+- `transfer` mode `auto` resolves to `sync` (`deleteExtra=true`), else `prefix` when the source is a prefix (trailing `/` or empty key/path), else `object`.
+- In `object` mode, target URIs that look like a prefix append the source object basename to build the final destination URI.
 - `copy_prefix` supports same-provider copy and cross-provider read+write fallback.
 - `delete_prefix` deletes all matched entries under a prefix.
 - `sync` copies source->target and optionally removes extra target objects (`deleteExtra=true`).

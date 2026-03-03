@@ -256,9 +256,11 @@ test('AST.Storage exposes bulk helper methods and capabilities', () => {
   ['walk', 'copyPrefix', 'deletePrefix', 'sync'].forEach(method => {
     assert.equal(typeof context.AST.Storage[method], 'function');
   });
+  assert.equal(typeof context.AST.Storage.transfer, 'function');
 
   const capabilities = context.AST.Storage.capabilities('gcs');
   assert.equal(capabilities.walk, true);
+  assert.equal(capabilities.transfer, true);
   assert.equal(capabilities.copy_prefix, true);
   assert.equal(capabilities.delete_prefix, true);
   assert.equal(capabilities.sync, true);
@@ -391,4 +393,122 @@ test('AST.Storage.run routes bulk operation aliases', () => {
 
   assert.equal(out.operation, 'copy_prefix');
   assert.equal(out.output.summary.copied, 1);
+});
+
+test('AST.Storage.transfer copies a single cross-provider object deterministically', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/src/object.txt': { text: 'payload' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    mode: 'object',
+    fromUri: 'gcs://bucket/src/object.txt',
+    toUri: 's3://archive/objects/object.txt'
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'object');
+  assert.equal(out.output.summary.copied, 1);
+  assert.equal(runtime.objects['s3://archive/objects/object.txt'].text, 'payload');
+});
+
+test('AST.Storage.transfer object mode appends source basename when target looks like prefix', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/source/report.csv': { text: 'r1' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    mode: 'object',
+    fromUri: 'gcs://bucket/source/report.csv',
+    toUri: 's3://archive/reports/'
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'object');
+  assert.equal(out.uri, 's3://archive/reports/report.csv');
+  assert.equal(runtime.objects['s3://archive/reports/report.csv'].text, 'r1');
+});
+
+test('AST.Storage.transfer auto mode resolves to prefix transfer for directory-like URIs', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/src/a.txt': { text: 'A' },
+    'gcs://bucket/src/nested/b.txt': { text: 'B' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    fromUri: 'gcs://bucket/src/',
+    toUri: 'gcs://bucket/dst/'
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'prefix');
+  assert.equal(out.output.summary.copied, 2);
+  assert.equal(runtime.objects['gcs://bucket/dst/a.txt'].text, 'A');
+  assert.equal(runtime.objects['gcs://bucket/dst/nested/b.txt'].text, 'B');
+});
+
+test('AST.Storage.transfer rejects invalid transfer mode values', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  buildStorageRuntime(context, {
+    'gcs://bucket/src/a.txt': { text: 'A' }
+  });
+
+  assert.throws(() => {
+    context.AST.Storage.transfer({
+      mode: 'invalid',
+      fromUri: 'gcs://bucket/src/a.txt',
+      toUri: 'gcs://bucket/dst/a.txt'
+    });
+  }, /mode must be one of: auto, object, prefix, sync/i);
+});
+
+test('AST.Storage.transfer auto mode resolves to sync when deleteExtra is enabled', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/source/a.txt': { text: 'A' },
+    'gcs://bucket/target/a.txt': { text: 'OLD' },
+    'gcs://bucket/target/old.txt': { text: 'STALE' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    fromUri: 'gcs://bucket/source/',
+    toUri: 'gcs://bucket/target/',
+    options: {
+      deleteExtra: true,
+      overwrite: true
+    }
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'sync');
+  assert.equal(out.output.summary.deleted, 1);
+  assert.equal(runtime.objects['gcs://bucket/target/old.txt'], undefined);
+  assert.equal(runtime.objects['gcs://bucket/target/a.txt'].text, 'A');
+});
+
+test('AST.Storage.transfer does not force target provider from request.provider when toUri is explicit', () => {
+  const context = createGasContext();
+  loadStorageScripts(context, { includeAst: true });
+  const runtime = buildStorageRuntime(context, {
+    'gcs://bucket/source/a.txt': { text: 'A' }
+  });
+
+  const out = context.AST.Storage.transfer({
+    provider: 'gcs',
+    fromLocation: { bucket: 'bucket', key: 'source/a.txt' },
+    toUri: 's3://archive/target/a.txt',
+    mode: 'object'
+  });
+
+  assert.equal(out.operation, 'transfer');
+  assert.equal(out.output.summary.mode, 'object');
+  assert.equal(runtime.objects['s3://archive/target/a.txt'].text, 'A');
 });

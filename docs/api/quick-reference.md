@@ -378,6 +378,7 @@ ASTX.Storage.move(request)
 ASTX.Storage.signedUrl(request)
 ASTX.Storage.multipartWrite(request)
 ASTX.Storage.walk(request)
+ASTX.Storage.transfer(request)
 ASTX.Storage.copyPrefix(request)
 ASTX.Storage.deletePrefix(request)
 ASTX.Storage.sync(request)
@@ -673,7 +674,7 @@ ASTX.GitHub.clearConfig()
 - Storage `head/read/delete` missing objects throw `AstStorageNotFoundError`.
 - Storage `exists` returns `output.exists.exists` instead of throwing on not-found.
 - Storage `copy/move` require same-provider source and destination in this release.
-- Storage `copyPrefix/sync` can bridge providers using read+write fallback when source and target providers differ.
+- Storage `transfer/copyPrefix/sync` can bridge providers using read+write fallback when source and target providers differ.
 - Telemetry records redact secrets by default and can emit to `logger`, Drive partitioned NDJSON batches (`drive_json`), or storage NDJSON batches (`storage_json`).
 - `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
 - `ASTX.Config.schema(...)` / `ASTX.Config.bind(...)` provide typed config coercion (`string|int|float|bool|enum|json|secret-ref`) with default precedence `request > runtime > script_properties`.
