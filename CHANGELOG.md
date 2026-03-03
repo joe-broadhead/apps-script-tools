@@ -151,6 +151,12 @@
   - deterministic precedence defaults (`request > runtime > script_properties`)
   - profile-aware precedence for `resolveProfile(...)` (`request > profile > runtime > script_properties`)
   - typed validation errors with structured key/type/source details
+- pandas-parity finisher APIs:
+  - `Series.expanding(...)`
+  - `Series.ewm(...)`
+  - `DataFrame.stack(...)`
+  - `DataFrame.unstack(...)`
+  - `DataFrame.resample(rule, options)`
 
 ### Changed
 

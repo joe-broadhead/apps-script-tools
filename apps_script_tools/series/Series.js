@@ -1724,6 +1724,121 @@ var Series = class Series {
   }
 
   /**
+   * Compute expanding-window aggregations over the Series.
+   *
+   * @param {string|Object} [operationOrOptions='mean']
+   * @param {Object} [options={}]
+   * @param {'sum'|'mean'|'min'|'max'|'count'} [options.operation='mean']
+   * @param {number} [options.minPeriods=1]
+   * @returns {Series}
+   */
+  expanding(operationOrOptions, options = {}) {
+    const normalized = astSeriesNormalizeExpandingOptions(operationOrOptions, options, 'expanding');
+    const output = new Array(this.len());
+
+    let count = 0;
+    let runningSum = 0;
+    let runningMin = null;
+    let runningMax = null;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+      if (numeric != null) {
+        count += 1;
+        runningSum += numeric;
+        runningMin = runningMin == null ? numeric : Math.min(runningMin, numeric);
+        runningMax = runningMax == null ? numeric : Math.max(runningMax, numeric);
+      }
+
+      if (count < normalized.minPeriods) {
+        output[idx] = null;
+        continue;
+      }
+
+      switch (normalized.operation) {
+        case 'sum':
+          output[idx] = runningSum;
+          break;
+        case 'mean':
+          output[idx] = count > 0 ? runningSum / count : null;
+          break;
+        case 'min':
+          output[idx] = runningMin;
+          break;
+        case 'max':
+          output[idx] = runningMax;
+          break;
+        case 'count':
+          output[idx] = count;
+          break;
+        default:
+          output[idx] = null;
+      }
+    }
+
+    return new Series(output, this.name, null, [...this.index], {
+      useUTC: this.useUTC,
+      skipTypeCoercion: true
+    });
+  }
+
+  /**
+   * Compute exponentially-weighted moving average (EWMA).
+   *
+   * @param {Object} [options={}]
+   * @param {number} [options.alpha]
+   * @param {number} [options.span]
+   * @param {number} [options.com]
+   * @param {number} [options.halflife]
+   * @param {boolean} [options.adjust=true]
+   * @param {boolean} [options.ignoreNulls=true]
+   * @param {number} [options.minPeriods=1]
+   * @returns {Series}
+   */
+  ewm(options = {}) {
+    const normalized = astSeriesNormalizeEwmOptions(options, 'ewm');
+    const output = new Array(this.len());
+    const decay = 1 - normalized.alpha;
+
+    let validCount = 0;
+    let lastEwm = null;
+    let adjustedNumerator = 0;
+    let adjustedDenominator = 0;
+
+    for (let idx = 0; idx < this.len(); idx++) {
+      const numeric = astSeriesNormalizeFiniteNumber(this.array[idx]);
+
+      if (numeric == null) {
+        if (normalized.ignoreNulls) {
+          output[idx] = validCount >= normalized.minPeriods ? lastEwm : null;
+          continue;
+        }
+        output[idx] = null;
+        continue;
+      }
+
+      validCount += 1;
+
+      if (normalized.adjust) {
+        adjustedNumerator = numeric + decay * adjustedNumerator;
+        adjustedDenominator = 1 + decay * adjustedDenominator;
+        lastEwm = adjustedNumerator / adjustedDenominator;
+      } else if (lastEwm == null) {
+        lastEwm = numeric;
+      } else {
+        lastEwm = normalized.alpha * numeric + decay * lastEwm;
+      }
+
+      output[idx] = validCount >= normalized.minPeriods ? lastEwm : null;
+    }
+
+    return new Series(output, this.name, null, [...this.index], {
+      useUTC: this.useUTC,
+      skipTypeCoercion: true
+    });
+  }
+
+  /**
    * @function rank
    * @description Assigns ranks to the elements of the `Series` based on their values. Supports different ranking methods 
    *              to handle ties (e.g., dense ranking, standard ranking). By default, ties are handled using the 'dense' method.
@@ -3865,6 +3980,112 @@ function astSeriesNormalizeQuantileOptions(q, options, methodName) {
   }
 
   return { quantiles, interpolation, nonNumeric };
+}
+
+function astSeriesNormalizeExpandingOptions(operationOrOptions, options, methodName) {
+  let mergedOptions = {};
+  if (
+    operationOrOptions != null
+    && typeof operationOrOptions === 'object'
+    && !Array.isArray(operationOrOptions)
+  ) {
+    mergedOptions = operationOrOptions;
+  } else if (operationOrOptions == null) {
+    mergedOptions = options;
+  } else {
+    mergedOptions = Object.assign({}, options, {
+      operation: operationOrOptions
+    });
+  }
+
+  const operation = String(mergedOptions.operation == null ? 'mean' : mergedOptions.operation)
+    .trim()
+    .toLowerCase();
+  const supportedOperations = ['sum', 'mean', 'min', 'max', 'count'];
+  if (!supportedOperations.includes(operation)) {
+    throw new Error(`Series.${methodName} operation must be one of: ${supportedOperations.join(', ')}`);
+  }
+
+  const minPeriodsRaw = mergedOptions.minPeriods == null ? 1 : Number(mergedOptions.minPeriods);
+  if (!Number.isInteger(minPeriodsRaw) || minPeriodsRaw < 1) {
+    throw new Error(`Series.${methodName} option minPeriods must be a positive integer`);
+  }
+
+  return {
+    operation,
+    minPeriods: minPeriodsRaw
+  };
+}
+
+function astSeriesResolveEwmAlpha(options, methodName) {
+  const hasAlpha = Object.prototype.hasOwnProperty.call(options, 'alpha');
+  const hasSpan = Object.prototype.hasOwnProperty.call(options, 'span');
+  const hasCom = Object.prototype.hasOwnProperty.call(options, 'com');
+  const hasHalfLife = Object.prototype.hasOwnProperty.call(options, 'halflife');
+
+  const providedCount = Number(hasAlpha) + Number(hasSpan) + Number(hasCom) + Number(hasHalfLife);
+  if (providedCount > 1) {
+    throw new Error(`Series.${methodName} options alpha/span/com/halflife are mutually exclusive`);
+  }
+
+  if (hasAlpha) {
+    const alpha = Number(options.alpha);
+    if (!Number.isFinite(alpha) || alpha <= 0 || alpha > 1) {
+      throw new Error(`Series.${methodName} option alpha must be in (0, 1]`);
+    }
+    return alpha;
+  }
+
+  if (hasSpan) {
+    const span = Number(options.span);
+    if (!Number.isFinite(span) || span < 1) {
+      throw new Error(`Series.${methodName} option span must be >= 1`);
+    }
+    return 2 / (span + 1);
+  }
+
+  if (hasCom) {
+    const com = Number(options.com);
+    if (!Number.isFinite(com) || com < 0) {
+      throw new Error(`Series.${methodName} option com must be >= 0`);
+    }
+    return 1 / (1 + com);
+  }
+
+  if (hasHalfLife) {
+    const halflife = Number(options.halflife);
+    if (!Number.isFinite(halflife) || halflife <= 0) {
+      throw new Error(`Series.${methodName} option halflife must be > 0`);
+    }
+    return 1 - Math.exp(Math.log(0.5) / halflife);
+  }
+
+  return 0.5;
+}
+
+function astSeriesNormalizeEwmOptions(options, methodName) {
+  if (options == null) {
+    options = {};
+  }
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error(`Series.${methodName} options must be an object`);
+  }
+
+  const alpha = astSeriesResolveEwmAlpha(options, methodName);
+  const adjust = options.adjust == null ? true : Boolean(options.adjust);
+  const ignoreNulls = options.ignoreNulls == null ? true : Boolean(options.ignoreNulls);
+
+  const minPeriodsRaw = options.minPeriods == null ? 1 : Number(options.minPeriods);
+  if (!Number.isInteger(minPeriodsRaw) || minPeriodsRaw < 1) {
+    throw new Error(`Series.${methodName} option minPeriods must be a positive integer`);
+  }
+
+  return {
+    alpha,
+    adjust,
+    ignoreNulls,
+    minPeriods: minPeriodsRaw
+  };
 }
 
 function astSeriesCollectSortedNumericValues(series, nonNumeric, methodName) {

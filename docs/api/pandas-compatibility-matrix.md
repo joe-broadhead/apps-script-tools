@@ -26,7 +26,8 @@ Status legend:
 | Ranking (`Series.rank`) | `rank` | implemented |
 | Clipping (`Series.clip`) | `clip` | implemented |
 | Rolling windows | `rolling` | implemented |
-| Expanding / EWM / resample | — | planned |
+| Expanding / EWM | `expanding`, `ewm` | implemented |
+| Series resample parity | — | planned |
 | String query-eval (`query("...")`) | function-only query is supported; string eval is not | out_of_scope |
 
 ## DataFrame matrix
@@ -43,10 +44,10 @@ Status legend:
 | Joins and reshape | `join`, `melt`, `explode`, `pivotTable` | implemented |
 | Deltas | `shift`, `diff`, `pctChange` | implemented |
 | Statistical selectors | `quantile`, `describe`, `nlargest`, `nsmallest` | implemented |
-| MultiIndex reshape (`stack`/`unstack`) | — | planned |
+| MultiIndex reshape (`stack`/`unstack`) | `stack`, `unstack` (single-level pragmatic contract) | implemented |
 | Eval/query DSL parity (`eval`, string `query`) | — | planned |
 | Rolling parity | `window` | implemented |
-| Expanding/resample parity | — | planned |
+| Resample parity | `resample` | implemented |
 | Full pandas dtype/extension backend parity | — | out_of_scope |
 | Full MultiIndex parity | — | out_of_scope |
 | pandas alias compatibility layer | — | out_of_scope |

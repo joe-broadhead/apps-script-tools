@@ -1,0 +1,57 @@
+DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
+  {
+    description: 'DataFrame.stack/unstack should round-trip stacked output with index preservation',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { a: 1, b: 10 },
+        { a: 2, b: null }
+      ]);
+      df.index = ['r1', 'r2'];
+
+      const stacked = df.stack({ dropNulls: false });
+      const unstacked = stacked.unstack();
+
+      if (JSON.stringify(unstacked.index) !== JSON.stringify(['r1', 'r2'])) {
+        throw new Error(`Unexpected unstacked index: ${JSON.stringify(unstacked.index)}`);
+      }
+
+      if (JSON.stringify(unstacked.toRecords()) !== JSON.stringify([
+        { a: 1, b: 10 },
+        { a: 2, b: null }
+      ])) {
+        throw new Error(`Unexpected unstacked records: ${JSON.stringify(unstacked.toRecords())}`);
+      }
+    }
+  },
+  {
+    description: 'DataFrame.resample should bucket timestamps and aggregate values deterministically',
+    test: () => {
+      const df = DataFrame.fromRecords([
+        { ts: '2026-03-03T10:01:00Z', value: 10, qty: 1 },
+        { ts: '2026-03-03T10:45:00Z', value: 20, qty: 2 },
+        { ts: '2026-03-03T11:02:00Z', value: 40, qty: 3 }
+      ]);
+
+      const out = df.resample('1h', {
+        on: 'ts',
+        columns: ['value', 'qty'],
+        agg: 'mean'
+      });
+
+      if (out.len() !== 2) {
+        throw new Error(`Expected 2 buckets, got ${out.len()}`);
+      }
+
+      if (out.index[0].toISOString() !== '2026-03-03T10:00:00.000Z') {
+        throw new Error(`Unexpected first bucket index: ${out.index[0].toISOString()}`);
+      }
+
+      if (JSON.stringify(out.toRecords()) !== JSON.stringify([
+        { value: 15, qty: 1.5 },
+        { value: 40, qty: 3 }
+      ])) {
+        throw new Error(`Unexpected resample output: ${JSON.stringify(out.toRecords())}`);
+      }
+    }
+  }
+];
