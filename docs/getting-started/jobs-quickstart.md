@@ -87,6 +87,30 @@ function jobsDlqReplayExample(jobId) {
 }
 ```
 
+## Schedule a job with trigger lifecycle managed by AST.Jobs
+
+```javascript
+function jobsScheduleExample() {
+  const ASTX = ASTLib.AST || ASTLib;
+
+  const scheduled = ASTX.Jobs.schedule({
+    operation: 'upsert',
+    id: 'jobs_hourly_sync',
+    schedule: {
+      type: 'every_hours',
+      every: 1
+    },
+    autoResumeJobs: true,
+    name: 'hourly-sync-job',
+    steps: [
+      { id: 'sync_step', handler: 'jobsSyncStep_' }
+    ]
+  });
+
+  Logger.log(JSON.stringify(scheduled));
+}
+```
+
 ## Orchestration recipes
 
 ```javascript
@@ -147,4 +171,5 @@ function jobsReduce_(ctx) {
 - `resume(...)` enforces lease ownership to avoid concurrent worker collisions.
 - `chain`, `enqueueMany`, and `mapReduce` compile to normal job steps and use the same retry/cancel/checkpoint semantics.
 - `moveToDlq`, `replayDlq`, and `purgeDlq` provide deterministic failed-job triage/replay lifecycle.
+- `schedule` bridges Jobs definitions into Triggers lifecycle with `dispatch.mode='jobs'`.
 - Keep job payloads compact; store large artifacts in `AST.Storage` and pass references.

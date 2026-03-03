@@ -16,6 +16,10 @@
   - `listFailed`, `moveToDlq`, `replayDlq`, `purgeDlq`
   - replay request idempotency keys and bounded replay batch width
   - DLQ metadata preserves retry and failure context for triage
+- `AST.Jobs.schedule(request)` bridge to `AST.Triggers` lifecycle:
+  - trigger upsert/list/delete/run_now via Jobs-centric wrapper
+  - deterministic trigger id derivation when `id` is omitted
+  - dispatch preserved as `mode='jobs'` for existing enqueue/resume semantics
 - HTTP docs:
   - `api/http-contracts.md`
 - New `AST.Messaging` namespace with:

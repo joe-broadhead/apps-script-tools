@@ -126,6 +126,7 @@ test('AST exposes Jobs namespace methods', () => {
     'moveToDlq',
     'replayDlq',
     'purgeDlq',
+    'schedule',
     'configure',
     'getConfig',
     'clearConfig'
@@ -596,6 +597,116 @@ test('AST.Jobs.purgeDlq removes replayed entries', () => {
     propertyPrefix
   });
   assert.equal(afterPurge.length, 0);
+});
+
+test('AST.Jobs.schedule upsert bridges job definition into AST.Triggers dispatch=jobs', () => {
+  const { context } = createJobsContext();
+  const capturedRequests = [];
+
+  context.AST_TRIGGERS = {
+    run: request => {
+      capturedRequests.push(request);
+      return {
+        status: 'ok',
+        operation: request.operation,
+        id: request.id || null
+      };
+    }
+  };
+
+  context.jobsScheduleNoop = () => true;
+
+  const result = context.AST.Jobs.schedule({
+    id: 'daily_jobs_schedule',
+    autoResumeJobs: true,
+    schedule: {
+      type: 'every_hours',
+      every: 1
+    },
+    name: 'scheduled-job',
+    steps: [
+      {
+        id: 'step_one',
+        handler: 'jobsScheduleNoop'
+      }
+    ]
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.equal(result.operation, 'upsert');
+  assert.equal(result.triggerId, 'daily_jobs_schedule');
+  assert.equal(capturedRequests.length, 1);
+  assert.equal(capturedRequests[0].operation, 'upsert');
+  assert.equal(capturedRequests[0].dispatch.mode, 'jobs');
+  assert.equal(capturedRequests[0].dispatch.autoResumeJobs, true);
+  assert.equal(capturedRequests[0].dispatch.job.name, 'scheduled-job');
+  assert.equal(capturedRequests[0].dispatch.job.steps[0].handler, 'jobsScheduleNoop');
+});
+
+test('AST.Jobs.schedule forwards list/delete/run_now operations to AST.Triggers.run', () => {
+  const { context } = createJobsContext();
+  const capturedRequests = [];
+
+  context.AST_TRIGGERS = {
+    run: request => {
+      capturedRequests.push(request);
+      return {
+        status: 'ok',
+        operation: request.operation
+      };
+    }
+  };
+
+  const listed = context.AST.Jobs.schedule({
+    operation: 'list',
+    limit: 5
+  });
+  const deleted = context.AST.Jobs.schedule({
+    operation: 'delete',
+    id: 'trigger_a',
+    dryRun: true
+  });
+  const runNow = context.AST.Jobs.schedule({
+    operation: 'run_now',
+    triggerUid: 'uid_1'
+  });
+
+  assert.equal(listed.status, 'ok');
+  assert.equal(deleted.status, 'ok');
+  assert.equal(runNow.status, 'ok');
+  assert.equal(capturedRequests.length, 3);
+  assert.equal(capturedRequests[0].operation, 'list');
+  assert.equal(capturedRequests[0].limit, 5);
+  assert.equal(capturedRequests[1].operation, 'delete');
+  assert.equal(capturedRequests[1].id, 'trigger_a');
+  assert.equal(capturedRequests[1].options.dryRun, true);
+  assert.equal(capturedRequests[2].operation, 'run_now');
+  assert.equal(capturedRequests[2].triggerUid, 'uid_1');
+});
+
+test('AST.Jobs.schedule throws typed capability error when AST.Triggers is unavailable', () => {
+  const { context } = createJobsContext();
+
+  context.AST_TRIGGERS = undefined;
+
+  context.jobsScheduleMissingTriggers = () => true;
+
+  assert.throws(
+    () => context.AST.Jobs.schedule({
+      schedule: {
+        type: 'every_hours',
+        every: 1
+      },
+      name: 'missing-triggers',
+      steps: [
+        {
+          id: 'step_one',
+          handler: 'jobsScheduleMissingTriggers'
+        }
+      ]
+    }),
+    /AST.Triggers is required/
+  );
 });
 
 test('AST.Jobs.run fails deterministically when step output is non-serializable', () => {
