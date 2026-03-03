@@ -4025,10 +4025,14 @@ function astSeriesNormalizeExpandingOptions(operationOrOptions, options, methodN
 }
 
 function astSeriesResolveEwmAlpha(options, methodName) {
-  const hasAlpha = Object.prototype.hasOwnProperty.call(options, 'alpha');
-  const hasSpan = Object.prototype.hasOwnProperty.call(options, 'span');
-  const hasCom = Object.prototype.hasOwnProperty.call(options, 'com');
-  const hasHalfLife = Object.prototype.hasOwnProperty.call(options, 'halflife');
+  const hasAlpha = Object.prototype.hasOwnProperty.call(options, 'alpha')
+    && options.alpha !== undefined;
+  const hasSpan = Object.prototype.hasOwnProperty.call(options, 'span')
+    && options.span !== undefined;
+  const hasCom = Object.prototype.hasOwnProperty.call(options, 'com')
+    && options.com !== undefined;
+  const hasHalfLife = Object.prototype.hasOwnProperty.call(options, 'halflife')
+    && options.halflife !== undefined;
 
   const providedCount = Number(hasAlpha) + Number(hasSpan) + Number(hasCom) + Number(hasHalfLife);
   if (providedCount > 1) {

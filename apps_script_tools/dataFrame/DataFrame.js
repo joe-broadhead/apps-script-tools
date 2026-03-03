@@ -1919,8 +1919,7 @@ var DataFrame = class DataFrame {
       grouped.get(groupedKey).push(value);
     }
 
-    if (pivotEntries.length === 0
-      && stackMetadata
+    if (stackMetadata
       && Array.isArray(stackMetadata.stackedColumns)
       && stackMetadata.stackedColumns.length > 0) {
       for (let stackColIdx = 0; stackColIdx < stackMetadata.stackedColumns.length; stackColIdx++) {
@@ -4767,7 +4766,11 @@ function __astNormalizeDataFrameUnstackOptions(dataframe, options, methodName) {
     throw new Error(`DataFrame.${methodName} received unknown columns: ${missing.join(', ')}`);
   }
 
-  const agg = options.agg == null ? 'first' : options.agg;
+  const agg = __astNormalizeDataFrameResampleAggregation(
+    options.agg == null ? 'first' : options.agg,
+    methodName,
+    valueColumn
+  );
   const fillValue = Object.prototype.hasOwnProperty.call(options, 'fillValue') ? options.fillValue : null;
   if (options.dropIndexColumn != null && typeof options.dropIndexColumn !== 'boolean') {
     throw new Error(`DataFrame.${methodName} option dropIndexColumn must be boolean`);

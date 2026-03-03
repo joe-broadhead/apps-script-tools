@@ -58,6 +58,24 @@ test('DataFrame.unstack round-trips stacked output with preserved index labels',
   ]));
 });
 
+test('DataFrame.unstack backfills all stacked columns from metadata when dropNulls=true', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1, b: null },
+    { a: 2, b: null }
+  ]);
+  df.index = ['r1', 'r2'];
+
+  const stacked = df.stack();
+  const unstacked = stacked.unstack();
+
+  assert.equal(JSON.stringify(unstacked.columns), JSON.stringify(['a', 'b']));
+  assert.equal(JSON.stringify(unstacked.toRecords()), JSON.stringify([
+    { a: 1, b: null },
+    { a: 2, b: null }
+  ]));
+});
+
 test('DataFrame.unstack preserves schema for empty stack/unstack round-trip', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromColumns({
@@ -147,6 +165,17 @@ test('DataFrame.unstack rejects dangerous output column names from pivot values'
   assert.throws(() => long.unstack(), /unsupported output column name/);
   assert.throws(() => long.unstack({ dropIndexColumn: 'false' }), /dropIndexColumn must be boolean/);
   assert.throws(() => long.unstack({ preserveIndex: 1 }), /preserveIndex must be boolean/);
+});
+
+test('DataFrame.unstack validates agg even for empty inputs', () => {
+  const context = createDataContext();
+  const long = context.DataFrame.fromColumns({
+    row_index: [],
+    column: [],
+    value: []
+  });
+
+  assert.throws(() => long.unstack({ agg: 'bogus' }), /aggregation for 'value' must be one of/);
 });
 
 test('DataFrame.unstack preserves distinct object index labels with same serialized key', () => {
@@ -344,6 +373,15 @@ test('Series.ewm rejects non-boolean adjust and ignoreNulls flags', () => {
 
   assert.throws(() => series.ewm({ alpha: 0.5, adjust: 'false' }), /option adjust must be boolean/);
   assert.throws(() => series.ewm({ alpha: 0.5, ignoreNulls: 1 }), /option ignoreNulls must be boolean/);
+});
+
+test('Series.ewm ignores undefined decay params in exclusivity validation', () => {
+  const context = createDataContext();
+  const series = new context.Series([1, 2, 3], 'values');
+
+  const out = series.ewm({ span: 10, alpha: undefined, adjust: false });
+  assert.equal(out.len(), 3);
+  assert.equal(out.array[0], 1);
 });
 
 test('Parity finisher methods validate invalid contracts deterministically', () => {

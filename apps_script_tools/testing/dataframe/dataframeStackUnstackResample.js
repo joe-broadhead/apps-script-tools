@@ -96,6 +96,22 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected unstack values for spaced labels: ${JSON.stringify(spacedOut.toColumns())}`);
       }
 
+      const allNullColumnDf = DataFrame.fromRecords([
+        { a: 1, b: null },
+        { a: 2, b: null }
+      ]);
+      allNullColumnDf.index = ['r1', 'r2'];
+      const allNullRoundTrip = allNullColumnDf.stack().unstack();
+      if (JSON.stringify(allNullRoundTrip.columns) !== JSON.stringify(['a', 'b'])) {
+        throw new Error(`Expected stack/unstack to restore all stacked columns, got ${JSON.stringify(allNullRoundTrip.columns)}`);
+      }
+      if (JSON.stringify(allNullRoundTrip.toRecords()) !== JSON.stringify([
+        { a: 1, b: null },
+        { a: 2, b: null }
+      ])) {
+        throw new Error(`Unexpected all-null column round-trip output: ${JSON.stringify(allNullRoundTrip.toRecords())}`);
+      }
+
       const dangerousLong = DataFrame.fromRecords([
         { row_index: 'r1', column: '__proto__', value: 1 }
       ]);
@@ -127,6 +143,21 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
       }
       if (!preserveBooleanErr || !String(preserveBooleanErr.message || preserveBooleanErr).includes('preserveIndex must be boolean')) {
         throw new Error('Expected unstack to reject non-boolean preserveIndex values');
+      }
+
+      const emptyLong = DataFrame.fromColumns({
+        row_index: [],
+        column: [],
+        value: []
+      });
+      let invalidAggErr = null;
+      try {
+        emptyLong.unstack({ agg: 'bogus' });
+      } catch (error) {
+        invalidAggErr = error;
+      }
+      if (!invalidAggErr || !String(invalidAggErr.message || invalidAggErr).includes("aggregation for 'value' must be one of")) {
+        throw new Error('Expected unstack to validate agg on empty input');
       }
 
       const indexA = { id: 1 };

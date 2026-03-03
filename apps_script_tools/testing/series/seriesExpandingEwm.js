@@ -60,6 +60,11 @@ SERIES_EXPANDING_EWM_TESTS = [
       if (!ignoreNullsErr || !String(ignoreNullsErr.message || ignoreNullsErr).includes('option ignoreNulls must be boolean')) {
         throw new Error('Expected ewm to reject non-boolean ignoreNulls values');
       }
+
+      const undefinedDecayParam = base.ewm({ span: 10, alpha: undefined, adjust: false });
+      if (undefinedDecayParam.len() !== 3 || undefinedDecayParam.array[0] !== 1) {
+        throw new Error(`Unexpected ewm output when undefined decay params are present: ${JSON.stringify(undefinedDecayParam.array)}`);
+      }
     }
   }
 ];
