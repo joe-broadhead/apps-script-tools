@@ -44,12 +44,18 @@ test('decrypt rethrows non UTF-8 failures', () => {
 });
 
 test('decrypt returns empty string for malformed ciphertext payloads', () => {
+  let decryptCalls = 0;
   const context = createGasContext({
     CryptoJS: {
       AES: {
-        decrypt: () => ({
-          toString: () => 'should-not-run'
-        })
+        decrypt: () => {
+          decryptCalls += 1;
+          return {
+            toString: () => {
+              throw new Error('Malformed UTF-8 data');
+            }
+          };
+        }
       },
       enc: { Utf8: {} }
     }
@@ -58,7 +64,34 @@ test('decrypt returns empty string for malformed ciphertext payloads', () => {
   loadScripts(context, ['apps_script_tools/utilities/cipher/decrypt.js']);
 
   assert.equal(context.decrypt('invalidEncryptedString', 'secret'), '');
+  assert.equal(decryptCalls, 1);
   assert.equal(context.decrypt('@@@', 'secret'), '');
+  assert.equal(decryptCalls, 1);
   assert.equal(context.decrypt('', 'secret'), '');
+  assert.equal(decryptCalls, 1);
   assert.equal(context.decrypt(null, 'secret'), '');
+  assert.equal(decryptCalls, 1);
+});
+
+test('decrypt accepts unpadded base64 ciphertext and delegates to CryptoJS', () => {
+  let lastCiphertext = null;
+  const context = createGasContext({
+    CryptoJS: {
+      AES: {
+        decrypt: ciphertext => {
+          lastCiphertext = ciphertext;
+          return {
+            toString: () => ''
+          };
+        }
+      },
+      enc: { Utf8: {} }
+    }
+  });
+
+  loadScripts(context, ['apps_script_tools/utilities/cipher/decrypt.js']);
+
+  const unpaddedBase64 = 'SGVsbG8';
+  assert.equal(context.decrypt(unpaddedBase64, 'secret'), '');
+  assert.equal(lastCiphertext, unpaddedBase64);
 });

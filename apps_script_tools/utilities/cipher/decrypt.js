@@ -34,7 +34,8 @@ function decrypt(encrypted, secret) {
   }
 
   // Guard malformed ciphertext up front to keep behavior deterministic across runtimes.
-  if (!/^[A-Za-z0-9+/=]+$/.test(normalizedEncrypted) || normalizedEncrypted.length % 4 !== 0) {
+  // Allow unpadded base64 payloads since CryptoJS accepts them.
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalizedEncrypted)) {
     return '';
   }
 
