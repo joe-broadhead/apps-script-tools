@@ -4079,8 +4079,14 @@ function astSeriesNormalizeEwmOptions(options, methodName) {
   }
 
   const alpha = astSeriesResolveEwmAlpha(options, methodName);
-  const adjust = options.adjust == null ? true : Boolean(options.adjust);
-  const ignoreNulls = options.ignoreNulls == null ? true : Boolean(options.ignoreNulls);
+  if (options.adjust != null && typeof options.adjust !== 'boolean') {
+    throw new Error(`Series.${methodName} option adjust must be boolean`);
+  }
+  const adjust = options.adjust == null ? true : options.adjust;
+  if (options.ignoreNulls != null && typeof options.ignoreNulls !== 'boolean') {
+    throw new Error(`Series.${methodName} option ignoreNulls must be boolean`);
+  }
+  const ignoreNulls = options.ignoreNulls == null ? true : options.ignoreNulls;
 
   const minPeriodsRaw = options.minPeriods == null ? 1 : Number(options.minPeriods);
   if (!Number.isInteger(minPeriodsRaw) || minPeriodsRaw < 1) {

@@ -51,6 +51,16 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error('Expected stack to reject dangerous output names');
       }
 
+      let stackBooleanErr = null;
+      try {
+        df.stack({ dropNulls: 'false' });
+      } catch (error) {
+        stackBooleanErr = error;
+      }
+      if (!stackBooleanErr || !String(stackBooleanErr.message || stackBooleanErr).includes('dropNulls must be boolean')) {
+        throw new Error('Expected stack to reject non-boolean dropNulls values');
+      }
+
       const textLong = DataFrame.fromRecords([
         { row_index: 'r1', column: 'city', value: 'zurich' },
         { row_index: 'r1', column: 'city', value: 'amsterdam' }

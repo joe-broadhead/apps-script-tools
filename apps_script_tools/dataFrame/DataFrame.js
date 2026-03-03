@@ -4674,7 +4674,10 @@ function __astNormalizeDataFrameStackOptions(dataframe, options, methodName) {
     options.valueName == null ? 'value' : options.valueName,
     `${methodName}.valueName`
   );
-  const dropNulls = options.dropNulls == null ? true : Boolean(options.dropNulls);
+  if (options.dropNulls != null && typeof options.dropNulls !== 'boolean') {
+    throw new Error(`DataFrame.${methodName} option dropNulls must be boolean`);
+  }
+  const dropNulls = options.dropNulls == null ? true : options.dropNulls;
 
   const uniqueNames = new Set([indexName, columnName, valueName]);
   if (uniqueNames.size !== 3) {

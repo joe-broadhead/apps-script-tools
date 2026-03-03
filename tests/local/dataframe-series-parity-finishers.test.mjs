@@ -37,6 +37,7 @@ test('DataFrame.stack rejects dangerous output column names', () => {
   assert.throws(() => df.stack({ indexName: '__proto__' }), /must not be one of/);
   assert.throws(() => df.stack({ columnName: 'prototype' }), /must not be one of/);
   assert.throws(() => df.stack({ valueName: 'constructor' }), /must not be one of/);
+  assert.throws(() => df.stack({ dropNulls: 'false' }), /dropNulls must be boolean/);
 });
 
 test('DataFrame.unstack round-trips stacked output with preserved index labels', () => {
@@ -266,6 +267,14 @@ test('Series.ewm decays state across null gaps when ignoreNulls=false', () => {
 
   const out = series.ewm({ alpha: 0.5, adjust: false, ignoreNulls: false });
   assert.equal(JSON.stringify(out.array), JSON.stringify([1, null, 1.75]));
+});
+
+test('Series.ewm rejects non-boolean adjust and ignoreNulls flags', () => {
+  const context = createDataContext();
+  const series = new context.Series([1, null, 3], 'values');
+
+  assert.throws(() => series.ewm({ alpha: 0.5, adjust: 'false' }), /option adjust must be boolean/);
+  assert.throws(() => series.ewm({ alpha: 0.5, ignoreNulls: 1 }), /option ignoreNulls must be boolean/);
 });
 
 test('Parity finisher methods validate invalid contracts deterministically', () => {

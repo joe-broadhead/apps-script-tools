@@ -40,6 +40,26 @@ SERIES_EXPANDING_EWM_TESTS = [
       if (JSON.stringify(gapAware.array) !== JSON.stringify([1, null, 1.75])) {
         throw new Error(`Unexpected ewm gap-aware output: ${JSON.stringify(gapAware.array)}`);
       }
+
+      let adjustErr = null;
+      try {
+        withNull.ewm({ alpha: 0.5, adjust: 'false' });
+      } catch (error) {
+        adjustErr = error;
+      }
+      if (!adjustErr || !String(adjustErr.message || adjustErr).includes('option adjust must be boolean')) {
+        throw new Error('Expected ewm to reject non-boolean adjust values');
+      }
+
+      let ignoreNullsErr = null;
+      try {
+        withNull.ewm({ alpha: 0.5, ignoreNulls: 1 });
+      } catch (error) {
+        ignoreNullsErr = error;
+      }
+      if (!ignoreNullsErr || !String(ignoreNullsErr.message || ignoreNullsErr).includes('option ignoreNulls must be boolean')) {
+        throw new Error('Expected ewm to reject non-boolean ignoreNulls values');
+      }
     }
   }
 ];
