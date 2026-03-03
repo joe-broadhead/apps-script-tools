@@ -76,6 +76,26 @@ test('DataFrame.unstack backfills all stacked columns from metadata when dropNul
   ]));
 });
 
+test('DataFrame.unstack preserves all-null source rows for stack default dropNulls=true', () => {
+  const context = createDataContext();
+  const df = context.DataFrame.fromRecords([
+    { a: 1, b: 10 },
+    { a: null, b: null },
+    { a: 2, b: null }
+  ]);
+  df.index = ['r1', 'r2', 'r3'];
+
+  const stacked = df.stack();
+  const unstacked = stacked.unstack();
+
+  assert.equal(JSON.stringify(unstacked.index), JSON.stringify(['r1', 'r2', 'r3']));
+  assert.equal(JSON.stringify(unstacked.toRecords()), JSON.stringify([
+    { a: 1, b: 10 },
+    { a: null, b: null },
+    { a: 2, b: null }
+  ]));
+});
+
 test('DataFrame.unstack preserves schema for empty stack/unstack round-trip', () => {
   const context = createDataContext();
   const df = context.DataFrame.fromColumns({

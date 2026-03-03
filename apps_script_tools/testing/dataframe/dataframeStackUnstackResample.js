@@ -112,6 +112,24 @@ DATAFRAME_STACK_UNSTACK_RESAMPLE_TESTS = [
         throw new Error(`Unexpected all-null column round-trip output: ${JSON.stringify(allNullRoundTrip.toRecords())}`);
       }
 
+      const withAllNullRow = DataFrame.fromRecords([
+        { a: 1, b: 10 },
+        { a: null, b: null },
+        { a: 2, b: null }
+      ]);
+      withAllNullRow.index = ['r1', 'r2', 'r3'];
+      const allNullRowRoundTrip = withAllNullRow.stack().unstack();
+      if (JSON.stringify(allNullRowRoundTrip.index) !== JSON.stringify(['r1', 'r2', 'r3'])) {
+        throw new Error(`Expected stack/unstack to preserve all source rows, got index ${JSON.stringify(allNullRowRoundTrip.index)}`);
+      }
+      if (JSON.stringify(allNullRowRoundTrip.toRecords()) !== JSON.stringify([
+        { a: 1, b: 10 },
+        { a: null, b: null },
+        { a: 2, b: null }
+      ])) {
+        throw new Error(`Unexpected all-null-row round-trip output: ${JSON.stringify(allNullRowRoundTrip.toRecords())}`);
+      }
+
       const dangerousLong = DataFrame.fromRecords([
         { row_index: 'r1', column: '__proto__', value: 1 }
       ]);

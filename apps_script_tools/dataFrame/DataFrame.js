@@ -1830,7 +1830,8 @@ var DataFrame = class DataFrame {
       columnColumn: normalized.columnName,
       valueColumn: normalized.valueName,
       rowPositions: stackRowPositions,
-      stackedColumns: [...normalized.columns]
+      stackedColumns: [...normalized.columns],
+      sourceIndex: [...this.index]
     });
     return result;
   }
@@ -1874,6 +1875,7 @@ var DataFrame = class DataFrame {
         if (!indexEntry) {
           indexEntry = {
             value: indexValue,
+            rowPosition: stackRowPosition,
             groupedKey: `stack:${stackRowPosition}`
           };
           stackIndexLookup.set(stackRowPosition, indexEntry);
@@ -1917,6 +1919,22 @@ var DataFrame = class DataFrame {
         grouped.set(groupedKey, []);
       }
       grouped.get(groupedKey).push(value);
+    }
+
+    if (stackMetadata && Array.isArray(stackMetadata.sourceIndex)) {
+      for (let sourceRowPosition = 0; sourceRowPosition < stackMetadata.sourceIndex.length; sourceRowPosition++) {
+        if (stackIndexLookup.has(sourceRowPosition)) {
+          continue;
+        }
+        const indexEntry = {
+          value: stackMetadata.sourceIndex[sourceRowPosition],
+          rowPosition: sourceRowPosition,
+          groupedKey: `stack:${sourceRowPosition}`
+        };
+        stackIndexLookup.set(sourceRowPosition, indexEntry);
+        indexEntries.push(indexEntry);
+      }
+      indexEntries.sort((left, right) => left.rowPosition - right.rowPosition);
     }
 
     if (stackMetadata
@@ -4928,8 +4946,9 @@ function __astAttachDataFrameStackMetadata(dataframe, metadata) {
       indexColumn: metadata.indexColumn,
       columnColumn: metadata.columnColumn,
       valueColumn: metadata.valueColumn,
-      rowPositions: metadata.rowPositions,
-      stackedColumns: Array.isArray(metadata.stackedColumns) ? [...metadata.stackedColumns] : null
+      rowPositions: [...metadata.rowPositions],
+      stackedColumns: Array.isArray(metadata.stackedColumns) ? [...metadata.stackedColumns] : null,
+      sourceIndex: Array.isArray(metadata.sourceIndex) ? [...metadata.sourceIndex] : null
     },
     enumerable: false,
     writable: true,
@@ -4957,6 +4976,16 @@ function __astGetDataFrameStackMetadata(dataframe, normalized) {
   for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
     if (!Number.isInteger(metadata.rowPositions[idx]) || metadata.rowPositions[idx] < 0) {
       return null;
+    }
+  }
+  if (metadata.sourceIndex != null) {
+    if (!Array.isArray(metadata.sourceIndex)) {
+      return null;
+    }
+    for (let idx = 0; idx < metadata.rowPositions.length; idx++) {
+      if (metadata.rowPositions[idx] >= metadata.sourceIndex.length) {
+        return null;
+      }
     }
   }
   if (metadata.stackedColumns != null) {
