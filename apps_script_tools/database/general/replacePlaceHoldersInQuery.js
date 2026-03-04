@@ -1,8 +1,31 @@
+let AST_SQL_PLACEHOLDER_DEPRECATION_WARNED = false;
+
+function astSqlWarnLegacyPlaceholderUsage() {
+  if (AST_SQL_PLACEHOLDER_DEPRECATION_WARNED) {
+    return;
+  }
+  AST_SQL_PLACEHOLDER_DEPRECATION_WARNED = true;
+
+  const message = '[DEPRECATED] astReplacePlaceHoldersInQuery() is deprecated. Use AST.Sql.prepare(...) and AST.Sql.executePrepared(...) for typed, safer parameter handling.';
+  if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+    console.warn(message);
+    return;
+  }
+  if (typeof Logger !== 'undefined' && Logger && typeof Logger.warn === 'function') {
+    Logger.warn(message);
+    return;
+  }
+  if (typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+    Logger.log(message);
+  }
+}
+
 /**
  * @function astReplacePlaceHoldersInQuery
  * @description Replaces placeholders in a SQL query with provided values. Placeholders are specified in 
  *              the format `{{key}}` and are replaced with their corresponding values. String values are 
  *              automatically wrapped in single quotes.
+ * @deprecated Use `AST.Sql.prepare(...)` + `AST.Sql.executePrepared(...)` instead.
  * @param {String} query - The SQL query containing placeholders.
  * @param {Object} placeholders - An object where keys represent placeholder names and values are the 
  *                                corresponding replacement values.
@@ -32,6 +55,7 @@ function astReplacePlaceHoldersInQuery(query, placeholders) {
   if (typeof query !== 'string') {
     throw new Error('Query must be a string');
   }
+  astSqlWarnLegacyPlaceholderUsage();
 
   if (placeholders == null || typeof placeholders !== 'object' || Array.isArray(placeholders)) {
     return query;
@@ -51,4 +75,4 @@ function astReplacePlaceHoldersInQuery(query, placeholders) {
   }
 
   return queryWithReplacements;
-};
+}

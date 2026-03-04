@@ -78,6 +78,7 @@ Notes:
 - Parameter schema supports types:
   - `string`, `number`, `integer`, `boolean`, `date`, `timestamp`, `json`, `raw`.
 - Prepared statements are cached in runtime memory (in-process), keyed by `statementId`.
+- Legacy interpolation helper `astReplacePlaceHoldersInQuery(...)` is deprecated; prefer `ASTX.Sql.prepare(...)` and `ASTX.Sql.executePrepared(...)`.
 
 ## `ASTX.Sql.executePrepared(request)`
 
