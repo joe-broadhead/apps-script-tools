@@ -80,6 +80,38 @@ test('tracking pixel, wrapping, record, and web event handling work with signatu
   assert.equal(handled.data.pixel, true);
 });
 
+test('tracking wrapLinks skips links that fail click redirect validation', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_BASE_URL: 'https://tracker.example.com',
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-wrap',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  const wrapped = context.AST.Messaging.tracking.wrapLinks({
+    body: {
+      html: [
+        '<a href="https://docs.example.com/path">ok</a>',
+        '<a href="http://docs.example.com/path">http</a>',
+        '<a href="/relative/path">relative</a>',
+        '<a href="https://other.net/path">other</a>'
+      ].join(' '),
+      deliveryId: 'delivery_wrap_1',
+      trackingHash: 'hash_wrap_1'
+    }
+  });
+
+  assert.equal(wrapped.status, 'ok');
+  assert.equal(wrapped.data.wrappedCount, 1);
+  assert.equal((wrapped.data.html.match(/eventType=click/g) || []).length, 1);
+  assert.equal(wrapped.data.html.includes('href="http://docs.example.com/path"'), true);
+  assert.equal(wrapped.data.html.includes('href="/relative/path"'), true);
+  assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), true);
+});
+
 test('tracking web click events enforce https allowed-domain redirects', () => {
   const context = createGasContext();
   loadMessagingScripts(context, { includeAst: true });
