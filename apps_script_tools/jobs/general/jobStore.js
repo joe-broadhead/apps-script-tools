@@ -3,6 +3,50 @@ const AST_JOBS_INDEX_BUCKET_COUNT = 16;
 const AST_JOBS_PREFIX_REGISTRY_KEY = 'AST_JOBS_PREFIX_REGISTRY';
 const AST_JOBS_LEGACY_SCAN_REGISTRY_KEY = 'AST_JOBS_LEGACY_SCAN_REGISTRY';
 const AST_JOBS_LOCATOR_PREFIX = 'AST_JOBS_LOCATOR_';
+const AST_JOBS_SCRIPT_PROPERTIES_MAX_VALUE_BYTES = 9000;
+
+function astJobsUtf8ByteLength(value) {
+  const normalized = String(value == null ? '' : value);
+
+  try {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.newBlob === 'function'
+    ) {
+      return Utilities.newBlob(normalized).getBytes().length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  try {
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(normalized).length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  return unescape(encodeURIComponent(normalized)).length;
+}
+
+function astJobsAssertScriptPropertySize(propertyKey, value) {
+  const bytes = astJobsUtf8ByteLength(value);
+  if (bytes <= AST_JOBS_SCRIPT_PROPERTIES_MAX_VALUE_BYTES) {
+    return;
+  }
+
+  throw new AstJobsValidationError(
+    'Jobs script_properties payload exceeds per-property byte limit',
+    {
+      backend: 'script_properties',
+      propertyKey: astJobsNormalizeString(propertyKey, ''),
+      bytes,
+      limitBytes: AST_JOBS_SCRIPT_PROPERTIES_MAX_VALUE_BYTES
+    }
+  );
+}
 
 function astJobsGetScriptPropertiesHandle() {
   if (
@@ -142,6 +186,10 @@ function astJobsWritePropertiesEntries(scriptProperties, entries = {}) {
   if (keys.length === 0) {
     return;
   }
+
+  keys.forEach(key => {
+    astJobsAssertScriptPropertySize(key, source[key]);
+  });
 
   if (typeof scriptProperties.setProperties === 'function') {
     scriptProperties.setProperties(source, false);

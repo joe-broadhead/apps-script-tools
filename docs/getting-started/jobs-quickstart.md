@@ -172,4 +172,5 @@ function jobsReduce_(ctx) {
 - `chain`, `enqueueMany`, and `mapReduce` compile to normal job steps and use the same retry/cancel/checkpoint semantics.
 - `moveToDlq`, `replayDlq`, and `purgeDlq` provide deterministic failed-job triage/replay lifecycle.
 - `schedule` bridges Jobs definitions into Triggers lifecycle with `dispatch.mode='jobs'`.
+- Jobs persisted in `script_properties` enforce an Apps Script-safe per-property payload cap (`~9 KB` UTF-8); oversized writes throw `AstJobsValidationError` with size details.
 - Keep job payloads compact; store large artifacts in `AST.Storage` and pass references.

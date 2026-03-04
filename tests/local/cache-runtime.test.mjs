@@ -1468,6 +1468,75 @@ test('script_properties backend supports set/get/delete/clear', () => {
   assert.equal(context.AST.Cache.get('props:c'), null);
 });
 
+test('script_properties backend throws typed error when payload exceeds property byte limit', () => {
+  const properties = createPropertiesService();
+  const context = createGasContext({
+    PropertiesService: properties.service,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'script_properties',
+    namespace: 'props_oversized'
+  });
+
+  assert.throws(
+    () => context.AST.Cache.set('props:huge', { value: 'x'.repeat(12000) }),
+    error => {
+      assert.equal(error && error.name, 'AstCacheValidationError');
+      assert.match(String(error && error.message), /byte limit/i);
+      assert.equal(error && error.details && error.details.backend, 'script_properties');
+      assert.equal(error && error.details && error.details.limitBytes, 9000);
+      assert.equal(typeof (error && error.details && error.details.bytes), 'number');
+      assert.equal(error.details.bytes > error.details.limitBytes, true);
+      return true;
+    }
+  );
+});
+
+test('script_properties backend trims oldest entries to satisfy property byte limit', () => {
+  const properties = createPropertiesService();
+  const context = createGasContext({
+    PropertiesService: properties.service,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'script_properties',
+    namespace: 'props_trimmed',
+    maxMemoryEntries: 100
+  });
+
+  context.AST.Cache.set('props:oldest', { value: 'a'.repeat(5000) });
+  context.AST.Cache.set('props:newest', { value: 'b'.repeat(5000) });
+
+  assert.equal(context.AST.Cache.get('props:oldest'), null);
+  assert.equal(
+    JSON.stringify(context.AST.Cache.get('props:newest')),
+    JSON.stringify({ value: 'b'.repeat(5000) })
+  );
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.backend, 'script_properties');
+  assert.equal(stats.stats.evictions >= 1, true);
+});
+
 test('script_properties backend isolates collision-prone namespace names', () => {
   const properties = createPropertiesService();
   const context = createGasContext({
