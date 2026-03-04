@@ -135,6 +135,56 @@ test('astRunOpenRouter parses structured output', () => {
   assert.equal(JSON.stringify(output.output.json), JSON.stringify({ ok: true, source: 'openrouter' }));
 });
 
+test('astRunOpenAi and astRunOpenRouter produce equivalent structured parsing for same envelope', () => {
+  const completionEnvelope = {
+    id: 'shared_1',
+    created: 1700000000,
+    model: 'shared/model',
+    choices: [{
+      finish_reason: 'stop',
+      message: { content: '{"ok":true,"shared":true}' }
+    }],
+    usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+  };
+
+  const openAiContext = createGasContext({
+    UrlFetchApp: {
+      fetch: () => asResponse(completionEnvelope)
+    }
+  });
+  loadAiScripts(openAiContext);
+
+  const openRouterContext = createGasContext({
+    UrlFetchApp: {
+      fetch: () => asResponse(completionEnvelope)
+    }
+  });
+  loadAiScripts(openRouterContext);
+
+  const openAiOut = openAiContext.astRunOpenAi(structuredRequest('openai'), {
+    provider: 'openai',
+    apiKey: 'key',
+    model: 'shared/model'
+  });
+
+  const openRouterOut = openRouterContext.astRunOpenRouter(
+    structuredRequest('openrouter'),
+    {
+      provider: 'openrouter',
+      apiKey: 'key',
+      model: 'shared/model'
+    }
+  );
+
+  assert.equal(
+    JSON.stringify(openAiOut.output.json),
+    JSON.stringify(openRouterOut.output.json)
+  );
+  assert.equal(openAiOut.output.text, openRouterOut.output.text);
+  assert.equal(openAiOut.finishReason, openRouterOut.finishReason);
+  assert.equal(openAiOut.usage.totalTokens, openRouterOut.usage.totalTokens);
+});
+
 test('astRunPerplexity parses structured output', () => {
   const context = createGasContext({
     UrlFetchApp: {

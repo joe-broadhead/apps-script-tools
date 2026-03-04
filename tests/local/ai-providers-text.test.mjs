@@ -253,6 +253,70 @@ test('astRunOpenRouter normalizes text output', () => {
   assert.equal(output.provider, 'openrouter');
 });
 
+test('astRunOpenAi and astRunOpenRouter produce equivalent text/tool parsing for same envelope', () => {
+  const completionEnvelope = {
+    id: 'cmp_1',
+    created: 1700000000,
+    model: 'shared/model',
+    choices: [{
+      finish_reason: 'stop',
+      message: {
+        content: [
+          { type: 'text', text: 'hello ' },
+          { type: 'text', value: 'world' }
+        ],
+        tool_calls: [{
+          id: 'tool_call_1',
+          type: 'function',
+          function: {
+            name: 'lookup',
+            arguments: '{"id":42}'
+          }
+        }]
+      }
+    }],
+    usage: { prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 }
+  };
+
+  const openAiContext = createGasContext({
+    UrlFetchApp: {
+      fetch: () => asResponse(completionEnvelope)
+    }
+  });
+  loadAiScripts(openAiContext);
+
+  const openRouterContext = createGasContext({
+    UrlFetchApp: {
+      fetch: () => asResponse(completionEnvelope)
+    }
+  });
+  loadAiScripts(openRouterContext);
+
+  const openAiOut = openAiContext.astRunOpenAi(baseRequest('text'), {
+    provider: 'openai',
+    apiKey: 'key',
+    model: 'shared/model'
+  });
+
+  const openRouterOut = openRouterContext.astRunOpenRouter(
+    Object.assign(baseRequest('text'), { provider: 'openrouter' }),
+    {
+      provider: 'openrouter',
+      apiKey: 'key',
+      model: 'shared/model'
+    }
+  );
+
+  assert.equal(openAiOut.output.text, 'hello world');
+  assert.equal(openRouterOut.output.text, 'hello world');
+  assert.equal(openAiOut.finishReason, openRouterOut.finishReason);
+  assert.equal(openAiOut.usage.totalTokens, openRouterOut.usage.totalTokens);
+  assert.equal(
+    JSON.stringify(openAiOut.output.toolCalls),
+    JSON.stringify(openRouterOut.output.toolCalls)
+  );
+});
+
 test('astRunPerplexity normalizes text output', () => {
   const context = createGasContext({
     UrlFetchApp: {
