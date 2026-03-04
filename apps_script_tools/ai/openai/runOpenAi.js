@@ -118,34 +118,19 @@ function astRunOpenAi(request, config) {
   });
 
   const responseJson = response.json || {};
-  const choice = responseJson.choices && responseJson.choices[0]
-    ? responseJson.choices[0]
-    : {};
-  const message = choice.message || {};
-
-  const text = astAiExtractOpenAiText(message.content);
-  const toolCalls = astAiExtractOpenAiToolCalls(message);
-
-  let structuredJson = null;
-  if (request.operation === 'structured') {
-    structuredJson = astAiSafeJsonParse(text);
-  }
+  const parsed = astAiParseOpenAiCompatibleResponse(responseJson, request, config, {
+    useUnixCreatedAt: true
+  });
 
   return astNormalizeAiResponse({
     provider: 'openai',
     operation: request.operation,
-    model: responseJson.model || config.model,
-    id: responseJson.id || '',
-    createdAt: responseJson.created
-      ? new Date(responseJson.created * 1000).toISOString()
-      : new Date().toISOString(),
-    finishReason: choice.finish_reason || null,
-    output: {
-      text,
-      json: structuredJson,
-      toolCalls
-    },
-    usage: responseJson.usage || {},
+    model: parsed.model,
+    id: parsed.id,
+    createdAt: parsed.createdAt,
+    finishReason: parsed.finishReason,
+    output: parsed.output,
+    usage: parsed.usage,
     raw: responseJson,
     includeRaw
   });

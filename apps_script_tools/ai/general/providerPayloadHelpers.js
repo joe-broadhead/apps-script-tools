@@ -235,6 +235,40 @@ function astAiExtractOpenAiToolCalls(message) {
   });
 }
 
+function astAiParseOpenAiCompatibleResponse(responseJson = {}, request = {}, config = {}, options = {}) {
+  const choice = responseJson.choices && responseJson.choices[0]
+    ? responseJson.choices[0]
+    : {};
+  const message = choice.message || {};
+
+  const text = astAiExtractOpenAiText(message.content);
+  const toolCalls = astAiExtractOpenAiToolCalls(message);
+
+  let structuredJson = null;
+  if (request.operation === 'structured') {
+    structuredJson = astAiSafeJsonParse(text);
+  }
+
+  const useUnixCreatedAt = options.useUnixCreatedAt === true;
+  const createdAt = useUnixCreatedAt
+    && Number.isFinite(responseJson.created)
+    ? new Date(responseJson.created * 1000).toISOString()
+    : new Date().toISOString();
+
+  return {
+    model: responseJson.model || config.model,
+    id: responseJson.id || '',
+    createdAt,
+    finishReason: choice.finish_reason || null,
+    output: {
+      text,
+      json: structuredJson,
+      toolCalls
+    },
+    usage: responseJson.usage || {}
+  };
+}
+
 function astAiPromptFromMessages(messages) {
   for (let idx = messages.length - 1; idx >= 0; idx--) {
     const message = messages[idx];

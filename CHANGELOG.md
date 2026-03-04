@@ -164,6 +164,7 @@
 - Workspace helper functions now enforce typed validation and typed error mapping:
   - `openSpreadsheetById`, `openSpreadsheetByUrl`, `readFileFromDrive`, `createFileInDrive`
   - new workspace error hierarchy: `AstWorkspaceError`, `AstWorkspaceValidationError`, `AstWorkspaceNotFoundError`, `AstWorkspaceCapabilityError`, `AstWorkspaceProviderError`, `AstWorkspaceParseError`
+- OpenAI/OpenRouter response parsing is now centralized through a shared OpenAI-compatible parser helper, with regression coverage for equivalent text/tool and structured parsing envelopes.
 - `AST` namespace now exposes `AST.DBT`.
 - `AST` namespace now exposes `AST.Secrets`.
 - `AST` namespace now exposes `AST.Triggers`.
