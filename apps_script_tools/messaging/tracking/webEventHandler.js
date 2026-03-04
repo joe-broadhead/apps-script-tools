@@ -52,6 +52,18 @@ function astMessagingTrackingParseRedirectTarget(target) {
     });
   }
 
+  const schemePrefixMatch = normalizedTarget.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  if (schemePrefixMatch) {
+    const authorityCandidate = normalizedTarget
+      .slice(schemePrefixMatch[0].length)
+      .split(/[/?#]/, 1)[0];
+    if (authorityCandidate.includes('\\') || /%5c/i.test(authorityCandidate)) {
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
+    }
+  }
+
   if (typeof URL === 'function') {
     try {
       const parsedUrl = new URL(normalizedTarget);
@@ -75,7 +87,7 @@ function astMessagingTrackingParseRedirectTarget(target) {
 
   const protocol = `${String(schemeMatch[1] || '').toLowerCase()}:`;
   const afterScheme = normalizedTarget.slice(schemeMatch[0].length);
-  const authority = afterScheme.split(/[/?#]/, 1)[0];
+  const authority = afterScheme.split(/[\/\\?#]/, 1)[0];
 
   if (!authority || /\s/.test(authority)) {
     throw new AstMessagingTrackingError('Invalid click redirect target URL', {

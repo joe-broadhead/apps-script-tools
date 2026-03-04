@@ -158,6 +158,25 @@ test('tracking web click events reject non-https and disallowed hosts', () => {
     }),
     /host is not allowed/i
   );
+
+  const escapedAuthorityTarget = 'https://evil.com\\@example.com/path';
+  const escapedAuthorityPayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_4', escapedAuthorityTarget);
+  const escapedAuthoritySig = context.astMessagingTrackingSignPayload(escapedAuthorityPayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_4',
+          trackingHash: 'hash_click_4',
+          target: escapedAuthorityTarget,
+          sig: escapedAuthoritySig
+        }
+      }
+    }),
+    /Invalid click redirect target URL/i
+  );
 });
 
 test('tracking signature verification uses constant-time helper semantics', () => {
