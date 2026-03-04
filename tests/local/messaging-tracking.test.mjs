@@ -112,6 +112,36 @@ test('tracking wrapLinks skips links that fail click redirect validation', () =>
   assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), true);
 });
 
+test('tracking wrapLinks honors request-level allowedDomains override', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_BASE_URL: 'https://tracker.example.com',
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-wrap-override',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  const wrapped = context.AST.Messaging.tracking.wrapLinks({
+    body: {
+      html: [
+        '<a href="https://docs.example.com/path">example</a>',
+        '<a href="https://other.net/path">other</a>'
+      ].join(' '),
+      deliveryId: 'delivery_wrap_override_1',
+      trackingHash: 'hash_wrap_override_1',
+      allowedDomains: ['other.net']
+    }
+  });
+
+  assert.equal(wrapped.status, 'ok');
+  assert.equal(wrapped.data.wrappedCount, 1);
+  assert.equal((wrapped.data.html.match(/eventType=click/g) || []).length, 1);
+  assert.equal(wrapped.data.html.includes('href="https://docs.example.com/path"'), true);
+  assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), false);
+});
+
 test('tracking web click events enforce https allowed-domain redirects', () => {
   const context = createGasContext();
   loadMessagingScripts(context, { includeAst: true });
@@ -224,6 +254,44 @@ test('tracking web click events reject non-https and disallowed hosts', () => {
           trackingHash: 'hash_click_5',
           target: invalidPortTarget,
           sig: invalidPortSig
+        }
+      }
+    }),
+    /Invalid click redirect target URL/i
+  );
+
+  const emptyPortTarget = 'https://example.com:/path';
+  const emptyPortPayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_6', emptyPortTarget);
+  const emptyPortSig = context.astMessagingTrackingSignPayload(emptyPortPayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_6',
+          trackingHash: 'hash_click_6',
+          target: emptyPortTarget,
+          sig: emptyPortSig
+        }
+      }
+    }),
+    /Invalid click redirect target URL/i
+  );
+
+  const zeroPortTarget = 'https://example.com:0/path';
+  const zeroPortPayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_7', zeroPortTarget);
+  const zeroPortSig = context.astMessagingTrackingSignPayload(zeroPortPayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_7',
+          trackingHash: 'hash_click_7',
+          target: zeroPortTarget,
+          sig: zeroPortSig
         }
       }
     }),

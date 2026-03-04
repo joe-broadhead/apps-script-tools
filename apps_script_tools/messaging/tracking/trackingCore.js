@@ -156,53 +156,7 @@ function astMessagingTrackingIsAllowedRedirectHost(hostname, allowedDomains) {
   return false;
 }
 
-function astMessagingTrackingParseRedirectTarget(target) {
-  const normalizedTarget = typeof target === 'string' ? target.trim() : '';
-  if (!normalizedTarget || /[\u0000-\u001F\u007F]/.test(normalizedTarget)) {
-    throw new AstMessagingTrackingError('Invalid click redirect target URL', {
-      target: normalizedTarget
-    });
-  }
-
-  const schemePrefixMatch = normalizedTarget.match(/^([a-z][a-z0-9+.-]*):\/\//i);
-  if (schemePrefixMatch) {
-    const authorityCandidate = normalizedTarget
-      .slice(schemePrefixMatch[0].length)
-      .split(/[/?#]/, 1)[0];
-    if (authorityCandidate.includes('\\') || /%5c/i.test(authorityCandidate)) {
-      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
-        target: normalizedTarget
-      });
-    }
-  }
-
-  if (typeof URL === 'function') {
-    try {
-      const parsedUrl = new URL(normalizedTarget);
-      return {
-        target: parsedUrl.toString(),
-        protocol: String(parsedUrl.protocol || '').toLowerCase(),
-        hostname: String(parsedUrl.hostname || '').trim().toLowerCase()
-      };
-    } catch (_error) {
-      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
-        target: normalizedTarget
-      });
-    }
-  }
-
-  const schemeMatch = normalizedTarget.match(/^([a-z][a-z0-9+.-]*):\/\//i);
-
-  if (!schemeMatch) {
-    throw new AstMessagingTrackingError('Invalid click redirect target URL', {
-      target: normalizedTarget
-    });
-  }
-
-  const protocol = `${String(schemeMatch[1] || '').toLowerCase()}:`;
-  const afterScheme = normalizedTarget.slice(schemeMatch[0].length);
-  const authority = afterScheme.split(/[\/\\?#]/, 1)[0];
-
+function astMessagingTrackingParseAuthorityHostPort(authority, normalizedTarget) {
   if (!authority || /\s/.test(authority)) {
     throw new AstMessagingTrackingError('Invalid click redirect target URL', {
       target: normalizedTarget
@@ -240,6 +194,11 @@ function astMessagingTrackingParseRedirectTarget(target) {
   } else {
     const separatorIndex = hostname.indexOf(':');
     if (separatorIndex >= 0) {
+      if (hostname.indexOf(':', separatorIndex + 1) >= 0) {
+        throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+          target: normalizedTarget
+        });
+      }
       portToken = hostname.slice(separatorIndex + 1);
       hostname = hostname.slice(0, separatorIndex);
     }
@@ -259,17 +218,72 @@ function astMessagingTrackingParseRedirectTarget(target) {
     }
   }
 
-  hostname = String(hostname || '').trim().toLowerCase();
-  if (!hostname) {
+  const normalizedHost = String(hostname || '').trim().toLowerCase();
+  if (!normalizedHost) {
     throw new AstMessagingTrackingError('Invalid click redirect target URL', {
       target: normalizedTarget
     });
   }
 
   return {
+    hostname: normalizedHost
+  };
+}
+
+function astMessagingTrackingParseRedirectTarget(target) {
+  const normalizedTarget = typeof target === 'string' ? target.trim() : '';
+  if (!normalizedTarget || /[\u0000-\u001F\u007F]/.test(normalizedTarget)) {
+    throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+      target: normalizedTarget
+    });
+  }
+
+  const schemePrefixMatch = normalizedTarget.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  let authorityCandidate = '';
+  if (schemePrefixMatch) {
+    authorityCandidate = normalizedTarget
+      .slice(schemePrefixMatch[0].length)
+      .split(/[/?#]/, 1)[0];
+    if (authorityCandidate.includes('\\') || /%5c/i.test(authorityCandidate)) {
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
+    }
+    astMessagingTrackingParseAuthorityHostPort(authorityCandidate, normalizedTarget);
+  }
+
+  if (typeof URL === 'function') {
+    try {
+      const parsedUrl = new URL(normalizedTarget);
+      return {
+        target: parsedUrl.toString(),
+        protocol: String(parsedUrl.protocol || '').toLowerCase(),
+        hostname: String(parsedUrl.hostname || '').trim().toLowerCase()
+      };
+    } catch (_error) {
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
+    }
+  }
+
+  const schemeMatch = normalizedTarget.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+
+  if (!schemeMatch) {
+    throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+      target: normalizedTarget
+    });
+  }
+
+  const protocol = `${String(schemeMatch[1] || '').toLowerCase()}:`;
+  const afterScheme = normalizedTarget.slice(schemeMatch[0].length);
+  const authority = afterScheme.split(/[\/\\?#]/, 1)[0];
+  const authorityParts = astMessagingTrackingParseAuthorityHostPort(authority, normalizedTarget);
+
+  return {
     target: normalizedTarget,
     protocol,
-    hostname
+    hostname: authorityParts.hostname
   };
 }
 
@@ -409,8 +423,11 @@ function astMessagingBuildPixelUrl(request = {}, resolvedConfig = {}) {
 function astMessagingWrapLinks(request = {}, resolvedConfig = {}) {
   const body = astMessagingTrackingNormalizeObject(request.body || request);
   const trackingConfig = astMessagingTrackingNormalizeObject(resolvedConfig.tracking);
+  const allowedDomainsInput = Object.prototype.hasOwnProperty.call(body, 'allowedDomains')
+    ? body.allowedDomains
+    : trackingConfig.allowedDomains;
   const allowedDomains = astMessagingTrackingNormalizeAllowedDomains(
-    trackingConfig.allowedDomains || body.allowedDomains || []
+    typeof allowedDomainsInput === 'undefined' ? [] : allowedDomainsInput
   );
 
   const html = astMessagingTrackingNormalizeString(body.html, '');
