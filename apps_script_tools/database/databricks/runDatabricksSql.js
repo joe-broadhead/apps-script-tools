@@ -106,6 +106,20 @@ function astDatabricksParseResponseBody(response) {
   }
 }
 
+function astDatabricksAssertSuccessfulResponse(response, errorMessage, details = {}) {
+  const statusCode = astDatabricksGetHttpStatus(response);
+  if (statusCode >= 200 && statusCode < 300) {
+    return;
+  }
+
+  const payload = astDatabricksParseResponseBody(response);
+  throw astBuildDatabricksSqlError(errorMessage, {
+    statusCode,
+    response: payload,
+    ...details
+  });
+}
+
 function astDatabricksSubmitStatement(apiBaseUrl, token, payload) {
   const response = UrlFetchApp.fetch(apiBaseUrl, {
     method: 'post',
@@ -113,10 +127,24 @@ function astDatabricksSubmitStatement(apiBaseUrl, token, payload) {
     headers: {
       Authorization: `Bearer ${token}`
     },
-    payload: JSON.stringify(payload)
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
   });
 
-  return JSON.parse(response.getContentText());
+  astDatabricksAssertSuccessfulResponse(response, 'Databricks SQL submit request failed');
+
+  const parsed = astDatabricksParseResponseBody(response);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw astBuildDatabricksSqlError(
+      'Databricks SQL submit response was not valid JSON',
+      {
+        statusCode: astDatabricksGetHttpStatus(response),
+        response: parsed
+      }
+    );
+  }
+
+  return parsed;
 }
 
 function astExecuteDatabricksSqlDetailed(query, parameters, placeholders = {}, options = {}) {
