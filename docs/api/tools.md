@@ -194,6 +194,7 @@ High-signal behavior:
 - providers: `databricks`, `bigquery`.
 - `run(...)` validates provider/sql/parameters/placeholders/options shape.
 - unsafe placeholder interpolation is disabled by default for `run(...)`.
+- legacy helper `astReplacePlaceHoldersInQuery(...)` is deprecated and now emits a one-time runtime warning.
 - `prepare(...)` compiles `{{param}}` template placeholders and returns a runtime `statementId`.
 - `executePrepared(...)` safely serializes typed params and returns `{ dataFrame, execution }`.
 - `status(...)` and `cancel(...)` call provider-specific execution-control helpers.

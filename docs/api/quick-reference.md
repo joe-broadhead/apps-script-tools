@@ -638,6 +638,7 @@ ASTX.GitHub.clearConfig()
 - `Sql.executePrepared` returns `{ dataFrame, execution }` for provider detailed paths.
 - `Sql.status` and `Sql.cancel` route through provider-specific execution control helpers.
 - placeholder interpolation is blocked unless explicitly enabled.
+- legacy placeholder helper `astReplacePlaceHoldersInQuery(...)` is deprecated; use prepared execution APIs.
 - AI tool loops are bounded by `options.maxToolRounds` (default `3`).
 - AI tools support per-tool guardrails: `timeoutMs`, `maxArgsBytes`, `maxResultBytes`, `retries`, and idempotent replay.
 - unsupported AI provider/operation combinations throw typed capability errors.
