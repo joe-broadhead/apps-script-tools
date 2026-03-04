@@ -148,5 +148,39 @@ test('custom module error base classes support stable JSON serialization', async
         list: [1, 2, { ok: true }]
       });
     });
+
+    await t.test(`${errorCase.baseClass} serialization tolerates throwing toJSON getters`, () => {
+      const context = createGasContext();
+      loadScripts(context, [errorCase.file]);
+
+      const serialized = serializeFromContext(
+        context,
+        `new ${errorCase.baseClass}(
+          'top-level',
+          { scope: 'unit' },
+          (function () {
+            var cause = { code: 'E_GETTER', nested: { count: 2 } };
+            Object.defineProperty(cause, 'toJSON', {
+              enumerable: true,
+              get: function () { throw new Error('getter-boom'); }
+            });
+            Object.defineProperty(cause, 'badField', {
+              enumerable: true,
+              get: function () { throw new Error('field-boom'); }
+            });
+            return cause;
+          })()
+        )`
+      );
+
+      assert.equal(serialized.name, errorCase.baseClass);
+      assert.equal(serialized.message, 'top-level');
+      assert.deepEqual(serialized.details, { scope: 'unit' });
+      assert.deepEqual(serialized.cause, {
+        code: 'E_GETTER',
+        nested: { count: 2 },
+        badField: '[Unserializable]'
+      });
+    });
   }
 });

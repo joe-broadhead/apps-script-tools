@@ -54,9 +54,17 @@ function astChatSerializeErrorCause_(cause) {
   if (cause == null) {
     return cause;
   }
-  if (cause && typeof cause.toJSON === 'function') {
+  let causeToJson = null;
+  if (cause && (typeof cause === 'object' || typeof cause === 'function')) {
     try {
-      return cause.toJSON();
+      causeToJson = cause.toJSON;
+    } catch (_error) {
+      causeToJson = null;
+    }
+  }
+  if (typeof causeToJson === 'function') {
+    try {
+      return causeToJson.call(cause);
     } catch (_error) {
       // ignore cause serialization failures and fall back below
     }
@@ -93,7 +101,14 @@ function astChatCloneSerializableValue_(value, seen) {
   if (Array.isArray(value)) {
     const outputArray = [];
     for (let i = 0; i < value.length; i += 1) {
-      outputArray.push(astChatCloneSerializableValue_(value[i], seen));
+      let entry;
+      try {
+        entry = value[i];
+      } catch (_error) {
+        outputArray.push('[Unserializable]');
+        continue;
+      }
+      outputArray.push(astChatCloneSerializableValue_(entry, seen));
     }
     seen.pop();
     return outputArray;
@@ -103,10 +118,16 @@ function astChatCloneSerializableValue_(value, seen) {
   const keys = Object.keys(value);
   for (let i = 0; i < keys.length; i += 1) {
     const key = keys[i];
-    if (key === 'toJSON' && typeof value[key] === 'function') {
+    if (key === 'toJSON') {
       continue;
     }
-    const entry = value[key];
+    let entry;
+    try {
+      entry = value[key];
+    } catch (_error) {
+      output[key] = '[Unserializable]';
+      continue;
+    }
     if (typeof entry === 'function') {
       continue;
     }
