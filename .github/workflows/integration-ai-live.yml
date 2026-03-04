@@ -63,7 +63,12 @@ jobs:
           clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
       - name: Push and execute live AI smoke
+        env:
+          INPUT_PROVIDER: ${{ inputs.provider }}
+          INPUT_PROMPT: ${{ inputs.prompt }}
+          INPUT_MODEL: ${{ inputs.model }}
         run: |
           clasp status
           clasp push
-          clasp run runAiLiveSmoke --params "[\"${{ inputs.provider }}\",\"${{ inputs.prompt }}\",\"${{ inputs.model }}\"]"
+          AI_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.INPUT_PROVIDER || '', process.env.INPUT_PROMPT || '', process.env.INPUT_MODEL || '']))")"
+          clasp run runAiLiveSmoke --params "$AI_PARAMS"

@@ -53,8 +53,12 @@ jobs:
           clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
       - name: Push and execute GitHub live smoke
+        env:
+          INPUT_OWNER: ${{ inputs.owner }}
+          INPUT_REPO: ${{ inputs.repo }}
         run: |
           clasp status
           clasp push
           clasp run seedGitHubLiveSmokeToken --params "[\"${LIVE_GITHUB_TOKEN}\"]"
-          clasp run runGitHubLiveSmokeForRepo --params "[\"${{ inputs.owner }}\",\"${{ inputs.repo }}\"]"
+          GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
+          clasp run runGitHubLiveSmokeForRepo --params "$GITHUB_PARAMS"

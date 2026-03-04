@@ -64,10 +64,12 @@ jobs:
           clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
       - name: Push and execute integration tests
+        env:
+          INPUT_SUITE: ${{ inputs.suite }}
         run: |
           clasp status
           clasp push
-          if [ "${{ inputs.suite }}" = "perf" ]; then
+          if [ "${INPUT_SUITE}" = "perf" ]; then
             clasp run runPerformanceBenchmarks
           else
             clasp run runAllTests

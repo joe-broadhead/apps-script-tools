@@ -65,11 +65,24 @@ jobs:
 
       - name: Resolve tag
         id: resolve_tag
+        env:
+          WORKFLOW_EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          if [ "${WORKFLOW_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ -z "${INPUT_TAG}" ]; then
+              echo "Dispatch input 'tag' must be non-empty" >&2
+              exit 1
+            fi
+            case "${INPUT_TAG}" in
+              *$'\n'*|*$'\r'*)
+                echo "Dispatch input 'tag' must not contain newlines" >&2
+                exit 1
+                ;;
+            esac
+            printf 'tag=%s\n' "${INPUT_TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            printf 'tag=%s\n' "${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Verify tag exists
