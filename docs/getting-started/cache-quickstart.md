@@ -141,6 +141,7 @@ function cacheLockExample() {
 
 - Backends: `memory`, `drive_json`, `script_properties`, `storage_json`.
 - For multi-instance durability, prefer `storage_json` with `CACHE_STORAGE_URI`.
+- `script_properties` writes enforce an Apps Script-safe per-property payload cap (`~9 KB` UTF-8). The backend evicts oldest entries first when possible; oversized payloads still fail with `AstCacheValidationError`.
 - `stats()` returns backend hit/miss counters and eviction metadata.
 - `invalidateByPrefix`/`invalidateByPredicate` are bounded scans (`maxScan` default `10000`).
 - `lock` ensures single-writer execution with timeout/lease controls.

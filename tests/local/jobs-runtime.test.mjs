@@ -739,6 +739,40 @@ test('AST.Jobs.run fails deterministically when step output is non-serializable'
   assert.equal(persisted.status, 'failed');
 });
 
+test('AST.Jobs.enqueue throws typed error when serialized job exceeds script-properties byte limit', () => {
+  const { context } = createJobsContext();
+  const propertyPrefix = `AST_JOBS_LOCAL_OVERSIZED_${Date.now()}_`;
+
+  context.jobsOversizedNoop = () => true;
+
+  assert.throws(
+    () => context.AST.Jobs.enqueue({
+      name: 'oversized-job-payload',
+      options: {
+        propertyPrefix
+      },
+      steps: [
+        {
+          id: 'oversized_step',
+          handler: 'jobsOversizedNoop',
+          payload: {
+            value: 'x'.repeat(12000)
+          }
+        }
+      ]
+    }),
+    error => {
+      assert.equal(error && error.name, 'AstJobsValidationError');
+      assert.match(String(error && error.message), /byte limit/i);
+      assert.equal(error && error.details && error.details.backend, 'script_properties');
+      assert.equal(error && error.details && error.details.limitBytes, 9000);
+      assert.equal(typeof (error && error.details && error.details.bytes), 'number');
+      assert.equal(error.details.bytes > error.details.limitBytes, true);
+      return true;
+    }
+  );
+});
+
 test('AST.Jobs.cancel rejects jobs currently marked as running', () => {
   const { context } = createJobsContext();
   const propertyPrefix = `AST_JOBS_LOCAL_RUNNING_CANCEL_${Date.now()}_`;

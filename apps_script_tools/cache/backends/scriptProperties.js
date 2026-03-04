@@ -1,4 +1,62 @@
 let AST_CACHE_SCRIPT_PROPERTIES_STATS = {};
+const AST_CACHE_SCRIPT_PROPERTIES_MAX_VALUE_BYTES = 9000;
+
+function astCacheScriptPropertiesUtf8ByteLength(value) {
+  const normalized = String(value == null ? '' : value);
+
+  try {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.newBlob === 'function'
+    ) {
+      return Utilities.newBlob(normalized).getBytes().length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  try {
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(normalized).length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  return unescape(encodeURIComponent(normalized)).length;
+}
+
+function astCacheScriptPropertiesMeasureDocument(document) {
+  const serialized = JSON.stringify(document);
+  return {
+    serialized,
+    bytes: astCacheScriptPropertiesUtf8ByteLength(serialized)
+  };
+}
+
+function astCacheScriptPropertiesAssertEntryFitsLimit(entry, config) {
+  const limitBytes = AST_CACHE_SCRIPT_PROPERTIES_MAX_VALUE_BYTES;
+  const probe = astCacheScriptPropertiesDefaultDocument(config.namespace);
+  probe.entries = {
+    [entry.keyHash]: entry
+  };
+  const measured = astCacheScriptPropertiesMeasureDocument(probe);
+  if (measured.bytes <= limitBytes) {
+    return;
+  }
+
+  throw new AstCacheValidationError(
+    'Cache script_properties entry exceeds per-property byte limit',
+    {
+      backend: 'script_properties',
+      namespace: config.namespace,
+      keyHash: entry.keyHash,
+      bytes: measured.bytes,
+      limitBytes
+    }
+  );
+}
 
 function astCacheScriptPropertiesStats(namespace) {
   if (!AST_CACHE_SCRIPT_PROPERTIES_STATS[namespace]) {
@@ -82,13 +140,60 @@ function astCacheScriptPropertiesReadDocument(handle, propertyKey, namespace) {
   return parsed;
 }
 
-function astCacheScriptPropertiesWriteDocument(handle, propertyKey, document) {
+function astCacheScriptPropertiesTrimToMaxBytes(document, maxBytes, stats) {
+  const keys = Object.keys(document.entries || {});
+  if (keys.length === 0) {
+    return astCacheScriptPropertiesMeasureDocument(document);
+  }
+
+  keys.sort((left, right) => {
+    const leftStamp = Number(document.entries[left] && document.entries[left].updatedAtMs || 0);
+    const rightStamp = Number(document.entries[right] && document.entries[right].updatedAtMs || 0);
+    return leftStamp - rightStamp;
+  });
+
+  let measured = astCacheScriptPropertiesMeasureDocument(document);
+  let removed = 0;
+
+  for (let idx = 0; idx < keys.length && measured.bytes > maxBytes; idx += 1) {
+    delete document.entries[keys[idx]];
+    removed += 1;
+    measured = astCacheScriptPropertiesMeasureDocument(document);
+  }
+
+  if (removed > 0) {
+    stats.evictions += removed;
+  }
+
+  return measured;
+}
+
+function astCacheScriptPropertiesWriteDocument(handle, propertyKey, document, config, stats) {
   if (typeof handle.setProperty !== 'function') {
     throw new AstCacheCapabilityError('Script properties handle does not support setProperty');
   }
 
-  const serialized = JSON.stringify(document);
-  handle.setProperty(propertyKey, serialized);
+  const limitBytes = AST_CACHE_SCRIPT_PROPERTIES_MAX_VALUE_BYTES;
+  let measured = astCacheScriptPropertiesMeasureDocument(document);
+
+  if (measured.bytes > limitBytes) {
+    measured = astCacheScriptPropertiesTrimToMaxBytes(document, limitBytes, stats);
+  }
+
+  if (measured.bytes > limitBytes) {
+    throw new AstCacheValidationError(
+      'Cache script_properties payload exceeds per-property byte limit',
+      {
+        backend: 'script_properties',
+        namespace: config.namespace,
+        propertyKey,
+        bytes: measured.bytes,
+        limitBytes
+      }
+    );
+  }
+
+  handle.setProperty(propertyKey, measured.serialized);
 }
 
 function astCacheScriptPropertiesPruneExpired(document, nowMs, stats) {
@@ -142,7 +247,7 @@ function astCacheScriptPropertiesWithDocument(config, mutator) {
     astCacheScriptPropertiesPruneExpired(document, nowMs, stats);
     const result = mutator(document, nowMs, stats);
     document.updatedAtMs = nowMs;
-    astCacheScriptPropertiesWriteDocument(handle, propertyKey, document);
+    astCacheScriptPropertiesWriteDocument(handle, propertyKey, document, config, stats);
 
     return result;
   }, config);
@@ -183,6 +288,7 @@ function astCacheScriptPropertiesGet(keyHash, config) {
 function astCacheScriptPropertiesSet(entry, config) {
   return astCacheScriptPropertiesWithDocument(config, (document, nowMs, stats) => {
     const nextEntry = astCacheTouchEntry(entry, nowMs);
+    astCacheScriptPropertiesAssertEntryFitsLimit(nextEntry, config);
     document.entries[nextEntry.keyHash] = nextEntry;
     stats.sets += 1;
     astCacheScriptPropertiesTrimToMaxEntries(document, config.maxMemoryEntries, stats);
