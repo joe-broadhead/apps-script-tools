@@ -11,7 +11,10 @@ Before opening a PR:
 
 1. `npm run lint`
 2. `npm run test:local:coverage`
-3. `mkdocs build --strict` (for docs changes)
+3. `npm run test:perf:check`
+4. `npm run test:security`
+5. `mkdocs build --strict` (for docs changes)
+6. `clasp push && clasp run runAllTests` (when Apps Script credentials are configured)
 
 ## Code Standards
 

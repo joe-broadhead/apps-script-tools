@@ -202,6 +202,16 @@
   - new APIs: `rewriteQuery(...)`, `decomposeQuestion(...)`
   - retrieval config now includes `retrieval.queryTransform` (rewrite/decompose policies)
   - `search(...)` and `answer(...)` responses now include explicit `queryProvenance` (`originalQuery`, `rewrittenQuery`, `retrievalQueries`, `transformed`)
+- Docs surfaces now align with the current runtime API surface:
+  - `README.md` development gates include lint, local coverage, perf, security, docs, and Apps Script integration checks
+  - `CONTRIBUTING.md` quality gates include `test:perf:check` and `test:security`
+  - `docs/development/release.md` pre-release checks include `test:security`
+  - `docs/api/quick-reference.md` and `docs/api/tools.md` now include DataFrame/Series parity finishers (`stack`, `unstack`, `resample`, `rank`, `clip`, `rolling`, `expanding`, `ewm`)
+
+### Docs / Changelog sync
+
+- Unreleased section audited against merged PR scope since `v0.0.4` (`#100` through `#232`) and updated to reflect the current documented API/runtime surface.
+- MkDocs navigation verified against repository docs pages to ensure all published docs are included in site nav.
 
 ## v0.0.4 - 2026-02-25
 

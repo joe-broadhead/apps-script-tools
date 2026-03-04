@@ -117,9 +117,12 @@ Notes:
 
 ## Development
 
-- Local checks: `npm run lint && npm run test:local`
-- Security check: `npm run test:security`
-- Docs check: `mkdocs build --strict`
+- Lint gate: `npm run lint`
+- Local coverage gate: `npm run test:local:coverage`
+- Perf gate: `npm run test:perf:check`
+- Security gate: `npm run test:security`
+- Docs gate: `mkdocs build --strict`
+- Apps Script integration gate (when configured): `clasp push && clasp run runAllTests`
 - Full contributor guide: `CONTRIBUTING.md`
 
 ## Release

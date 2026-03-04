@@ -18,6 +18,7 @@
 npm run lint
 npm run test:local:coverage
 npm run test:perf:check
+npm run test:security
 mkdocs build --strict
 ```
 
