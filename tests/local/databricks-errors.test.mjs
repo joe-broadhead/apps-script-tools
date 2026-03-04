@@ -65,6 +65,75 @@ test('astRunDatabricksSql validates required Databricks parameters', () => {
   );
 });
 
+test('astRunDatabricksSql maps submit 401/403/500 responses to DatabricksSqlError with structured details', () => {
+  [401, 403, 500].forEach(statusCode => {
+    const context = createGasContext({
+      UrlFetchApp: {
+        fetch: () => ({
+          getResponseCode: () => statusCode,
+          getContentText: () => JSON.stringify({
+            error_code: 'REQUEST_FAILED',
+            message: `status-${statusCode}`
+          })
+        })
+      }
+    });
+
+    loadScripts(context, [
+      'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+      'apps_script_tools/database/databricks/runDatabricksSql.js'
+    ]);
+
+    assert.throws(
+      () => context.astRunDatabricksSql('select 1', {
+        host: 'dbc.example.com',
+        sqlWarehouseId: 'warehouse-1',
+        schema: 'default',
+        token: 'token'
+      }),
+      error => {
+        assert.equal(error.name, 'DatabricksSqlError');
+        assert.equal(error.details.statusCode, statusCode);
+        assert.equal(error.details.response.error_code, 'REQUEST_FAILED');
+        assert.equal(error.details.response.message, `status-${statusCode}`);
+        return true;
+      }
+    );
+  });
+});
+
+test('astRunDatabricksSql throws parse-safe submit error when successful response is not JSON', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => ({
+        getResponseCode: () => 200,
+        getContentText: () => 'not-json'
+      })
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js',
+    'apps_script_tools/database/databricks/runDatabricksSql.js'
+  ]);
+
+  assert.throws(
+    () => context.astRunDatabricksSql('select 1', {
+      host: 'dbc.example.com',
+      sqlWarehouseId: 'warehouse-1',
+      schema: 'default',
+      token: 'token'
+    }),
+    error => {
+      assert.equal(error.name, 'DatabricksSqlError');
+      assert.match(error.message, /submit response was not valid json/i);
+      assert.equal(error.details.statusCode, 200);
+      assert.equal(error.details.response, 'not-json');
+      return true;
+    }
+  );
+});
+
 test('astRunDatabricksSql rejects pollIntervalMs greater than maxWaitMs', () => {
   const context = createGasContext();
 
