@@ -253,36 +253,94 @@ function astDbfsWriteChunked({ request, config, bytes }) {
 
   let requestCount = 1;
 
-  for (let start = 0; start < bytes.length; start += AST_DBFS_WRITE_BLOCK_BYTES) {
-    const end = Math.min(bytes.length, start + AST_DBFS_WRITE_BLOCK_BYTES);
-    const slice = bytes.slice(start, end);
-    const chunkBase64 = astStorageBytesToBase64(slice);
+  try {
+    for (let start = 0; start < bytes.length; start += AST_DBFS_WRITE_BLOCK_BYTES) {
+      const end = Math.min(bytes.length, start + AST_DBFS_WRITE_BLOCK_BYTES);
+      const slice = bytes.slice(start, end);
+      const chunkBase64 = astStorageBytesToBase64(slice);
+
+      astDbfsRequest({
+        request,
+        config,
+        endpoint: 'add-block',
+        method: 'post',
+        payload: {
+          handle,
+          data: chunkBase64
+        }
+      });
+
+      requestCount += 1;
+    }
 
     astDbfsRequest({
       request,
       config,
-      endpoint: 'add-block',
+      endpoint: 'close',
       method: 'post',
       payload: {
-        handle,
-        data: chunkBase64
+        handle
       }
     });
 
     requestCount += 1;
+  } catch (error) {
+    let cleanupError = null;
+
+    try {
+      astDbfsRequest({
+        request,
+        config,
+        endpoint: 'close',
+        method: 'post',
+        payload: {
+          handle
+        }
+      });
+      requestCount += 1;
+    } catch (closeError) {
+      cleanupError = closeError;
+    }
+
+    if (error && typeof error === 'object') {
+      const details = astStorageIsPlainObject(error.details)
+        ? Object.assign({}, error.details)
+        : {};
+      details.cleanupClose = {
+        attempted: true,
+        succeeded: cleanupError == null,
+        error: cleanupError
+          ? {
+              name: astStorageNormalizeString(cleanupError.name, 'Error'),
+              message: astStorageNormalizeString(cleanupError.message, 'DBFS close cleanup failed')
+            }
+          : null
+      };
+      error.details = details;
+      throw error;
+    }
+
+    throw new AstStorageProviderError(
+      'DBFS chunked write failed',
+      {
+        provider: 'dbfs',
+        operation: request.operation,
+        uri: request.uri,
+        cleanupClose: {
+          attempted: true,
+          succeeded: cleanupError == null,
+          error: cleanupError
+            ? {
+                name: astStorageNormalizeString(cleanupError.name, 'Error'),
+                message: astStorageNormalizeString(cleanupError.message, 'DBFS close cleanup failed')
+              }
+            : null
+        }
+      },
+      error
+    );
   }
 
-  astDbfsRequest({
-    request,
-    config,
-    endpoint: 'close',
-    method: 'post',
-    payload: {
-      handle
-    }
-  });
-
-  requestCount += 1;
   return requestCount;
 }
 

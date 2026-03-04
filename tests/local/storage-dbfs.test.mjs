@@ -174,6 +174,142 @@ test('DBFS chunked write uses create/add-block/close for large payloads', () => 
   assert.equal(calls.some(call => call.url.includes('/dbfs/close')), true);
 });
 
+test('DBFS chunked write attempts best-effort close when add-block fails', () => {
+  const calls = [];
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('/dbfs/create')) {
+          return createResponse({ body: JSON.stringify({ handle: 22 }) });
+        }
+
+        if (url.includes('/dbfs/add-block')) {
+          return createResponse({
+            status: 500,
+            body: JSON.stringify({
+              error_code: 'INTERNAL_ERROR',
+              message: 'add-block failed'
+            })
+          });
+        }
+
+        if (url.includes('/dbfs/close')) {
+          return createResponse({ body: '{}' });
+        }
+
+        return createResponse({ body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const largeText = 'x'.repeat(2 * 1024 * 1024);
+  assert.throws(
+    () => context.astRunStorageRequest({
+      uri: 'dbfs:/mnt/data/large-fail.txt',
+      operation: 'write',
+      payload: {
+        text: largeText
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.equal(error.details.cleanupClose.attempted, true);
+      assert.equal(error.details.cleanupClose.succeeded, true);
+      assert.equal(error.details.cleanupClose.error, null);
+      return true;
+    }
+  );
+
+  assert.equal(calls.some(call => call.url.includes('/dbfs/add-block')), true);
+  assert.equal(calls.some(call => call.url.includes('/dbfs/close')), true);
+});
+
+test('DBFS chunked write preserves original error and includes cleanup error details on close cleanup failure', () => {
+  const calls = [];
+  let closeAttempts = 0;
+
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('/dbfs/create')) {
+          return createResponse({ body: JSON.stringify({ handle: 33 }) });
+        }
+
+        if (url.includes('/dbfs/add-block')) {
+          return createResponse({
+            status: 500,
+            body: JSON.stringify({
+              error_code: 'INTERNAL_ERROR',
+              message: 'add-block exploded'
+            })
+          });
+        }
+
+        if (url.includes('/dbfs/close')) {
+          closeAttempts += 1;
+          return createResponse({
+            status: 500,
+            body: JSON.stringify({
+              error_code: 'INTERNAL_ERROR',
+              message: `close failed ${closeAttempts}`
+            })
+          });
+        }
+
+        return createResponse({ body: '{}' });
+      }
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          DATABRICKS_HOST: 'dbc.example.com',
+          DATABRICKS_TOKEN: 'test-token'
+        })
+      })
+    }
+  });
+
+  loadStorageScripts(context);
+
+  const largeText = 'x'.repeat(2 * 1024 * 1024);
+  assert.throws(
+    () => context.astRunStorageRequest({
+      uri: 'dbfs:/mnt/data/large-close-fail.txt',
+      operation: 'write',
+      payload: {
+        text: largeText
+      }
+    }),
+    error => {
+      assert.equal(error.name, 'AstStorageProviderError');
+      assert.equal(error.details.cleanupClose.attempted, true);
+      assert.equal(error.details.cleanupClose.succeeded, false);
+      assert.equal(error.details.cleanupClose.error.name, 'AstStorageProviderError');
+      assert.equal(typeof error.details.cleanupClose.error.message, 'string');
+      assert.equal(error.details.cleanupClose.error.message.length > 0, true);
+      return true;
+    }
+  );
+
+  assert.equal(calls.some(call => call.url.includes('/dbfs/add-block')), true);
+  assert.equal(calls.filter(call => call.url.includes('/dbfs/close')).length >= 1, true);
+});
+
 test('DBFS maps missing resources to AstStorageNotFoundError', () => {
   const context = createGasContext({
     UrlFetchApp: {
