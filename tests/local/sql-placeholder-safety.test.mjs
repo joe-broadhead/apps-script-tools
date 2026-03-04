@@ -50,3 +50,20 @@ test('astReplacePlaceHoldersInQuery emits one-time deprecation warning', () => {
   assert.match(warnings[0], /AST\.Sql\.prepare/);
   assert.match(warnings[0], /AST\.Sql\.executePrepared/);
 });
+
+test('astReplacePlaceHoldersInQuery does not warn when placeholder input is empty', () => {
+  const warnings = [];
+  const context = createGasContext({
+    console: {
+      warn: message => warnings.push(String(message))
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/replacePlaceHoldersInQuery.js'
+  ]);
+
+  const output = context.astReplacePlaceHoldersInQuery('select 1', {});
+  assert.equal(output, 'select 1');
+  assert.equal(warnings.length, 0);
+});

@@ -55,7 +55,6 @@ function astReplacePlaceHoldersInQuery(query, placeholders) {
   if (typeof query !== 'string') {
     throw new Error('Query must be a string');
   }
-  astSqlWarnLegacyPlaceholderUsage();
 
   if (placeholders == null || typeof placeholders !== 'object' || Array.isArray(placeholders)) {
     return query;
@@ -63,6 +62,9 @@ function astReplacePlaceHoldersInQuery(query, placeholders) {
 
   let queryWithReplacements = query;
   const keys = Object.keys(placeholders);
+  if (keys.length > 0) {
+    astSqlWarnLegacyPlaceholderUsage();
+  }
 
   for (let idx = 0; idx < keys.length; idx++) {
     const key = keys[idx];
