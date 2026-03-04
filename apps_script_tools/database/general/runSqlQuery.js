@@ -168,7 +168,17 @@ function astSqlToDate(value, key) {
   return resolved;
 }
 
-function astSqlSerializeParamValue(key, spec, value) {
+function astSqlIsRawParametersAllowed(options = {}) {
+  return astSqlIsPlainObject(options) && options.allowRawParameters === true;
+}
+
+function astSqlWarnRawParameterUse(key) {
+  if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+    console.warn(`SQL raw parameter used for '${key}'. Ensure this value is not user-controlled.`);
+  }
+}
+
+function astSqlSerializeParamValue(key, spec, value, options = {}) {
   if (value == null) {
     if (spec.nullable || spec.required === false || spec.hasDefault) {
       return 'NULL';
@@ -181,6 +191,18 @@ function astSqlSerializeParamValue(key, spec, value) {
 
   switch (spec.type) {
     case 'raw':
+      if (!astSqlIsRawParametersAllowed(options)) {
+        throw astSqlBuildRuntimeError(
+          'SqlPreparedStatementError',
+          "Parameter type 'raw' inserts values without escaping. Set options.allowRawParameters=true to acknowledge the SQL injection risk.",
+          {
+            key,
+            type: spec.type,
+            allowRawParameters: false
+          }
+        );
+      }
+      astSqlWarnRawParameterUse(key);
       return String(value);
     case 'string':
       return astSqlQuoteString(value);
@@ -279,12 +301,12 @@ function astSqlResolvePreparedParams(prepared, rawParams) {
   return resolved;
 }
 
-function astSqlRenderPreparedSql(prepared, resolvedParams) {
+function astSqlRenderPreparedSql(prepared, resolvedParams, options = {}) {
   let rendered = prepared.sqlTemplate;
 
   prepared.templateParams.forEach(key => {
     const spec = prepared.paramSchema[key];
-    const replacement = astSqlSerializeParamValue(key, spec, resolvedParams[key]);
+    const replacement = astSqlSerializeParamValue(key, spec, resolvedParams[key], options);
     const pattern = new RegExp(`\\{\\{\\s*${astSqlEscapeRegExp(key)}\\s*\\}\\}`, 'g');
     rendered = rendered.replace(pattern, replacement);
   });
@@ -427,17 +449,17 @@ function astSqlExecutePrepared(request = {}) {
     );
   }
 
-  const resolvedParams = astSqlResolvePreparedParams(prepared, request.params || {});
-  const renderedSql = astSqlRenderPreparedSql(prepared, resolvedParams);
-  const mergedParameters = Object.assign(
-    {},
-    prepared.defaultParameters || {},
-    astSqlIsPlainObject(request.parameters) ? request.parameters : {}
-  );
   const mergedOptions = Object.assign(
     {},
     prepared.defaultOptions || {},
     astSqlIsPlainObject(request.options) ? request.options : {}
+  );
+  const resolvedParams = astSqlResolvePreparedParams(prepared, request.params || {});
+  const renderedSql = astSqlRenderPreparedSql(prepared, resolvedParams, mergedOptions);
+  const mergedParameters = Object.assign(
+    {},
+    prepared.defaultParameters || {},
+    astSqlIsPlainObject(request.parameters) ? request.parameters : {}
   );
 
   const normalizedRequest = astValidateSqlRequest({

@@ -41,3 +41,35 @@ test('messaging configure/get/clear lifecycle and merge semantics', () => {
   assert.equal(typeof cleared, 'object');
   assert.equal(cleared && Object.keys(cleared).length, 0);
 });
+
+test('messaging resolves tracking allowed domains from runtime config only', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.clearConfig();
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'Example.com, .Sub.Example.com,example.com'
+  });
+
+  const runtimeResolved = context.astMessagingResolveConfig({
+    operation: 'tracking_handle_web_event',
+    channel: 'tracking',
+    body: {}
+  });
+
+  assert.deepEqual(Array.from(runtimeResolved.tracking.allowedDomains), ['example.com', '.sub.example.com']);
+
+  const requestResolved = context.astMessagingResolveConfig({
+    operation: 'tracking_handle_web_event',
+    channel: 'tracking',
+    body: {
+      options: {
+        track: {
+          allowedDomains: ['request.example.org', 'REQUEST.example.org']
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(Array.from(requestResolved.tracking.allowedDomains), ['example.com', '.sub.example.com']);
+});

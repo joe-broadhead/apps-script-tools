@@ -32,6 +32,11 @@ function astMessagingHandleWebEvent(request = {}, resolvedConfig = {}) {
   const secret = resolvedConfig && resolvedConfig.tracking
     ? resolvedConfig.tracking.signingSecret
     : '';
+  const allowedDomains = astMessagingTrackingNormalizeAllowedDomains(
+    resolvedConfig && resolvedConfig.tracking
+      ? resolvedConfig.tracking.allowedDomains
+      : []
+  );
 
   const payload = astMessagingTrackingBuildCanonicalPayload(eventType, deliveryId, eventType === 'click' ? target : trackingHash);
   if (secret) {
@@ -44,12 +49,16 @@ function astMessagingHandleWebEvent(request = {}, resolvedConfig = {}) {
     }
   }
 
+  const validatedTarget = eventType === 'click'
+    ? astMessagingTrackingValidateRedirectTarget(target, allowedDomains)
+    : target;
+
   const recorded = astMessagingRecordTrackingEvent({
     body: {
       eventType,
       deliveryId,
       trackingHash,
-      target,
+      target: validatedTarget,
       userAgent: source.userAgent || (source.headers && source.headers['User-Agent']) || '',
       ip: source.ip || '',
       metadata: {
@@ -60,7 +69,7 @@ function astMessagingHandleWebEvent(request = {}, resolvedConfig = {}) {
 
   return {
     event: recorded.event,
-    redirectUrl: eventType === 'click' ? target : null,
+    redirectUrl: eventType === 'click' ? validatedTarget : null,
     pixel: eventType === 'open',
     log: recorded.log
   };
