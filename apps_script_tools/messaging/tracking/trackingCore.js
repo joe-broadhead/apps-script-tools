@@ -212,6 +212,7 @@ function astMessagingTrackingParseRedirectTarget(target) {
   const userInfoIndex = authority.lastIndexOf('@');
   const hostPort = userInfoIndex >= 0 ? authority.slice(userInfoIndex + 1) : authority;
   let hostname = hostPort;
+  let portToken = null;
 
   if (!hostname) {
     throw new AstMessagingTrackingError('Invalid click redirect target URL', {
@@ -226,9 +227,36 @@ function astMessagingTrackingParseRedirectTarget(target) {
         target: normalizedTarget
       });
     }
+    const suffix = hostname.slice(closingBracket + 1);
+    if (suffix) {
+      if (suffix.charAt(0) !== ':') {
+        throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+          target: normalizedTarget
+        });
+      }
+      portToken = suffix.slice(1);
+    }
     hostname = hostname.slice(1, closingBracket);
   } else {
-    hostname = hostname.split(':', 1)[0];
+    const separatorIndex = hostname.indexOf(':');
+    if (separatorIndex >= 0) {
+      portToken = hostname.slice(separatorIndex + 1);
+      hostname = hostname.slice(0, separatorIndex);
+    }
+  }
+
+  if (portToken != null) {
+    if (!/^[0-9]+$/.test(portToken)) {
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
+    }
+    const portNumber = Number(portToken);
+    if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) {
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
+    }
   }
 
   hostname = String(hostname || '').trim().toLowerCase();

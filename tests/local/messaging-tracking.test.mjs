@@ -240,3 +240,43 @@ test('tracking signature verification uses constant-time helper semantics', () =
   assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc1234'), false);
   assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', null), false);
 });
+
+test('tracking fallback parser rejects invalid authority port tokens', () => {
+  const context = createGasContext();
+  // Ensure fallback parser path is used.
+  delete context.URL;
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-fallback',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  const invalidTargets = [
+    'https://example.com:99999/path',
+    'https://example.com:abc/path',
+    'https://example.com:/path'
+  ];
+
+  for (let idx = 0; idx < invalidTargets.length; idx += 1) {
+    const target = invalidTargets[idx];
+    const payload = context.astMessagingTrackingBuildCanonicalPayload('click', `delivery_fallback_${idx}`, target);
+    const sig = context.astMessagingTrackingSignPayload(payload, 'secret-fallback');
+
+    assert.throws(
+      () => context.AST.Messaging.tracking.handleWebEvent({
+        body: {
+          query: {
+            eventType: 'click',
+            deliveryId: `delivery_fallback_${idx}`,
+            trackingHash: `hash_fallback_${idx}`,
+            target,
+            sig
+          }
+        }
+      }),
+      /Invalid click redirect target URL/i
+    );
+  }
+});
