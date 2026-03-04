@@ -21,6 +21,24 @@ Local coverage report (uses Node test coverage, writes artifacts to `coverage/`)
 npm run test:local:coverage
 ```
 
+Coverage thresholds (default runner/CI values):
+
+- lines: `88%`
+- branches: `86%`
+- functions: `72%`
+- files: `88%`
+
+Optional local overrides:
+
+```bash
+COVERAGE_MIN_LINES=90 \
+COVERAGE_MIN_BRANCHES=88 \
+COVERAGE_MIN_FUNCTIONS=74 \
+COVERAGE_MIN_FILES=90 \
+COVERAGE_ENFORCE=true \
+npm run test:local:coverage
+```
+
 ## Local performance checks
 
 Report run:
