@@ -55,6 +55,7 @@ test('createFileInDrive writes JSON and CSV files and supports destination folde
   });
 
   loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
     'apps_script_tools/utilities/records/convertRecordsToCsvFormat.js',
     'apps_script_tools/workspace/drive/createFileInDrive.js'
   ]);
@@ -85,6 +86,7 @@ test('readFileFromDrive reads CSV into record objects', () => {
   });
 
   loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
     'apps_script_tools/utilities/object/zipArraysIntoObject.js',
     'apps_script_tools/utilities/records/zipArraysIntoRecords.js',
     'apps_script_tools/workspace/drive/readFileFromDrive.js'
@@ -97,5 +99,89 @@ test('readFileFromDrive reads CSV into record objects', () => {
       { id: '1', name: 'Alice' },
       { id: '2', name: 'Bob' }
     ])
+  );
+});
+
+test('workspace drive helpers throw typed validation/not-found/parse errors', () => {
+  const mocks = buildDriveMocks();
+  const context = createGasContext({
+    DriveApp: mocks.DriveApp
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
+    'apps_script_tools/utilities/object/zipArraysIntoObject.js',
+    'apps_script_tools/utilities/records/zipArraysIntoRecords.js',
+    'apps_script_tools/workspace/drive/readFileFromDrive.js'
+  ]);
+
+  assert.throws(
+    () => context.readFileFromDrive('', 'csv'),
+    error => error && error.name === 'AstWorkspaceValidationError'
+  );
+
+  assert.throws(
+    () => context.readFileFromDrive('missing-file', 'csv'),
+    error => error && error.name === 'AstWorkspaceNotFoundError'
+  );
+
+  const brokenJsonFile = mocks.createDriveFile('broken.json', '{bad json');
+  assert.throws(
+    () => context.readFileFromDrive(brokenJsonFile.getId(), 'json'),
+    error => error && error.name === 'AstWorkspaceParseError'
+  );
+});
+
+test('createFileInDrive maps validation failures to typed workspace errors', () => {
+  const mocks = buildDriveMocks();
+  const context = createGasContext({
+    DriveApp: mocks.DriveApp,
+    SpreadsheetApp: mocks.SpreadsheetApp,
+    DocumentApp: mocks.DocumentApp,
+    SlidesApp: mocks.SlidesApp,
+    FormApp: mocks.FormApp
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
+    'apps_script_tools/utilities/records/convertRecordsToCsvFormat.js',
+    'apps_script_tools/workspace/drive/createFileInDrive.js'
+  ]);
+
+  assert.throws(
+    () => context.createFileInDrive('csv', 'dataset', { content: 'not-array' }),
+    error => error && error.name === 'AstWorkspaceValidationError'
+  );
+
+  assert.throws(
+    () => context.createFileInDrive('csv', 'dataset', { content: [{ id: 1 }], destinationFolder: 'folder-id' }),
+    error => error && error.name === 'AstWorkspaceValidationError'
+  );
+});
+
+test('createFileInDrive maps provider failures to typed workspace errors', () => {
+  const mocks = buildDriveMocks();
+  const context = createGasContext({
+    DriveApp: {
+      ...mocks.DriveApp,
+      createFile: () => {
+        throw new Error('permission denied');
+      }
+    },
+    SpreadsheetApp: mocks.SpreadsheetApp,
+    DocumentApp: mocks.DocumentApp,
+    SlidesApp: mocks.SlidesApp,
+    FormApp: mocks.FormApp
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
+    'apps_script_tools/utilities/records/convertRecordsToCsvFormat.js',
+    'apps_script_tools/workspace/drive/createFileInDrive.js'
+  ]);
+
+  assert.throws(
+    () => context.createFileInDrive('json', 'dataset', { content: [{ id: 1 }] }),
+    error => error && error.name === 'AstWorkspaceProviderError'
   );
 });

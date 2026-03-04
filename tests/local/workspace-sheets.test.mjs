@@ -44,6 +44,7 @@ test('workspace sheet helpers expose EnhancedSpreadsheet behavior', () => {
   });
 
   loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
     'apps_script_tools/workspace/sheets/EnhancedSheet.js',
     'apps_script_tools/workspace/sheets/EnhancedSpreadsheet.js',
     'apps_script_tools/workspace/sheets/openSpreadsheetById.js',
@@ -62,4 +63,60 @@ test('workspace sheet helpers expose EnhancedSpreadsheet behavior', () => {
 
   assert.equal(context.numberToSheetRangeNotation(1), 'A');
   assert.equal(context.numberToSheetRangeNotation(27), 'AA');
+});
+
+test('openSpreadsheetById and openSpreadsheetByUrl validate request inputs', () => {
+  const mocks = buildSpreadsheetMocks();
+  const context = createGasContext({
+    SpreadsheetApp: mocks.SpreadsheetApp
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
+    'apps_script_tools/workspace/sheets/EnhancedSheet.js',
+    'apps_script_tools/workspace/sheets/EnhancedSpreadsheet.js',
+    'apps_script_tools/workspace/sheets/openSpreadsheetById.js',
+    'apps_script_tools/workspace/sheets/openSpreadsheetByUrl.js'
+  ]);
+
+  assert.throws(
+    () => context.openSpreadsheetById('https://docs.google.com/spreadsheets/d/abc123'),
+    error => error && error.name === 'AstWorkspaceValidationError'
+  );
+
+  assert.throws(
+    () => context.openSpreadsheetByUrl('https://example.com/not-a-sheet'),
+    error => error && error.name === 'AstWorkspaceValidationError'
+  );
+});
+
+test('sheet open helpers map provider errors to typed workspace errors', () => {
+  const context = createGasContext({
+    SpreadsheetApp: {
+      openById: () => {
+        throw new Error('backend unavailable');
+      },
+      openByUrl: () => {
+        throw new Error('Spreadsheet not found');
+      }
+    }
+  });
+
+  loadScripts(context, [
+    'apps_script_tools/workspace/general/errors.js',
+    'apps_script_tools/workspace/sheets/EnhancedSheet.js',
+    'apps_script_tools/workspace/sheets/EnhancedSpreadsheet.js',
+    'apps_script_tools/workspace/sheets/openSpreadsheetById.js',
+    'apps_script_tools/workspace/sheets/openSpreadsheetByUrl.js'
+  ]);
+
+  assert.throws(
+    () => context.openSpreadsheetById('spreadsheet-id'),
+    error => error && error.name === 'AstWorkspaceProviderError'
+  );
+
+  assert.throws(
+    () => context.openSpreadsheetByUrl('https://docs.google.com/spreadsheets/d/sheet-id'),
+    error => error && error.name === 'AstWorkspaceNotFoundError'
+  );
 });

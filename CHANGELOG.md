@@ -161,6 +161,9 @@
 ### Changed
 
 - Module error base classes now implement `toJSON()` for stable serialized error envelopes (`name`, `message`, `details`, and nested `cause`) across `AST.AI`, `AST.Cache`, `AST.Chat`, `AST.Config`, `AST.DBT`, `AST.GitHub`, `AST.Http`, `AST.Jobs`, `AST.Messaging`, `AST.RAG`, `AST.Runtime`, `AST.Secrets`, `AST.Storage`, `AST.Telemetry`, and `AST.Triggers`.
+- Workspace helper functions now enforce typed validation and typed error mapping:
+  - `openSpreadsheetById`, `openSpreadsheetByUrl`, `readFileFromDrive`, `createFileInDrive`
+  - new workspace error hierarchy: `AstWorkspaceError`, `AstWorkspaceValidationError`, `AstWorkspaceNotFoundError`, `AstWorkspaceCapabilityError`, `AstWorkspaceProviderError`, `AstWorkspaceParseError`
 - `AST` namespace now exposes `AST.DBT`.
 - `AST` namespace now exposes `AST.Secrets`.
 - `AST` namespace now exposes `AST.Triggers`.
