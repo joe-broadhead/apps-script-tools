@@ -447,9 +447,6 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     ),
     allowedDomains: astMessagingResolveFirstStringArray(
       [
-        normalizedRequest.body && normalizedRequest.body.options
-        && normalizedRequest.body.options.track
-        && normalizedRequest.body.options.track.allowedDomains,
         runtimeConfig.MESSAGING_TRACKING_ALLOWED_DOMAINS,
         scriptConfig.MESSAGING_TRACKING_ALLOWED_DOMAINS
       ],

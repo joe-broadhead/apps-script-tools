@@ -112,7 +112,7 @@ test('tracking wrapLinks skips links that fail click redirect validation', () =>
   assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), true);
 });
 
-test('tracking wrapLinks honors request-level allowedDomains override', () => {
+test('tracking wrapLinks uses configured allowedDomains for click consistency', () => {
   const context = createGasContext();
   loadMessagingScripts(context, { includeAst: true });
 
@@ -138,8 +138,8 @@ test('tracking wrapLinks honors request-level allowedDomains override', () => {
   assert.equal(wrapped.status, 'ok');
   assert.equal(wrapped.data.wrappedCount, 1);
   assert.equal((wrapped.data.html.match(/eventType=click/g) || []).length, 1);
-  assert.equal(wrapped.data.html.includes('href="https://docs.example.com/path"'), true);
-  assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), false);
+  assert.equal(wrapped.data.html.includes('href="https://docs.example.com/path"'), false);
+  assert.equal(wrapped.data.html.includes('href="https://other.net/path"'), true);
 });
 
 test('tracking web click events enforce https allowed-domain redirects', () => {
@@ -307,6 +307,32 @@ test('tracking signature verification uses constant-time helper semantics', () =
   assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc124'), false);
   assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc1234'), false);
   assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', null), false);
+});
+
+test('tracking web events reject oversized signature input before compare', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-oversized',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_sig_oversized_1',
+          trackingHash: 'hash_sig_oversized_1',
+          target: 'https://example.com/path',
+          sig: 'a'.repeat(100000)
+        }
+      }
+    }),
+    /Invalid tracking signature/i
+  );
 });
 
 test('tracking fallback parser rejects invalid authority port tokens', () => {

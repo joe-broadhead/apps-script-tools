@@ -42,7 +42,7 @@ test('messaging configure/get/clear lifecycle and merge semantics', () => {
   assert.equal(cleared && Object.keys(cleared).length, 0);
 });
 
-test('messaging resolves tracking allowed domains from runtime config and request override', () => {
+test('messaging resolves tracking allowed domains from runtime config only', () => {
   const context = createGasContext();
   loadMessagingScripts(context, { includeAst: true });
 
@@ -71,5 +71,5 @@ test('messaging resolves tracking allowed domains from runtime config and reques
     }
   });
 
-  assert.deepEqual(Array.from(requestResolved.tracking.allowedDomains), ['request.example.org']);
+  assert.deepEqual(Array.from(requestResolved.tracking.allowedDomains), ['example.com', '.sub.example.com']);
 });

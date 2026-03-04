@@ -344,7 +344,11 @@ function astMessagingTrackingVerifySignature(signature, payload, secret) {
   }
 
   const expected = astMessagingTrackingSignPayload(payload, secret);
-  return Boolean(expected && astMessagingTrackingConstantTimeEqual(expected, normalizedSignature));
+  if (!expected || normalizedSignature.length !== expected.length) {
+    return false;
+  }
+
+  return astMessagingTrackingConstantTimeEqual(expected, normalizedSignature);
 }
 
 function astMessagingTrackingConstantTimeEqual(left, right) {
@@ -423,11 +427,8 @@ function astMessagingBuildPixelUrl(request = {}, resolvedConfig = {}) {
 function astMessagingWrapLinks(request = {}, resolvedConfig = {}) {
   const body = astMessagingTrackingNormalizeObject(request.body || request);
   const trackingConfig = astMessagingTrackingNormalizeObject(resolvedConfig.tracking);
-  const allowedDomainsInput = Object.prototype.hasOwnProperty.call(body, 'allowedDomains')
-    ? body.allowedDomains
-    : trackingConfig.allowedDomains;
   const allowedDomains = astMessagingTrackingNormalizeAllowedDomains(
-    typeof allowedDomainsInput === 'undefined' ? [] : allowedDomainsInput
+    trackingConfig.allowedDomains || []
   );
 
   const html = astMessagingTrackingNormalizeString(body.html, '');
