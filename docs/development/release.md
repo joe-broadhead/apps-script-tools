@@ -44,6 +44,7 @@ CI workflow config:
 
 - Set repository variable `GAS_SCRIPT_ID` for GitHub Actions integration workflows.
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
+- Keep the pinned clasp version in `.github/actions/setup-clasp/action.yml` (`clasp-version`) current; bump it intentionally and validate CI before release.
 
 Consumer validation (recommended):
 

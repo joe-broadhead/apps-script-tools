@@ -18,13 +18,21 @@ inputs:
   clasp-refresh-token:
     description: OAuth refresh token used by clasp.
     required: true
+  clasp-version:
+    description: Pinned @google/clasp version. Bump intentionally during dependency maintenance.
+    required: false
+    default: 2.4.2
 
 runs:
   using: composite
   steps:
     - name: Install clasp
       shell: bash
-      run: npm install -g @google/clasp
+      env:
+        CLASP_VERSION: ${{ inputs.clasp-version }}
+      run: |
+        set -euo pipefail
+        npm install -g "@google/clasp@${CLASP_VERSION}"
 
     - name: Configure clasp auth
       shell: bash
