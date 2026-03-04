@@ -145,6 +145,7 @@ test('tracking web click events enforce https allowed-domain redirects', () => {
 
 test('tracking web click events reject non-https and disallowed hosts', () => {
   const context = createGasContext();
+  context.URL = URL;
   loadMessagingScripts(context, { includeAst: true });
 
   context.AST.Messaging.configure({
@@ -204,6 +205,25 @@ test('tracking web click events reject non-https and disallowed hosts', () => {
           trackingHash: 'hash_click_4',
           target: escapedAuthorityTarget,
           sig: escapedAuthoritySig
+        }
+      }
+    }),
+    /Invalid click redirect target URL/i
+  );
+
+  const invalidPortTarget = 'https://example.com:99999/path';
+  const invalidPortPayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_5', invalidPortTarget);
+  const invalidPortSig = context.astMessagingTrackingSignPayload(invalidPortPayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_5',
+          trackingHash: 'hash_click_5',
+          target: invalidPortTarget,
+          sig: invalidPortSig
         }
       }
     }),

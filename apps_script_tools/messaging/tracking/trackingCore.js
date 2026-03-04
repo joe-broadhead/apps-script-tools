@@ -185,7 +185,9 @@ function astMessagingTrackingParseRedirectTarget(target) {
         hostname: String(parsedUrl.hostname || '').trim().toLowerCase()
       };
     } catch (_error) {
-      // Fallback parser below for runtimes without complete URL support.
+      throw new AstMessagingTrackingError('Invalid click redirect target URL', {
+        target: normalizedTarget
+      });
     }
   }
 
