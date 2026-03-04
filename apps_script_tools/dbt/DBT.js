@@ -1,3 +1,20 @@
+/**
+ * @typedef {Object} AstDbtRequest
+ * @property {string} [operation]
+ * @property {Object} [bundle]
+ * @property {Object} [manifest]
+ * @property {Object} [source]
+ * @property {Object} [filters]
+ * @property {Object} [options]
+ */
+
+/**
+ * Runs a DBT operation via the unified AST.DBT router.
+ *
+ * @param {AstDbtRequest} [request={}] DBT operation request.
+ * @returns {Object} Normalized DBT response.
+ * @throws {AstDbtValidationError|AstDbtLoadError|AstDbtSchemaError}
+ */
 function astDbtRun(request = {}) {
   const normalized = astDbtValidateRunRequest(request);
 
@@ -45,74 +62,182 @@ function astDbtRun(request = {}) {
   }
 }
 
+/**
+ * Loads and validates a manifest bundle.
+ *
+ * @param {AstDbtRequest} [request={}] Load manifest request.
+ * @returns {Object} Manifest load response.
+ */
 function astDbtLoadManifest(request = {}) {
   return astDbtLoadManifestCore(request);
 }
 
+/**
+ * Inspects a loaded manifest bundle.
+ *
+ * @param {AstDbtRequest} [request={}] Inspect manifest request.
+ * @returns {Object} Manifest inspection response.
+ */
 function astDbtInspectManifest(request = {}) {
   return astDbtInspectManifestCore(request);
 }
 
+/**
+ * Loads a generic dbt artifact payload.
+ *
+ * @param {AstDbtRequest} [request={}] Load artifact request.
+ * @returns {Object} Artifact load response.
+ */
 function astDbtLoadArtifact(request = {}) {
   return astDbtLoadArtifactCore(request);
 }
 
+/**
+ * Inspects a loaded dbt artifact bundle.
+ *
+ * @param {AstDbtRequest} [request={}] Inspect artifact request.
+ * @returns {Object} Artifact inspection response.
+ */
 function astDbtInspectArtifact(request = {}) {
   return astDbtInspectArtifactCore(request);
 }
 
+/**
+ * Lists entities from a manifest bundle.
+ *
+ * @param {AstDbtRequest} [request={}] List entities request.
+ * @returns {Object} Entity list response.
+ */
 function astDbtListEntities(request = {}) {
   return astDbtListEntitiesCore(request);
 }
 
+/**
+ * Runs structured search across entities/columns.
+ *
+ * @param {AstDbtRequest} [request={}] Search request.
+ * @returns {Object} Search response.
+ */
 function astDbtSearch(request = {}) {
   return astDbtSearchCore(request);
 }
 
+/**
+ * Retrieves a single entity by unique id.
+ *
+ * @param {AstDbtRequest} [request={}] Get entity request.
+ * @returns {Object} Entity response.
+ */
 function astDbtGetEntity(request = {}) {
   return astDbtGetEntityCore(request);
 }
 
+/**
+ * Retrieves a single column by entity + column name.
+ *
+ * @param {AstDbtRequest} [request={}] Get column request.
+ * @returns {Object} Column response.
+ */
 function astDbtGetColumn(request = {}) {
   return astDbtGetColumnCore(request);
 }
 
+/**
+ * Traverses entity lineage graph.
+ *
+ * @param {AstDbtRequest} [request={}] Lineage request.
+ * @returns {Object} Lineage response.
+ */
 function astDbtLineage(request = {}) {
   return astDbtLineageCore(request);
 }
 
+/**
+ * Traverses column-level lineage graph.
+ *
+ * @param {AstDbtRequest} [request={}] Column lineage request.
+ * @returns {Object} Column lineage response.
+ */
 function astDbtColumnLineage(request = {}) {
   return astDbtColumnLineageCore(request);
 }
 
+/**
+ * Compares two entities side-by-side.
+ *
+ * @param {AstDbtRequest} [request={}] Diff request.
+ * @returns {Object} Diff response.
+ */
 function astDbtDiffEntities(request = {}) {
   return astDbtDiffEntitiesCore(request);
 }
 
+/**
+ * Computes downstream impact for an entity.
+ *
+ * @param {AstDbtRequest} [request={}] Impact request.
+ * @returns {Object} Impact response.
+ */
 function astDbtImpact(request = {}) {
   return astDbtImpactCore(request);
 }
 
+/**
+ * Compares two dbt artifacts.
+ *
+ * @param {AstDbtRequest} [request={}] Compare artifacts request.
+ * @returns {Object} Compare artifacts response.
+ */
 function astDbtCompareArtifacts(request = {}) {
   return astDbtCompareArtifactsCore(request);
 }
 
+/**
+ * Produces entity metadata quality report.
+ *
+ * @param {AstDbtRequest} [request={}] Quality report request.
+ * @returns {Object} Quality report response.
+ */
 function astDbtQualityReport(request = {}) {
   return astDbtQualityReportCore(request);
 }
 
+/**
+ * Reports test coverage for entity/manifest scope.
+ *
+ * @param {AstDbtRequest} [request={}] Test coverage request.
+ * @returns {Object} Test coverage response.
+ */
 function astDbtTestCoverage(request = {}) {
   return astDbtTestCoverageCore(request);
 }
 
+/**
+ * Lists owners and owner metadata.
+ *
+ * @param {AstDbtRequest} [request={}] Owners request.
+ * @returns {Object} Owners response.
+ */
 function astDbtOwners(request = {}) {
   return astDbtOwnersCore(request);
 }
 
+/**
+ * Searches owners by identifier/metadata.
+ *
+ * @param {AstDbtRequest} [request={}] Search owners request.
+ * @returns {Object} Search owners response.
+ */
 function astDbtSearchOwners(request = {}) {
   return astDbtSearchOwnersCore(request);
 }
 
+/**
+ * Computes ownership coverage metrics.
+ *
+ * @param {AstDbtRequest} [request={}] Owner coverage request.
+ * @returns {Object} Owner coverage response.
+ */
 function astDbtOwnerCoverage(request = {}) {
   return astDbtOwnerCoverageCore(request);
 }
@@ -168,18 +293,41 @@ function astDbtValidateManifestCore(request = {}) {
   };
 }
 
+/**
+ * Validates a manifest against the configured schema mode.
+ *
+ * @param {AstDbtRequest} [request={}] Validate manifest request.
+ * @returns {Object} Validation response.
+ */
 function astDbtValidateManifest(request = {}) {
   return astDbtValidateManifestCore(request);
 }
 
+/**
+ * Sets runtime DBT configuration overrides.
+ *
+ * @param {Object} [config={}] Runtime config patch.
+ * @param {Object} [options={}] Configure behavior options.
+ * @returns {Object} Updated runtime config snapshot.
+ */
 function astDbtConfigure(config = {}, options = {}) {
   return astDbtSetRuntimeConfig(config, options);
 }
 
+/**
+ * Gets current resolved DBT runtime config.
+ *
+ * @returns {Object} Runtime config snapshot.
+ */
 function astDbtGetConfig() {
   return astDbtGetRuntimeConfig();
 }
 
+/**
+ * Clears runtime DBT config overrides.
+ *
+ * @returns {Object} Cleared runtime config snapshot.
+ */
 function astDbtClearConfig() {
   return astDbtClearRuntimeConfig();
 }

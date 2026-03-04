@@ -1,27 +1,90 @@
+/**
+ * @typedef {Object} AstGitHubRequest
+ * @property {string} [operation]
+ * @property {string} [owner]
+ * @property {string} [repo]
+ * @property {number} [issueNumber]
+ * @property {number} [pullNumber]
+ * @property {string} [path]
+ * @property {string} [branch]
+ * @property {string} [ref]
+ * @property {Object} [body]
+ * @property {Object} [auth]
+ * @property {Object} [options]
+ * @property {Object} [providerOptions]
+ */
+
+/**
+ * Runs a GitHub operation using the unified AST.GitHub request contract.
+ *
+ * @param {AstGitHubRequest} [request={}] GitHub operation request.
+ * @returns {Object} Normalized GitHub response.
+ * @throws {AstGitHubValidationError|AstGitHubAuthError|AstGitHubProviderError}
+ */
 function astGitHubRun(request = {}) {
   return astRunGitHubRequest(request);
 }
 
+/**
+ * Runs a specific GitHub operation by operation id.
+ *
+ * @param {string} operation Operation id from `AST.GitHub.operations()`.
+ * @param {AstGitHubRequest} [request={}] GitHub operation request.
+ * @returns {Object} Normalized GitHub response.
+ */
 function astGitHubRunOperation(operation, request = {}) {
   return astRunGitHubRequest(Object.assign({}, request, { operation }));
 }
 
+/**
+ * Executes a GraphQL operation against the configured GitHub GraphQL endpoint.
+ *
+ * @param {AstGitHubRequest} [request={}] GraphQL request payload.
+ * @returns {Object} Normalized GraphQL response.
+ */
 function astGitHubGraphql(request = {}) {
   return astGitHubRunOperation('graphql', request);
 }
 
+/**
+ * Exchanges GitHub App credentials for an installation token.
+ *
+ * @param {AstGitHubRequest} [request={}] App-auth request payload.
+ * @returns {Object} Normalized auth response.
+ */
 function astGitHubAuthAsApp(request = {}) {
   return astGitHubRunOperation('auth_as_app', request);
 }
 
+/**
+ * Verifies webhook signature and envelope integrity.
+ *
+ * @param {AstGitHubRequest} [request={}] Verify webhook request.
+ * @returns {Object} Verification result.
+ */
 function astGitHubVerifyWebhook(request = {}) {
   return astGitHubRunOperation('verify_webhook', request);
 }
 
+/**
+ * Parses and normalizes webhook payloads after verification.
+ *
+ * @param {AstGitHubRequest} [request={}] Parse webhook request.
+ * @returns {Object} Parsed webhook payload.
+ */
 function astGitHubParseWebhook(request = {}) {
   return astGitHubRunOperation('parse_webhook', request);
 }
 
+/**
+ * Operation-specific convenience wrappers.
+ *
+ * Each wrapper below is a thin adapter to `astGitHubRunOperation(...)`.
+ * Contract:
+ * - input: `AstGitHubRequest`
+ * - output: normalized operation response object
+ * - errors: typed GitHub module errors from `astRunGitHubRequest`
+ */
 function astGitHubGetMe(request = {}) {
   return astGitHubRunOperation('get_me', request);
 }
@@ -270,26 +333,59 @@ function astGitHubRateLimit(request = {}) {
   return astGitHubRunOperation('rate_limit', request);
 }
 
+/**
+ * Lists supported GitHub operation ids.
+ *
+ * @returns {string[]} Sorted list of operation ids.
+ */
 function astGitHubOperations() {
   return Array.from(new Set(astGitHubListOperations().concat(['graphql']))).sort();
 }
 
+/**
+ * Lists providers exposed by this namespace.
+ *
+ * @returns {string[]} Provider keys.
+ */
 function astGitHubProviders() {
   return ['github'];
 }
 
+/**
+ * Returns capabilities for a specific operation or operation group.
+ *
+ * @param {string} operationOrGroup Operation id or capability group.
+ * @returns {Object} Capability matrix.
+ */
 function astGitHubCapabilities(operationOrGroup) {
   return astGitHubGetCapabilities(operationOrGroup);
 }
 
+/**
+ * Sets runtime GitHub configuration overrides.
+ *
+ * @param {Object} [config={}] Runtime config patch.
+ * @param {Object} [options={}] Configure behavior options.
+ * @returns {Object} Updated runtime config snapshot.
+ */
 function astGitHubConfigure(config = {}, options = {}) {
   return astGitHubSetRuntimeConfig(config, options);
 }
 
+/**
+ * Gets current resolved GitHub runtime config.
+ *
+ * @returns {Object} Runtime config snapshot.
+ */
 function astGitHubGetConfig() {
   return astGitHubGetRuntimeConfig();
 }
 
+/**
+ * Clears runtime GitHub config overrides.
+ *
+ * @returns {Object} Cleared runtime config snapshot.
+ */
 function astGitHubClearConfig() {
   return astGitHubClearRuntimeConfig();
 }
