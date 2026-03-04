@@ -26,6 +26,12 @@ jobs:
           npm run lint
 
       - name: Local tests with coverage report
+        env:
+          COVERAGE_ENFORCE: 'true'
+          COVERAGE_MIN_LINES: '88'
+          COVERAGE_MIN_BRANCHES: '86'
+          COVERAGE_MIN_FUNCTIONS: '72'
+          COVERAGE_MIN_FILES: '88'
         run: npm run test:local:coverage
 
       - name: Publish coverage summary

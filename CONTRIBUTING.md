@@ -16,6 +16,21 @@ Before opening a PR:
 5. `mkdocs build --strict` (for docs changes)
 6. `clasp push && clasp run runAllTests` (when Apps Script credentials are configured)
 
+Coverage threshold defaults enforced by the local coverage runner and CI:
+
+- lines: `88%`
+- branches: `86%`
+- functions: `72%`
+- files: `88%`
+
+Override for local experimentation via:
+
+- `COVERAGE_MIN_LINES`
+- `COVERAGE_MIN_BRANCHES`
+- `COVERAGE_MIN_FUNCTIONS`
+- `COVERAGE_MIN_FILES`
+- `COVERAGE_ENFORCE` (`true`/`false`)
+
 ## Code Standards
 
 - Keep public APIs under the `AST` namespace.

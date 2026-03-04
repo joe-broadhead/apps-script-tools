@@ -7,6 +7,12 @@ const COVERAGE_DIR = path.join(ROOT, 'coverage');
 const COVERAGE_LOG_PATH = path.join(COVERAGE_DIR, 'local-coverage.txt');
 const COVERAGE_SUMMARY_JSON_PATH = path.join(COVERAGE_DIR, 'local-coverage-summary.json');
 const COVERAGE_SUMMARY_MD_PATH = path.join(COVERAGE_DIR, 'local-coverage-summary.md');
+const COVERAGE_DEFAULT_THRESHOLDS = Object.freeze({
+  linesPct: 88,
+  branchesPct: 86,
+  functionsPct: 72,
+  filesPct: 88
+});
 
 function toNumber(value, fallback) {
   const numeric = Number(value);
@@ -137,10 +143,10 @@ function writeCoverageArtifacts(payload, combinedOutput) {
 
 function main() {
   const thresholds = {
-    linesPct: toNumber(process.env.COVERAGE_MIN_LINES, 0),
-    branchesPct: toNumber(process.env.COVERAGE_MIN_BRANCHES, 0),
-    functionsPct: toNumber(process.env.COVERAGE_MIN_FUNCTIONS, 0),
-    filesPct: toNumber(process.env.COVERAGE_MIN_FILES, 0)
+    linesPct: toNumber(process.env.COVERAGE_MIN_LINES, COVERAGE_DEFAULT_THRESHOLDS.linesPct),
+    branchesPct: toNumber(process.env.COVERAGE_MIN_BRANCHES, COVERAGE_DEFAULT_THRESHOLDS.branchesPct),
+    functionsPct: toNumber(process.env.COVERAGE_MIN_FUNCTIONS, COVERAGE_DEFAULT_THRESHOLDS.functionsPct),
+    filesPct: toNumber(process.env.COVERAGE_MIN_FILES, COVERAGE_DEFAULT_THRESHOLDS.filesPct)
   };
   const enforceThresholds = parseBoolean(process.env.COVERAGE_ENFORCE, false);
   const testFiles = listLocalTestFiles();
