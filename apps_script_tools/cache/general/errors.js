@@ -54,7 +54,50 @@ function astCacheSerializeErrorCause_(cause) {
     };
   }
   if (typeof cause === 'object') {
-    return cause;
+    return astCacheCloneSerializableValue_(cause, []);
   }
   return { message: String(cause) };
+}
+
+function astCacheCloneSerializableValue_(value, seen) {
+  if (value == null) {
+    return value;
+  }
+
+  const valueType = typeof value;
+  if (valueType !== 'object') {
+    return value;
+  }
+
+  for (let i = 0; i < seen.length; i += 1) {
+    if (seen[i] === value) {
+      return '[Circular]';
+    }
+  }
+
+  seen.push(value);
+  if (Array.isArray(value)) {
+    const outputArray = [];
+    for (let i = 0; i < value.length; i += 1) {
+      outputArray.push(astCacheCloneSerializableValue_(value[i], seen));
+    }
+    seen.pop();
+    return outputArray;
+  }
+
+  const output = {};
+  const keys = Object.keys(value);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    if (key === 'toJSON' && typeof value[key] === 'function') {
+      continue;
+    }
+    const entry = value[key];
+    if (typeof entry === 'function') {
+      continue;
+    }
+    output[key] = astCacheCloneSerializableValue_(entry, seen);
+  }
+  seen.pop();
+  return output;
 }

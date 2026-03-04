@@ -120,5 +120,33 @@ test('custom module error base classes support stable JSON serialization', async
         details: { level: 1 }
       });
     });
+
+    await t.test(`${errorCase.baseClass} serialization tolerates cause objects with throwing toJSON`, () => {
+      const context = createGasContext();
+      loadScripts(context, [errorCase.file]);
+
+      const serialized = serializeFromContext(
+        context,
+        `new ${errorCase.baseClass}(
+          'top-level',
+          { scope: 'unit' },
+          {
+            toJSON: function () { throw new Error('boom'); },
+            code: 'E_BROKEN',
+            nested: { count: 1 },
+            list: [1, 2, { ok: true }]
+          }
+        )`
+      );
+
+      assert.equal(serialized.name, errorCase.baseClass);
+      assert.equal(serialized.message, 'top-level');
+      assert.deepEqual(serialized.details, { scope: 'unit' });
+      assert.deepEqual(serialized.cause, {
+        code: 'E_BROKEN',
+        nested: { count: 1 },
+        list: [1, 2, { ok: true }]
+      });
+    });
   }
 });
