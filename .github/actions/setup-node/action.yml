@@ -1,0 +1,31 @@
+name: Setup Node and install dependencies
+description: Configure Node.js and install project dependencies with lockfile-aware behavior.
+
+inputs:
+  node-version:
+    description: Node.js version to install.
+    required: false
+    default: '20'
+  install-deps:
+    description: Whether to install dependencies after Node setup.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Node dependencies (lockfile-aware)
+      if: ${{ inputs.install-deps == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+          npm ci --ignore-scripts
+        else
+          npm install --ignore-scripts --no-audit --no-fund
+        fi
