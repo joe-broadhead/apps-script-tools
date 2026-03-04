@@ -19,6 +19,7 @@ Key capabilities:
 - Missing-data handling: `dropNulls`, `fillNulls`, `replace`.
 - Aggregation and interpolation: `agg`, `interpolate`.
 - Index/delta helpers: `sortIndex`, `reindex`, `align`, `shift`, `diff`, `pctChange`.
+- Ranking/window helpers: `rank`, `clip`, `rolling`, `expanding`, `ewm`.
 - Stats/selectors: `sum`, `mean`, `median`, `mode`, `std`, `var`, `quantile`, `idxMax`, `idxMin`, `cummax`, `cummin`, `cumproduct`.
 - Conversion: `toFrame`.
 - String/date namespaces: `series.str.*`, `series.dt.*`.
@@ -60,7 +61,7 @@ Transform:
 - index/alignment: `setIndex`, `sortIndex`, `reindex`.
 - transformation: `assign`, `apply`, `applyMap`, `transform`, `sort`, `shift`, `diff`, `pctChange`.
 - aggregation: `agg`.
-- relational/reshape: `merge`, `join`, `melt`, `explode`, `pivot`, `pivotTable`, `groupBy`, `window`.
+- relational/reshape: `merge`, `join`, `melt`, `explode`, `pivot`, `pivotTable`, `stack`, `unstack`, `resample`, `groupBy`, `window`.
 - selectors/stats: `quantile`, `describe`, `nlargest`, `nsmallest`.
 - `dropDuplicates(subset = [])` with explicit subset semantics.
 
