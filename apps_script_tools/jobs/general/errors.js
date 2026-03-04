@@ -8,6 +8,18 @@ class AstJobsError extends Error {
       this.cause = cause;
     }
   }
+
+  toJSON() {
+    const output = {
+      name: this.name,
+      message: this.message,
+      details: this.details
+    };
+    if (Object.prototype.hasOwnProperty.call(this, 'cause')) {
+      output.cause = astJobsSerializeErrorCause_(this.cause);
+    }
+    return output;
+  }
 }
 
 class AstJobsValidationError extends AstJobsError {
@@ -43,6 +55,29 @@ class AstJobsCapabilityError extends AstJobsError {
     super(message, details, cause);
     this.name = 'AstJobsCapabilityError';
   }
+}
+
+function astJobsSerializeErrorCause_(cause) {
+  if (cause == null) {
+    return cause;
+  }
+  if (cause && typeof cause.toJSON === 'function') {
+    try {
+      return cause.toJSON();
+    } catch (_error) {
+      // ignore cause serialization failures and fall back below
+    }
+  }
+  if (cause instanceof Error) {
+    return {
+      name: cause.name,
+      message: cause.message
+    };
+  }
+  if (typeof cause === 'object') {
+    return cause;
+  }
+  return { message: String(cause) };
 }
 
 const __astJobsErrorsRoot = typeof globalThis !== 'undefined' ? globalThis : this;
