@@ -79,3 +79,93 @@ test('tracking pixel, wrapping, record, and web event handling work with signatu
   assert.equal(handled.data.event.deliveryId, 'delivery_2');
   assert.equal(handled.data.pixel, true);
 });
+
+test('tracking web click events enforce https allowed-domain redirects', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-2',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com,.allowed.test',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  const target = 'https://docs.example.com/path?a=1';
+  const payload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_1', target);
+  const sig = context.astMessagingTrackingSignPayload(payload, 'secret-2');
+
+  const handled = context.AST.Messaging.tracking.handleWebEvent({
+    body: {
+      query: {
+        eventType: 'click',
+        deliveryId: 'delivery_click_1',
+        trackingHash: 'hash_click_1',
+        target,
+        sig
+      }
+    }
+  });
+
+  assert.equal(handled.status, 'ok');
+  assert.equal(handled.data.pixel, false);
+  assert.equal(handled.data.redirectUrl, target);
+});
+
+test('tracking web click events reject non-https and disallowed hosts', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.configure({
+    MESSAGING_TRACKING_SIGNING_SECRET: 'secret-3',
+    MESSAGING_TRACKING_ALLOWED_DOMAINS: 'example.com',
+    MESSAGING_LOG_BACKEND: 'memory'
+  });
+
+  const insecureTarget = 'http://example.com/path';
+  const insecurePayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_2', insecureTarget);
+  const insecureSig = context.astMessagingTrackingSignPayload(insecurePayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_2',
+          trackingHash: 'hash_click_2',
+          target: insecureTarget,
+          sig: insecureSig
+        }
+      }
+    }),
+    /https scheme/i
+  );
+
+  const disallowedTarget = 'https://evil.example.net/path';
+  const disallowedPayload = context.astMessagingTrackingBuildCanonicalPayload('click', 'delivery_click_3', disallowedTarget);
+  const disallowedSig = context.astMessagingTrackingSignPayload(disallowedPayload, 'secret-3');
+
+  assert.throws(
+    () => context.AST.Messaging.tracking.handleWebEvent({
+      body: {
+        query: {
+          eventType: 'click',
+          deliveryId: 'delivery_click_3',
+          trackingHash: 'hash_click_3',
+          target: disallowedTarget,
+          sig: disallowedSig
+        }
+      }
+    }),
+    /host is not allowed/i
+  );
+});
+
+test('tracking signature verification uses constant-time helper semantics', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc123'), true);
+  assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc124'), false);
+  assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', 'abc1234'), false);
+  assert.equal(context.astMessagingTrackingConstantTimeEqual('abc123', null), false);
+});

@@ -191,3 +191,79 @@ test('astSqlCancel routes to provider cancel helpers', () => {
   assert.equal(cancel.canceled, true);
   assert.equal(cancel.state, 'CANCELED');
 });
+
+test('astSqlExecutePrepared rejects raw params unless allowRawParameters is true', () => {
+  const context = createGasContext({
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+
+  loadSqlRuntime(context);
+
+  const prepared = context.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select * from users where {{where_clause}}',
+    paramsSchema: {
+      where_clause: { type: 'raw', required: true }
+    },
+    parameters: { projectId: 'proj-1' }
+  });
+
+  assert.throws(
+    () => context.astSqlExecutePrepared({
+      statementId: prepared.statementId,
+      params: { where_clause: "email like '%@example.com'" }
+    }),
+    /allowRawParameters=true/
+  );
+});
+
+test('astSqlExecutePrepared allows raw params only with explicit opt-in and emits warning', () => {
+  const warnings = [];
+  let capturedSql = null;
+  const context = createGasContext({
+    console: {
+      log: () => {},
+      info: () => {},
+      error: () => {},
+      warn: message => warnings.push(String(message))
+    },
+    astExecuteBigQuerySqlDetailed: sql => {
+      capturedSql = sql;
+      return {
+        dataFrame: { kind: 'df' },
+        execution: {
+          provider: 'bigquery',
+          executionId: 'job-raw-1',
+          state: 'SUCCEEDED'
+        }
+      };
+    },
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+
+  loadSqlRuntime(context);
+
+  const prepared = context.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select * from users where {{where_clause}}',
+    paramsSchema: {
+      where_clause: { type: 'raw', required: true }
+    },
+    options: {
+      allowRawParameters: true
+    },
+    parameters: { projectId: 'proj-1' }
+  });
+
+  const result = context.astSqlExecutePrepared({
+    statementId: prepared.statementId,
+    params: { where_clause: "email like '%@example.com'" }
+  });
+
+  assert.match(capturedSql, /where email like '%@example.com'/);
+  assert.equal(result.execution.executionId, 'job-raw-1');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /raw parameter used/i);
+});

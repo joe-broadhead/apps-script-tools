@@ -17,6 +17,7 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_TRACKING_CLICK_ENABLED',
   'MESSAGING_TRACKING_BASE_URL',
   'MESSAGING_TRACKING_SIGNING_SECRET',
+  'MESSAGING_TRACKING_ALLOWED_DOMAINS',
   'MESSAGING_LOG_BACKEND',
   'MESSAGING_LOG_NAMESPACE',
   'MESSAGING_LOG_DRIVE_FOLDER_ID',
@@ -69,7 +70,8 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
     openEnabled: false,
     clickEnabled: false,
     baseUrl: '',
-    signingSecret: ''
+    signingSecret: '',
+    allowedDomains: Object.freeze([])
   }),
   logs: Object.freeze({
     backend: 'drive_json',
@@ -171,6 +173,29 @@ function astMessagingConfigNormalizeInteger(value, fallback, min = 0, max = Numb
   }
 
   return normalized;
+}
+
+function astMessagingConfigNormalizeStringArray(value, fallback = []) {
+  const source = Array.isArray(value)
+    ? value
+    : (typeof value === 'string' ? value.split(',') : fallback);
+  const output = [];
+  const seen = {};
+
+  for (let idx = 0; idx < source.length; idx += 1) {
+    const normalized = astMessagingConfigNormalizeString(source[idx], null);
+    if (!normalized) {
+      continue;
+    }
+    const lower = normalized.toLowerCase();
+    if (seen[lower]) {
+      continue;
+    }
+    seen[lower] = true;
+    output.push(lower);
+  }
+
+  return output;
 }
 
 function astMessagingConfigNormalizeValue(value) {
@@ -279,6 +304,16 @@ function astMessagingResolveFirstString(candidates, fallback = null) {
     }
   }
   return fallback;
+}
+
+function astMessagingResolveFirstStringArray(candidates, fallback = []) {
+  for (let idx = 0; idx < candidates.length; idx += 1) {
+    const candidate = candidates[idx];
+    if (Array.isArray(candidate) || typeof candidate === 'string') {
+      return astMessagingConfigNormalizeStringArray(candidate, []);
+    }
+  }
+  return astMessagingConfigNormalizeStringArray(fallback, []);
 }
 
 function astMessagingResolveBaseConfig(normalizedRequest = {}) {
@@ -409,6 +444,16 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
     signingSecret: astMessagingResolveFirstString(
       [runtimeConfig.MESSAGING_TRACKING_SIGNING_SECRET, scriptConfig.MESSAGING_TRACKING_SIGNING_SECRET],
       AST_MESSAGING_DEFAULTS.tracking.signingSecret
+    ),
+    allowedDomains: astMessagingResolveFirstStringArray(
+      [
+        normalizedRequest.body && normalizedRequest.body.options
+        && normalizedRequest.body.options.track
+        && normalizedRequest.body.options.track.allowedDomains,
+        runtimeConfig.MESSAGING_TRACKING_ALLOWED_DOMAINS,
+        scriptConfig.MESSAGING_TRACKING_ALLOWED_DOMAINS
+      ],
+      AST_MESSAGING_DEFAULTS.tracking.allowedDomains
     )
   };
 

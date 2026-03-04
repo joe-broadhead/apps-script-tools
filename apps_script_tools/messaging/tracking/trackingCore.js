@@ -140,7 +140,26 @@ function astMessagingTrackingVerifySignature(signature, payload, secret) {
   }
 
   const expected = astMessagingTrackingSignPayload(payload, secret);
-  return Boolean(expected && expected === normalizedSignature);
+  return Boolean(expected && astMessagingTrackingConstantTimeEqual(expected, normalizedSignature));
+}
+
+function astMessagingTrackingConstantTimeEqual(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') {
+    return false;
+  }
+
+  const leftLength = left.length;
+  const rightLength = right.length;
+  const compareLength = Math.max(leftLength, rightLength);
+  let mismatch = leftLength ^ rightLength;
+
+  for (let idx = 0; idx < compareLength; idx += 1) {
+    const leftCode = idx < leftLength ? left.charCodeAt(idx) : 0;
+    const rightCode = idx < rightLength ? right.charCodeAt(idx) : 0;
+    mismatch |= leftCode ^ rightCode;
+  }
+
+  return mismatch === 0;
 }
 
 function astMessagingTrackingEncodeQueryValue(value) {
