@@ -122,6 +122,7 @@ function __astExprReadStringToken(source, state) {
   const quote = source[state.index];
   const start = state.index;
   let value = '';
+  let likeValue = '';
   state.index += 1;
 
   while (state.index < source.length) {
@@ -134,6 +135,7 @@ function __astExprReadStringToken(source, state) {
     if (char === quote) {
       if (source[state.index + 1] === quote) {
         value += quote;
+        likeValue += quote;
         state.index += 2;
         continue;
       }
@@ -142,6 +144,7 @@ function __astExprReadStringToken(source, state) {
       return {
         type: 'string',
         value,
+        likeValue,
         index: start
       };
     }
@@ -151,17 +154,15 @@ function __astExprReadStringToken(source, state) {
       if (typeof next === 'undefined') {
         throw __astExprBuildParseError('Unterminated string escape sequence', source, state.index);
       }
-      if (next === '%' || next === '_') {
-        // Preserve LIKE escape markers so evaluator can treat escaped wildcards literally.
-        value += `\\${next}`;
-      } else {
-        value += next;
-      }
+      value += next;
+      // Keep explicit escape markers for LIKE-only evaluation semantics.
+      likeValue += `\\${next}`;
       state.index += 2;
       continue;
     }
 
     value += char;
+    likeValue += char;
     state.index += 1;
   }
 
@@ -318,7 +319,8 @@ function __astExprParser(source) {
       consume();
       return {
         type: 'literal',
-        value: token.value
+        value: token.value,
+        likeValue: token.likeValue
       };
     }
 

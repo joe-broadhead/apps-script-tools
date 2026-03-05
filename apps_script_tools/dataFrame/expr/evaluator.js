@@ -408,8 +408,16 @@ function __astExprEvaluateAst(astNode, row, options = {}) {
     }
     case 'like': {
       const left = __astExprEvaluateAst(astNode.left, row, options);
-      const right = __astExprEvaluateAst(astNode.right, row, options);
-      const matched = __astExprMatchesLike(left, right);
+      const rightAst = astNode.right;
+      const right = __astExprEvaluateAst(rightAst, row, options);
+      const likePattern = (
+        rightAst
+        && rightAst.type === 'literal'
+        && typeof rightAst.likeValue === 'string'
+      )
+        ? rightAst.likeValue
+        : right;
+      const matched = __astExprMatchesLike(left, likePattern);
       return astNode.not ? !matched : matched;
     }
     case 'case': {

@@ -151,6 +151,14 @@ test('LIKE preserves escaped wildcard markers from string literals', () => {
   assert.equal(escapedPercent.evaluate({ value: 'axb' }), false);
 });
 
+test('non-LIKE string literals keep existing escape semantics', () => {
+  const context = createContext();
+
+  const equality = context.__astExprCompile("value = 'a\\_%'", { cachePlan: false });
+  assert.equal(equality.evaluate({ value: 'a_%' }), true);
+  assert.equal(equality.evaluate({ value: 'a\\_%' }), false);
+});
+
 test('iff short-circuits unselected branches', () => {
   const context = createContext();
 
