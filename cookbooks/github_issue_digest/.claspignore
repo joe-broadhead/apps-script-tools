@@ -1,0 +1,3 @@
+# `rootDir` is `src`, so only local-only config files need explicit ignores.
+.clasp.json
+.clasprc.json
