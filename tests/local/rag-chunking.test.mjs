@@ -91,3 +91,29 @@ test('RAG sentence chunk strategy falls back safely for long sentences', () => {
   assert.equal(chunks.every(chunk => chunk.text.length <= 25), true);
   assert.equal(chunks.some(chunk => chunk.text.indexOf('Tail sentence.') !== -1), true);
 });
+
+test('RAG sentence splitter preserves newline-delimited text without punctuation', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAi: false, includeUtilities: false });
+
+  const sentences = context.astRagSplitTextIntoSentences('Alpha line\nBravo line.');
+  assert.equal(JSON.stringify(sentences), JSON.stringify(['Alpha line', 'Bravo line.']));
+});
+
+test('RAG sentence chunking does not drop undersized pre-long-sentence content', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAi: false, includeUtilities: false });
+
+  const chunks = context.astRagChunkSegments([{
+    section: 'body',
+    text: 'Hi. Supercalifragilisticexpialidocioussupercalifragilisticexpialidocious.'
+  }], {
+    chunkSizeChars: 20,
+    chunkOverlapChars: 0,
+    minChunkChars: 10,
+    chunkStrategy: 'sentence'
+  });
+
+  assert.equal(chunks.length > 1, true);
+  assert.equal(chunks.some(chunk => chunk.text.indexOf('Hi.') !== -1), true);
+});

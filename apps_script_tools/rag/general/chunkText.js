@@ -40,12 +40,38 @@ function astRagSplitTextIntoSentences(text) {
     return [];
   }
 
-  const matches = source.match(/[^.!?\n]+(?:[.!?]+|$)/g);
-  const parts = Array.isArray(matches)
-    ? matches
-        .map(value => astRagNormalizeString(value, '').trim())
-        .filter(Boolean)
-    : [];
+  const normalized = source.replace(/\r\n?/g, '\n');
+  const parts = [];
+  let buffer = '';
+
+  for (let idx = 0; idx < normalized.length; idx += 1) {
+    const char = normalized[idx];
+    if (char === '\n') {
+      const sentence = astRagNormalizeString(buffer, '').trim();
+      if (sentence) {
+        parts.push(sentence);
+      }
+      buffer = '';
+      continue;
+    }
+
+    buffer += char;
+    if (/[.!?]/.test(char)) {
+      const nextChar = normalized[idx + 1] || '';
+      if (!/[.!?]/.test(nextChar)) {
+        const sentence = astRagNormalizeString(buffer, '').trim();
+        if (sentence) {
+          parts.push(sentence);
+        }
+        buffer = '';
+      }
+    }
+  }
+
+  const trailing = astRagNormalizeString(buffer, '').trim();
+  if (trailing) {
+    parts.push(trailing);
+  }
 
   if (parts.length > 0) {
     return parts;
@@ -84,7 +110,6 @@ function astRagSplitSegmentIntoSentenceChunks(segment, chunking) {
 
   const size = chunking.chunkSizeChars;
   const overlap = chunking.chunkOverlapChars;
-  const minChars = chunking.minChunkChars;
   const sentences = astRagSplitTextIntoSentences(text);
   if (sentences.length === 0) {
     return [];
@@ -127,14 +152,12 @@ function astRagSplitSegmentIntoSentenceChunks(segment, chunking) {
 
     if (chunkSentences.length > 0) {
       const chunkText = chunkSentences.join(' ').trim();
-      if (chunkText.length >= minChars || cursor >= sentences.length) {
-        output.push({
-          section: segment.section || 'body',
-          page: segment.page == null ? null : segment.page,
-          slide: segment.slide == null ? null : segment.slide,
-          text: chunkText
-        });
-      }
+      output.push({
+        section: segment.section || 'body',
+        page: segment.page == null ? null : segment.page,
+        slide: segment.slide == null ? null : segment.slide,
+        text: chunkText
+      });
     }
 
     if (cursor >= sentences.length) {
