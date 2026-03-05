@@ -3,14 +3,6 @@ const AST_MESSAGING_LOG_MEMORY = {
   events: {}
 };
 
-function astMessagingLogNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingLogNowIso() {
   return new Date().toISOString();
 }
@@ -18,7 +10,7 @@ function astMessagingLogNowIso() {
 function astMessagingGenerateEventId() {
   try {
     if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
-      const uuid = astMessagingLogNormalizeString(Utilities.getUuid(), '');
+      const uuid = astMessagingNormalizeString(Utilities.getUuid(), '');
       if (uuid) {
         return `evt_${uuid}`;
       }
@@ -100,8 +92,8 @@ function astMessagingCloneSerializableFallback(value, seen, depth) {
 }
 
 function astMessagingResolveLogCacheOptions(logsConfig = {}) {
-  const backend = astMessagingLogNormalizeString(logsConfig.backend, 'drive_json');
-  const namespace = astMessagingLogNormalizeString(logsConfig.namespace, 'ast_messaging_logs');
+  const backend = astMessagingNormalizeString(logsConfig.backend, 'drive_json');
+  const namespace = astMessagingNormalizeString(logsConfig.namespace, 'ast_messaging_logs');
   const ttlSec = Number(logsConfig.ttlSec || 31536000);
 
   const options = {
@@ -111,12 +103,12 @@ function astMessagingResolveLogCacheOptions(logsConfig = {}) {
   };
 
   if (backend === 'drive_json') {
-    options.driveFolderId = astMessagingLogNormalizeString(logsConfig.driveFolderId, '');
-    options.driveFileName = astMessagingLogNormalizeString(logsConfig.driveFileName, 'ast_messaging_logs.json');
+    options.driveFolderId = astMessagingNormalizeString(logsConfig.driveFolderId, '');
+    options.driveFileName = astMessagingNormalizeString(logsConfig.driveFileName, 'ast_messaging_logs.json');
   }
 
   if (backend === 'storage_json') {
-    options.storageUri = astMessagingLogNormalizeString(logsConfig.storageUri, '');
+    options.storageUri = astMessagingNormalizeString(logsConfig.storageUri, '');
   }
 
   return options;
@@ -206,15 +198,15 @@ function astMessagingLogDeleteEvent(cache, options, eventId) {
 }
 
 function astMessagingLogWrite(entry = {}, resolvedConfig = {}) {
-  const eventId = astMessagingLogNormalizeString(entry.eventId, '') || astMessagingGenerateEventId();
+  const eventId = astMessagingNormalizeString(entry.eventId, '') || astMessagingGenerateEventId();
   const nowIso = astMessagingLogNowIso();
 
   const normalizedEntry = {
     eventId,
-    timestamp: astMessagingLogNormalizeString(entry.timestamp, nowIso),
-    operation: astMessagingLogNormalizeString(entry.operation, ''),
-    channel: astMessagingLogNormalizeString(entry.channel, ''),
-    status: astMessagingLogNormalizeString(entry.status, 'ok'),
+    timestamp: astMessagingNormalizeString(entry.timestamp, nowIso),
+    operation: astMessagingNormalizeString(entry.operation, ''),
+    channel: astMessagingNormalizeString(entry.channel, ''),
+    status: astMessagingNormalizeString(entry.status, 'ok'),
     payload: entry.payload && typeof entry.payload === 'object' ? astMessagingCloneSerializable(entry.payload) : {},
     metadata: entry.metadata && typeof entry.metadata === 'object' ? astMessagingCloneSerializable(entry.metadata) : {}
   };
@@ -274,7 +266,7 @@ function astMessagingLogList(request = {}, resolvedConfig = {}) {
 
 function astMessagingLogGet(request = {}, resolvedConfig = {}) {
   const body = request.body && typeof request.body === 'object' ? request.body : {};
-  const eventId = astMessagingLogNormalizeString(body.eventId, null);
+  const eventId = astMessagingNormalizeString(body.eventId, null);
   if (!eventId) {
     throw new AstMessagingValidationError("Missing required messaging request field 'body.eventId'", {
       field: 'body.eventId'
@@ -295,7 +287,7 @@ function astMessagingLogGet(request = {}, resolvedConfig = {}) {
 
 function astMessagingLogDelete(request = {}, resolvedConfig = {}) {
   const body = request.body && typeof request.body === 'object' ? request.body : {};
-  const eventId = astMessagingLogNormalizeString(body.eventId, null);
+  const eventId = astMessagingNormalizeString(body.eventId, null);
   if (!eventId) {
     throw new AstMessagingValidationError("Missing required messaging request field 'body.eventId'", {
       field: 'body.eventId'
