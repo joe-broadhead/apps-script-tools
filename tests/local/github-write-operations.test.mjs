@@ -148,6 +148,15 @@ test('pushFiles uses git data API for multi-file single-commit updates', () => {
           });
         }
 
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            tree: [
+              { path: 'README.md', mode: '100644', type: 'blob' },
+              { path: 'docs/guide.md', mode: '100755', type: 'blob' }
+            ]
+          });
+        }
+
         if (url.endsWith('/repos/octocat/hello-world/git/blobs')) {
           return createResponse(201, {
             sha: `blob-sha-${calls.length}`
@@ -187,20 +196,26 @@ test('pushFiles uses git data API for multi-file single-commit updates', () => {
       branch: 'main',
       message: 'bulk update',
       files: [
-        { path: 'README.md', content: 'IyBIZWxsbwo=' },
-        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=' }
+        { path: 'README.md', content: 'IyBIZWxsbwo=', message: 'single commit message' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'single commit message' }
       ]
     }
   });
 
-  assert.equal(calls.length, 7);
+  assert.equal(calls.length, 8);
   assert.match(calls[0].url, /\/git\/ref\/heads\/main$/);
   assert.match(calls[1].url, /\/git\/commits\/base-commit-sha$/);
-  assert.match(calls[2].url, /\/git\/blobs$/);
+  assert.match(calls[2].url, /\/git\/trees\/base-tree-sha\?recursive=1$/);
   assert.match(calls[3].url, /\/git\/blobs$/);
-  assert.match(calls[4].url, /\/git\/trees$/);
-  assert.match(calls[5].url, /\/git\/commits$/);
-  assert.match(calls[6].url, /\/git\/refs\/heads\/main$/);
+  assert.match(calls[4].url, /\/git\/blobs$/);
+  assert.match(calls[5].url, /\/git\/trees$/);
+  assert.match(calls[6].url, /\/git\/commits$/);
+  assert.match(calls[7].url, /\/git\/refs\/heads\/main$/);
+  const createTreePayload = parsePayload(calls[5].options);
+  assert.equal(createTreePayload.tree[0].mode, '100644');
+  assert.equal(createTreePayload.tree[1].mode, '100755');
+  const createCommitPayload = parsePayload(calls[6].options);
+  assert.equal(createCommitPayload.message, 'single commit message');
   assert.equal(response.data.strategy, 'git_data_api');
   assert.equal(response.data.fallbackReason, null);
   assert.equal(response.data.commitSha, 'new-commit-sha');

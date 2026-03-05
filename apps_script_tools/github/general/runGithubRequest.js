@@ -872,6 +872,48 @@ function astGitHubExecutePushFiles(request, config) {
   );
   astGitHubValidateRequiredField(baseTreeSha, 'baseTreeSha');
 
+  const baseTreePath = astGitHubBuildRepoPath(request, `/git/trees/${encodeURIComponent(baseTreeSha)}`);
+  const baseTreeLookup = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_tree_lookup',
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'get',
+      path: () => baseTreePath,
+      read: true,
+      paginated: false,
+      group: 'files',
+      mutation: false
+    },
+    {
+      path: baseTreePath,
+      queryParams: { recursive: 1 },
+      forceCacheEnabled: false
+    }
+  );
+
+  const existingModesByPath = {};
+  const baseTreeEntries = Array.isArray(baseTreeLookup && baseTreeLookup.data && baseTreeLookup.data.tree)
+    ? baseTreeLookup.data.tree
+    : [];
+  const allowedModes = {
+    '100644': true,
+    '100755': true,
+    '120000': true
+  };
+  for (let idx = 0; idx < baseTreeEntries.length; idx += 1) {
+    const entry = baseTreeEntries[idx];
+    const path = astGitHubRunNormalizeString(entry && entry.path, '');
+    const mode = astGitHubRunNormalizeString(entry && entry.mode, '');
+    const type = astGitHubRunNormalizeString(entry && entry.type, '');
+    if (!path || type !== 'blob' || !allowedModes[mode]) {
+      continue;
+    }
+    existingModesByPath[path] = mode;
+  }
+
   const blobResults = [];
   const treeEntries = [];
 
@@ -917,7 +959,7 @@ function astGitHubExecutePushFiles(request, config) {
     });
     treeEntries.push({
       path: file.path,
-      mode: '100644',
+      mode: existingModesByPath[file.path] || '100644',
       type: 'blob',
       sha: blobSha
     });
@@ -953,7 +995,10 @@ function astGitHubExecutePushFiles(request, config) {
   const newTreeSha = astGitHubRunNormalizeString(treeOutput && treeOutput.data && treeOutput.data.sha, '');
   astGitHubValidateRequiredField(newTreeSha, 'newTreeSha');
 
-  const commitMessage = astGitHubRunNormalizeString(defaultMessage, normalizedFiles[0].message);
+  const commitMessage = astGitHubRunNormalizeString(
+    normalizedFiles[0] && normalizedFiles[0].message,
+    defaultMessage
+  );
   const createCommitBody = {
     message: commitMessage,
     tree: newTreeSha,
