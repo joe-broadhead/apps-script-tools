@@ -9,13 +9,19 @@ import {
 
 test('security scan rules include expanded high-confidence providers', () => {
   const ids = SECRET_RULES.map(rule => rule.id);
+  assert.equal(ids.includes('azure_storage_account_key'), true);
+  assert.equal(ids.includes('heroku_api_key'), true);
+  assert.equal(ids.includes('digitalocean_pat'), true);
   assert.equal(ids.includes('stripe_secret_key'), true);
   assert.equal(ids.includes('twilio_auth_token'), true);
   assert.equal(ids.includes('sendgrid_api_key'), true);
   assert.equal(ids.includes('jwt_token'), true);
 });
 
-test('security scan detects stripe, twilio, sendgrid, and jwt patterns', () => {
+test('security scan detects azure, heroku, digitalocean, stripe, twilio, sendgrid, and jwt patterns', () => {
+  const azureStorageKey = `${'A'.repeat(88)}==`;
+  const herokuKey = '01234567-89ab-cdef-0123-456789abcdef';
+  const doToken = `dop_v1_${'A'.repeat(52)}`;
   const stripeKey = ['sk', 'live', '1234567890abcdef1234567890abcdef'].join('_');
   const twilioToken = Array(2).fill('0123456789abcdef').join('');
   const sendgridKey = [
@@ -29,6 +35,9 @@ test('security scan detects stripe, twilio, sendgrid, and jwt patterns', () => {
     'c2lnbmF0dXJlMTIzNDU2Nzg5MA'
   ].join('.');
   const content = [
+    `azure_storage_key=${azureStorageKey}`,
+    `HEROKU_API_KEY = ${herokuKey}`,
+    `DO_TOKEN=${doToken}`,
     `STRIPE=${stripeKey}`,
     `TWILIO_AUTH_TOKEN = ${twilioToken}`,
     `SENDGRID=${sendgridKey}`,
@@ -38,6 +47,9 @@ test('security scan detects stripe, twilio, sendgrid, and jwt patterns', () => {
   const findings = scanContentForSecrets(content, 'inline.txt', []);
   const ids = findings.map(item => item.ruleId);
 
+  assert.equal(ids.includes('azure_storage_account_key'), true);
+  assert.equal(ids.includes('heroku_api_key'), true);
+  assert.equal(ids.includes('digitalocean_pat'), true);
   assert.equal(ids.includes('stripe_secret_key'), true);
   assert.equal(ids.includes('twilio_auth_token'), true);
   assert.equal(ids.includes('sendgrid_api_key'), true);
