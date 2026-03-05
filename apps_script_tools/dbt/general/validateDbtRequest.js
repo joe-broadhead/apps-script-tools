@@ -1142,10 +1142,20 @@ function astDbtNormalizeReadinessWeights(weights) {
     );
   }
 
+  // Idempotency guard: if values are already normalized, preserve as-is.
+  // This keeps routed requests (validated more than once) deterministic.
+  if (Math.abs(total - 1) <= 1e-12) {
+    return {
+      documentation: resolvedDocumentation,
+      ownership: resolvedOwnership,
+      testing: resolvedTesting
+    };
+  }
+
   return {
-    documentation: Number((resolvedDocumentation / total).toFixed(6)),
-    ownership: Number((resolvedOwnership / total).toFixed(6)),
-    testing: Number((resolvedTesting / total).toFixed(6))
+    documentation: resolvedDocumentation / total,
+    ownership: resolvedOwnership / total,
+    testing: resolvedTesting / total
   };
 }
 

@@ -155,6 +155,36 @@ test('AST.DBT.qualityReport rejects invalid readinessWeights', () => {
   }, /unsupported keys/);
 });
 
+test('AST.DBT.qualityReport and AST.DBT.run quality_report stay deterministic with high-precision weights', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const request = {
+    manifest: createGovernanceFixture(),
+    filters: {
+      resourceTypes: ['model']
+    },
+    readinessWeights: {
+      documentation: 0.123456789,
+      ownership: 0.222222223,
+      testing: 0.654320988
+    }
+  };
+
+  const direct = context.AST.DBT.qualityReport(request);
+  const routed = context.AST.DBT.run(Object.assign({
+    operation: 'quality_report'
+  }, request));
+
+  assert.equal(direct.status, 'ok');
+  assert.equal(routed.status, 'ok');
+  assert.equal(
+    JSON.stringify(routed.summary.readinessWeights),
+    JSON.stringify(direct.summary.readinessWeights)
+  );
+  assert.equal(routed.summary.readinessScore, direct.summary.readinessScore);
+});
+
 test('AST.DBT.testCoverage supports uncoveredOnly filtering', () => {
   const context = createGasContext();
   loadDbtScripts(context, { includeStorage: false, includeAst: true });
