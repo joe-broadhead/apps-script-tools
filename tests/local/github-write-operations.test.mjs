@@ -123,8 +123,186 @@ test('pushFiles uses default message and executes file updates', () => {
   assert.equal(calls.length, 2);
   assert.equal(parsePayload(calls[0].options).message, 'bulk update');
   assert.equal(parsePayload(calls[1].options).message, 'specific message');
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_commit_messages');
   assert.equal(response.data.count, 2);
   assert.equal(response.data.results.length, 2);
+});
+
+test('pushFiles uses git data API for multi-file single-commit updates', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            tree: [
+              { path: 'README.md', mode: '100644', type: 'blob' },
+              { path: 'docs/guide.md', mode: '100755', type: 'blob' }
+            ]
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/blobs')) {
+          return createResponse(201, {
+            sha: `blob-sha-${calls.length}`
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/trees')) {
+          return createResponse(201, {
+            sha: 'new-tree-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits')) {
+          return createResponse(201, {
+            sha: 'new-commit-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/refs/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'new-commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=', message: 'single commit message' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'single commit message' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 8);
+  assert.match(calls[0].url, /\/git\/ref\/heads\/main$/);
+  assert.match(calls[1].url, /\/git\/commits\/base-commit-sha$/);
+  assert.match(calls[2].url, /\/git\/trees\/base-tree-sha\?recursive=1$/);
+  assert.match(calls[3].url, /\/git\/blobs$/);
+  assert.match(calls[4].url, /\/git\/blobs$/);
+  assert.match(calls[5].url, /\/git\/trees$/);
+  assert.match(calls[6].url, /\/git\/commits$/);
+  assert.match(calls[7].url, /\/git\/refs\/heads\/main$/);
+  const createTreePayload = parsePayload(calls[5].options);
+  assert.equal(createTreePayload.tree[0].mode, '100644');
+  assert.equal(createTreePayload.tree[1].mode, '100755');
+  const createCommitPayload = parsePayload(calls[6].options);
+  assert.equal(createCommitPayload.message, 'single commit message');
+  assert.equal(response.data.strategy, 'git_data_api');
+  assert.equal(response.data.fallbackReason, null);
+  assert.equal(response.data.commitSha, 'new-commit-sha');
+  assert.equal(response.data.count, 2);
+  assert.equal(response.data.results.length, 2);
+});
+
+test('pushFiles git data mode lookup is prototype-safe for __proto__ paths', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            tree: [
+              { path: 'docs/guide.md', mode: '100755', type: 'blob' }
+            ]
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/blobs')) {
+          return createResponse(201, {
+            sha: `blob-sha-${calls.length}`
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/trees')) {
+          return createResponse(201, {
+            sha: 'new-tree-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits')) {
+          return createResponse(201, {
+            sha: 'new-commit-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/refs/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'new-commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: '__proto__', content: 'IyBIZWxsbwo=', message: 'single commit message' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'single commit message' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 8);
+  const createTreePayload = parsePayload(calls[5].options);
+  const protoEntry = createTreePayload.tree.find(entry => entry.path === '__proto__');
+  const guideEntry = createTreePayload.tree.find(entry => entry.path === 'docs/guide.md');
+  assert.equal(protoEntry.mode, '100644');
+  assert.equal(guideEntry.mode, '100755');
+  assert.equal(response.data.strategy, 'git_data_api');
+  assert.equal(response.data.fallbackReason, null);
 });
 
 test('pushFiles omits null optional fields in create_or_update_file payload', () => {
@@ -162,6 +340,142 @@ test('pushFiles omits null optional fields in create_or_update_file payload', ()
   const payload = parsePayload(calls[0].options);
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'branch'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'sha'), false);
+});
+
+test('pushFiles falls back when explicit branches are mixed with implicit default-branch files', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, {
+          content: { sha: 'new-sha' },
+          commit: { sha: 'commit-sha' }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', branch: 'main' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /\/repos\/octocat\/hello-world\/contents\//);
+  assert.match(calls[1].url, /\/repos\/octocat\/hello-world\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_implicit_default_and_explicit_branches');
+});
+
+test('pushFiles falls back when base tree lookup is truncated', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            truncated: true,
+            tree: []
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/contents/')) {
+          return createResponse(200, {
+            content: { sha: 'new-sha' },
+            commit: { sha: 'commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 5);
+  assert.match(calls[0].url, /\/git\/ref\/heads\/main$/);
+  assert.match(calls[1].url, /\/git\/commits\/base-commit-sha$/);
+  assert.match(calls[2].url, /\/git\/trees\/base-tree-sha\?recursive=1$/);
+  assert.match(calls[3].url, /\/contents\//);
+  assert.match(calls[4].url, /\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'base_tree_truncated');
+});
+
+test('pushFiles mixed messages including __proto__ uses contents fallback', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, {
+          content: { sha: 'new-sha' },
+          commit: { sha: 'commit-sha' }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=', message: '__proto__' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'different' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /\/contents\//);
+  assert.match(calls[1].url, /\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_commit_messages');
 });
 
 test('createBranch resolves default branch when sha not provided', () => {
