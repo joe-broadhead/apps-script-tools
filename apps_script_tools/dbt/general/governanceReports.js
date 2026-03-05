@@ -229,10 +229,17 @@ function astDbtQualityReportCore(request = {}) {
   const columnDocumentationCoveragePct = astDbtPercent(documentedColumns, totalColumns);
   const ownershipCoveragePct = astDbtPercent(ownedEntities, entities.length);
   const testCoveragePct = astDbtPercent(testedEntities, entities.length);
+  const readinessWeights = astDbtIsPlainObject(normalized.readinessWeights)
+    ? normalized.readinessWeights
+    : {
+      documentation: 0.4,
+      ownership: 0.3,
+      testing: 0.3
+    };
   const readinessScore = Number((
-    ((entityDocumentationCoveragePct + columnDocumentationCoveragePct) / 2) * 0.4 +
-    ownershipCoveragePct * 0.3 +
-    testCoveragePct * 0.3
+    ((entityDocumentationCoveragePct + columnDocumentationCoveragePct) / 2) * readinessWeights.documentation +
+    ownershipCoveragePct * readinessWeights.ownership +
+    testCoveragePct * readinessWeights.testing
   ).toFixed(2));
 
   return {
@@ -246,6 +253,7 @@ function astDbtQualityReportCore(request = {}) {
       entityCount: entities.length,
       columnCount: totalColumns,
       readinessScore,
+      readinessWeights: astDbtJsonClone(readinessWeights),
       coverage: {
         entityDocumentationPct: entityDocumentationCoveragePct,
         columnDocumentationPct: columnDocumentationCoveragePct,

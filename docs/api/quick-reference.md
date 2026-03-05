@@ -670,7 +670,7 @@ ASTX.GitHub.clearConfig()
 - `ASTX.DBT.diffEntities(...)` compares two manifest snapshots deterministically with stable pagination and change typing (`added|removed|modified|unchanged`).
 - `ASTX.DBT.compareArtifacts(...)` compares two `manifest|catalog|run_results|sources` snapshots with normalized change typing (`added|removed|changed|unchanged`).
 - `ASTX.DBT.impact(...)` overlays lineage nodes with `run_results`, `catalog`, and `sources` artifact status when bundles/artifacts are supplied.
-- `ASTX.DBT.qualityReport(...)` returns documentation/ownership/test-coverage readiness metrics and top gap lists.
+- `ASTX.DBT.qualityReport(...)` returns documentation/ownership/test-coverage readiness metrics and top gap lists, with optional configurable `readinessWeights`.
 - `ASTX.DBT.testCoverage(...)` reports per-entity test coverage with `uncoveredOnly` filtering.
 - `ASTX.DBT.owners(...)` groups entities by owner meta paths with an explicit unassigned bucket.
 - `ASTX.DBT.searchOwners(...)` searches owner groups with deterministic match ordering.

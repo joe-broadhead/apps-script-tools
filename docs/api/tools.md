@@ -1238,6 +1238,11 @@ const quality = ASTX.DBT.qualityReport({
   filters: {
     resourceTypes: ['model']
   },
+  readinessWeights: {
+    documentation: 0.5,
+    ownership: 0.25,
+    testing: 0.25
+  },
   ownerPaths: ['owner.team', 'owner'],
   topK: 50
 });
