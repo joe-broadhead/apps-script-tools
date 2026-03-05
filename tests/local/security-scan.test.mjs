@@ -35,7 +35,7 @@ test('security scan detects azure, heroku, digitalocean, stripe, twilio, sendgri
     'c2lnbmF0dXJlMTIzNDU2Nzg5MA'
   ].join('.');
   const content = [
-    `AZURE_STORAGE_KEY=${azureStorageKey}`,
+    `azure_storage_key=${azureStorageKey}`,
     `HEROKU_API_KEY = ${herokuKey}`,
     `DO_TOKEN=${doToken}`,
     `STRIPE=${stripeKey}`,

@@ -54,7 +54,7 @@ export const SECRET_RULES = Object.freeze([
   {
     id: 'azure_storage_account_key',
     description: 'Azure storage account key in assignment-like context',
-    regex: /\b(?:AZURE_STORAGE_KEY|AZURE_STORAGE_ACCOUNT_KEY)\b\s*[:=]\s*['\"]?[A-Za-z0-9+/]{86,90}={0,2}/g
+    regex: /\b(?:AZURE_STORAGE_KEY|AZURE_STORAGE_ACCOUNT_KEY)\b\s*[:=]\s*['\"]?[A-Za-z0-9+/]{86,90}={0,2}/gi
   },
   {
     id: 'heroku_api_key',
