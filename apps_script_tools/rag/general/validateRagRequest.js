@@ -231,6 +231,14 @@ function astRagNormalizeChunking(chunking = {}) {
     throw new AstRagValidationError('chunking must be an object when provided');
   }
 
+  const chunkStrategy = astRagNormalizeString(
+    chunking.chunkStrategy,
+    AST_RAG_DEFAULT_CHUNKING.chunkStrategy
+  ).toLowerCase();
+  if (chunkStrategy !== 'char' && chunkStrategy !== 'sentence') {
+    throw new AstRagValidationError('chunking.chunkStrategy must be one of: char, sentence');
+  }
+
   const chunkSizeChars = astRagNormalizePositiveInt(
     chunking.chunkSizeChars,
     AST_RAG_DEFAULT_CHUNKING.chunkSizeChars,
@@ -258,7 +266,8 @@ function astRagNormalizeChunking(chunking = {}) {
   return {
     chunkSizeChars,
     chunkOverlapChars,
-    minChunkChars
+    minChunkChars,
+    chunkStrategy
   };
 }
 

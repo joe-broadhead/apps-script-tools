@@ -23,7 +23,8 @@ const AST_RAG_EMBEDDING_PROVIDERS = Object.freeze([
 const AST_RAG_DEFAULT_CHUNKING = Object.freeze({
   chunkSizeChars: 1200,
   chunkOverlapChars: 200,
-  minChunkChars: 200
+  minChunkChars: 200,
+  chunkStrategy: 'char'
 });
 
 const AST_RAG_DEFAULT_RETRIEVAL = Object.freeze({
