@@ -62,19 +62,21 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           LOG_FILE="artifacts/gas-integration-${INPUT_SUITE}.log"
+          exec > >(tee "${LOG_FILE}") 2>&1
+
           clasp status
           clasp push
           if [ "${INPUT_SUITE}" = "perf" ]; then
-            clasp run runPerformanceBenchmarks 2>&1 | tee "${LOG_FILE}"
+            clasp run runPerformanceBenchmarks
           else
-            clasp run runAllTests 2>&1 | tee "${LOG_FILE}"
+            clasp run runAllTests
           fi
 
       - name: Upload GAS integration logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gas-integration-${{ inputs.suite }}-${{ github.run_id }}
+          name: gas-integration-${{ inputs.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/gas-integration-*.log
           if-no-files-found: warn
           retention-days: 14
