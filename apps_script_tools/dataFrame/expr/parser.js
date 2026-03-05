@@ -12,6 +12,13 @@ const AST_DATAFRAME_EXPR_KEYWORDS = Object.freeze(new Set([
   'NULL'
 ]));
 
+const AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS = Object.freeze(new Set([
+  'IS',
+  'IN',
+  'BETWEEN',
+  'LIKE'
+]));
+
 const AST_DATAFRAME_EXPR_MULTI_CHAR_OPERATORS = Object.freeze(new Set([
   '<=',
   '>=',
@@ -115,6 +122,7 @@ function __astExprReadStringToken(source, state) {
   const quote = source[state.index];
   const start = state.index;
   let value = '';
+  let likeValue = '';
   state.index += 1;
 
   while (state.index < source.length) {
@@ -127,6 +135,7 @@ function __astExprReadStringToken(source, state) {
     if (char === quote) {
       if (source[state.index + 1] === quote) {
         value += quote;
+        likeValue += quote;
         state.index += 2;
         continue;
       }
@@ -135,6 +144,7 @@ function __astExprReadStringToken(source, state) {
       return {
         type: 'string',
         value,
+        likeValue,
         index: start
       };
     }
@@ -145,11 +155,14 @@ function __astExprReadStringToken(source, state) {
         throw __astExprBuildParseError('Unterminated string escape sequence', source, state.index);
       }
       value += next;
+      // Keep explicit escape markers for LIKE-only evaluation semantics.
+      likeValue += `\\${next}`;
       state.index += 2;
       continue;
     }
 
     value += char;
+    likeValue += char;
     state.index += 1;
   }
 
@@ -270,6 +283,15 @@ function __astExprParser(source) {
       consume();
       return true;
     }
+
+    if (
+      token.type === 'identifier'
+      && AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS.has(keyword)
+      && String(token.value || '').toUpperCase() === keyword
+    ) {
+      consume();
+      return true;
+    }
     return false;
   }
 
@@ -297,7 +319,8 @@ function __astExprParser(source) {
       consume();
       return {
         type: 'literal',
-        value: token.value
+        value: token.value,
+        likeValue: token.likeValue
       };
     }
 
@@ -426,20 +449,161 @@ function __astExprParser(source) {
   }
 
   function parseComparison() {
+    function parseInListValues() {
+      expect('paren', '(', "Expected '(' after IN");
+
+      const values = [];
+      if (!(peek(0).type === 'paren' && peek(0).value === ')')) {
+        while (true) {
+          values.push(parseAdditive());
+          if (peek(0).type === 'comma') {
+            consume();
+            continue;
+          }
+          break;
+        }
+      }
+
+      const closingParen = expect('paren', ')', "Expected ')' to close IN list");
+      if (values.length === 0) {
+        throw __astExprBuildParseError('IN requires at least one value', source, closingParen.index);
+      }
+      return values;
+    }
+
+    function isKeywordAhead(keyword) {
+      const token = peek(0);
+      if (token.type === 'keyword' && token.value === keyword) {
+        return true;
+      }
+      return (
+        token.type === 'identifier'
+        && AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS.has(keyword)
+        && String(token.value || '').toUpperCase() === keyword
+      );
+    }
+
+    function assertNoPrefixedNotForPostfixPredicates() {
+      if (
+        node
+        && node.type === 'unary'
+        && node.operator === 'NOT'
+        && (isKeywordAhead('IS') || isKeywordAhead('IN') || isKeywordAhead('BETWEEN') || isKeywordAhead('LIKE'))
+      ) {
+        throw __astExprBuildParseError(
+          "Prefix NOT with IS/IN/BETWEEN/LIKE is unsupported; use postfix forms like 'x NOT IN (...)'",
+          source,
+          peek(0).index
+        );
+      }
+    }
+
     let node = parseAdditive();
 
     while (true) {
       const token = peek(0);
-      if (token.type !== 'operator' || !['=', '==', '!=', '<>', '<', '<=', '>', '>='].includes(token.value)) {
-        break;
+
+      if (token.type === 'operator' && ['=', '==', '!=', '<>', '<', '<=', '>', '>='].includes(token.value)) {
+        consume();
+        node = {
+          type: 'binary',
+          operator: token.value,
+          left: node,
+          right: parseAdditive()
+        };
+        continue;
       }
-      consume();
-      node = {
-        type: 'binary',
-        operator: token.value,
-        left: node,
-        right: parseAdditive()
-      };
+
+      assertNoPrefixedNotForPostfixPredicates();
+
+      if (matchKeyword('IS')) {
+        const isNot = matchKeyword('NOT');
+        expect('keyword', 'NULL', "Expected 'NULL' after IS");
+        node = {
+          type: 'is_null',
+          argument: node,
+          not: isNot
+        };
+        continue;
+      }
+
+      if (matchKeyword('IN')) {
+        node = {
+          type: 'in',
+          argument: node,
+          values: parseInListValues(),
+          not: false
+        };
+        continue;
+      }
+
+      if (matchKeyword('BETWEEN')) {
+        const lower = parseAdditive();
+        expect('keyword', 'AND', "Expected 'AND' in BETWEEN expression");
+        const upper = parseAdditive();
+        node = {
+          type: 'between',
+          argument: node,
+          lower,
+          upper,
+          not: false
+        };
+        continue;
+      }
+
+      if (matchKeyword('LIKE')) {
+        node = {
+          type: 'like',
+          left: node,
+          right: parseAdditive(),
+          not: false
+        };
+        continue;
+      }
+
+      if (matchKeyword('NOT')) {
+        if (matchKeyword('IN')) {
+          node = {
+            type: 'in',
+            argument: node,
+            values: parseInListValues(),
+            not: true
+          };
+          continue;
+        }
+
+        if (matchKeyword('BETWEEN')) {
+          const lower = parseAdditive();
+          expect('keyword', 'AND', "Expected 'AND' in NOT BETWEEN expression");
+          const upper = parseAdditive();
+          node = {
+            type: 'between',
+            argument: node,
+            lower,
+            upper,
+            not: true
+          };
+          continue;
+        }
+
+        if (matchKeyword('LIKE')) {
+          node = {
+            type: 'like',
+            left: node,
+            right: parseAdditive(),
+            not: true
+          };
+          continue;
+        }
+
+        throw __astExprBuildParseError(
+          "Unexpected 'NOT' in comparison expression",
+          source,
+          token.index
+        );
+      }
+
+      break;
     }
 
     return node;

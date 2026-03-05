@@ -1,4 +1,4 @@
-const AST_DATAFRAME_EXPR_PLAN_VERSION = 'v1';
+const AST_DATAFRAME_EXPR_PLAN_VERSION = 'v2';
 
 function __astExprDeepFreeze(value) {
   if (value == null || typeof value !== 'object') {
@@ -35,6 +35,23 @@ function __astExprCollectIdentifiers(astNode, out = new Set()) {
       return out;
     case 'call':
       astNode.args.forEach(arg => __astExprCollectIdentifiers(arg, out));
+      return out;
+    case 'is_null':
+      return __astExprCollectIdentifiers(astNode.argument, out);
+    case 'in':
+      __astExprCollectIdentifiers(astNode.argument, out);
+      if (Array.isArray(astNode.values)) {
+        astNode.values.forEach(value => __astExprCollectIdentifiers(value, out));
+      }
+      return out;
+    case 'between':
+      __astExprCollectIdentifiers(astNode.argument, out);
+      __astExprCollectIdentifiers(astNode.lower, out);
+      __astExprCollectIdentifiers(astNode.upper, out);
+      return out;
+    case 'like':
+      __astExprCollectIdentifiers(astNode.left, out);
+      __astExprCollectIdentifiers(astNode.right, out);
       return out;
     case 'case':
       astNode.whens.forEach(clause => {

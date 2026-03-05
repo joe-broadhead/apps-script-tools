@@ -21,6 +21,17 @@ function __astExprToNumber(value, message) {
   return numeric;
 }
 
+function __astExprToInteger(value, message) {
+  const numeric = __astExprToNumber(value, message);
+  if (__astExprIsNullish(numeric)) {
+    return null;
+  }
+  if (!Number.isInteger(numeric)) {
+    throw __astExprBuildRuntimeError(message);
+  }
+  return numeric;
+}
+
 function __astExprResolveIdentifier(identifierName, row, options = {}) {
   const sourceRow = row && typeof row === 'object' ? row : {};
   if (Object.prototype.hasOwnProperty.call(sourceRow, identifierName)) {
@@ -34,6 +45,53 @@ function __astExprResolveIdentifier(identifierName, row, options = {}) {
   throw __astExprBuildRuntimeError(`Unknown column '${identifierName}' in expression evaluation`, {
     identifier: identifierName
   });
+}
+
+function __astExprValuesEqual(leftValue, rightValue) {
+  if (__astExprIsNullish(leftValue) || __astExprIsNullish(rightValue)) {
+    return __astExprIsNullish(leftValue) && __astExprIsNullish(rightValue);
+  }
+  return leftValue === rightValue;
+}
+
+function __astExprEscapeRegexChar(char) {
+  return String(char).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function __astExprBuildLikeRegex(pattern) {
+  const raw = String(pattern);
+  let regexSource = '';
+  for (let idx = 0; idx < raw.length; idx += 1) {
+    const char = raw[idx];
+    if (char === '\\') {
+      const next = raw[idx + 1];
+      if (typeof next === 'undefined') {
+        regexSource += '\\\\';
+      } else {
+        regexSource += __astExprEscapeRegexChar(next);
+        idx += 1;
+      }
+      continue;
+    }
+    if (char === '%') {
+      regexSource += '.*';
+      continue;
+    }
+    if (char === '_') {
+      regexSource += '.';
+      continue;
+    }
+    regexSource += __astExprEscapeRegexChar(char);
+  }
+  return new RegExp(`^${regexSource}$`, 's');
+}
+
+function __astExprMatchesLike(value, pattern) {
+  if (__astExprIsNullish(value) || __astExprIsNullish(pattern)) {
+    return false;
+  }
+  const regex = __astExprBuildLikeRegex(pattern);
+  return regex.test(String(value));
 }
 
 function __astExprDateTrunc(unit, value) {
@@ -130,6 +188,68 @@ function __astExprCallFunction(name, args) {
         throw __astExprBuildRuntimeError("date_trunc requires exactly 2 arguments: unit, value");
       }
       return __astExprDateTrunc(args[0], args[1]);
+    case 'trim':
+      if (args.length !== 1) {
+        throw __astExprBuildRuntimeError('trim requires exactly 1 argument');
+      }
+      return __astExprIsNullish(args[0]) ? null : String(args[0]).trim();
+    case 'substring':
+      if (args.length < 2 || args.length > 3) {
+        throw __astExprBuildRuntimeError('substring requires 2 or 3 arguments');
+      }
+      if (__astExprIsNullish(args[0])) {
+        return null;
+      }
+      {
+        const source = String(args[0]);
+        const startPosition = __astExprToInteger(args[1], 'substring start must be an integer');
+        if (__astExprIsNullish(startPosition)) {
+          return null;
+        }
+        const startIndex = Math.max(startPosition - 1, 0);
+        if (args.length === 2) {
+          return source.substring(startIndex);
+        }
+        const length = __astExprToInteger(args[2], 'substring length must be an integer');
+        if (__astExprIsNullish(length)) {
+          return null;
+        }
+        if (length < 0) {
+          throw __astExprBuildRuntimeError('substring length must be non-negative');
+        }
+        return source.substring(startIndex, startIndex + length);
+      }
+    case 'concat':
+      if (args.length < 1) {
+        throw __astExprBuildRuntimeError('concat requires at least 1 argument');
+      }
+      for (let idx = 0; idx < args.length; idx += 1) {
+        if (__astExprIsNullish(args[idx])) {
+          return null;
+        }
+      }
+      return args.map(value => String(value)).join('');
+    case 'floor':
+      if (args.length !== 1) {
+        throw __astExprBuildRuntimeError('floor requires exactly 1 argument');
+      }
+      {
+        const value = __astExprToNumber(args[0], 'floor requires a numeric argument');
+        return __astExprIsNullish(value) ? null : Math.floor(value);
+      }
+    case 'ceil':
+      if (args.length !== 1) {
+        throw __astExprBuildRuntimeError('ceil requires exactly 1 argument');
+      }
+      {
+        const value = __astExprToNumber(args[0], 'ceil requires a numeric argument');
+        return __astExprIsNullish(value) ? null : Math.ceil(value);
+      }
+    case 'iff':
+      if (args.length !== 3) {
+        throw __astExprBuildRuntimeError('iff requires exactly 3 arguments');
+      }
+      return __astExprToBoolean(args[0]) ? args[1] : args[2];
     default:
       throw __astExprBuildRuntimeError(`Unsupported expression function '${name}'`);
   }
@@ -244,8 +364,61 @@ function __astExprEvaluateAst(astNode, row, options = {}) {
       return __astExprEvaluateBinary(astNode.operator, leftValue, rightValue);
     }
     case 'call': {
+      const callName = String(astNode.name || '').toLowerCase();
+      if (callName === 'iff') {
+        if (!Array.isArray(astNode.args) || astNode.args.length !== 3) {
+          throw __astExprBuildRuntimeError('iff requires exactly 3 arguments');
+        }
+        const condition = __astExprEvaluateAst(astNode.args[0], row, options);
+        const branchIndex = __astExprToBoolean(condition) ? 1 : 2;
+        return __astExprEvaluateAst(astNode.args[branchIndex], row, options);
+      }
+
       const args = astNode.args.map(argument => __astExprEvaluateAst(argument, row, options));
       return __astExprCallFunction(astNode.name, args);
+    }
+    case 'is_null': {
+      const argument = __astExprEvaluateAst(astNode.argument, row, options);
+      const isNull = __astExprIsNullish(argument);
+      return astNode.not ? !isNull : isNull;
+    }
+    case 'in': {
+      const argument = __astExprEvaluateAst(astNode.argument, row, options);
+      const values = Array.isArray(astNode.values) ? astNode.values : [];
+      let matched = false;
+      for (let idx = 0; idx < values.length; idx += 1) {
+        const candidate = __astExprEvaluateAst(values[idx], row, options);
+        if (__astExprValuesEqual(argument, candidate)) {
+          matched = true;
+          break;
+        }
+      }
+      return astNode.not ? !matched : matched;
+    }
+    case 'between': {
+      const argument = __astExprEvaluateAst(astNode.argument, row, options);
+      const lower = __astExprEvaluateAst(astNode.lower, row, options);
+      const upper = __astExprEvaluateAst(astNode.upper, row, options);
+      const matched = !__astExprIsNullish(argument)
+        && !__astExprIsNullish(lower)
+        && !__astExprIsNullish(upper)
+        && argument >= lower
+        && argument <= upper;
+      return astNode.not ? !matched : matched;
+    }
+    case 'like': {
+      const left = __astExprEvaluateAst(astNode.left, row, options);
+      const rightAst = astNode.right;
+      const right = __astExprEvaluateAst(rightAst, row, options);
+      const likePattern = (
+        rightAst
+        && rightAst.type === 'literal'
+        && typeof rightAst.likeValue === 'string'
+      )
+        ? rightAst.likeValue
+        : right;
+      const matched = __astExprMatchesLike(left, likePattern);
+      return astNode.not ? !matched : matched;
     }
     case 'case': {
       for (let idx = 0; idx < astNode.whens.length; idx++) {

@@ -60,6 +60,117 @@ test('DataFrame.selectExprDsl evaluates arithmetic/functions/case expressions', 
   assert.equal(JSON.stringify(projected.index), JSON.stringify(['row_a', 'row_b']));
 });
 
+test('expression parser supports SQL-like operators and collects dependencies', () => {
+  const context = createContext();
+
+  const plan = context.__astExprCompile(
+    "amount IS NOT NULL AND code IN ('A1', 'B2') AND score BETWEEN 10 AND 90 AND code LIKE 'A%'",
+    { cachePlan: false }
+  );
+
+  assert.equal(JSON.stringify(plan.dependencies), JSON.stringify(['amount', 'code', 'score']));
+  assert.equal(plan.evaluate({ amount: 1, code: 'A1', score: 50 }), true);
+  assert.equal(plan.evaluate({ amount: null, code: 'A1', score: 50 }), false);
+});
+
+test('DataFrame.selectExprDsl evaluates new SQL-like functions/operators', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { txt: '  Alpha  ', n: 1.2, score: 82, code: 'A12', region: null },
+    { txt: 'Beta', n: -1.2, score: 55, code: 'B34', region: 'west' }
+  ]);
+
+  const projected = df.selectExprDsl({
+    trimmed: 'trim(txt)',
+    sub: 'substring(trim(txt), 1, 4)',
+    merged: "concat(trim(txt), '-', floor(n), '-', ceil(n))",
+    band: "iff(score >= 80, 'high', 'standard')",
+    is_region_null: 'region IS NULL',
+    in_set: "code IN ('A12', 'C34')",
+    not_in_set: "code NOT IN ('Z99')",
+    between_score: 'score BETWEEN 60 AND 90',
+    not_between_score: 'score NOT BETWEEN 0 AND 50',
+    like_code: "code LIKE 'A%'",
+    not_like_code: "code NOT LIKE 'B%'"
+  });
+
+  assert.equal(JSON.stringify(projected.trimmed.array), JSON.stringify(['Alpha', 'Beta']));
+  assert.equal(JSON.stringify(projected.sub.array), JSON.stringify(['Alph', 'Beta']));
+  assert.equal(JSON.stringify(projected.merged.array), JSON.stringify(['Alpha-1-2', 'Beta--2--1']));
+  assert.equal(JSON.stringify(projected.band.array), JSON.stringify(['high', 'standard']));
+  assert.equal(JSON.stringify(projected.is_region_null.array), JSON.stringify([true, false]));
+  assert.equal(JSON.stringify(projected.in_set.array), JSON.stringify([true, false]));
+  assert.equal(JSON.stringify(projected.not_in_set.array), JSON.stringify([true, true]));
+  assert.equal(JSON.stringify(projected.between_score.array), JSON.stringify([true, false]));
+  assert.equal(JSON.stringify(projected.not_between_score.array), JSON.stringify([true, true]));
+  assert.equal(JSON.stringify(projected.like_code.array), JSON.stringify([true, false]));
+  assert.equal(JSON.stringify(projected.not_like_code.array), JSON.stringify([true, false]));
+});
+
+test('DataFrame.selectExprDsl keeps contextual operator words usable as identifiers', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { in: 1, like: 2, between: 3, is: 4 },
+    { in: 10, like: 20, between: 30, is: 40 }
+  ]);
+
+  const projected = df.selectExprDsl({
+    total: 'in + like + between + is',
+    in_value: 'in',
+    like_value: 'like',
+    between_value: 'between',
+    is_value: 'is'
+  });
+
+  assert.equal(JSON.stringify(projected.total.array), JSON.stringify([10, 100]));
+  assert.equal(JSON.stringify(projected.in_value.array), JSON.stringify([1, 10]));
+  assert.equal(JSON.stringify(projected.like_value.array), JSON.stringify([2, 20]));
+  assert.equal(JSON.stringify(projected.between_value.array), JSON.stringify([3, 30]));
+  assert.equal(JSON.stringify(projected.is_value.array), JSON.stringify([4, 40]));
+});
+
+test('LIKE escaped characters are matched as literals', () => {
+  const context = createContext();
+
+  const plan = context.__astExprCompile("value LIKE '\\d%'", { cachePlan: false });
+  assert.equal(plan.evaluate({ value: 'dabc' }), true);
+  assert.equal(plan.evaluate({ value: '9abc' }), false);
+});
+
+test('LIKE preserves escaped wildcard markers from string literals', () => {
+  const context = createContext();
+
+  const escapedUnderscore = context.__astExprCompile("value LIKE 'a\\_%'", { cachePlan: false });
+  const escapedPercent = context.__astExprCompile("value LIKE 'a\\%%'", { cachePlan: false });
+
+  assert.equal(escapedUnderscore.evaluate({ value: 'a_b' }), true);
+  assert.equal(escapedUnderscore.evaluate({ value: 'axb' }), false);
+  assert.equal(escapedPercent.evaluate({ value: 'a%b' }), true);
+  assert.equal(escapedPercent.evaluate({ value: 'axb' }), false);
+});
+
+test('non-LIKE string literals keep existing escape semantics', () => {
+  const context = createContext();
+
+  const equality = context.__astExprCompile("value = 'a\\_%'", { cachePlan: false });
+  assert.equal(equality.evaluate({ value: 'a_%' }), true);
+  assert.equal(equality.evaluate({ value: 'a\\_%' }), false);
+});
+
+test('iff short-circuits unselected branches', () => {
+  const context = createContext();
+
+  const safeTrue = context.__astExprCompile('iff(true, 1, 1 / 0)', { cachePlan: false });
+  const safeFalse = context.__astExprCompile('iff(false, 1 / 0, 2)', { cachePlan: false });
+  const unknownColumn = context.__astExprCompile('iff(true, 10, missing_column + 1)', { cachePlan: false });
+
+  assert.equal(safeTrue.evaluate({}), 1);
+  assert.equal(safeFalse.evaluate({}), 2);
+  assert.equal(unknownColumn.evaluate({}, { strict: true }), 10);
+});
+
 test('DataFrame.selectExprDsl strict=true rejects unknown columns at compile time', () => {
   const context = createContext();
   const df = context.DataFrame.fromRecords([{ id: 1 }]);
@@ -123,4 +234,25 @@ test('expression parser raises deterministic parse error details', () => {
       return true;
     }
   );
+
+  assert.throws(
+    () => context.__astExprCompile('code IN ()', { cachePlan: false }),
+    /IN requires at least one value/
+  );
+});
+
+test('expression parser rejects prefix NOT before postfix predicates', () => {
+  const context = createContext();
+
+  [
+    "NOT code IN ('A')",
+    "NOT code LIKE 'A%'",
+    'NOT code BETWEEN 1 AND 2',
+    'NOT code IS NULL'
+  ].forEach(expression => {
+    assert.throws(
+      () => context.__astExprCompile(expression, { cachePlan: false }),
+      /Prefix NOT with IS\/IN\/BETWEEN\/LIKE is unsupported/
+    );
+  });
 });
