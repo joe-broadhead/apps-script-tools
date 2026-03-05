@@ -325,4 +325,12 @@ test('persistent compact cache hit seeds runtime index cache for later increment
   assert.equal(refreshed.cache.hit, false);
   assert.equal(refreshed.indexBuild.applied, true);
   assert.equal(refreshed.indexBuild.changedCount, 1);
+
+  const unchangedColumn = coldContext.AST.DBT.getColumn({
+    bundle: refreshed.bundle,
+    uniqueId: 'model.demo.customers',
+    columnName: 'customer_id'
+  });
+  assert.equal(unchangedColumn.status, 'ok');
+  assert.equal(unchangedColumn.item.name, 'customer_id');
 });

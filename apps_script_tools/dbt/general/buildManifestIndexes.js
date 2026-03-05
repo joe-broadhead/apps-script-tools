@@ -661,7 +661,26 @@ function astDbtBuildManifestIndexesIncremental(manifest = {}, previousIndex = {}
     if (!Object.prototype.hasOwnProperty.call(nextSignatures, key)) {
       return;
     }
-    mergedByUniqueId[key] = previousEntityByUniqueId[key];
+
+    const previousRecord = previousEntityByUniqueId[key];
+    if (previousRecord && astDbtIsPlainObject(previousRecord.columns)) {
+      mergedByUniqueId[key] = previousRecord;
+      return;
+    }
+
+    const descriptor = descriptorByUniqueId[key];
+    if (!descriptor) {
+      return;
+    }
+    const rebuiltRecord = astDbtBuildEntityRecord(
+      descriptor.section,
+      descriptor.mapKey,
+      descriptor.entity,
+      { disabled: descriptor.disabled === true }
+    );
+    if (rebuiltRecord) {
+      mergedByUniqueId[key] = rebuiltRecord;
+    }
   });
 
   added.concat(changed).forEach(key => {
