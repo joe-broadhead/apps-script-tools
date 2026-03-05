@@ -47,15 +47,37 @@ function astDbtBuildSourceRuntimeCacheKey(source = {}) {
   return `${provider}::${astDbtDigestHex(JSON.stringify(payload))}`;
 }
 
+function astDbtCloneRuntimeBundleCacheValue(bundle = {}) {
+  if (!astDbtIsPlainObject(bundle)) {
+    return null;
+  }
+
+  const cloned = {
+    source: astDbtIsPlainObject(bundle.source) ? astDbtJsonClone(bundle.source) : null,
+    index: astDbtIsPlainObject(bundle.index) ? astDbtJsonClone(bundle.index) : null
+  };
+
+  if (astDbtIsPlainObject(bundle.indexBuild)) {
+    cloned.indexBuild = astDbtJsonClone(bundle.indexBuild);
+  }
+
+  return cloned;
+}
+
 function astDbtReadRuntimeBundleCache(source) {
   const cacheKey = astDbtBuildSourceRuntimeCacheKey(source);
   if (!cacheKey) {
     return null;
   }
 
-  return astDbtIsPlainObject(AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey])
+  const cached = astDbtIsPlainObject(AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey])
     ? AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey]
     : null;
+  if (!cached) {
+    return null;
+  }
+
+  return astDbtCloneRuntimeBundleCacheValue(cached);
 }
 
 function astDbtWriteRuntimeBundleCache(source, bundle) {
@@ -64,7 +86,12 @@ function astDbtWriteRuntimeBundleCache(source, bundle) {
     return;
   }
 
-  AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey] = bundle;
+  const cloned = astDbtCloneRuntimeBundleCacheValue(bundle);
+  if (!cloned) {
+    return;
+  }
+
+  AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey] = cloned;
 }
 
 function astDbtBytesToText(bytes) {

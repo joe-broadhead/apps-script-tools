@@ -176,3 +176,47 @@ test('astDbtBuildManifestIndexesIncremental refreshes lineage when only parent_m
     JSON.parse(JSON.stringify(manifestB.child_map))
   );
 });
+
+test('loadManifest runtime incremental cache is isolated from caller bundle mutations', () => {
+  let currentManifest = createManifestFixture();
+  const context = createGasContext({
+    DriveApp: {
+      getFileById: fileId => ({
+        getId: () => fileId,
+        getName: () => 'manifest.json',
+        getLastUpdated: () => new Date('2026-02-25T00:00:00.000Z'),
+        getSize: () => 2048,
+        getBlob: () => createJsonBlobPayload(currentManifest)
+      })
+    }
+  });
+
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const request = {
+    fileId: 'drive-runtime-cache-isolation',
+    options: {
+      validate: 'strict',
+      schemaVersion: 'v12',
+      buildIndex: true,
+      incrementalIndex: true
+    }
+  };
+
+  const first = context.AST.DBT.loadManifest(request);
+  assert.equal(first.status, 'ok');
+
+  // Mutate caller-visible response bundle to ensure runtime cache isn't reference-coupled.
+  first.bundle.index.entitySignatures = {};
+  if (Array.isArray(first.bundle.index.entities)) {
+    first.bundle.index.entities.length = 0;
+  }
+
+  currentManifest = createManifestFixtureVariant();
+  const second = context.AST.DBT.loadManifest(request);
+  assert.equal(second.status, 'ok');
+  assert.equal(second.indexBuild.applied, true);
+  assert.equal(second.indexBuild.reason, undefined);
+  assert.equal(second.indexBuild.changedCount, 1);
+  assert.equal(Array.isArray(second.bundle.index.byUniqueId['model.demo.orders']), true);
+});
