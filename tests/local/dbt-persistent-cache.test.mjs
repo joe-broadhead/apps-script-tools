@@ -15,8 +15,8 @@ function createJsonBlobPayload(payload) {
   };
 }
 
-function buildInMemoryStorage(context) {
-  const store = new Map();
+function buildInMemoryStorage(context, existingStore = null) {
+  const store = existingStore || new Map();
 
   context.astStorageRead = request => {
     const uri = request && request.uri;
@@ -260,4 +260,77 @@ test('persistent cache compact mode retains full DBT operation support on cached
   });
   assert.equal(column.status, 'ok');
   assert.equal(column.item.name, 'order_id');
+});
+
+test('persistent compact cache hit seeds runtime index cache for later incremental source updates', () => {
+  let manifest = createManifestFixture();
+  let updatedAt = new Date('2026-02-25T00:00:00.000Z');
+
+  const sharedStore = new Map();
+  const baseRequest = {
+    fileId: 'drive-file-compact-seed',
+    options: {
+      validate: 'strict',
+      schemaVersion: 'v12',
+      buildIndex: true,
+      incrementalIndex: true,
+      persistentCacheEnabled: true,
+      persistentCacheUri: 'gcs://bucket/cache/dbt-manifest-cache.json',
+      persistentCacheCompression: 'gzip',
+      persistentCacheIncludeManifest: false,
+      persistentCacheMode: 'compact'
+    }
+  };
+
+  const warmContext = createGasContext({
+    DriveApp: {
+      getFileById: fileId => ({
+        getId: () => fileId,
+        getName: () => 'manifest.json',
+        getLastUpdated: () => updatedAt,
+        getSize: () => 4096,
+        getBlob: () => createJsonBlobPayload(manifest)
+      })
+    }
+  });
+  buildInMemoryStorage(warmContext, sharedStore);
+  loadDbtScripts(warmContext, { includeStorage: false, includeAst: true });
+  const warm = warmContext.AST.DBT.loadManifest(baseRequest);
+  assert.equal(warm.cache.hit, false);
+
+  const coldContext = createGasContext({
+    DriveApp: {
+      getFileById: fileId => ({
+        getId: () => fileId,
+        getName: () => 'manifest.json',
+        getLastUpdated: () => updatedAt,
+        getSize: () => 4096,
+        getBlob: () => createJsonBlobPayload(manifest)
+      })
+    }
+  });
+  buildInMemoryStorage(coldContext, sharedStore);
+  loadDbtScripts(coldContext, { includeStorage: false, includeAst: true });
+
+  const cached = coldContext.AST.DBT.loadManifest(baseRequest);
+  assert.equal(cached.cache.hit, true);
+  assert.equal(cached.bundle.manifest, null);
+  assert.equal(typeof cached.bundle.index.entitySignatures, 'object');
+
+  manifest = JSON.parse(JSON.stringify(manifest));
+  manifest.nodes['model.demo.orders'].description = 'Orders changed from compact cache seed';
+  updatedAt = new Date('2026-02-25T00:05:00.000Z');
+
+  const refreshed = coldContext.AST.DBT.loadManifest(baseRequest);
+  assert.equal(refreshed.cache.hit, false);
+  assert.equal(refreshed.indexBuild.applied, true);
+  assert.equal(refreshed.indexBuild.changedCount, 1);
+
+  const unchangedColumn = coldContext.AST.DBT.getColumn({
+    bundle: refreshed.bundle,
+    uniqueId: 'model.demo.customers',
+    columnName: 'customer_id'
+  });
+  assert.equal(unchangedColumn.status, 'ok');
+  assert.equal(unchangedColumn.item.name, 'customer_id');
 });

@@ -1,5 +1,7 @@
 /* Internal helpers extracted from loadManifest.js to keep manifest loading orchestration focused. */
 
+let AST_DBT_RUNTIME_BUNDLE_BY_SOURCE = {};
+
 function astDbtEnsureUtilitiesFunction(functionName) {
   if (
     typeof Utilities === 'undefined' ||
@@ -18,6 +20,78 @@ function astDbtBase64ToBytes(base64) {
 function astDbtBytesToBase64(bytes) {
   astDbtEnsureUtilitiesFunction('base64Encode');
   return Utilities.base64Encode(bytes || []);
+}
+
+function astDbtBuildSourceRuntimeCacheKey(source = {}) {
+  if (!astDbtIsPlainObject(source)) {
+    return '';
+  }
+
+  const provider = astDbtNormalizeString(source.provider, '').toLowerCase();
+  if (!provider) {
+    return '';
+  }
+
+  const location = astDbtIsPlainObject(source.location) ? source.location : {};
+  const payload = {
+    provider,
+    uri: astDbtNormalizeString(source.uri, ''),
+    fileId: astDbtNormalizeString(location.fileId, ''),
+    folderId: astDbtNormalizeString(location.folderId, ''),
+    fileName: astDbtNormalizeString(location.fileName, ''),
+    bucket: astDbtNormalizeString(location.bucket, ''),
+    key: astDbtNormalizeString(location.key, ''),
+    path: astDbtNormalizeString(location.path, '')
+  };
+
+  return `${provider}::${astDbtDigestHex(JSON.stringify(payload))}`;
+}
+
+function astDbtCloneRuntimeBundleCacheValue(bundle = {}) {
+  if (!astDbtIsPlainObject(bundle)) {
+    return null;
+  }
+
+  const cloned = {
+    source: astDbtIsPlainObject(bundle.source) ? astDbtJsonClone(bundle.source) : null,
+    index: astDbtIsPlainObject(bundle.index) ? astDbtJsonClone(bundle.index) : null
+  };
+
+  if (astDbtIsPlainObject(bundle.indexBuild)) {
+    cloned.indexBuild = astDbtJsonClone(bundle.indexBuild);
+  }
+
+  return cloned;
+}
+
+function astDbtReadRuntimeBundleCache(source) {
+  const cacheKey = astDbtBuildSourceRuntimeCacheKey(source);
+  if (!cacheKey) {
+    return null;
+  }
+
+  const cached = astDbtIsPlainObject(AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey])
+    ? AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey]
+    : null;
+  if (!cached) {
+    return null;
+  }
+
+  return astDbtCloneRuntimeBundleCacheValue(cached);
+}
+
+function astDbtWriteRuntimeBundleCache(source, bundle) {
+  const cacheKey = astDbtBuildSourceRuntimeCacheKey(source);
+  if (!cacheKey || !astDbtIsPlainObject(bundle)) {
+    return;
+  }
+
+  const cloned = astDbtCloneRuntimeBundleCacheValue(bundle);
+  if (!cloned) {
+    return;
+  }
+
+  AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey] = cloned;
 }
 
 function astDbtBytesToText(bytes) {
@@ -495,6 +569,9 @@ function astDbtBuildCompactPersistentIndex(index = {}, mode = 'compact') {
     columnCount: Number(index.columnCount || 0),
     sectionCounts: astDbtIsPlainObject(index.sectionCounts) ? astDbtJsonClone(index.sectionCounts) : {},
     entities: compactEntities,
+    entitySignatures: astDbtIsPlainObject(index.entitySignatures)
+      ? astDbtJsonClone(index.entitySignatures)
+      : {},
     columnsByUniqueId: astDbtBuildCompactColumnsByUniqueId(index.columnsByUniqueId),
     tokens: astDbtIsPlainObject(index.tokens) ? astDbtJsonClone(index.tokens) : {
       entities: {},

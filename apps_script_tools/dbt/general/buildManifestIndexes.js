@@ -257,21 +257,38 @@ function astDbtBuildChildMapFromParentMap(parentMap) {
   return childMap;
 }
 
-function astDbtBuildManifestIndexes(manifest = {}) {
-  if (!astDbtIsPlainObject(manifest)) {
-    throw new AstDbtValidationError('astDbtBuildManifestIndexes expected manifest object');
+function astDbtResolveLineageForEntities(manifest, entities) {
+  let parentMap = astDbtNormalizeLineageMap(manifest.parent_map);
+  let childMap = astDbtNormalizeLineageMap(manifest.child_map);
+
+  if (Object.keys(parentMap).length === 0) {
+    parentMap = astDbtBuildLineageFromDependsOn(entities);
   }
 
-  const entities = [];
-  const byUniqueId = {};
-  const bySection = {};
-  const byResourceType = {};
-  const byPackage = {};
-  const byTag = {};
-  const columnsByUniqueId = {};
+  if (Object.keys(childMap).length === 0) {
+    childMap = astDbtBuildChildMapFromParentMap(parentMap);
+  }
 
-  const entityTokenMap = {};
-  const columnTokenMap = {};
+  return {
+    parentMap,
+    childMap
+  };
+}
+
+function astDbtBuildEntitySignature(entity, section, mapKey, disabled) {
+  const payload = {
+    section: astDbtNormalizeString(section, ''),
+    mapKey: astDbtNormalizeString(mapKey, ''),
+    disabled: disabled === true,
+    entity: astDbtIsPlainObject(entity) ? entity : {}
+  };
+  return astDbtDigestHex(JSON.stringify(payload));
+}
+
+function astDbtCollectManifestEntityDescriptors(manifest = {}) {
+  const descriptors = [];
+  const idCounts = {};
+  const signatures = {};
 
   AST_DBT_MANIFEST_V12_SCHEMA.searchableSections.forEach(section => {
     const sectionValue = manifest[section];
@@ -287,14 +304,25 @@ function astDbtBuildManifestIndexes(manifest = {}) {
         }
 
         entries.forEach((entry, entryIdx) => {
-          const record = astDbtBuildEntityRecord(section, `${mapKey}[${entryIdx}]`, entry, {
-            disabled: true
-          });
-          if (!record) {
-            return;
+          const finalMapKey = `${mapKey}[${entryIdx}]`;
+          const uniqueId = astDbtNormalizeString(
+            astDbtIsPlainObject(entry) ? entry.unique_id : '',
+            finalMapKey
+          );
+          const uniqueIdLower = uniqueId.toLowerCase();
+
+          if (uniqueIdLower) {
+            idCounts[uniqueIdLower] = Number(idCounts[uniqueIdLower] || 0) + 1;
+            signatures[uniqueIdLower] = astDbtBuildEntitySignature(entry, section, finalMapKey, true);
           }
 
-          entities.push(record);
+          descriptors.push({
+            section,
+            mapKey: finalMapKey,
+            entity: entry,
+            disabled: true,
+            uniqueIdLower
+          });
         });
       });
       return;
@@ -305,16 +333,69 @@ function astDbtBuildManifestIndexes(manifest = {}) {
     }
 
     Object.keys(sectionValue).forEach(mapKey => {
-      const record = astDbtBuildEntityRecord(section, mapKey, sectionValue[mapKey], {
-        disabled: false
-      });
-      if (!record) {
-        return;
+      const entry = sectionValue[mapKey];
+      const uniqueId = astDbtNormalizeString(
+        astDbtIsPlainObject(entry) ? entry.unique_id : '',
+        mapKey
+      );
+      const uniqueIdLower = uniqueId.toLowerCase();
+
+      if (uniqueIdLower) {
+        idCounts[uniqueIdLower] = Number(idCounts[uniqueIdLower] || 0) + 1;
+        signatures[uniqueIdLower] = astDbtBuildEntitySignature(entry, section, mapKey, false);
       }
 
-      entities.push(record);
+      descriptors.push({
+        section,
+        mapKey,
+        entity: entry,
+        disabled: false,
+        uniqueIdLower
+      });
     });
   });
+
+  const duplicateUniqueIds = [];
+  Object.keys(idCounts).forEach(key => {
+    if (idCounts[key] > 1) {
+      duplicateUniqueIds.push(key);
+      delete signatures[key];
+    }
+  });
+
+  return {
+    descriptors,
+    signatures,
+    duplicateUniqueIds
+  };
+}
+
+function astDbtBuildEntityRecordsFromDescriptors(descriptors = []) {
+  const entities = [];
+  descriptors.forEach(descriptor => {
+    const record = astDbtBuildEntityRecord(
+      descriptor.section,
+      descriptor.mapKey,
+      descriptor.entity,
+      { disabled: descriptor.disabled === true }
+    );
+    if (record) {
+      entities.push(record);
+    }
+  });
+  return entities;
+}
+
+function astDbtBuildManifestIndexFromEntityRecords(manifest, entities, entitySignatures = {}) {
+  const byUniqueId = {};
+  const bySection = {};
+  const byResourceType = {};
+  const byPackage = {};
+  const byTag = {};
+  const columnsByUniqueId = {};
+
+  const entityTokenMap = {};
+  const columnTokenMap = {};
 
   entities.forEach(entity => {
     astDbtAppendIndexValue(byUniqueId, entity.uniqueIdLower, entity);
@@ -384,16 +465,7 @@ function astDbtBuildManifestIndexes(manifest = {}) {
     columnsByUniqueId[entity.uniqueIdLower] = columnIndex;
   });
 
-  let parentMap = astDbtNormalizeLineageMap(manifest.parent_map);
-  let childMap = astDbtNormalizeLineageMap(manifest.child_map);
-
-  if (Object.keys(parentMap).length === 0) {
-    parentMap = astDbtBuildLineageFromDependsOn(entities);
-  }
-
-  if (Object.keys(childMap).length === 0) {
-    childMap = astDbtBuildChildMapFromParentMap(parentMap);
-  }
+  const lineage = astDbtResolveLineageForEntities(manifest, entities);
 
   const sectionCounts = {};
   Object.keys(bySection).forEach(section => {
@@ -415,13 +487,260 @@ function astDbtBuildManifestIndexes(manifest = {}) {
     byPackage,
     byTag,
     columnsByUniqueId,
+    entitySignatures: astDbtIsPlainObject(entitySignatures) ? Object.assign({}, entitySignatures) : {},
     tokens: {
       entities: astDbtFinalizeTokenMap(entityTokenMap),
       columns: astDbtFinalizeTokenMap(columnTokenMap)
     },
-    lineage: {
-      parentMap,
-      childMap
+    lineage
+  };
+}
+
+function astDbtBuildManifestIndexes(manifest = {}) {
+  if (!astDbtIsPlainObject(manifest)) {
+    throw new AstDbtValidationError('astDbtBuildManifestIndexes expected manifest object');
+  }
+
+  const collected = astDbtCollectManifestEntityDescriptors(manifest);
+  const entities = astDbtBuildEntityRecordsFromDescriptors(collected.descriptors);
+  return astDbtBuildManifestIndexFromEntityRecords(manifest, entities, collected.signatures);
+}
+
+function astDbtBuildManifestIndexesIncremental(manifest = {}, previousIndex = {}, options = {}) {
+  if (!astDbtIsPlainObject(previousIndex) || !Array.isArray(previousIndex.entities)) {
+    return {
+      index: astDbtBuildManifestIndexes(manifest),
+      incremental: {
+        applied: false,
+        reason: 'missing_previous_index'
+      }
+    };
+  }
+
+  if (!astDbtIsPlainObject(previousIndex.entitySignatures)) {
+    return {
+      index: astDbtBuildManifestIndexes(manifest),
+      incremental: {
+        applied: false,
+        reason: 'missing_previous_signatures'
+      }
+    };
+  }
+
+  const collected = astDbtCollectManifestEntityDescriptors(manifest);
+  if (collected.duplicateUniqueIds.length > 0) {
+    return {
+      index: astDbtBuildManifestIndexes(manifest),
+      incremental: {
+        applied: false,
+        reason: 'duplicate_unique_ids'
+      }
+    };
+  }
+
+  const previousSignatures = previousIndex.entitySignatures;
+  const nextSignatures = collected.signatures;
+  const previousKeys = Object.keys(previousSignatures);
+  const nextKeys = Object.keys(nextSignatures);
+
+  const nextKeySet = {};
+  nextKeys.forEach(key => {
+    nextKeySet[key] = true;
+  });
+
+  const previousKeySet = {};
+  previousKeys.forEach(key => {
+    previousKeySet[key] = true;
+  });
+
+  const added = [];
+  const removed = [];
+  const changed = [];
+
+  nextKeys.forEach(key => {
+    if (!previousKeySet[key]) {
+      added.push(key);
+      return;
+    }
+    if (previousSignatures[key] !== nextSignatures[key]) {
+      changed.push(key);
+    }
+  });
+
+  previousKeys.forEach(key => {
+    if (!nextKeySet[key]) {
+      removed.push(key);
+    }
+  });
+
+  const totalKeys = Math.max(nextKeys.length, 1);
+  const changedCount = added.length + removed.length + changed.length;
+  const parsedThreshold = Number(options.maxChangeRatio);
+  const maxChangeRatio = Number.isFinite(parsedThreshold)
+    ? Math.max(0, Math.min(1, parsedThreshold))
+    : 0.8;
+
+  if (changedCount / totalKeys > maxChangeRatio) {
+    return {
+      index: astDbtBuildManifestIndexes(manifest),
+      incremental: {
+        applied: false,
+        reason: 'change_ratio_exceeded',
+        changedCount,
+        totalKeys
+      }
+    };
+  }
+
+  if (changedCount === 0) {
+    const lineage = astDbtResolveLineageForEntities(
+      manifest,
+      Array.isArray(previousIndex.entities) ? previousIndex.entities : []
+    );
+
+    const reused = Object.assign({}, previousIndex, {
+      generatedAt: new Date().toISOString(),
+      entitySignatures: Object.assign({}, nextSignatures),
+      lineage
+    });
+
+    return {
+      index: reused,
+      incremental: {
+        applied: true,
+        reused: true,
+        addedCount: 0,
+        removedCount: 0,
+        changedCount: 0,
+        unchangedCount: nextKeys.length
+      }
+    };
+  }
+
+  const previousEntityByUniqueId = {};
+  let duplicatePreviousIndex = false;
+  previousIndex.entities.forEach(entity => {
+    const uniqueIdLower = astDbtNormalizeString(entity && entity.uniqueIdLower, '');
+    if (!uniqueIdLower) {
+      return;
+    }
+
+    if (previousEntityByUniqueId[uniqueIdLower]) {
+      duplicatePreviousIndex = true;
+      return;
+    }
+
+    previousEntityByUniqueId[uniqueIdLower] = entity;
+  });
+
+  if (duplicatePreviousIndex) {
+    return {
+      index: astDbtBuildManifestIndexes(manifest),
+      incremental: {
+        applied: false,
+        reason: 'duplicate_previous_index'
+      }
+    };
+  }
+
+  const descriptorByUniqueId = {};
+  collected.descriptors.forEach(descriptor => {
+    if (!descriptor.uniqueIdLower || descriptorByUniqueId[descriptor.uniqueIdLower]) {
+      return;
+    }
+    descriptorByUniqueId[descriptor.uniqueIdLower] = descriptor;
+  });
+
+  const changedSet = {};
+  const removedSet = {};
+  const addedSet = {};
+  changed.forEach(key => {
+    changedSet[key] = true;
+  });
+  removed.forEach(key => {
+    removedSet[key] = true;
+  });
+  added.forEach(key => {
+    addedSet[key] = true;
+  });
+
+  const mergedByUniqueId = {};
+
+  Object.keys(previousEntityByUniqueId).forEach(key => {
+    if (removedSet[key] || changedSet[key] || addedSet[key]) {
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(nextSignatures, key)) {
+      return;
+    }
+
+    const previousRecord = previousEntityByUniqueId[key];
+    if (previousRecord && astDbtIsPlainObject(previousRecord.columns)) {
+      mergedByUniqueId[key] = previousRecord;
+      return;
+    }
+
+    const descriptor = descriptorByUniqueId[key];
+    if (!descriptor) {
+      return;
+    }
+    const rebuiltRecord = astDbtBuildEntityRecord(
+      descriptor.section,
+      descriptor.mapKey,
+      descriptor.entity,
+      { disabled: descriptor.disabled === true }
+    );
+    if (rebuiltRecord) {
+      mergedByUniqueId[key] = rebuiltRecord;
+    }
+  });
+
+  added.concat(changed).forEach(key => {
+    const descriptor = descriptorByUniqueId[key];
+    if (!descriptor) {
+      return;
+    }
+    const record = astDbtBuildEntityRecord(
+      descriptor.section,
+      descriptor.mapKey,
+      descriptor.entity,
+      { disabled: descriptor.disabled === true }
+    );
+    if (record) {
+      mergedByUniqueId[key] = record;
+    }
+  });
+
+  const orderedEntities = [];
+  const seen = {};
+  collected.descriptors.forEach(descriptor => {
+    const uniqueIdLower = descriptor.uniqueIdLower;
+    if (!uniqueIdLower || seen[uniqueIdLower]) {
+      return;
+    }
+    seen[uniqueIdLower] = true;
+
+    const record = mergedByUniqueId[uniqueIdLower];
+    if (record) {
+      orderedEntities.push(record);
+    }
+  });
+
+  const nextIndex = astDbtBuildManifestIndexFromEntityRecords(
+    manifest,
+    orderedEntities,
+    nextSignatures
+  );
+
+  return {
+    index: nextIndex,
+    incremental: {
+      applied: true,
+      reused: false,
+      addedCount: added.length,
+      removedCount: removed.length,
+      changedCount: changed.length,
+      unchangedCount: Math.max(0, nextKeys.length - added.length - changed.length)
     }
   };
 }

@@ -62,9 +62,19 @@ function astDbtBuildManifestCounts(manifest, index = null) {
   };
 }
 
-function astDbtBuildBundle(manifest, request, source, readEnvelope = null, validation = null) {
+function astDbtBuildBundle(
+  manifest,
+  request,
+  source,
+  readEnvelope = null,
+  validation = null,
+  prebuiltIndex = null,
+  indexBuild = null
+) {
   const options = request.options || AST_DBT_DEFAULT_LOAD_OPTIONS;
-  const index = options.buildIndex ? astDbtBuildManifestIndexes(manifest) : null;
+  const index = options.buildIndex
+    ? (astDbtIsPlainObject(prebuiltIndex) ? prebuiltIndex : astDbtBuildManifestIndexes(manifest))
+    : null;
 
   const metadata = astDbtBuildManifestMetadata(manifest);
   const counts = astDbtBuildManifestCounts(manifest, index);
@@ -77,7 +87,8 @@ function astDbtBuildBundle(manifest, request, source, readEnvelope = null, valid
     counts,
     validation: validation || null,
     manifest,
-    index
+    index,
+    indexBuild: astDbtIsPlainObject(indexBuild) ? indexBuild : null
   };
 
   if (options.includeRaw && readEnvelope) {
@@ -141,6 +152,10 @@ function astDbtNormalizeBundle(bundle, options = {}) {
         : (astDbtIsPlainObject(hydratedIndex && hydratedIndex.sectionCounts) ? astDbtJsonClone(hydratedIndex.sectionCounts) : {})
     };
 
+  const indexBuild = astDbtIsPlainObject(bundle.indexBuild)
+    ? astDbtJsonClone(bundle.indexBuild)
+    : null;
+
   return {
     schemaVersion: normalizedOptions.schemaVersion,
     loadedAt: astDbtNormalizeString(bundle.loadedAt, new Date().toISOString()),
@@ -149,7 +164,8 @@ function astDbtNormalizeBundle(bundle, options = {}) {
     counts,
     validation,
     manifest,
-    index: hydratedIndex
+    index: hydratedIndex,
+    indexBuild
   };
 }
 
@@ -181,6 +197,9 @@ function astDbtLoadManifestCore(request = {}) {
       const cachedBundle = astDbtReadPersistentBundleCache(cacheContext, normalizedRequest.options);
       if (cachedBundle) {
         const normalizedBundle = astDbtNormalizeBundle(cachedBundle, normalizedRequest.options);
+        if (normalizedBundle.source && normalizedBundle.index) {
+          astDbtWriteRuntimeBundleCache(normalizedBundle.source, normalizedBundle);
+        }
         cacheInfo = {
           enabled: true,
           hit: true,
@@ -196,6 +215,7 @@ function astDbtLoadManifestCore(request = {}) {
           counts: normalizedBundle.counts,
           validation: normalizedBundle.validation,
           bundle: normalizedBundle,
+          indexBuild: normalizedBundle.indexBuild || null,
           warnings,
           cache: cacheInfo
         };
@@ -237,13 +257,37 @@ function astDbtLoadManifestCore(request = {}) {
     throwOnInvalid: normalizedRequest.options.validate !== 'off'
   });
 
+  let indexBuild = null;
+  let prebuiltIndex = null;
+  if (normalizedRequest.options.buildIndex) {
+    if (normalizedRequest.options.forceFullRebuild) {
+      indexBuild = {
+        applied: false,
+        reason: 'force_full_rebuild'
+      };
+    } else if (source && normalizedRequest.options.incrementalIndex) {
+      const previousBundle = astDbtReadRuntimeBundleCache(source);
+      if (previousBundle && previousBundle.index) {
+        const incremental = astDbtBuildManifestIndexesIncremental(manifest, previousBundle.index);
+        prebuiltIndex = incremental.index;
+        indexBuild = incremental.incremental;
+      }
+    }
+  }
+
   const bundle = astDbtBuildBundle(
     manifest,
     normalizedRequest,
     source,
     readEnvelope,
-    validation
+    validation,
+    prebuiltIndex,
+    indexBuild
   );
+
+  if (source && bundle.index) {
+    astDbtWriteRuntimeBundleCache(source, bundle);
+  }
 
   if (cacheContext) {
     try {
@@ -278,7 +322,8 @@ function astDbtLoadManifestCore(request = {}) {
     metadata: bundle.metadata,
     counts: bundle.counts,
     validation: bundle.validation,
-    bundle
+    bundle,
+    indexBuild: bundle.indexBuild || null
   };
 
   const readWarnings = readEnvelope && Array.isArray(readEnvelope.warnings)
