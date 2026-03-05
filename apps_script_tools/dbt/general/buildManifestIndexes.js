@@ -135,6 +135,65 @@ function astDbtExtractColumnSearchText(columnName, columnValue = {}) {
   return parts.filter(Boolean).join(' ');
 }
 
+function astDbtBuildEntityColumnArtifacts(entityRecord) {
+  const columns = astDbtIsPlainObject(entityRecord && entityRecord.columns)
+    ? entityRecord.columns
+    : {};
+  const columnEntries = Object.keys(columns);
+
+  const columnIndex = {
+    order: [],
+    byName: {}
+  };
+  const columnTokenRefs = [];
+
+  columnEntries.forEach(columnName => {
+    const columnValue = columns[columnName];
+    const normalizedColumnName = astDbtNormalizeString(columnName, '');
+    if (!normalizedColumnName) {
+      return;
+    }
+
+    const columnLower = normalizedColumnName.toLowerCase();
+    const columnRecord = {
+      uniqueId: entityRecord.uniqueId,
+      uniqueIdLower: entityRecord.uniqueIdLower,
+      columnName: normalizedColumnName,
+      columnNameLower: columnLower,
+      section: entityRecord.section,
+      resourceType: entityRecord.resourceType,
+      packageName: entityRecord.packageName,
+      dataType: astDbtNormalizeString(
+        astDbtIsPlainObject(columnValue) ? columnValue.data_type : '',
+        ''
+      ),
+      tags: astDbtNormalizeTags(astDbtIsPlainObject(columnValue) ? columnValue.tags : []),
+      meta: astDbtIsPlainObject(columnValue) && astDbtIsPlainObject(columnValue.meta)
+        ? columnValue.meta
+        : {},
+      description: astDbtNormalizeString(
+        astDbtIsPlainObject(columnValue) ? columnValue.description : '',
+        ''
+      ),
+      raw: astDbtIsPlainObject(columnValue) ? columnValue : {}
+    };
+
+    columnIndex.order.push(normalizedColumnName);
+    columnIndex.byName[columnLower] = columnRecord;
+
+    const columnTokenId = `${entityRecord.uniqueIdLower}::${columnLower}`;
+    columnTokenRefs.push({
+      tokenId: columnTokenId,
+      tokens: astDbtTokenizeText(astDbtExtractColumnSearchText(normalizedColumnName, columnValue))
+    });
+  });
+
+  return {
+    columnIndex,
+    columnTokenRefs
+  };
+}
+
 function astDbtBuildEntityRecord(section, mapKey, entity, options = {}) {
   if (!astDbtIsPlainObject(entity)) {
     return null;
@@ -163,6 +222,11 @@ function astDbtBuildEntityRecord(section, mapKey, entity, options = {}) {
   };
 
   normalized.searchText = astDbtExtractEntitySearchText(entity, normalized);
+  normalized.searchTokens = astDbtTokenizeText(normalized.searchText);
+
+  const columnArtifacts = astDbtBuildEntityColumnArtifacts(normalized);
+  normalized.columnIndex = columnArtifacts.columnIndex;
+  normalized.columnTokenRefs = columnArtifacts.columnTokenRefs;
   return normalized;
 }
 
@@ -407,58 +471,33 @@ function astDbtBuildManifestIndexFromEntityRecords(manifest, entities, entitySig
       astDbtAppendIndexValue(byTag, tag, entity);
     });
 
-    const entityTokens = astDbtTokenizeText(entity.searchText);
+    const entityTokens = Array.isArray(entity.searchTokens)
+      ? entity.searchTokens
+      : astDbtTokenizeText(entity.searchText);
     entityTokens.forEach(token => {
       astDbtAppendToken(entityTokenMap, token, entity.uniqueIdLower);
     });
 
-    const columnEntries = astDbtIsPlainObject(entity.columns)
-      ? Object.keys(entity.columns)
-      : [];
+    const hasPrecomputedColumnArtifacts = astDbtIsPlainObject(entity.columnIndex)
+      && Array.isArray(entity.columnIndex.order)
+      && astDbtIsPlainObject(entity.columnIndex.byName)
+      && Array.isArray(entity.columnTokenRefs);
+    const columnArtifacts = hasPrecomputedColumnArtifacts
+      ? {
+          columnIndex: entity.columnIndex,
+          columnTokenRefs: entity.columnTokenRefs
+        }
+      : astDbtBuildEntityColumnArtifacts(entity);
+    const columnIndex = columnArtifacts.columnIndex;
 
-    const columnIndex = {
-      order: [],
-      byName: {}
-    };
-
-    columnEntries.forEach(columnName => {
-      const columnValue = entity.columns[columnName];
-      const normalizedColumnName = astDbtNormalizeString(columnName, '');
-      if (!normalizedColumnName) {
+    columnArtifacts.columnTokenRefs.forEach(tokenRef => {
+      if (!astDbtIsPlainObject(tokenRef)) {
         return;
       }
-
-      const columnLower = normalizedColumnName.toLowerCase();
-      const columnRecord = {
-        uniqueId: entity.uniqueId,
-        uniqueIdLower: entity.uniqueIdLower,
-        columnName: normalizedColumnName,
-        columnNameLower: columnLower,
-        section: entity.section,
-        resourceType: entity.resourceType,
-        packageName: entity.packageName,
-        dataType: astDbtNormalizeString(
-          astDbtIsPlainObject(columnValue) ? columnValue.data_type : '',
-          ''
-        ),
-        tags: astDbtNormalizeTags(astDbtIsPlainObject(columnValue) ? columnValue.tags : []),
-        meta: astDbtIsPlainObject(columnValue) && astDbtIsPlainObject(columnValue.meta)
-          ? columnValue.meta
-          : {},
-        description: astDbtNormalizeString(
-          astDbtIsPlainObject(columnValue) ? columnValue.description : '',
-          ''
-        ),
-        raw: astDbtIsPlainObject(columnValue) ? columnValue : {}
-      };
-
-      columnIndex.order.push(normalizedColumnName);
-      columnIndex.byName[columnLower] = columnRecord;
-
-      const columnTokenId = `${entity.uniqueIdLower}::${columnLower}`;
-      const columnTokens = astDbtTokenizeText(astDbtExtractColumnSearchText(normalizedColumnName, columnValue));
-      columnTokens.forEach(token => {
-        astDbtAppendToken(columnTokenMap, token, columnTokenId);
+      const tokenId = astDbtNormalizeString(tokenRef.tokenId, '');
+      const tokens = Array.isArray(tokenRef.tokens) ? tokenRef.tokens : [];
+      tokens.forEach(token => {
+        astDbtAppendToken(columnTokenMap, token, tokenId);
       });
     });
 

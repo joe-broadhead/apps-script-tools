@@ -75,6 +75,10 @@
       },
       "cache.invalidation_profile": {
         "predicateRelativePct": 180
+      },
+      "dbt.incremental_small_delta_profile": {
+        "incrementalRelativePct": 85,
+        "fallbackCount": 0
       }
     }
   }
