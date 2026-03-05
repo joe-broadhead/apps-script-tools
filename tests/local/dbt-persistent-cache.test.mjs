@@ -114,6 +114,7 @@ test('loadManifest persistent cache reuses cached bundle for drive source', () =
   assert.equal(second.cache.hit, true);
   assert.equal(blobReadCount, 1);
   assert.equal(second.counts.entityCount, first.counts.entityCount);
+  assert.equal(second.indexBuild, null);
 });
 
 test('persistent cache supports includeManifest=false with gzip compression', () => {
@@ -161,6 +162,7 @@ test('persistent cache supports includeManifest=false with gzip compression', ()
   assert.equal(second.cache.hit, true);
   assert.equal(blobReadCount, 1);
   assert.equal(second.bundle.manifest, null);
+  assert.equal(second.indexBuild, null);
 
   const search = context.AST.DBT.search({
     bundle: second.bundle,

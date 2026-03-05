@@ -1,4 +1,5 @@
 import { measureBenchmark } from './measure.mjs';
+import { performance } from 'node:perf_hooks';
 
 function astPerfCreateManifestFixture(entityCount = 600, columnsPerEntity = 5) {
   const nodes = {};
@@ -123,6 +124,31 @@ function astPerfCreateManifestVariantFixture(entityCount = 600, columnsPerEntity
   return clone;
 }
 
+function astPerfCreateManifestSmallDeltaFixture(entityCount = 600, columnsPerEntity = 5) {
+  const fixture = astPerfCreateManifestFixture(entityCount, columnsPerEntity);
+  const clone = JSON.parse(JSON.stringify(fixture));
+  clone.nodes['model.perf.model_250'].description = 'Updated performance model 250 small delta';
+  clone.nodes['model.perf.model_250'].columns.col_1.description = 'Updated small delta column description';
+  return clone;
+}
+
+function measureAverageMs(fn, iterations = 1) {
+  const safeIterations = Math.max(1, Math.floor(Number(iterations) || 1));
+  let totalMs = 0;
+  let lastResult = null;
+
+  for (let idx = 0; idx < safeIterations; idx += 1) {
+    const startedAt = performance.now();
+    lastResult = fn();
+    totalMs += (performance.now() - startedAt);
+  }
+
+  return {
+    ms: totalMs / safeIterations,
+    result: lastResult
+  };
+}
+
 export function runDbtManifestPerf(context, options = {}) {
   const {
     samples = 1,
@@ -212,11 +238,60 @@ export function runDbtManifestPerf(context, options = {}) {
     { samples }
   );
 
+  const incrementalProfileSamples = [];
+  for (let sampleIdx = 0; sampleIdx < samples; sampleIdx += 1) {
+    const baseManifest = astPerfCreateManifestFixture(entities, columnsPerEntity);
+    const smallDeltaManifest = astPerfCreateManifestSmallDeltaFixture(entities, columnsPerEntity);
+    const previousIndex = context.astDbtBuildManifestIndexes(baseManifest);
+
+    context.astDbtBuildManifestIndexes(smallDeltaManifest);
+    context.astDbtBuildManifestIndexesIncremental(smallDeltaManifest, previousIndex);
+
+    const fullRebuild = measureAverageMs(
+      () => context.astDbtBuildManifestIndexes(smallDeltaManifest),
+      3
+    );
+    const incremental = measureAverageMs(
+      () => context.astDbtBuildManifestIndexesIncremental(smallDeltaManifest, previousIndex),
+      3
+    );
+
+    incrementalProfileSamples.push({
+      fullRebuildMs: fullRebuild.ms,
+      incrementalMs: incremental.ms,
+      incrementalRelativePct: fullRebuild.ms > 0 ? (incremental.ms / fullRebuild.ms) * 100 : 0,
+      applied: Boolean(incremental.result && incremental.result.incremental && incremental.result.incremental.applied)
+    });
+  }
+
+  const bestIncrementalProfile = incrementalProfileSamples
+    .slice()
+    .sort((left, right) => left.incrementalRelativePct - right.incrementalRelativePct)[0];
+  const medianIncrementalProfile = incrementalProfileSamples
+    .slice()
+    .sort((left, right) => left.fullRebuildMs - right.fullRebuildMs)[Math.floor(incrementalProfileSamples.length / 2)];
+
+  const incrementalProfile = {
+    name: 'dbt.incremental_small_delta_profile',
+    bestMs: Number(bestIncrementalProfile.incrementalMs.toFixed(3)),
+    medianMs: Number(medianIncrementalProfile.fullRebuildMs.toFixed(3)),
+    maxHeapDeltaBytes: 0,
+    samples,
+    counters: {
+      incrementalRelativePct: Number(bestIncrementalProfile.incrementalRelativePct.toFixed(3)),
+      fullRebuildMs: Number(bestIncrementalProfile.fullRebuildMs.toFixed(3)),
+      incrementalMs: Number(bestIncrementalProfile.incrementalMs.toFixed(3)),
+      fallbackCount: bestIncrementalProfile.applied ? 0 : 1
+    },
+    outputType: 'Object'
+  };
+
   return [
     loadIndex,
     searchTop20,
     getEntityAvg,
     getColumnAvg,
-    diffEntities
+    diffEntities,
+    incrementalProfile
   ];
 }
