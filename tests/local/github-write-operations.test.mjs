@@ -245,6 +245,42 @@ test('pushFiles omits null optional fields in create_or_update_file payload', ()
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'sha'), false);
 });
 
+test('pushFiles falls back when explicit branches are mixed with implicit default-branch files', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, {
+          content: { sha: 'new-sha' },
+          commit: { sha: 'commit-sha' }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', branch: 'main' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /\/repos\/octocat\/hello-world\/contents\//);
+  assert.match(calls[1].url, /\/repos\/octocat\/hello-world\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_implicit_default_and_explicit_branches');
+});
+
 test('createBranch resolves default branch when sha not provided', () => {
   const calls = [];
   const context = createGasContext({

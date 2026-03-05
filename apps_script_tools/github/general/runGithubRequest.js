@@ -644,6 +644,19 @@ function astGitHubExecutePushFiles(request, config) {
       };
     }
 
+    const hasImplicitDefaultTarget = normalizedFiles.some(
+      file => !astGitHubRunNormalizeString(file.branch, '')
+    );
+    const hasExplicitTarget = normalizedFiles.some(
+      file => Boolean(astGitHubRunNormalizeString(file.branch, ''))
+    );
+    if (!defaultBranch && hasImplicitDefaultTarget && hasExplicitTarget) {
+      return {
+        strategy: 'contents_api',
+        reason: 'mixed_implicit_default_and_explicit_branches'
+      };
+    }
+
     const distinctBranches = {};
     normalizedFiles.forEach(file => {
       const resolvedBranch = astGitHubRunNormalizeString(file.branch, defaultBranch);
