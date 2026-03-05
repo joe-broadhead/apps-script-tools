@@ -1103,13 +1103,12 @@ function astDbtNormalizeReadinessWeights(weights) {
     throw new AstDbtValidationError('readinessWeights must be an object when provided');
   }
 
-  const allowedKeys = {
-    documentation: true,
-    ownership: true,
-    testing: true
-  };
+  const allowedKeys = Object.create(null);
+  allowedKeys.documentation = true;
+  allowedKeys.ownership = true;
+  allowedKeys.testing = true;
   Object.keys(weights).forEach(key => {
-    if (!allowedKeys[key]) {
+    if (!Object.prototype.hasOwnProperty.call(allowedKeys, key)) {
       throw new AstDbtValidationError('readinessWeights contains unsupported keys', {
         key,
         allowedKeys: Object.keys(allowedKeys)

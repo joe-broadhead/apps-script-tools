@@ -141,6 +141,18 @@ test('AST.DBT.qualityReport rejects invalid readinessWeights', () => {
       }
     });
   }, /unsupported keys/);
+
+  assert.throws(() => {
+    context.AST.DBT.qualityReport({
+      manifest: createGovernanceFixture(),
+      filters: {
+        resourceTypes: ['model']
+      },
+      readinessWeights: {
+        toString: 1
+      }
+    });
+  }, /unsupported keys/);
 });
 
 test('AST.DBT.testCoverage supports uncoveredOnly filtering', () => {
