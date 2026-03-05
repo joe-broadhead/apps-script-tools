@@ -20,11 +20,11 @@ function runGithubIssueDigestSmoke() {
 
   const digest = {
     repo: `${props.GITHUB_OWNER || 'owner'}/${props.GITHUB_REPO || 'repo'}`,
-    openIssues: Array.isArray(issuesRes && issuesRes.data && issuesRes.data.items)
-      ? issuesRes.data.items.length
+    openIssues: Array.isArray(issuesRes && issuesRes.data)
+      ? issuesRes.data.length
       : 0,
-    openPullRequests: Array.isArray(pullsRes && pullsRes.data && pullsRes.data.items)
-      ? pullsRes.data.items.length
+    openPullRequests: Array.isArray(pullsRes && pullsRes.data)
+      ? pullsRes.data.length
       : 0,
     generatedAt: new Date().toISOString()
   };

@@ -14,22 +14,26 @@ function runStorageCacheWarmerSmoke() {
     source: 'storage_cache_warmer'
   };
 
-  ASTX.Cache.set({
-    backend: 'storage_json',
-    namespace,
+  ASTX.Cache.set(
     key,
     value,
-    ttlSec: 3600,
-    storageUri,
-    lockTimeoutMs: 15000
-  });
+    {
+      backend: 'storage_json',
+      namespace,
+      ttlSec: 3600,
+      storageUri,
+      lockTimeoutMs: 15000
+    }
+  );
 
-  const cached = ASTX.Cache.get({
-    backend: 'storage_json',
-    namespace,
+  const cached = ASTX.Cache.get(
     key,
-    storageUri
-  });
+    {
+      backend: 'storage_json',
+      namespace,
+      storageUri
+    }
+  );
 
   const result = {
     namespace,
