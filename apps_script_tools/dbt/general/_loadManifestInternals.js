@@ -1,5 +1,7 @@
 /* Internal helpers extracted from loadManifest.js to keep manifest loading orchestration focused. */
 
+let AST_DBT_RUNTIME_BUNDLE_BY_SOURCE = {};
+
 function astDbtEnsureUtilitiesFunction(functionName) {
   if (
     typeof Utilities === 'undefined' ||
@@ -18,6 +20,51 @@ function astDbtBase64ToBytes(base64) {
 function astDbtBytesToBase64(bytes) {
   astDbtEnsureUtilitiesFunction('base64Encode');
   return Utilities.base64Encode(bytes || []);
+}
+
+function astDbtBuildSourceRuntimeCacheKey(source = {}) {
+  if (!astDbtIsPlainObject(source)) {
+    return '';
+  }
+
+  const provider = astDbtNormalizeString(source.provider, '').toLowerCase();
+  if (!provider) {
+    return '';
+  }
+
+  const location = astDbtIsPlainObject(source.location) ? source.location : {};
+  const payload = {
+    provider,
+    uri: astDbtNormalizeString(source.uri, ''),
+    fileId: astDbtNormalizeString(location.fileId, ''),
+    folderId: astDbtNormalizeString(location.folderId, ''),
+    fileName: astDbtNormalizeString(location.fileName, ''),
+    bucket: astDbtNormalizeString(location.bucket, ''),
+    key: astDbtNormalizeString(location.key, ''),
+    path: astDbtNormalizeString(location.path, '')
+  };
+
+  return `${provider}::${astDbtDigestHex(JSON.stringify(payload))}`;
+}
+
+function astDbtReadRuntimeBundleCache(source) {
+  const cacheKey = astDbtBuildSourceRuntimeCacheKey(source);
+  if (!cacheKey) {
+    return null;
+  }
+
+  return astDbtIsPlainObject(AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey])
+    ? AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey]
+    : null;
+}
+
+function astDbtWriteRuntimeBundleCache(source, bundle) {
+  const cacheKey = astDbtBuildSourceRuntimeCacheKey(source);
+  if (!cacheKey || !astDbtIsPlainObject(bundle)) {
+    return;
+  }
+
+  AST_DBT_RUNTIME_BUNDLE_BY_SOURCE[cacheKey] = bundle;
 }
 
 function astDbtBytesToText(bytes) {

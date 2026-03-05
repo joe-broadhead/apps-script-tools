@@ -4,6 +4,8 @@ const AST_DBT_DEFAULT_LOAD_OPTIONS = Object.freeze({
   maxBytes: 50 * 1024 * 1024,
   allowGzip: true,
   buildIndex: true,
+  incrementalIndex: true,
+  forceFullRebuild: false,
   includeRaw: false,
   persistentCacheEnabled: false,
   persistentCacheUri: '',
@@ -200,6 +202,14 @@ function astDbtNormalizeLoadOptions(options = {}, defaults = {}) {
     buildIndex: astDbtNormalizeBoolean(
       options.buildIndex != null ? options.buildIndex : defaults.buildIndex,
       AST_DBT_DEFAULT_LOAD_OPTIONS.buildIndex
+    ),
+    incrementalIndex: astDbtNormalizeBoolean(
+      options.incrementalIndex != null ? options.incrementalIndex : defaults.incrementalIndex,
+      AST_DBT_DEFAULT_LOAD_OPTIONS.incrementalIndex
+    ),
+    forceFullRebuild: astDbtNormalizeBoolean(
+      options.forceFullRebuild != null ? options.forceFullRebuild : defaults.forceFullRebuild,
+      AST_DBT_DEFAULT_LOAD_OPTIONS.forceFullRebuild
     ),
     includeRaw: astDbtNormalizeBoolean(
       options.includeRaw,
