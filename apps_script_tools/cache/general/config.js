@@ -329,7 +329,7 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_DRIVE_NAMESPACE_MAX_BYTES
   ], AST_CACHE_DEFAULT_CONFIG.driveNamespaceMaxBytes, 2048, 50000000);
 
-  if (driveNamespaceWarnBytes > driveNamespaceMaxBytes) {
+  if (backend === 'drive_json' && driveNamespaceWarnBytes > driveNamespaceMaxBytes) {
     throw new AstCacheValidationError(
       'Cache driveNamespaceWarnBytes must be less than or equal to driveNamespaceMaxBytes',
       {

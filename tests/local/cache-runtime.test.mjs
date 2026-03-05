@@ -1378,6 +1378,30 @@ test('cache config resolves drive_json namespace byte guardrails from overrides 
   assert.equal(override.driveNamespaceMaxBytes, 4096);
 });
 
+test('cache config enforces drive namespace guardrails only for drive_json backend', () => {
+  const properties = createPropertiesService({
+    CACHE_DRIVE_NAMESPACE_WARN_BYTES: '9000',
+    CACHE_DRIVE_NAMESPACE_MAX_BYTES: '3000'
+  });
+  const context = createGasContext({
+    PropertiesService: properties.service
+  });
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const memoryConfig = context.astCacheResolveConfig({ backend: 'memory' });
+  assert.equal(memoryConfig.backend, 'memory');
+
+  assert.throws(
+    () => context.astCacheResolveConfig({
+      backend: 'drive_json',
+      driveNamespaceWarnBytes: 9000,
+      driveNamespaceMaxBytes: 3000
+    }),
+    /driveNamespaceWarnBytes must be less than or equal to driveNamespaceMaxBytes/
+  );
+});
+
 test('drive_json backend supports persistence and invalidation', () => {
   const drive = createDriveMock();
   const context = createGasContext({
