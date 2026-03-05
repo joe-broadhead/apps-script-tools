@@ -134,9 +134,21 @@ test('DataFrame.selectExprDsl keeps contextual operator words usable as identifi
 test('LIKE escaped characters are matched as literals', () => {
   const context = createContext();
 
-  const plan = context.__astExprCompile("value LIKE '\\\\d%'", { cachePlan: false });
+  const plan = context.__astExprCompile("value LIKE '\\d%'", { cachePlan: false });
   assert.equal(plan.evaluate({ value: 'dabc' }), true);
   assert.equal(plan.evaluate({ value: '9abc' }), false);
+});
+
+test('LIKE preserves escaped wildcard markers from string literals', () => {
+  const context = createContext();
+
+  const escapedUnderscore = context.__astExprCompile("value LIKE 'a\\_%'", { cachePlan: false });
+  const escapedPercent = context.__astExprCompile("value LIKE 'a\\%%'", { cachePlan: false });
+
+  assert.equal(escapedUnderscore.evaluate({ value: 'a_b' }), true);
+  assert.equal(escapedUnderscore.evaluate({ value: 'axb' }), false);
+  assert.equal(escapedPercent.evaluate({ value: 'a%b' }), true);
+  assert.equal(escapedPercent.evaluate({ value: 'axb' }), false);
 });
 
 test('iff short-circuits unselected branches', () => {

@@ -151,7 +151,12 @@ function __astExprReadStringToken(source, state) {
       if (typeof next === 'undefined') {
         throw __astExprBuildParseError('Unterminated string escape sequence', source, state.index);
       }
-      value += next;
+      if (next === '%' || next === '_') {
+        // Preserve LIKE escape markers so evaluator can treat escaped wildcards literally.
+        value += `\\${next}`;
+      } else {
+        value += next;
+      }
       state.index += 2;
       continue;
     }
