@@ -1,33 +1,15 @@
-function astMessagingSlackIsPlainObject(value) {
-  return value != null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function astMessagingSlackNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function astMessagingSlackCloneObject(value) {
-  return astMessagingSlackIsPlainObject(value)
-    ? Object.assign({}, value)
-    : {};
-}
-
 function astMessagingSlackResolveWebhookUrl(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
-  return astMessagingSlackNormalizeString(body.webhookUrl, '')
-    || astMessagingSlackNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slackWebhookUrl, '')
-    || astMessagingSlackNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slack_webhook_url, '')
-    || astMessagingSlackNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackWebhookUrl, '');
+  return astMessagingNormalizeString(body.webhookUrl, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slackWebhookUrl, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slack_webhook_url, '')
+    || astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackWebhookUrl, '');
 }
 
 function astMessagingSlackResolveBotToken(normalizedRequest = {}, resolvedConfig = {}) {
-  const token = astMessagingSlackNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slackBotToken, '')
-    || astMessagingSlackNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slack_bot_token, '')
-    || astMessagingSlackNormalizeString(normalizedRequest.auth && normalizedRequest.auth.token, '')
-    || astMessagingSlackNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackBotToken, '');
+  const token = astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slackBotToken, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.slack_bot_token, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.token, '')
+    || astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackBotToken, '');
 
   if (!token) {
     throw new AstMessagingAuthError('Missing Slack bot token for slack_api transport', {
@@ -40,7 +22,7 @@ function astMessagingSlackResolveBotToken(normalizedRequest = {}, resolvedConfig
 }
 
 function astMessagingSlackResolveApiBaseUrl(resolvedConfig = {}) {
-  const baseUrl = astMessagingSlackNormalizeString(
+  const baseUrl = astMessagingNormalizeString(
     resolvedConfig.chat && resolvedConfig.chat.slackApiBaseUrl,
     'https://slack.com/api'
   );
@@ -49,27 +31,27 @@ function astMessagingSlackResolveApiBaseUrl(resolvedConfig = {}) {
 }
 
 function astMessagingSlackResolveChannel(body = {}, resolvedConfig = {}) {
-  return astMessagingSlackNormalizeString(body.channel, '')
-    || astMessagingSlackNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackChannel, '');
+  return astMessagingNormalizeString(body.channel, '')
+    || astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.slackChannel, '');
 }
 
 function astMessagingSlackBuildPayload(body = {}, resolvedConfig = {}) {
   let payload = {};
   if (typeof body.message === 'string') {
     payload = { text: body.message };
-  } else if (astMessagingSlackIsPlainObject(body.message)) {
-    payload = astMessagingSlackCloneObject(body.message);
+  } else if (astMessagingIsPlainObject(body.message)) {
+    payload = astMessagingClonePlainObject(body.message);
   } else {
-    payload = { text: astMessagingSlackNormalizeString(body.text, '') };
+    payload = { text: astMessagingNormalizeString(body.text, '') };
   }
 
   const channel = astMessagingSlackResolveChannel(body, resolvedConfig);
-  if (channel && !astMessagingSlackNormalizeString(payload.channel, '')) {
+  if (channel && !astMessagingNormalizeString(payload.channel, '')) {
     payload.channel = channel;
   }
 
-  const threadTs = astMessagingSlackNormalizeString(body.threadTs || body.thread_ts, '');
-  if (threadTs && !astMessagingSlackNormalizeString(payload.thread_ts, '')) {
+  const threadTs = astMessagingNormalizeString(body.threadTs || body.thread_ts, '');
+  if (threadTs && !astMessagingNormalizeString(payload.thread_ts, '')) {
     payload.thread_ts = threadTs;
   }
 
@@ -123,7 +105,7 @@ function astMessagingSlackSendApi(body = {}, normalizedRequest = {}, resolvedCon
   const baseUrl = astMessagingSlackResolveApiBaseUrl(resolvedConfig);
   const payload = astMessagingSlackBuildPayload(body, resolvedConfig);
 
-  if (!astMessagingSlackNormalizeString(payload.channel, '')) {
+  if (!astMessagingNormalizeString(payload.channel, '')) {
     throw new AstMessagingValidationError('Slack API transport requires channel (body.channel or MESSAGING_SLACK_CHANNEL)', {
       field: 'body.channel'
     });
@@ -142,7 +124,7 @@ function astMessagingSlackSendApi(body = {}, normalizedRequest = {}, resolvedCon
     retries: resolvedConfig.retries
   });
 
-  const json = astMessagingSlackIsPlainObject(response.json)
+  const json = astMessagingIsPlainObject(response.json)
     ? response.json
     : null;
   if (json && json.ok === false) {
@@ -171,10 +153,10 @@ function astMessagingSlackSendApi(body = {}, normalizedRequest = {}, resolvedCon
 
 function astMessagingSlackSendWebhookBatch(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const batchWebhookUrl = astMessagingSlackNormalizeString(body.webhookUrl, '');
+  const batchWebhookUrl = astMessagingNormalizeString(body.webhookUrl, '');
   const items = messages.map(message => {
-    const payload = astMessagingSlackIsPlainObject(message)
-      ? astMessagingSlackCloneObject(message)
+    const payload = astMessagingIsPlainObject(message)
+      ? astMessagingClonePlainObject(message)
       : { message };
 
     if (!payload.webhookUrl && batchWebhookUrl) {
@@ -197,10 +179,10 @@ function astMessagingSlackSendWebhookBatch(body = {}, normalizedRequest = {}, re
 
 function astMessagingSlackSendApiBatch(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const batchChannel = astMessagingSlackNormalizeString(body.channel, '');
+  const batchChannel = astMessagingNormalizeString(body.channel, '');
   const items = messages.map(message => {
-    const payload = astMessagingSlackIsPlainObject(message)
-      ? astMessagingSlackCloneObject(message)
+    const payload = astMessagingIsPlainObject(message)
+      ? astMessagingClonePlainObject(message)
       : { message };
 
     if (!payload.channel && batchChannel) {
