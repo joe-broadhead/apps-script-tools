@@ -116,4 +116,24 @@ test('RAG sentence chunking does not drop undersized pre-long-sentence content',
 
   assert.equal(chunks.length > 1, true);
   assert.equal(chunks.some(chunk => chunk.text.indexOf('Hi.') !== -1), true);
+  assert.equal(chunks.slice(0, -1).every(chunk => chunk.text.length >= 10), true);
+});
+
+test('RAG sentence chunking enforces minChunkChars before fixed-size sentence boundaries', () => {
+  const context = createGasContext();
+  loadRagScripts(context, { includeAi: false, includeUtilities: false });
+
+  const chunks = context.astRagChunkSegments([{
+    section: 'body',
+    text: 'Hi. ABCDEFGHIJKLMNOPQRS. Tail sentence.'
+  }], {
+    chunkSizeChars: 20,
+    chunkOverlapChars: 0,
+    minChunkChars: 10,
+    chunkStrategy: 'sentence'
+  });
+
+  assert.equal(chunks.length > 1, true);
+  assert.equal(chunks.some(chunk => chunk.text.indexOf('Hi.') !== -1), true);
+  assert.equal(chunks.slice(0, -1).every(chunk => chunk.text.length >= 10), true);
 });
