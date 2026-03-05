@@ -1,26 +1,8 @@
-function astMessagingTeamsIsPlainObject(value) {
-  return value != null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function astMessagingTeamsNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function astMessagingTeamsCloneObject(value) {
-  return astMessagingTeamsIsPlainObject(value)
-    ? Object.assign({}, value)
-    : {};
-}
-
 function astMessagingTeamsResolveWebhookUrl(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
-  return astMessagingTeamsNormalizeString(body.webhookUrl, '')
-    || astMessagingTeamsNormalizeString(normalizedRequest.auth && normalizedRequest.auth.teamsWebhookUrl, '')
-    || astMessagingTeamsNormalizeString(normalizedRequest.auth && normalizedRequest.auth.teams_webhook_url, '')
-    || astMessagingTeamsNormalizeString(resolvedConfig.chat && resolvedConfig.chat.teamsWebhookUrl, '');
+  return astMessagingNormalizeString(body.webhookUrl, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.teamsWebhookUrl, '')
+    || astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.teams_webhook_url, '')
+    || astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.teamsWebhookUrl, '');
 }
 
 function astMessagingTeamsBuildPayload(body = {}) {
@@ -28,11 +10,11 @@ function astMessagingTeamsBuildPayload(body = {}) {
     return { text: body.message };
   }
 
-  if (astMessagingTeamsIsPlainObject(body.message)) {
-    return astMessagingTeamsCloneObject(body.message);
+  if (astMessagingIsPlainObject(body.message)) {
+    return astMessagingClonePlainObject(body.message);
   }
 
-  const text = astMessagingTeamsNormalizeString(body.text, '');
+  const text = astMessagingNormalizeString(body.text, '');
   if (text) {
     return { text };
   }
@@ -77,10 +59,10 @@ function astMessagingTeamsSendWebhook(body = {}, normalizedRequest = {}, resolve
 
 function astMessagingTeamsSendWebhookBatch(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const batchWebhookUrl = astMessagingTeamsNormalizeString(body.webhookUrl, '');
+  const batchWebhookUrl = astMessagingNormalizeString(body.webhookUrl, '');
   const items = messages.map(message => {
-    const payload = astMessagingTeamsIsPlainObject(message)
-      ? astMessagingTeamsCloneObject(message)
+    const payload = astMessagingIsPlainObject(message)
+      ? astMessagingClonePlainObject(message)
       : { message };
 
     if (!payload.webhookUrl && batchWebhookUrl) {

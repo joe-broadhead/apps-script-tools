@@ -1,17 +1,5 @@
-function astMessagingRunChatNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function astMessagingRunChatIsPlainObject(value) {
-  return value != null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function astMessagingRunChatParseHttpsHostname(url) {
-  const normalized = astMessagingRunChatNormalizeString(url, '');
+  const normalized = astMessagingNormalizeString(url, '');
   if (!normalized) {
     return '';
   }
@@ -22,7 +10,7 @@ function astMessagingRunChatParseHttpsHostname(url) {
       if (String(parsed.protocol || '').toLowerCase() !== 'https:') {
         return '';
       }
-      return astMessagingRunChatNormalizeString(parsed.hostname, '').toLowerCase();
+      return astMessagingNormalizeString(parsed.hostname, '').toLowerCase();
     }
   } catch (_error) {
     // Fall through to deterministic regex parsing for runtimes without URL support.
@@ -33,7 +21,7 @@ function astMessagingRunChatParseHttpsHostname(url) {
     return '';
   }
 
-  let authority = astMessagingRunChatNormalizeString(match[1], '').toLowerCase();
+  let authority = astMessagingNormalizeString(match[1], '').toLowerCase();
   if (!authority) {
     return '';
   }
@@ -61,14 +49,14 @@ function astMessagingRunChatHostnameMatches(hostname, exactHosts = [], suffixHos
   }
 
   for (let i = 0; i < exactHosts.length; i += 1) {
-    const exact = astMessagingRunChatNormalizeString(exactHosts[i], '').toLowerCase();
+    const exact = astMessagingNormalizeString(exactHosts[i], '').toLowerCase();
     if (exact && hostname === exact) {
       return true;
     }
   }
 
   for (let i = 0; i < suffixHosts.length; i += 1) {
-    const suffix = astMessagingRunChatNormalizeString(suffixHosts[i], '').toLowerCase();
+    const suffix = astMessagingNormalizeString(suffixHosts[i], '').toLowerCase();
     if (!suffix) {
       continue;
     }
@@ -100,7 +88,7 @@ function astMessagingRunChatResolveWebhookProvider(url) {
 }
 
 function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
-  const body = astMessagingRunChatIsPlainObject(normalizedRequest.body)
+  const body = astMessagingIsPlainObject(normalizedRequest.body)
     ? normalizedRequest.body
     : {};
 
@@ -110,21 +98,21 @@ function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
   let unknownWebhookHost = false;
 
   const inspectPayload = payload => {
-    if (!astMessagingRunChatIsPlainObject(payload)) {
+    if (!astMessagingIsPlainObject(payload)) {
       return;
     }
 
-    if (astMessagingRunChatNormalizeString(payload.space, '')) {
+    if (astMessagingNormalizeString(payload.space, '')) {
       hasSpace = true;
       providers.chat_api = true;
     }
 
-    if (astMessagingRunChatNormalizeString(payload.channel, '')) {
+    if (astMessagingNormalizeString(payload.channel, '')) {
       hasChannel = true;
       providers.slack_hint = true;
     }
 
-    const webhookUrl = astMessagingRunChatNormalizeString(payload.webhookUrl, '');
+    const webhookUrl = astMessagingNormalizeString(payload.webhookUrl, '');
     const webhookProvider = astMessagingRunChatResolveWebhookProvider(webhookUrl);
     if (webhookProvider) {
       providers[webhookProvider] = true;
@@ -138,7 +126,7 @@ function astMessagingRunChatCollectSendHints(normalizedRequest = {}) {
   if (normalizedRequest.operation === 'chat_send_batch') {
     const messages = Array.isArray(body.messages) ? body.messages : [];
     messages.forEach(message => {
-      inspectPayload(astMessagingRunChatIsPlainObject(message) ? message : {});
+      inspectPayload(astMessagingIsPlainObject(message) ? message : {});
     });
   }
 
