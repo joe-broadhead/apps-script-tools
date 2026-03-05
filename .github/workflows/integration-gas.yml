@@ -59,10 +59,22 @@ jobs:
         env:
           INPUT_SUITE: ${{ inputs.suite }}
         run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          LOG_FILE="artifacts/gas-integration-${INPUT_SUITE}.log"
           clasp status
           clasp push
           if [ "${INPUT_SUITE}" = "perf" ]; then
-            clasp run runPerformanceBenchmarks
+            clasp run runPerformanceBenchmarks 2>&1 | tee "${LOG_FILE}"
           else
-            clasp run runAllTests
+            clasp run runAllTests 2>&1 | tee "${LOG_FILE}"
           fi
+
+      - name: Upload GAS integration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-integration-${{ inputs.suite }}-${{ github.run_id }}
+          path: artifacts/gas-integration-*.log
+          if-no-files-found: warn
+          retention-days: 14
