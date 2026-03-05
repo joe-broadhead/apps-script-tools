@@ -6,18 +6,6 @@ const AST_MESSAGING_TEMPLATE_MEMORY = {
 const AST_MESSAGING_TEMPLATE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,160}$/;
 const AST_MESSAGING_TEMPLATE_VARIABLE_TYPES = Object.freeze(['any', 'string', 'number', 'boolean', 'object', 'array']);
 
-function astMessagingTemplateNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function astMessagingTemplateIsPlainObject(value) {
-  return value != null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function astMessagingTemplateClone(value) {
   if (value == null) {
     return value;
@@ -47,7 +35,7 @@ function astMessagingTemplateValueToString(value) {
 }
 
 function astMessagingTemplateExtractTokensFromString(value) {
-  const source = astMessagingTemplateNormalizeString(value, '');
+  const source = astMessagingNormalizeString(value, '');
   if (!source) {
     return [];
   }
@@ -57,7 +45,7 @@ function astMessagingTemplateExtractTokensFromString(value) {
   const matcher = /\{\{\s*([A-Za-z0-9_.$-]+)\s*\}\}/g;
   let match = matcher.exec(source);
   while (match) {
-    const token = astMessagingTemplateNormalizeString(match[1], '');
+    const token = astMessagingNormalizeString(match[1], '');
     if (token && !seen[token]) {
       seen[token] = true;
       tokens.push(token);
@@ -68,8 +56,8 @@ function astMessagingTemplateExtractTokensFromString(value) {
 }
 
 function astMessagingTemplateRenderStringInternal(templateText, params = {}, options = {}) {
-  const source = astMessagingTemplateNormalizeString(templateText, '');
-  const safeParams = astMessagingTemplateIsPlainObject(params) ? params : {};
+  const source = astMessagingNormalizeString(templateText, '');
+  const safeParams = astMessagingIsPlainObject(params) ? params : {};
   const strictMissing = options.strictMissing === true;
   const missing = Object.create(null);
 
@@ -88,9 +76,9 @@ function astMessagingTemplateRenderStringInternal(templateText, params = {}, opt
     if (missingTokens.length > 0) {
       throw new AstMessagingValidationError('Missing required template variables', {
         field: 'body.variables',
-        templateId: astMessagingTemplateNormalizeString(options.templateId, null),
+        templateId: astMessagingNormalizeString(options.templateId, null),
         tokens: missingTokens,
-        location: astMessagingTemplateNormalizeString(options.location, null)
+        location: astMessagingNormalizeString(options.location, null)
       });
     }
   }
@@ -111,7 +99,7 @@ function astMessagingTemplateRenderValue(value, params, options = {}) {
     return value.map(item => astMessagingTemplateRenderValue(item, params, options));
   }
 
-  if (astMessagingTemplateIsPlainObject(value)) {
+  if (astMessagingIsPlainObject(value)) {
     const output = {};
     Object.keys(value).forEach(key => {
       output[key] = astMessagingTemplateRenderValue(value[key], params, options);
@@ -156,7 +144,7 @@ function astMessagingRenderEmailContent(body = {}, renderOptions = {}) {
 }
 
 function astMessagingTemplateNormalizeId(value, field = 'body.templateId') {
-  const templateId = astMessagingTemplateNormalizeString(value, '');
+  const templateId = astMessagingNormalizeString(value, '');
   if (!templateId) {
     throw new AstMessagingValidationError("Missing required messaging request field 'body.templateId'", {
       field
@@ -172,7 +160,7 @@ function astMessagingTemplateNormalizeId(value, field = 'body.templateId') {
 }
 
 function astMessagingTemplateNormalizeChannel(value) {
-  const channel = astMessagingTemplateNormalizeString(value, '').toLowerCase();
+  const channel = astMessagingNormalizeString(value, '').toLowerCase();
   if (!channel) {
     throw new AstMessagingValidationError("Missing required messaging request field 'body.channel'", {
       field: 'body.channel'
@@ -188,7 +176,7 @@ function astMessagingTemplateNormalizeChannel(value) {
 }
 
 function astMessagingTemplateNormalizeVariableType(value) {
-  const normalized = astMessagingTemplateNormalizeString(value, 'any').toLowerCase();
+  const normalized = astMessagingNormalizeString(value, 'any').toLowerCase();
   if (!AST_MESSAGING_TEMPLATE_VARIABLE_TYPES.includes(normalized)) {
     throw new AstMessagingValidationError('Unsupported template variable type', {
       field: 'body.template.variables',
@@ -202,7 +190,7 @@ function astMessagingTemplateNormalizeVariableSchema(value) {
   if (value == null) {
     return {};
   }
-  if (!astMessagingTemplateIsPlainObject(value)) {
+  if (!astMessagingIsPlainObject(value)) {
     throw new AstMessagingValidationError("Messaging template field 'variables' must be an object", {
       field: 'body.template.variables'
     });
@@ -210,7 +198,7 @@ function astMessagingTemplateNormalizeVariableSchema(value) {
 
   const schema = {};
   Object.keys(value).forEach(name => {
-    const variableName = astMessagingTemplateNormalizeString(name, '');
+    const variableName = astMessagingNormalizeString(name, '');
     if (!variableName) {
       return;
     }
@@ -226,7 +214,7 @@ function astMessagingTemplateNormalizeVariableSchema(value) {
       return;
     }
 
-    if (!astMessagingTemplateIsPlainObject(definition)) {
+    if (!astMessagingIsPlainObject(definition)) {
       throw new AstMessagingValidationError('Template variable definition must be string or object', {
         field: `body.template.variables.${variableName}`
       });
@@ -262,23 +250,23 @@ function astMessagingTemplateValueMatchesType(value, expectedType) {
     return Array.isArray(value);
   }
   if (expectedType === 'object') {
-    return astMessagingTemplateIsPlainObject(value);
+    return astMessagingIsPlainObject(value);
   }
   return false;
 }
 
 function astMessagingTemplateResolveVariables(template = {}, inputVariables = {}) {
-  if (inputVariables != null && !astMessagingTemplateIsPlainObject(inputVariables)) {
+  if (inputVariables != null && !astMessagingIsPlainObject(inputVariables)) {
     throw new AstMessagingValidationError("Messaging request field 'body.variables' must be an object", {
       field: 'body.variables',
       templateId: template.templateId || null
     });
   }
 
-  const variables = astMessagingTemplateIsPlainObject(inputVariables)
+  const variables = astMessagingIsPlainObject(inputVariables)
     ? astMessagingTemplateClone(inputVariables)
     : {};
-  const schema = astMessagingTemplateIsPlainObject(template.variables)
+  const schema = astMessagingIsPlainObject(template.variables)
     ? template.variables
     : {};
 
@@ -322,22 +310,22 @@ function astMessagingTemplateCollectTokensFromValue(value, output = {}) {
     value.forEach(item => astMessagingTemplateCollectTokensFromValue(item, output));
     return output;
   }
-  if (astMessagingTemplateIsPlainObject(value)) {
+  if (astMessagingIsPlainObject(value)) {
     Object.keys(value).forEach(key => astMessagingTemplateCollectTokensFromValue(value[key], output));
   }
   return output;
 }
 
 function astMessagingTemplateBuildContent(templateInput = {}, channel) {
-  const contentInput = astMessagingTemplateIsPlainObject(templateInput.content)
+  const contentInput = astMessagingIsPlainObject(templateInput.content)
     ? templateInput.content
     : {};
   const content = {};
 
   if (channel === 'email') {
-    content.subject = astMessagingTemplateNormalizeString(contentInput.subject, astMessagingTemplateNormalizeString(templateInput.subject, ''));
-    content.textBody = astMessagingTemplateNormalizeString(contentInput.textBody, astMessagingTemplateNormalizeString(templateInput.textBody, ''));
-    content.htmlBody = astMessagingTemplateNormalizeString(contentInput.htmlBody, astMessagingTemplateNormalizeString(templateInput.htmlBody, ''));
+    content.subject = astMessagingNormalizeString(contentInput.subject, astMessagingNormalizeString(templateInput.subject, ''));
+    content.textBody = astMessagingNormalizeString(contentInput.textBody, astMessagingNormalizeString(templateInput.textBody, ''));
+    content.htmlBody = astMessagingNormalizeString(contentInput.htmlBody, astMessagingNormalizeString(templateInput.htmlBody, ''));
 
     if (!content.subject) {
       throw new AstMessagingValidationError("Missing required messaging request field 'body.template.subject'", {
@@ -355,16 +343,16 @@ function astMessagingTemplateBuildContent(templateInput = {}, channel) {
   const message = Object.prototype.hasOwnProperty.call(contentInput, 'message')
     ? contentInput.message
     : templateInput.message;
-  if (!(typeof message === 'string' || astMessagingTemplateIsPlainObject(message) || Array.isArray(message))) {
+  if (!(typeof message === 'string' || astMessagingIsPlainObject(message) || Array.isArray(message))) {
     throw new AstMessagingValidationError("Missing required messaging request field 'body.template.message'", {
       field: 'body.template.message'
     });
   }
 
   content.message = astMessagingTemplateClone(message);
-  content.transport = astMessagingTemplateNormalizeString(contentInput.transport, astMessagingTemplateNormalizeString(templateInput.transport, ''));
-  content.space = astMessagingTemplateNormalizeString(contentInput.space, astMessagingTemplateNormalizeString(templateInput.space, ''));
-  content.channel = astMessagingTemplateNormalizeString(contentInput.channel, astMessagingTemplateNormalizeString(templateInput.channel, ''));
+  content.transport = astMessagingNormalizeString(contentInput.transport, astMessagingNormalizeString(templateInput.transport, ''));
+  content.space = astMessagingNormalizeString(contentInput.space, astMessagingNormalizeString(templateInput.space, ''));
+  content.channel = astMessagingNormalizeString(contentInput.channel, astMessagingNormalizeString(templateInput.channel, ''));
 
   if (Object.prototype.hasOwnProperty.call(contentInput, 'thread')) {
     content.thread = astMessagingTemplateClone(contentInput.thread);
@@ -375,9 +363,9 @@ function astMessagingTemplateBuildContent(templateInput = {}, channel) {
   }
 
   if (Object.prototype.hasOwnProperty.call(contentInput, 'webhookUrl')) {
-    content.webhookUrl = astMessagingTemplateNormalizeString(contentInput.webhookUrl, '');
+    content.webhookUrl = astMessagingNormalizeString(contentInput.webhookUrl, '');
   } else if (Object.prototype.hasOwnProperty.call(templateInput, 'webhookUrl')) {
-    content.webhookUrl = astMessagingTemplateNormalizeString(templateInput.webhookUrl, '');
+    content.webhookUrl = astMessagingNormalizeString(templateInput.webhookUrl, '');
   } else {
     content.webhookUrl = '';
   }
@@ -386,12 +374,12 @@ function astMessagingTemplateBuildContent(templateInput = {}, channel) {
 }
 
 function astMessagingTemplateNormalizeCacheOptions(resolvedConfig = {}) {
-  const templatesConfig = astMessagingTemplateIsPlainObject(resolvedConfig.templates)
+  const templatesConfig = astMessagingIsPlainObject(resolvedConfig.templates)
     ? resolvedConfig.templates
     : {};
 
-  const backend = astMessagingTemplateNormalizeString(templatesConfig.backend, 'memory');
-  const namespace = astMessagingTemplateNormalizeString(templatesConfig.namespace, 'ast_messaging_templates');
+  const backend = astMessagingNormalizeString(templatesConfig.backend, 'memory');
+  const namespace = astMessagingNormalizeString(templatesConfig.namespace, 'ast_messaging_templates');
   const ttlSecRaw = Number(templatesConfig.ttlSec);
   const ttlSec = Number.isFinite(ttlSecRaw) && ttlSecRaw >= 0
     ? Math.floor(ttlSecRaw)
@@ -404,12 +392,12 @@ function astMessagingTemplateNormalizeCacheOptions(resolvedConfig = {}) {
   };
 
   if (backend === 'drive_json') {
-    options.driveFolderId = astMessagingTemplateNormalizeString(templatesConfig.driveFolderId, '');
-    options.driveFileName = astMessagingTemplateNormalizeString(templatesConfig.driveFileName, 'ast_messaging_templates.json');
+    options.driveFolderId = astMessagingNormalizeString(templatesConfig.driveFolderId, '');
+    options.driveFileName = astMessagingNormalizeString(templatesConfig.driveFileName, 'ast_messaging_templates.json');
   }
 
   if (backend === 'storage_json') {
-    options.storageUri = astMessagingTemplateNormalizeString(templatesConfig.storageUri, '');
+    options.storageUri = astMessagingNormalizeString(templatesConfig.storageUri, '');
   }
 
   return options;
@@ -459,7 +447,7 @@ function astMessagingTemplateReadTemplate(cache, options, templateId) {
   }
   try {
     const value = cache.get(key, options);
-    return astMessagingTemplateIsPlainObject(value) ? value : null;
+    return astMessagingIsPlainObject(value) ? value : null;
   } catch (_error) {
     if (!Object.prototype.hasOwnProperty.call(AST_MESSAGING_TEMPLATE_MEMORY.templates, key)) {
       return null;
@@ -488,8 +476,8 @@ function astMessagingTemplateGetById(templateId, resolvedConfig = {}) {
 }
 
 function astMessagingTemplateRegister(request = {}, resolvedConfig = {}) {
-  const body = astMessagingTemplateIsPlainObject(request.body) ? request.body : {};
-  const templateInput = astMessagingTemplateIsPlainObject(body.template)
+  const body = astMessagingIsPlainObject(request.body) ? request.body : {};
+  const templateInput = astMessagingIsPlainObject(body.template)
     ? body.template
     : body;
 
@@ -498,12 +486,12 @@ function astMessagingTemplateRegister(request = {}, resolvedConfig = {}) {
     'body.templateId'
   );
   const channel = astMessagingTemplateNormalizeChannel(body.channel || templateInput.channel);
-  const description = astMessagingTemplateNormalizeString(templateInput.description, '');
+  const description = astMessagingNormalizeString(templateInput.description, '');
   const variables = astMessagingTemplateNormalizeVariableSchema(templateInput.variables);
   const content = astMessagingTemplateBuildContent(templateInput, channel);
   const overwrite = body.overwrite !== false
-    && !(astMessagingTemplateIsPlainObject(body.options) && body.options.overwrite === false);
-  const metadata = astMessagingTemplateIsPlainObject(templateInput.metadata)
+    && !(astMessagingIsPlainObject(body.options) && body.options.overwrite === false);
+  const metadata = astMessagingIsPlainObject(templateInput.metadata)
     ? astMessagingTemplateClone(templateInput.metadata)
     : {};
 
@@ -543,8 +531,8 @@ function astMessagingTemplateRegister(request = {}, resolvedConfig = {}) {
     updatedAt: nowIso
   });
   filtered.sort((a, b) => {
-    const left = astMessagingTemplateNormalizeString(a && a.templateId, '');
-    const right = astMessagingTemplateNormalizeString(b && b.templateId, '');
+    const left = astMessagingNormalizeString(a && a.templateId, '');
+    const right = astMessagingNormalizeString(b && b.templateId, '');
     if (left < right) {
       return -1;
     }
@@ -565,7 +553,7 @@ function astMessagingTemplateRegister(request = {}, resolvedConfig = {}) {
 }
 
 function astMessagingTemplateGet(request = {}, resolvedConfig = {}) {
-  const body = astMessagingTemplateIsPlainObject(request.body) ? request.body : {};
+  const body = astMessagingIsPlainObject(request.body) ? request.body : {};
   const templateId = astMessagingTemplateNormalizeId(body.templateId || body.id, 'body.templateId');
   const template = astMessagingTemplateGetById(templateId, resolvedConfig);
   if (!template) {
@@ -577,7 +565,7 @@ function astMessagingTemplateGet(request = {}, resolvedConfig = {}) {
 }
 
 function astMessagingTemplateRenderResolved(template = {}, inputVariables = {}, options = {}) {
-  const templateId = astMessagingTemplateNormalizeString(template.templateId, null);
+  const templateId = astMessagingNormalizeString(template.templateId, null);
   const channel = astMessagingTemplateNormalizeChannel(template.channel);
   const variables = astMessagingTemplateResolveVariables(template, inputVariables);
   const strictOptions = {
@@ -617,7 +605,7 @@ function astMessagingTemplateRenderResolved(template = {}, inputVariables = {}, 
 }
 
 function astMessagingTemplateRender(request = {}, resolvedConfig = {}) {
-  const body = astMessagingTemplateIsPlainObject(request.body) ? request.body : {};
+  const body = astMessagingIsPlainObject(request.body) ? request.body : {};
   const templateId = astMessagingTemplateNormalizeId(body.templateId || body.id, 'body.templateId');
   const template = astMessagingTemplateGetById(templateId, resolvedConfig);
   if (!template) {
@@ -632,10 +620,10 @@ function astMessagingTemplateBuildChatBodyFromRendered(rendered = {}, sendBody =
     message: astMessagingTemplateClone(rendered.message)
   };
 
-  const transport = astMessagingTemplateNormalizeString(sendBody.transport, astMessagingTemplateNormalizeString(rendered.transport, ''));
-  const space = astMessagingTemplateNormalizeString(sendBody.space, astMessagingTemplateNormalizeString(rendered.space, ''));
-  const channel = astMessagingTemplateNormalizeString(sendBody.channel, astMessagingTemplateNormalizeString(rendered.channel, ''));
-  const webhookUrl = astMessagingTemplateNormalizeString(sendBody.webhookUrl, astMessagingTemplateNormalizeString(rendered.webhookUrl, ''));
+  const transport = astMessagingNormalizeString(sendBody.transport, astMessagingNormalizeString(rendered.transport, ''));
+  const space = astMessagingNormalizeString(sendBody.space, astMessagingNormalizeString(rendered.space, ''));
+  const channel = astMessagingNormalizeString(sendBody.channel, astMessagingNormalizeString(rendered.channel, ''));
+  const webhookUrl = astMessagingNormalizeString(sendBody.webhookUrl, astMessagingNormalizeString(rendered.webhookUrl, ''));
 
   if (transport) {
     body.transport = transport;
@@ -660,7 +648,7 @@ function astMessagingTemplateBuildChatBodyFromRendered(rendered = {}, sendBody =
 }
 
 function astMessagingTemplateSend(request = {}, resolvedConfig = {}) {
-  const body = astMessagingTemplateIsPlainObject(request.body) ? request.body : {};
+  const body = astMessagingIsPlainObject(request.body) ? request.body : {};
   const templateId = astMessagingTemplateNormalizeId(body.templateId || body.id, 'body.templateId');
   const template = astMessagingTemplateGetById(templateId, resolvedConfig);
   if (!template) {
@@ -675,7 +663,7 @@ function astMessagingTemplateSend(request = {}, resolvedConfig = {}) {
       subject: rendered.rendered.subject,
       textBody: rendered.rendered.textBody,
       htmlBody: rendered.rendered.htmlBody,
-      options: astMessagingTemplateIsPlainObject(body.options) ? astMessagingTemplateClone(body.options) : {}
+      options: astMessagingIsPlainObject(body.options) ? astMessagingTemplateClone(body.options) : {}
     };
 
     const forwarded = astMessagingValidateRequest({
