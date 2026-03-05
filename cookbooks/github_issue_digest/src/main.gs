@@ -17,12 +17,13 @@ function runGithubIssueDigestSmoke() {
     state: 'open',
     options: { perPage: 10, page: 1 }
   });
+  const issuesOnly = Array.isArray(issuesRes && issuesRes.data)
+    ? issuesRes.data.filter(item => !item || !item.pull_request)
+    : [];
 
   const digest = {
     repo: `${props.GITHUB_OWNER || 'owner'}/${props.GITHUB_REPO || 'repo'}`,
-    openIssues: Array.isArray(issuesRes && issuesRes.data)
-      ? issuesRes.data.length
-      : 0,
+    openIssues: issuesOnly.length,
     openPullRequests: Array.isArray(pullsRes && pullsRes.data)
       ? pullsRes.data.length
       : 0,

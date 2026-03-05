@@ -48,7 +48,6 @@ clasp push
 ## Available examples
 
 - `_template`: minimal starter project scaffold.
-- `rag_chat_app`: configurable RAG chat web app starter.
 - `github_issue_digest`: fetch open issues/PRs via `AST.GitHub` and emit a digest.
 - `dbt_manifest_summary`: load Drive manifest and summarize models via `AST.DBT`.
 - `storage_cache_warmer`: warm persisted cache keys using `AST.Cache` + `storage_json`.

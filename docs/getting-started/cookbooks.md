@@ -56,7 +56,6 @@ Put reusable logic back into the library (`apps_script_tools/`) only when it is 
 ## Available cookbook examples
 
 - `_template`: baseline scaffold for new cookbook projects.
-- `rag_chat_app`: configurable RAG chat web app starter.
 - `github_issue_digest`: query open issues/PRs via `AST.GitHub` and log a digest.
 - `dbt_manifest_summary`: load dbt `manifest.json` from Drive and summarize entities via `AST.DBT`.
 - `storage_cache_warmer`: warm/validate persisted cache entries using `AST.Cache` `storage_json`.
