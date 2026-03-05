@@ -215,6 +215,7 @@ function astDbtLoadManifestCore(request = {}) {
           counts: normalizedBundle.counts,
           validation: normalizedBundle.validation,
           bundle: normalizedBundle,
+          indexBuild: normalizedBundle.indexBuild || null,
           warnings,
           cache: cacheInfo
         };
