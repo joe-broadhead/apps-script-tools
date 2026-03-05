@@ -52,6 +52,21 @@ export const SECRET_RULES = Object.freeze([
     regex: /\bdapi[0-9a-f]{32}\b/gi
   },
   {
+    id: 'azure_storage_account_key',
+    description: 'Azure storage account key in assignment-like context',
+    regex: /\b(?:AZURE_STORAGE_KEY|AZURE_STORAGE_ACCOUNT_KEY)\b\s*[:=]\s*['\"]?[A-Za-z0-9+/]{86,90}={0,2}/g
+  },
+  {
+    id: 'heroku_api_key',
+    description: 'Heroku API key in assignment-like context',
+    regex: /\b(?:HEROKU_API_KEY|HEROKU_TOKEN)\b\s*[:=]\s*['\"]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
+  },
+  {
+    id: 'digitalocean_pat',
+    description: 'DigitalOcean personal access token',
+    regex: /\bdop_v1_[A-Za-z0-9]{48,}\b/g
+  },
+  {
     id: 'stripe_secret_key',
     description: 'Stripe secret/restricted API key',
     regex: /\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}\b/g
