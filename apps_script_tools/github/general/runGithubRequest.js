@@ -617,6 +617,55 @@ function astGitHubExecutePushFiles(request, config) {
     });
   }
 
+  const planPushFilesStrategy = function() {
+    if (normalizedFiles.length <= 1) {
+      return {
+        strategy: 'contents_api',
+        reason: 'single_file'
+      };
+    }
+
+    const hasSha = normalizedFiles.some(file => Boolean(file.sha));
+    if (hasSha) {
+      return {
+        strategy: 'contents_api',
+        reason: 'file_sha_precondition'
+      };
+    }
+
+    const distinctMessages = {};
+    normalizedFiles.forEach(file => {
+      distinctMessages[file.message] = true;
+    });
+    if (Object.keys(distinctMessages).length > 1) {
+      return {
+        strategy: 'contents_api',
+        reason: 'mixed_commit_messages'
+      };
+    }
+
+    const distinctBranches = {};
+    normalizedFiles.forEach(file => {
+      const resolvedBranch = astGitHubRunNormalizeString(file.branch, defaultBranch);
+      if (resolvedBranch) {
+        distinctBranches[resolvedBranch] = true;
+      }
+    });
+    if (Object.keys(distinctBranches).length > 1) {
+      return {
+        strategy: 'contents_api',
+        reason: 'mixed_target_branches'
+      };
+    }
+
+    return {
+      strategy: 'git_data_api',
+      reason: null
+    };
+  };
+
+  const strategyPlan = planPushFilesStrategy();
+
   if (request.options && request.options.dryRun === true) {
     const plan = astGitHubBuildDryRunPlan({
       request,
@@ -629,6 +678,11 @@ function astGitHubExecutePushFiles(request, config) {
       path: astGitHubBuildRepoPath(request, '/contents/*'),
       queryParams: {},
       body: {
+        strategy: strategyPlan.strategy,
+        fallbackReason: strategyPlan.reason,
+        sequence: strategyPlan.strategy === 'git_data_api'
+          ? ['lookup_ref', 'lookup_commit', 'create_blobs', 'create_tree', 'create_commit', 'update_ref']
+          : ['create_or_update_file'],
         branch: defaultBranch,
         files: normalizedFiles.map(file => ({
           path: file.path,
@@ -650,37 +704,316 @@ function astGitHubExecutePushFiles(request, config) {
     });
   }
 
-  const results = [];
+  const runSequentialContentsPath = function(fallbackReason = null) {
+    const results = [];
+    for (let idx = 0; idx < normalizedFiles.length; idx += 1) {
+      const file = normalizedFiles[idx];
+      const subBody = {
+        message: file.message,
+        content: file.content
+      };
+      if (file.branch) {
+        subBody.branch = file.branch;
+      }
+      if (file.sha) {
+        subBody.sha = file.sha;
+      }
+
+      const subRequest = {
+        operation: 'create_or_update_file',
+        owner: request.owner,
+        repo: request.repo,
+        path: file.path,
+        body: subBody,
+        options: Object.assign({}, request.options, { dryRun: false })
+      };
+
+      const output = astGitHubExecuteStandardOperation(subRequest, config, astGitHubGetOperationSpec('create_or_update_file'));
+      results.push({
+        index: idx,
+        path: file.path,
+        status: 'ok',
+        data: output.data
+      });
+    }
+
+    return astGitHubNormalizeResponse({
+      operation: 'push_files',
+      operationSpec: { read: false, mutation: true, paginated: false, group: 'files' },
+      method: 'post',
+      path: astGitHubBuildRepoPath(request, '/contents/*'),
+      request,
+      config,
+      warnings: fallbackReason ? [`push_files used contents API fallback: ${fallbackReason}`] : [],
+      httpResult: {
+        statusCode: 200,
+        bodyJson: {
+          strategy: 'contents_api',
+          fallbackReason,
+          count: results.length,
+          results
+        },
+        bodyText: '',
+        headers: {}
+      }
+    });
+  };
+
+  if (strategyPlan.strategy !== 'git_data_api') {
+    return runSequentialContentsPath(strategyPlan.reason);
+  }
+
+  const distinctBranches = {};
+  normalizedFiles.forEach(file => {
+    const resolvedBranch = astGitHubRunNormalizeString(file.branch, defaultBranch);
+    if (resolvedBranch) {
+      distinctBranches[resolvedBranch] = true;
+    }
+  });
+
+  let targetBranch = Object.keys(distinctBranches)[0] || '';
+  if (!targetBranch) {
+    const repositoryOutput = astGitHubExecuteStandardOperation(
+      Object.assign({}, request, {
+        operation: 'push_files_repo_lookup',
+        options: Object.assign({}, request.options, { dryRun: false })
+      }),
+      config,
+      {
+        method: 'get',
+        path: req => astGitHubBuildRepoPath(req),
+        read: true,
+        paginated: false,
+        group: 'files',
+        mutation: false
+      },
+      {
+        path: astGitHubBuildRepoPath(request),
+        queryParams: {},
+        forceCacheEnabled: false
+      }
+    );
+    targetBranch = astGitHubRunNormalizeString(
+      repositoryOutput &&
+      repositoryOutput.data &&
+      repositoryOutput.data.default_branch,
+      ''
+    );
+  }
+
+  astGitHubValidateRequiredField(targetBranch, 'branch');
+
+  const refPath = astGitHubBuildRepoPath(request, `/git/ref/heads/${encodeURIComponent(targetBranch)}`);
+  const refLookup = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_ref_lookup',
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'get',
+      path: () => refPath,
+      read: true,
+      paginated: false,
+      group: 'files',
+      mutation: false
+    },
+    {
+      path: refPath,
+      queryParams: {},
+      forceCacheEnabled: false
+    }
+  );
+
+  const baseCommitSha = astGitHubRunNormalizeString(
+    refLookup && refLookup.data && refLookup.data.object && refLookup.data.object.sha,
+    ''
+  );
+  astGitHubValidateRequiredField(baseCommitSha, 'baseCommitSha');
+
+  const commitPath = astGitHubBuildRepoPath(request, `/git/commits/${encodeURIComponent(baseCommitSha)}`);
+  const commitLookup = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_commit_lookup',
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'get',
+      path: () => commitPath,
+      read: true,
+      paginated: false,
+      group: 'files',
+      mutation: false
+    },
+    {
+      path: commitPath,
+      queryParams: {},
+      forceCacheEnabled: false
+    }
+  );
+
+  const baseTreeSha = astGitHubRunNormalizeString(
+    commitLookup && commitLookup.data && commitLookup.data.tree && commitLookup.data.tree.sha,
+    ''
+  );
+  astGitHubValidateRequiredField(baseTreeSha, 'baseTreeSha');
+
+  const blobResults = [];
+  const treeEntries = [];
+
   for (let idx = 0; idx < normalizedFiles.length; idx += 1) {
     const file = normalizedFiles[idx];
-    const subBody = {
-      message: file.message,
-      content: file.content
+    const blobBody = {
+      content: file.content,
+      encoding: 'base64'
     };
-    if (file.branch) {
-      subBody.branch = file.branch;
-    }
-    if (file.sha) {
-      subBody.sha = file.sha;
-    }
+    const blobOutput = astGitHubExecuteStandardOperation(
+      Object.assign({}, request, {
+        operation: 'push_files_create_blob',
+        body: blobBody,
+        options: Object.assign({}, request.options, { dryRun: false })
+      }),
+      config,
+      {
+        method: 'post',
+        path: req => astGitHubBuildRepoPath(req, '/git/blobs'),
+        read: false,
+        paginated: false,
+        group: 'files',
+        mutation: true
+      },
+      {
+        path: astGitHubBuildRepoPath(request, '/git/blobs'),
+        queryParams: {},
+        body: blobBody,
+        forceCacheEnabled: false
+      }
+    );
 
-    const subRequest = {
-      operation: 'create_or_update_file',
-      owner: request.owner,
-      repo: request.repo,
-      path: file.path,
-      body: subBody,
-      options: Object.assign({}, request.options, { dryRun: false })
-    };
+    const blobSha = astGitHubRunNormalizeString(
+      blobOutput && blobOutput.data && blobOutput.data.sha,
+      ''
+    );
+    astGitHubValidateRequiredField(blobSha, 'blobSha');
 
-    const output = astGitHubExecuteStandardOperation(subRequest, config, astGitHubGetOperationSpec('create_or_update_file'));
-    results.push({
+    blobResults.push({
       index: idx,
       path: file.path,
-      status: 'ok',
-      data: output.data
+      sha: blobSha
+    });
+    treeEntries.push({
+      path: file.path,
+      mode: '100644',
+      type: 'blob',
+      sha: blobSha
     });
   }
+
+  const createTreeBody = {
+    base_tree: baseTreeSha,
+    tree: treeEntries
+  };
+  const treeOutput = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_create_tree',
+      body: createTreeBody,
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'post',
+      path: req => astGitHubBuildRepoPath(req, '/git/trees'),
+      read: false,
+      paginated: false,
+      group: 'files',
+      mutation: true
+    },
+    {
+      path: astGitHubBuildRepoPath(request, '/git/trees'),
+      queryParams: {},
+      body: createTreeBody,
+      forceCacheEnabled: false
+    }
+  );
+
+  const newTreeSha = astGitHubRunNormalizeString(treeOutput && treeOutput.data && treeOutput.data.sha, '');
+  astGitHubValidateRequiredField(newTreeSha, 'newTreeSha');
+
+  const commitMessage = astGitHubRunNormalizeString(defaultMessage, normalizedFiles[0].message);
+  const createCommitBody = {
+    message: commitMessage,
+    tree: newTreeSha,
+    parents: [baseCommitSha]
+  };
+  const createCommitOutput = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_create_commit',
+      body: createCommitBody,
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'post',
+      path: req => astGitHubBuildRepoPath(req, '/git/commits'),
+      read: false,
+      paginated: false,
+      group: 'files',
+      mutation: true
+    },
+    {
+      path: astGitHubBuildRepoPath(request, '/git/commits'),
+      queryParams: {},
+      body: createCommitBody,
+      forceCacheEnabled: false
+    }
+  );
+
+  const newCommitSha = astGitHubRunNormalizeString(
+    createCommitOutput && createCommitOutput.data && createCommitOutput.data.sha,
+    ''
+  );
+  astGitHubValidateRequiredField(newCommitSha, 'newCommitSha');
+
+  const updateRefBody = {
+    sha: newCommitSha,
+    force: false
+  };
+  const updateRefPath = astGitHubBuildRepoPath(request, `/git/refs/heads/${encodeURIComponent(targetBranch)}`);
+  const updateRefOutput = astGitHubExecuteStandardOperation(
+    Object.assign({}, request, {
+      operation: 'push_files_update_ref',
+      body: updateRefBody,
+      options: Object.assign({}, request.options, { dryRun: false })
+    }),
+    config,
+    {
+      method: 'patch',
+      path: () => updateRefPath,
+      read: false,
+      paginated: false,
+      group: 'files',
+      mutation: true
+    },
+    {
+      path: updateRefPath,
+      queryParams: {},
+      body: updateRefBody,
+      forceCacheEnabled: false
+    }
+  );
+
+  const results = normalizedFiles.map((file, idx) => ({
+    index: idx,
+    path: file.path,
+    status: 'ok',
+    data: {
+      blobSha: blobResults[idx] ? blobResults[idx].sha : null,
+      commitSha: newCommitSha,
+      treeSha: newTreeSha,
+      branch: targetBranch
+    }
+  }));
 
   return astGitHubNormalizeResponse({
     operation: 'push_files',
@@ -692,6 +1025,15 @@ function astGitHubExecutePushFiles(request, config) {
     httpResult: {
       statusCode: 200,
       bodyJson: {
+        strategy: 'git_data_api',
+        fallbackReason: null,
+        branch: targetBranch,
+        baseCommitSha,
+        baseTreeSha,
+        commitSha: astGitHubRunNormalizeString(
+          updateRefOutput && updateRefOutput.data && updateRefOutput.data.object && updateRefOutput.data.object.sha,
+          newCommitSha
+        ),
         count: results.length,
         results
       },

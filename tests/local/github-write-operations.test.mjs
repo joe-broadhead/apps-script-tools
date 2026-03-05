@@ -123,6 +123,87 @@ test('pushFiles uses default message and executes file updates', () => {
   assert.equal(calls.length, 2);
   assert.equal(parsePayload(calls[0].options).message, 'bulk update');
   assert.equal(parsePayload(calls[1].options).message, 'specific message');
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_commit_messages');
+  assert.equal(response.data.count, 2);
+  assert.equal(response.data.results.length, 2);
+});
+
+test('pushFiles uses git data API for multi-file single-commit updates', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/blobs')) {
+          return createResponse(201, {
+            sha: `blob-sha-${calls.length}`
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/trees')) {
+          return createResponse(201, {
+            sha: 'new-tree-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits')) {
+          return createResponse(201, {
+            sha: 'new-commit-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/refs/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'new-commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 7);
+  assert.match(calls[0].url, /\/git\/ref\/heads\/main$/);
+  assert.match(calls[1].url, /\/git\/commits\/base-commit-sha$/);
+  assert.match(calls[2].url, /\/git\/blobs$/);
+  assert.match(calls[3].url, /\/git\/blobs$/);
+  assert.match(calls[4].url, /\/git\/trees$/);
+  assert.match(calls[5].url, /\/git\/commits$/);
+  assert.match(calls[6].url, /\/git\/refs\/heads\/main$/);
+  assert.equal(response.data.strategy, 'git_data_api');
+  assert.equal(response.data.fallbackReason, null);
+  assert.equal(response.data.commitSha, 'new-commit-sha');
   assert.equal(response.data.count, 2);
   assert.equal(response.data.results.length, 2);
 });
