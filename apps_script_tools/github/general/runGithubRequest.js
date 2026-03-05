@@ -633,11 +633,11 @@ function astGitHubExecutePushFiles(request, config) {
       };
     }
 
-    const distinctMessages = {};
+    const distinctMessages = new Set();
     normalizedFiles.forEach(file => {
-      distinctMessages[file.message] = true;
+      distinctMessages.add(file.message);
     });
-    if (Object.keys(distinctMessages).length > 1) {
+    if (distinctMessages.size > 1) {
       return {
         strategy: 'contents_api',
         reason: 'mixed_commit_messages'
@@ -657,14 +657,14 @@ function astGitHubExecutePushFiles(request, config) {
       };
     }
 
-    const distinctBranches = {};
+    const distinctBranches = new Set();
     normalizedFiles.forEach(file => {
       const resolvedBranch = astGitHubRunNormalizeString(file.branch, defaultBranch);
       if (resolvedBranch) {
-        distinctBranches[resolvedBranch] = true;
+        distinctBranches.add(resolvedBranch);
       }
     });
-    if (Object.keys(distinctBranches).length > 1) {
+    if (distinctBranches.size > 1) {
       return {
         strategy: 'contents_api',
         reason: 'mixed_target_branches'
@@ -776,15 +776,17 @@ function astGitHubExecutePushFiles(request, config) {
     return runSequentialContentsPath(strategyPlan.reason);
   }
 
-  const distinctBranches = {};
+  const distinctBranches = new Set();
   normalizedFiles.forEach(file => {
     const resolvedBranch = astGitHubRunNormalizeString(file.branch, defaultBranch);
     if (resolvedBranch) {
-      distinctBranches[resolvedBranch] = true;
+      distinctBranches.add(resolvedBranch);
     }
   });
 
-  let targetBranch = Object.keys(distinctBranches)[0] || '';
+  let targetBranch = distinctBranches.size > 0
+    ? Array.from(distinctBranches)[0]
+    : '';
   if (!targetBranch) {
     const repositoryOutput = astGitHubExecuteStandardOperation(
       Object.assign({}, request, {
@@ -893,6 +895,15 @@ function astGitHubExecutePushFiles(request, config) {
       forceCacheEnabled: false
     }
   );
+
+  const isBaseTreeTruncated = Boolean(
+    baseTreeLookup &&
+    baseTreeLookup.data &&
+    baseTreeLookup.data.truncated === true
+  );
+  if (isBaseTreeTruncated) {
+    return runSequentialContentsPath('base_tree_truncated');
+  }
 
   const existingModesByPath = {};
   const baseTreeEntries = Array.isArray(baseTreeLookup && baseTreeLookup.data && baseTreeLookup.data.tree)

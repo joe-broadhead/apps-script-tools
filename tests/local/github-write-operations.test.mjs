@@ -296,6 +296,106 @@ test('pushFiles falls back when explicit branches are mixed with implicit defaul
   assert.equal(response.data.fallbackReason, 'mixed_implicit_default_and_explicit_branches');
 });
 
+test('pushFiles falls back when base tree lookup is truncated', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            truncated: true,
+            tree: []
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/contents/')) {
+          return createResponse(200, {
+            content: { sha: 'new-sha' },
+            commit: { sha: 'commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 5);
+  assert.match(calls[0].url, /\/git\/ref\/heads\/main$/);
+  assert.match(calls[1].url, /\/git\/commits\/base-commit-sha$/);
+  assert.match(calls[2].url, /\/git\/trees\/base-tree-sha\?recursive=1$/);
+  assert.match(calls[3].url, /\/contents\//);
+  assert.match(calls[4].url, /\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'base_tree_truncated');
+});
+
+test('pushFiles mixed messages including __proto__ uses contents fallback', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+        return createResponse(200, {
+          content: { sha: 'new-sha' },
+          commit: { sha: 'commit-sha' }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      files: [
+        { path: 'README.md', content: 'IyBIZWxsbwo=', message: '__proto__' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'different' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /\/contents\//);
+  assert.match(calls[1].url, /\/contents\//);
+  assert.equal(response.data.strategy, 'contents_api');
+  assert.equal(response.data.fallbackReason, 'mixed_commit_messages');
+});
+
 test('createBranch resolves default branch when sha not provided', () => {
   const calls = [];
   const context = createGasContext({
