@@ -1,37 +1,29 @@
-function astMessagingChatWebhookNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingChatWebhookBuildPayload(body = {}) {
   if (typeof body.message === 'string') {
     return { text: body.message };
   }
 
-  if (body.message && typeof body.message === 'object' && !Array.isArray(body.message)) {
+  if (astMessagingIsPlainObject(body.message)) {
     return Object.assign({}, body.message);
   }
 
   return {
-    text: astMessagingChatWebhookNormalizeString(body.text, '')
+    text: astMessagingNormalizeString(body.text, '')
   };
 }
 
 function astMessagingChatResolveWebhookUrl(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
-  const direct = astMessagingChatWebhookNormalizeString(body.webhookUrl, '');
+  const direct = astMessagingNormalizeString(body.webhookUrl, '');
   if (direct) {
     return direct;
   }
 
-  const authWebhook = astMessagingChatWebhookNormalizeString(normalizedRequest.auth && normalizedRequest.auth.chatWebhookUrl, '');
+  const authWebhook = astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.chatWebhookUrl, '');
   if (authWebhook) {
     return authWebhook;
   }
 
-  return astMessagingChatWebhookNormalizeString(resolvedConfig.chat && resolvedConfig.chat.webhookUrl, '');
+  return astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.webhookUrl, '');
 }
 
 function astMessagingChatSendWebhook(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
@@ -71,7 +63,7 @@ function astMessagingChatSendWebhook(body = {}, normalizedRequest = {}, resolved
 
 function astMessagingChatSendWebhookBatch(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const batchWebhookUrl = astMessagingChatWebhookNormalizeString(body.webhookUrl, '');
+  const batchWebhookUrl = astMessagingNormalizeString(body.webhookUrl, '');
   const items = messages.map(message => {
     const payload = message && typeof message === 'object' ? Object.assign({}, message) : { message };
     if (!payload.webhookUrl && batchWebhookUrl) {

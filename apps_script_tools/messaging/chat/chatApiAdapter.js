@@ -1,19 +1,11 @@
-function astMessagingChatApiNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingChatApiResolveToken(normalizedRequest = {}) {
-  const token = astMessagingChatApiNormalizeString(normalizedRequest.auth && normalizedRequest.auth.oauthToken, '');
+  const token = astMessagingNormalizeString(normalizedRequest.auth && normalizedRequest.auth.oauthToken, '');
   if (token) {
     return token;
   }
 
   if (typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getOAuthToken === 'function') {
-    const oauthToken = astMessagingChatApiNormalizeString(ScriptApp.getOAuthToken(), '');
+    const oauthToken = astMessagingNormalizeString(ScriptApp.getOAuthToken(), '');
     if (oauthToken) {
       return oauthToken;
     }
@@ -25,7 +17,7 @@ function astMessagingChatApiResolveToken(normalizedRequest = {}) {
 }
 
 function astMessagingChatApiResolveBaseUrl(resolvedConfig = {}) {
-  const baseUrl = astMessagingChatApiNormalizeString(resolvedConfig.chat && resolvedConfig.chat.apiBaseUrl, 'https://chat.googleapis.com/v1');
+  const baseUrl = astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.apiBaseUrl, 'https://chat.googleapis.com/v1');
   return baseUrl.replace(/\/$/, '');
 }
 
@@ -37,7 +29,7 @@ function astMessagingChatApiBuildHeaders(token) {
 }
 
 function astMessagingChatApiBuildSendUrl(baseUrl, body = {}, resolvedConfig = {}) {
-  const space = astMessagingChatApiNormalizeString(body.space, astMessagingChatApiNormalizeString(resolvedConfig.chat && resolvedConfig.chat.space, ''));
+  const space = astMessagingNormalizeString(body.space, astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.space, ''));
   if (!space) {
     throw new AstMessagingValidationError('Chat API transport requires body.space', {
       field: 'body.space'
@@ -46,7 +38,7 @@ function astMessagingChatApiBuildSendUrl(baseUrl, body = {}, resolvedConfig = {}
 
   const params = [];
   const thread = body.thread && typeof body.thread === 'object' ? body.thread : {};
-  const threadKey = astMessagingChatApiNormalizeString(thread.threadKey, '');
+  const threadKey = astMessagingNormalizeString(thread.threadKey, '');
   const reply = thread.reply === true;
   if (threadKey) {
     params.push(`threadKey=${encodeURIComponent(threadKey)}`);
@@ -64,12 +56,12 @@ function astMessagingChatApiBuildPayload(body = {}) {
     return { text: body.message };
   }
 
-  if (body.message && typeof body.message === 'object' && !Array.isArray(body.message)) {
+  if (astMessagingIsPlainObject(body.message)) {
     return Object.assign({}, body.message);
   }
 
   return {
-    text: astMessagingChatApiNormalizeString(body.text, '')
+    text: astMessagingNormalizeString(body.text, '')
   };
 }
 
@@ -124,7 +116,7 @@ function astMessagingChatApiSendBatch(body = {}, normalizedRequest = {}, resolve
 function astMessagingChatApiGetMessage(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const token = astMessagingChatApiResolveToken(normalizedRequest);
   const baseUrl = astMessagingChatApiResolveBaseUrl(resolvedConfig);
-  const messageName = astMessagingChatApiNormalizeString(body.messageName, '');
+  const messageName = astMessagingNormalizeString(body.messageName, '');
   if (!messageName) {
     throw new AstMessagingValidationError('chat_get_message requires body.messageName', {
       field: 'body.messageName'
@@ -151,7 +143,7 @@ function astMessagingChatApiGetMessage(body = {}, normalizedRequest = {}, resolv
 function astMessagingChatApiListMessages(body = {}, normalizedRequest = {}, resolvedConfig = {}) {
   const token = astMessagingChatApiResolveToken(normalizedRequest);
   const baseUrl = astMessagingChatApiResolveBaseUrl(resolvedConfig);
-  const space = astMessagingChatApiNormalizeString(body.space, astMessagingChatApiNormalizeString(resolvedConfig.chat && resolvedConfig.chat.space, ''));
+  const space = astMessagingNormalizeString(body.space, astMessagingNormalizeString(resolvedConfig.chat && resolvedConfig.chat.space, ''));
   if (!space) {
     throw new AstMessagingValidationError('chat_list_messages requires body.space', {
       field: 'body.space'
@@ -159,7 +151,7 @@ function astMessagingChatApiListMessages(body = {}, normalizedRequest = {}, reso
   }
 
   const pageSize = Math.max(1, Math.min(1000, Number(body.pageSize || 50)));
-  const pageToken = astMessagingChatApiNormalizeString(body.pageToken, '');
+  const pageToken = astMessagingNormalizeString(body.pageToken, '');
 
   const params = [`pageSize=${pageSize}`];
   if (pageToken) {

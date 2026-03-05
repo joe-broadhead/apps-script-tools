@@ -1,11 +1,3 @@
-function astMessagingRuntimeNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingRuntimeClone(value) {
   if (value == null) {
     return value;
@@ -39,7 +31,7 @@ function astMessagingTelemetryStart(normalizedRequest = {}) {
 
   if (typeof AST_TELEMETRY !== 'undefined' && AST_TELEMETRY && typeof AST_TELEMETRY.startSpan === 'function') {
     return AST_TELEMETRY.startSpan(
-      `${astMessagingRuntimeNormalizeString(normalizedRequest.options.telemetry.spanPrefix, 'messaging')}.${normalizedRequest.operation}`,
+      `${astMessagingNormalizeString(normalizedRequest.options.telemetry.spanPrefix, 'messaging')}.${normalizedRequest.operation}`,
       {
         operation: normalizedRequest.operation,
         channel: normalizedRequest.channel

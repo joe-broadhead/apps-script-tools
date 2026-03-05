@@ -1,11 +1,3 @@
-function astMessagingAsyncNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingAsyncJobsAvailable() {
   if (typeof AST_JOBS !== 'undefined' && AST_JOBS && typeof AST_JOBS.enqueue === 'function') {
     return true;
@@ -50,9 +42,9 @@ function astMessagingEnqueueAsync(normalizedRequest = {}, resolvedConfig = {}) {
   }
 
   const jobsApi = astMessagingAsyncGetJobsApi();
-  const queueName = astMessagingAsyncNormalizeString(
+  const queueName = astMessagingNormalizeString(
     normalizedRequest.options && normalizedRequest.options.async && normalizedRequest.options.async.queue,
-    astMessagingAsyncNormalizeString(resolvedConfig.async && resolvedConfig.async.queue, 'jobs')
+    astMessagingNormalizeString(resolvedConfig.async && resolvedConfig.async.queue, 'jobs')
   );
 
   if (queueName !== 'jobs') {
