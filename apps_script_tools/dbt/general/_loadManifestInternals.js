@@ -542,6 +542,9 @@ function astDbtBuildCompactPersistentIndex(index = {}, mode = 'compact') {
     columnCount: Number(index.columnCount || 0),
     sectionCounts: astDbtIsPlainObject(index.sectionCounts) ? astDbtJsonClone(index.sectionCounts) : {},
     entities: compactEntities,
+    entitySignatures: astDbtIsPlainObject(index.entitySignatures)
+      ? astDbtJsonClone(index.entitySignatures)
+      : {},
     columnsByUniqueId: astDbtBuildCompactColumnsByUniqueId(index.columnsByUniqueId),
     tokens: astDbtIsPlainObject(index.tokens) ? astDbtJsonClone(index.tokens) : {
       entities: {},

@@ -197,7 +197,7 @@ function astDbtLoadManifestCore(request = {}) {
       const cachedBundle = astDbtReadPersistentBundleCache(cacheContext, normalizedRequest.options);
       if (cachedBundle) {
         const normalizedBundle = astDbtNormalizeBundle(cachedBundle, normalizedRequest.options);
-        if (normalizedBundle.source && normalizedBundle.manifest && normalizedBundle.index) {
+        if (normalizedBundle.source && normalizedBundle.index) {
           astDbtWriteRuntimeBundleCache(normalizedBundle.source, normalizedBundle);
         }
         cacheInfo = {
@@ -266,7 +266,7 @@ function astDbtLoadManifestCore(request = {}) {
       };
     } else if (source && normalizedRequest.options.incrementalIndex) {
       const previousBundle = astDbtReadRuntimeBundleCache(source);
-      if (previousBundle && previousBundle.manifest && previousBundle.index) {
+      if (previousBundle && previousBundle.index) {
         const incremental = astDbtBuildManifestIndexesIncremental(manifest, previousBundle.index);
         prebuiltIndex = incremental.index;
         indexBuild = incremental.incremental;
@@ -284,7 +284,7 @@ function astDbtLoadManifestCore(request = {}) {
     indexBuild
   );
 
-  if (source && bundle.manifest && bundle.index) {
+  if (source && bundle.index) {
     astDbtWriteRuntimeBundleCache(source, bundle);
   }
 
