@@ -905,7 +905,7 @@ function astGitHubExecutePushFiles(request, config) {
     return runSequentialContentsPath('base_tree_truncated');
   }
 
-  const existingModesByPath = {};
+  const existingModesByPath = Object.create(null);
   const baseTreeEntries = Array.isArray(baseTreeLookup && baseTreeLookup.data && baseTreeLookup.data.tree)
     ? baseTreeLookup.data.tree
     : [];
@@ -968,9 +968,13 @@ function astGitHubExecutePushFiles(request, config) {
       path: file.path,
       sha: blobSha
     });
+    const resolvedMode = Object.prototype.hasOwnProperty.call(existingModesByPath, file.path)
+      ? existingModesByPath[file.path]
+      : '100644';
+
     treeEntries.push({
       path: file.path,
-      mode: existingModesByPath[file.path] || '100644',
+      mode: resolvedMode,
       type: 'blob',
       sha: blobSha
     });

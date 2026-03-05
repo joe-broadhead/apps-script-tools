@@ -223,6 +223,88 @@ test('pushFiles uses git data API for multi-file single-commit updates', () => {
   assert.equal(response.data.results.length, 2);
 });
 
+test('pushFiles git data mode lookup is prototype-safe for __proto__ paths', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        calls.push({ url, options });
+
+        if (url.endsWith('/repos/octocat/hello-world/git/ref/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'base-commit-sha' }
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits/base-commit-sha')) {
+          return createResponse(200, {
+            tree: { sha: 'base-tree-sha' }
+          });
+        }
+
+        if (url.includes('/repos/octocat/hello-world/git/trees/base-tree-sha?recursive=1')) {
+          return createResponse(200, {
+            tree: [
+              { path: 'docs/guide.md', mode: '100755', type: 'blob' }
+            ]
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/blobs')) {
+          return createResponse(201, {
+            sha: `blob-sha-${calls.length}`
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/trees')) {
+          return createResponse(201, {
+            sha: 'new-tree-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/commits')) {
+          return createResponse(201, {
+            sha: 'new-commit-sha'
+          });
+        }
+
+        if (url.endsWith('/repos/octocat/hello-world/git/refs/heads/main')) {
+          return createResponse(200, {
+            object: { sha: 'new-commit-sha' }
+          });
+        }
+
+        throw new Error(`Unexpected URL: ${url}`);
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.pushFiles({
+    owner: 'octocat',
+    repo: 'hello-world',
+    body: {
+      branch: 'main',
+      message: 'bulk update',
+      files: [
+        { path: '__proto__', content: 'IyBIZWxsbwo=', message: 'single commit message' },
+        { path: 'docs/guide.md', content: 'IyBHdWlkZQo=', message: 'single commit message' }
+      ]
+    }
+  });
+
+  assert.equal(calls.length, 8);
+  const createTreePayload = parsePayload(calls[5].options);
+  const protoEntry = createTreePayload.tree.find(entry => entry.path === '__proto__');
+  const guideEntry = createTreePayload.tree.find(entry => entry.path === 'docs/guide.md');
+  assert.equal(protoEntry.mode, '100644');
+  assert.equal(guideEntry.mode, '100755');
+  assert.equal(response.data.strategy, 'git_data_api');
+  assert.equal(response.data.fallbackReason, null);
+});
+
 test('pushFiles omits null optional fields in create_or_update_file payload', () => {
   const calls = [];
   const context = createGasContext({
