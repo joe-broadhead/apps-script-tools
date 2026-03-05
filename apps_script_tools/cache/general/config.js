@@ -6,6 +6,8 @@ const AST_CACHE_DEFAULT_CONFIG = Object.freeze({
   maxMemoryEntries: 2000,
   driveFolderId: '',
   driveFileName: 'ast-cache.json',
+  driveNamespaceWarnBytes: 2000000,
+  driveNamespaceMaxBytes: 5000000,
   storageUri: '',
   lockTimeoutMs: 30000,
   lockScope: 'script',
@@ -44,6 +46,8 @@ const AST_CACHE_CONFIG_KEYS = Object.freeze([
   'CACHE_MAX_MEMORY_ENTRIES',
   'CACHE_DRIVE_FOLDER_ID',
   'CACHE_DRIVE_FILE_NAME',
+  'CACHE_DRIVE_NAMESPACE_WARN_BYTES',
+  'CACHE_DRIVE_NAMESPACE_MAX_BYTES',
   'CACHE_STORAGE_URI',
   'CACHE_LOCK_TIMEOUT_MS',
   'CACHE_LOCK_SCOPE',
@@ -311,6 +315,30 @@ function astCacheResolveConfig(overrides = {}) {
     scriptConfig.CACHE_DRIVE_FILE_NAME
   ], AST_CACHE_DEFAULT_CONFIG.driveFileName);
 
+  const driveNamespaceWarnBytes = astCacheResolveConfigNumber([
+    overrides.driveNamespaceWarnBytes,
+    runtimeConfig.CACHE_DRIVE_NAMESPACE_WARN_BYTES,
+    runtimeConfig.driveNamespaceWarnBytes,
+    scriptConfig.CACHE_DRIVE_NAMESPACE_WARN_BYTES
+  ], AST_CACHE_DEFAULT_CONFIG.driveNamespaceWarnBytes, 1024, 50000000);
+
+  const driveNamespaceMaxBytes = astCacheResolveConfigNumber([
+    overrides.driveNamespaceMaxBytes,
+    runtimeConfig.CACHE_DRIVE_NAMESPACE_MAX_BYTES,
+    runtimeConfig.driveNamespaceMaxBytes,
+    scriptConfig.CACHE_DRIVE_NAMESPACE_MAX_BYTES
+  ], AST_CACHE_DEFAULT_CONFIG.driveNamespaceMaxBytes, 2048, 50000000);
+
+  if (backend === 'drive_json' && driveNamespaceWarnBytes > driveNamespaceMaxBytes) {
+    throw new AstCacheValidationError(
+      'Cache driveNamespaceWarnBytes must be less than or equal to driveNamespaceMaxBytes',
+      {
+        driveNamespaceWarnBytes,
+        driveNamespaceMaxBytes
+      }
+    );
+  }
+
   const lockTimeoutMs = astCacheResolveConfigNumber([
     overrides.lockTimeoutMs,
     runtimeConfig.CACHE_LOCK_TIMEOUT_MS,
@@ -397,6 +425,8 @@ function astCacheResolveConfig(overrides = {}) {
     maxMemoryEntries,
     driveFolderId,
     driveFileName,
+    driveNamespaceWarnBytes,
+    driveNamespaceMaxBytes,
     storageUri,
     lockTimeoutMs,
     lockScope,

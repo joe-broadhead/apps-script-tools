@@ -1339,6 +1339,8 @@ test('cache backend defaults tune lock scope and read stats behavior for concurr
   const driveDefaults = context.astCacheResolveConfig({ backend: 'drive_json' });
   assert.equal(driveDefaults.lockScope, 'script');
   assert.equal(driveDefaults.updateStatsOnGet, false);
+  assert.equal(driveDefaults.driveNamespaceWarnBytes, 2000000);
+  assert.equal(driveDefaults.driveNamespaceMaxBytes, 5000000);
 
   const scriptDefaults = context.astCacheResolveConfig({ backend: 'script_properties' });
   assert.equal(scriptDefaults.lockScope, 'script');
@@ -1350,6 +1352,54 @@ test('cache backend defaults tune lock scope and read stats behavior for concurr
   });
   assert.equal(storageDefaults.lockScope, 'none');
   assert.equal(storageDefaults.updateStatsOnGet, false);
+});
+
+test('cache config resolves drive_json namespace byte guardrails from overrides and script properties', () => {
+  const properties = createPropertiesService({
+    CACHE_DRIVE_NAMESPACE_WARN_BYTES: '4096',
+    CACHE_DRIVE_NAMESPACE_MAX_BYTES: '8192'
+  });
+  const context = createGasContext({
+    PropertiesService: properties.service
+  });
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const fromScript = context.astCacheResolveConfig({ backend: 'drive_json' });
+  assert.equal(fromScript.driveNamespaceWarnBytes, 4096);
+  assert.equal(fromScript.driveNamespaceMaxBytes, 8192);
+
+  const override = context.astCacheResolveConfig({
+    backend: 'drive_json',
+    driveNamespaceWarnBytes: 2048,
+    driveNamespaceMaxBytes: 4096
+  });
+  assert.equal(override.driveNamespaceWarnBytes, 2048);
+  assert.equal(override.driveNamespaceMaxBytes, 4096);
+});
+
+test('cache config enforces drive namespace guardrails only for drive_json backend', () => {
+  const properties = createPropertiesService({
+    CACHE_DRIVE_NAMESPACE_WARN_BYTES: '9000',
+    CACHE_DRIVE_NAMESPACE_MAX_BYTES: '3000'
+  });
+  const context = createGasContext({
+    PropertiesService: properties.service
+  });
+  loadCacheScripts(context, { includeAst: true });
+  context.AST.Cache.clearConfig();
+
+  const memoryConfig = context.astCacheResolveConfig({ backend: 'memory' });
+  assert.equal(memoryConfig.backend, 'memory');
+
+  assert.throws(
+    () => context.astCacheResolveConfig({
+      backend: 'drive_json',
+      driveNamespaceWarnBytes: 9000,
+      driveNamespaceMaxBytes: 3000
+    }),
+    /driveNamespaceWarnBytes must be less than or equal to driveNamespaceMaxBytes/
+  );
 });
 
 test('drive_json backend supports persistence and invalidation', () => {
@@ -1394,6 +1444,77 @@ test('drive_json backend supports persistence and invalidation', () => {
   assert.equal(driveFileNames.length, 1);
   assert.equal(driveFileNames[0].startsWith('cache-drive-test--'), true);
   assert.equal(driveFileNames[0].endsWith('.json'), true);
+});
+
+test('drive_json backend emits namespace-size warning before max limit', () => {
+  const drive = createDriveMock();
+  const warnings = [];
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    console: {
+      warn: message => warnings.push(String(message))
+    },
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_warn_ns',
+    driveFileName: 'cache-drive-warn.json',
+    driveNamespaceWarnBytes: 1200,
+    driveNamespaceMaxBytes: 4000
+  });
+
+  context.AST.Cache.set('drive:warn', { value: 'x'.repeat(1600) });
+  assert.equal(warnings.length >= 1, true);
+  assert.match(warnings[0], /size warning/i);
+  assert.match(warnings[0], /drive_warn_ns/);
+});
+
+test('drive_json backend throws typed error when namespace exceeds configured max bytes', () => {
+  const drive = createDriveMock();
+  const context = createGasContext({
+    DriveApp: drive.DriveApp,
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'drive_json',
+    namespace: 'drive_limit_ns',
+    driveFileName: 'cache-drive-limit.json',
+    driveNamespaceWarnBytes: 1500,
+    driveNamespaceMaxBytes: 2500
+  });
+
+  assert.throws(
+    () => context.AST.Cache.set('drive:limit', { value: 'x'.repeat(5000) }),
+    error => {
+      assert.equal(error && error.name, 'AstCacheValidationError');
+      assert.match(String(error && error.message), /exceeds configured byte limit/i);
+      assert.equal(error && error.details && error.details.backend, 'drive_json');
+      assert.equal(error && error.details && error.details.namespace, 'drive_limit_ns');
+      assert.equal(error && error.details && error.details.limitBytes, 2500);
+      assert.equal(typeof (error && error.details && error.details.bytes), 'number');
+      assert.equal(error.details.bytes > error.details.limitBytes, true);
+      return true;
+    }
+  );
 });
 
 test('drive_json backend isolates namespaces for equivalent sanitized names', () => {

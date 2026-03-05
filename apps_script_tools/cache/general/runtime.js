@@ -16,6 +16,8 @@ function astCacheExtractConfigOverrides(options = {}) {
     'maxMemoryEntries',
     'driveFolderId',
     'driveFileName',
+    'driveNamespaceWarnBytes',
+    'driveNamespaceMaxBytes',
     'storageUri',
     'lockTimeoutMs',
     'lockScope',
