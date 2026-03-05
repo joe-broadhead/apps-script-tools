@@ -59,7 +59,130 @@ test('AST.DBT.qualityReport returns deterministic readiness coverage and gaps', 
   assert.equal(out.gaps.undocumentedEntities.length, 1);
   assert.equal(out.gaps.unownedEntities.length, 1);
   assert.equal(out.gaps.untestedEntities.length, 1);
+  assert.equal(
+    JSON.stringify(out.summary.readinessWeights),
+    JSON.stringify({
+      documentation: 0.4,
+      ownership: 0.3,
+      testing: 0.3
+    })
+  );
   assert.equal(typeof out.summary.readinessScore, 'number');
+});
+
+test('AST.DBT.qualityReport applies normalized readinessWeights deterministically', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const out = context.AST.DBT.qualityReport({
+    manifest: createGovernanceFixture(),
+    filters: {
+      resourceTypes: ['model']
+    },
+    readinessWeights: {
+      documentation: 2,
+      ownership: 1,
+      testing: 1
+    }
+  });
+
+  assert.equal(out.status, 'ok');
+  assert.equal(
+    JSON.stringify(out.summary.readinessWeights),
+    JSON.stringify({
+      documentation: 0.5,
+      ownership: 0.25,
+      testing: 0.25
+    })
+  );
+  assert.equal(out.summary.readinessScore, 54.17);
+});
+
+test('AST.DBT.qualityReport rejects invalid readinessWeights', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  assert.throws(() => {
+    context.AST.DBT.qualityReport({
+      manifest: createGovernanceFixture(),
+      filters: {
+        resourceTypes: ['model']
+      },
+      readinessWeights: {
+        documentation: -1,
+        ownership: 1,
+        testing: 1
+      }
+    });
+  }, /readinessWeights\.documentation/);
+
+  assert.throws(() => {
+    context.AST.DBT.qualityReport({
+      manifest: createGovernanceFixture(),
+      filters: {
+        resourceTypes: ['model']
+      },
+      readinessWeights: {
+        documentation: 0,
+        ownership: 0,
+        testing: 0
+      }
+    });
+  }, /positive total/);
+
+  assert.throws(() => {
+    context.AST.DBT.qualityReport({
+      manifest: createGovernanceFixture(),
+      filters: {
+        resourceTypes: ['model']
+      },
+      readinessWeights: {
+        docs: 1
+      }
+    });
+  }, /unsupported keys/);
+
+  assert.throws(() => {
+    context.AST.DBT.qualityReport({
+      manifest: createGovernanceFixture(),
+      filters: {
+        resourceTypes: ['model']
+      },
+      readinessWeights: {
+        toString: 1
+      }
+    });
+  }, /unsupported keys/);
+});
+
+test('AST.DBT.qualityReport and AST.DBT.run quality_report stay deterministic with high-precision weights', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false, includeAst: true });
+
+  const request = {
+    manifest: createGovernanceFixture(),
+    filters: {
+      resourceTypes: ['model']
+    },
+    readinessWeights: {
+      documentation: 0.123456789,
+      ownership: 0.222222223,
+      testing: 0.654320988
+    }
+  };
+
+  const direct = context.AST.DBT.qualityReport(request);
+  const routed = context.AST.DBT.run(Object.assign({
+    operation: 'quality_report'
+  }, request));
+
+  assert.equal(direct.status, 'ok');
+  assert.equal(routed.status, 'ok');
+  assert.equal(
+    JSON.stringify(routed.summary.readinessWeights),
+    JSON.stringify(direct.summary.readinessWeights)
+  );
+  assert.equal(routed.summary.readinessScore, direct.summary.readinessScore);
 });
 
 test('AST.DBT.testCoverage supports uncoveredOnly filtering', () => {

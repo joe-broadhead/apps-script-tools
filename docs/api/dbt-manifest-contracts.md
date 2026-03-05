@@ -321,6 +321,7 @@ Response:
   bundle | manifest | source,
   filters: { resourceTypes, sections, packageNames, pathPrefix, tagsAny, tagsAll, uniqueIds, dependsOnUniqueIds, meta, column },
   ownerPaths: ['owner.team', 'owner'], // default
+  readinessWeights: { documentation: 0.4, ownership: 0.3, testing: 0.3 }, // optional; normalized to total=1
   includeDisabled: false,
   unassignedOwnerLabel: 'unassigned',
   topK: 100
@@ -337,6 +338,7 @@ Response includes readiness metrics and top gap lists:
     entityCount,
     columnCount,
     readinessScore,
+    readinessWeights: { documentation, ownership, testing },
     coverage: { entityDocumentationPct, columnDocumentationPct, ownershipPct, testedEntitiesPct },
     counts: { documentedEntities, undocumentedEntities, documentedColumns, undocumentedColumns, ownedEntities, unownedEntities, testedEntities, untestedEntities }
   },

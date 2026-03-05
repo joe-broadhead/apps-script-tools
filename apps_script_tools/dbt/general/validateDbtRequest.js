@@ -15,6 +15,12 @@ const AST_DBT_DEFAULT_LOAD_OPTIONS = Object.freeze({
   persistentCacheMode: 'compact'
 });
 
+const AST_DBT_DEFAULT_READINESS_WEIGHTS = Object.freeze({
+  documentation: 0.4,
+  ownership: 0.3,
+  testing: 0.3
+});
+
 const AST_DBT_SEARCH_TARGETS = Object.freeze([
   'entities',
   'columns',
@@ -1072,6 +1078,87 @@ function astDbtNormalizeOwnerPaths(value, fallback = ['owner.team', 'owner']) {
   return normalized;
 }
 
+function astDbtNormalizeReadinessWeight(value, fieldName) {
+  if (typeof value === 'undefined' || value == null || value === '') {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw new AstDbtValidationError(`readinessWeights.${fieldName} must be a finite non-negative number`, {
+      field: fieldName,
+      value
+    });
+  }
+
+  return numeric;
+}
+
+function astDbtNormalizeReadinessWeights(weights) {
+  if (typeof weights === 'undefined' || weights == null) {
+    return Object.assign({}, AST_DBT_DEFAULT_READINESS_WEIGHTS);
+  }
+
+  if (!astDbtIsPlainObject(weights)) {
+    throw new AstDbtValidationError('readinessWeights must be an object when provided');
+  }
+
+  const allowedKeys = Object.create(null);
+  allowedKeys.documentation = true;
+  allowedKeys.ownership = true;
+  allowedKeys.testing = true;
+  Object.keys(weights).forEach(key => {
+    if (!Object.prototype.hasOwnProperty.call(allowedKeys, key)) {
+      throw new AstDbtValidationError('readinessWeights contains unsupported keys', {
+        key,
+        allowedKeys: Object.keys(allowedKeys)
+      });
+    }
+  });
+
+  const documentation = astDbtNormalizeReadinessWeight(weights.documentation, 'documentation');
+  const ownership = astDbtNormalizeReadinessWeight(weights.ownership, 'ownership');
+  const testing = astDbtNormalizeReadinessWeight(weights.testing, 'testing');
+
+  const resolvedDocumentation = documentation == null
+    ? AST_DBT_DEFAULT_READINESS_WEIGHTS.documentation
+    : documentation;
+  const resolvedOwnership = ownership == null
+    ? AST_DBT_DEFAULT_READINESS_WEIGHTS.ownership
+    : ownership;
+  const resolvedTesting = testing == null
+    ? AST_DBT_DEFAULT_READINESS_WEIGHTS.testing
+    : testing;
+
+  const total = resolvedDocumentation + resolvedOwnership + resolvedTesting;
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new AstDbtValidationError(
+      'readinessWeights must have a positive total across documentation/ownership/testing',
+      {
+        documentation: resolvedDocumentation,
+        ownership: resolvedOwnership,
+        testing: resolvedTesting
+      }
+    );
+  }
+
+  // Idempotency guard: if values are already normalized, preserve as-is.
+  // This keeps routed requests (validated more than once) deterministic.
+  if (Math.abs(total - 1) <= 1e-12) {
+    return {
+      documentation: resolvedDocumentation,
+      ownership: resolvedOwnership,
+      testing: resolvedTesting
+    };
+  }
+
+  return {
+    documentation: resolvedDocumentation / total,
+    ownership: resolvedOwnership / total,
+    testing: resolvedTesting / total
+  };
+}
+
 function astDbtValidateQualityReportRequest(request = {}) {
   if (!astDbtIsPlainObject(request)) {
     throw new AstDbtValidationError('qualityReport request must be an object');
@@ -1089,6 +1176,7 @@ function astDbtValidateQualityReportRequest(request = {}) {
     includeDisabled,
     ownerPaths: astDbtNormalizeOwnerPaths(request.ownerPaths, ['owner.team', 'owner']),
     unassignedOwnerLabel: astDbtNormalizeString(request.unassignedOwnerLabel, 'unassigned'),
+    readinessWeights: astDbtNormalizeReadinessWeights(request.readinessWeights),
     topK: astDbtNormalizePositiveInt(request.topK, 100, 1, 1000),
     options: astDbtNormalizeLoadOptions(request.options || {}, defaults)
   };
