@@ -6,14 +6,6 @@ function astMessagingEmailEnsureGmailApp() {
   }
 }
 
-function astMessagingEmailNormalizeString(value, fallback = '') {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function astMessagingEmailNormalizeArray(value) {
   if (Array.isArray(value)) {
     return value.slice();
@@ -26,13 +18,13 @@ function astMessagingEmailNormalizeArray(value) {
 
 function astMessagingEmailNormalizeRecipients(value) {
   const recipients = astMessagingEmailNormalizeArray(value)
-    .map(item => astMessagingEmailNormalizeString(item, ''))
+    .map(item => astMessagingNormalizeString(item, ''))
     .filter(Boolean);
   return Array.from(new Set(recipients));
 }
 
 function astMessagingEmailApplyTrackingToHtml(htmlBody, trackingInfo, resolvedConfig = {}) {
-  let output = astMessagingEmailNormalizeString(htmlBody, '');
+  let output = astMessagingNormalizeString(htmlBody, '');
   let clickWrapped = false;
 
   if (!trackingInfo || trackingInfo.enabled !== true) {
@@ -78,17 +70,17 @@ function astMessagingEmailBuildSendOptions(body = {}, rendered = {}, resolvedCon
     sendOptions.bcc = bcc.join(',');
   }
 
-  const from = astMessagingEmailNormalizeString(options.from, resolvedConfig.defaults.from || '');
+  const from = astMessagingNormalizeString(options.from, resolvedConfig.defaults.from || '');
   if (from) {
     sendOptions.from = from;
   }
 
-  const name = astMessagingEmailNormalizeString(options.name, resolvedConfig.defaults.senderName || '');
+  const name = astMessagingNormalizeString(options.name, resolvedConfig.defaults.senderName || '');
   if (name) {
     sendOptions.name = name;
   }
 
-  const replyTo = astMessagingEmailNormalizeString(options.replyTo, resolvedConfig.defaults.replyTo || '');
+  const replyTo = astMessagingNormalizeString(options.replyTo, resolvedConfig.defaults.replyTo || '');
   if (replyTo) {
     sendOptions.replyTo = replyTo;
   }
@@ -174,8 +166,8 @@ function astMessagingEmailSendSingle(body = {}, normalizedRequest = {}, resolved
   const trackingInfo = astMessagingPrepareEmailTracking(body, resolvedConfig);
   const sendOptionsResult = astMessagingEmailBuildSendOptions(body, rendered, resolvedConfig, trackingInfo);
 
-  const subject = astMessagingEmailNormalizeString(rendered.subject, '');
-  const plainTextBody = astMessagingEmailNormalizeString(rendered.textBody, 'This email requires HTML support');
+  const subject = astMessagingNormalizeString(rendered.subject, '');
+  const plainTextBody = astMessagingNormalizeString(rendered.textBody, 'This email requires HTML support');
 
   GmailApp.sendEmail(
     recipients.join(','),
@@ -234,8 +226,8 @@ function astMessagingEmailCreateDraft(body = {}, normalizedRequest = {}, resolve
 
   const draft = GmailApp.createDraft(
     recipients.join(','),
-    astMessagingEmailNormalizeString(rendered.subject, ''),
-    astMessagingEmailNormalizeString(rendered.textBody, 'This email requires HTML support'),
+    astMessagingNormalizeString(rendered.subject, ''),
+    astMessagingNormalizeString(rendered.textBody, 'This email requires HTML support'),
     sendOptionsResult.sendOptions
   );
 
@@ -258,7 +250,7 @@ function astMessagingEmailSendDraft(body = {}) {
     throw new AstMessagingCapabilityError('GmailApp.getDraft is not available in this runtime');
   }
 
-  const draftId = astMessagingEmailNormalizeString(body.draftId, '');
+  const draftId = astMessagingNormalizeString(body.draftId, '');
   const draft = GmailApp.getDraft(draftId);
   if (!draft) {
     throw new AstMessagingNotFoundError('Draft not found', { draftId });
@@ -279,7 +271,7 @@ function astMessagingEmailSendDraft(body = {}) {
 function astMessagingEmailListThreads(body = {}) {
   astMessagingEmailEnsureGmailApp();
 
-  const query = astMessagingEmailNormalizeString(body.query, '');
+  const query = astMessagingNormalizeString(body.query, '');
   const start = Math.max(0, Number(body.start || 0));
   const max = Math.max(1, Math.min(500, Number(body.max || 25)));
 
@@ -296,7 +288,7 @@ function astMessagingEmailListThreads(body = {}) {
 function astMessagingEmailGetThread(body = {}) {
   astMessagingEmailEnsureGmailApp();
 
-  const threadId = astMessagingEmailNormalizeString(body.threadId, '');
+  const threadId = astMessagingNormalizeString(body.threadId, '');
   if (typeof GmailApp.getThreadById !== 'function') {
     throw new AstMessagingCapabilityError('GmailApp.getThreadById is not available in this runtime');
   }
@@ -315,7 +307,7 @@ function astMessagingEmailGetThread(body = {}) {
 function astMessagingEmailSearchMessages(body = {}) {
   astMessagingEmailEnsureGmailApp();
 
-  const query = astMessagingEmailNormalizeString(body.query, '');
+  const query = astMessagingNormalizeString(body.query, '');
   const start = Math.max(0, Number(body.start || 0));
   const max = Math.max(1, Math.min(500, Number(body.max || 50)));
   const includeBodies = Boolean(body.includeBodies);
@@ -346,7 +338,7 @@ function astMessagingEmailSearchMessages(body = {}) {
 function astMessagingEmailGetMessage(body = {}) {
   astMessagingEmailEnsureGmailApp();
 
-  const messageId = astMessagingEmailNormalizeString(body.messageId, '');
+  const messageId = astMessagingNormalizeString(body.messageId, '');
   if (typeof GmailApp.getMessageById !== 'function') {
     throw new AstMessagingCapabilityError('GmailApp.getMessageById is not available in this runtime');
   }
@@ -379,7 +371,7 @@ function astMessagingEmailListLabels() {
 function astMessagingEmailUpdateMessageLabels(body = {}) {
   astMessagingEmailEnsureGmailApp();
 
-  const messageId = astMessagingEmailNormalizeString(body.messageId, '');
+  const messageId = astMessagingNormalizeString(body.messageId, '');
   if (typeof GmailApp.getMessageById !== 'function') {
     throw new AstMessagingCapabilityError('GmailApp.getMessageById is not available in this runtime');
   }
@@ -389,8 +381,8 @@ function astMessagingEmailUpdateMessageLabels(body = {}) {
     throw new AstMessagingNotFoundError('Message not found', { messageId });
   }
 
-  const addLabels = astMessagingEmailNormalizeArray(body.addLabels).map(label => astMessagingEmailNormalizeString(label, '')).filter(Boolean);
-  const removeLabels = astMessagingEmailNormalizeArray(body.removeLabels).map(label => astMessagingEmailNormalizeString(label, '')).filter(Boolean);
+  const addLabels = astMessagingEmailNormalizeArray(body.addLabels).map(label => astMessagingNormalizeString(label, '')).filter(Boolean);
+  const removeLabels = astMessagingEmailNormalizeArray(body.removeLabels).map(label => astMessagingNormalizeString(label, '')).filter(Boolean);
 
   const resolveLabel = labelName => {
     if (typeof GmailApp.getUserLabelByName === 'function') {
