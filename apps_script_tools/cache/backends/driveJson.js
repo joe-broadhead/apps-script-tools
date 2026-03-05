@@ -99,6 +99,89 @@ function astCacheDriveWriteText(file, content) {
   throw new AstCacheCapabilityError('Cache drive_json file handle does not support content updates');
 }
 
+function astCacheDriveUtf8ByteLength(value) {
+  const normalized = String(value == null ? '' : value);
+
+  try {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.newBlob === 'function'
+    ) {
+      return Utilities.newBlob(normalized).getBytes().length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  try {
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(normalized).length;
+    }
+  } catch (_error) {
+    // Fall through to deterministic JavaScript fallback.
+  }
+
+  return unescape(encodeURIComponent(normalized)).length;
+}
+
+function astCacheDriveEmitNamespaceSizeWarning(config, details) {
+  const message = `Cache drive_json namespace '${config.namespace}' size warning: ${details.bytes} bytes exceeds ${details.warnBytes} bytes`;
+  if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+    console.warn(message);
+    return;
+  }
+
+  if (typeof Logger !== 'undefined' && Logger && typeof Logger.warn === 'function') {
+    Logger.warn(message);
+    return;
+  }
+
+  if (typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+    Logger.log(message);
+  }
+}
+
+function astCacheDriveAssertNamespaceSize(config, document, serialized) {
+  const payload = typeof serialized === 'string'
+    ? serialized
+    : JSON.stringify(document);
+  const bytes = astCacheDriveUtf8ByteLength(payload);
+  const warnBytes = astCacheNormalizePositiveInt(
+    config && config.driveNamespaceWarnBytes,
+    2000000,
+    1024,
+    50000000
+  );
+  const limitBytes = astCacheNormalizePositiveInt(
+    config && config.driveNamespaceMaxBytes,
+    5000000,
+    2048,
+    50000000
+  );
+
+  if (bytes > limitBytes) {
+    throw new AstCacheValidationError(
+      'Cache drive_json namespace exceeds configured byte limit',
+      {
+        backend: 'drive_json',
+        namespace: config.namespace,
+        bytes,
+        limitBytes
+      }
+    );
+  }
+
+  if (bytes > warnBytes) {
+    astCacheDriveEmitNamespaceSizeWarning(config, {
+      backend: 'drive_json',
+      namespace: config.namespace,
+      bytes,
+      warnBytes
+    });
+  }
+}
+
 function astCacheDriveRunWithLock(task, config) {
   return astCacheRunWithLock(task, config);
 }
@@ -175,8 +258,9 @@ function astCacheDriveReadDocument(config, options = {}) {
   };
 }
 
-function astCacheDriveWriteDocument(file, document) {
+function astCacheDriveWriteDocument(file, document, config) {
   const serialized = JSON.stringify(document);
+  astCacheDriveAssertNamespaceSize(config || {}, document, serialized);
   astCacheDriveWriteText(file, serialized);
 }
 
@@ -237,7 +321,7 @@ function astCacheDriveWithDocument(config, mutator) {
     astCacheDrivePruneExpired(document, nowMs);
     const result = mutator(document, nowMs);
     document.updatedAtMs = nowMs;
-    astCacheDriveWriteDocument(file, document);
+    astCacheDriveWriteDocument(file, document, config);
     return result;
   }, config);
 }
