@@ -240,3 +240,19 @@ test('expression parser raises deterministic parse error details', () => {
     /IN requires at least one value/
   );
 });
+
+test('expression parser rejects prefix NOT before postfix predicates', () => {
+  const context = createContext();
+
+  [
+    "NOT code IN ('A')",
+    "NOT code LIKE 'A%'",
+    'NOT code BETWEEN 1 AND 2',
+    'NOT code IS NULL'
+  ].forEach(expression => {
+    assert.throws(
+      () => context.__astExprCompile(expression, { cachePlan: false }),
+      /Prefix NOT with IS\/IN\/BETWEEN\/LIKE is unsupported/
+    );
+  });
+});

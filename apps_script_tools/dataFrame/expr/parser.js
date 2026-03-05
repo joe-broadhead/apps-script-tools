@@ -471,6 +471,33 @@ function __astExprParser(source) {
       return values;
     }
 
+    function isKeywordAhead(keyword) {
+      const token = peek(0);
+      if (token.type === 'keyword' && token.value === keyword) {
+        return true;
+      }
+      return (
+        token.type === 'identifier'
+        && AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS.has(keyword)
+        && String(token.value || '').toUpperCase() === keyword
+      );
+    }
+
+    function assertNoPrefixedNotForPostfixPredicates() {
+      if (
+        node
+        && node.type === 'unary'
+        && node.operator === 'NOT'
+        && (isKeywordAhead('IS') || isKeywordAhead('IN') || isKeywordAhead('BETWEEN') || isKeywordAhead('LIKE'))
+      ) {
+        throw __astExprBuildParseError(
+          "Prefix NOT with IS/IN/BETWEEN/LIKE is unsupported; use postfix forms like 'x NOT IN (...)'",
+          source,
+          peek(0).index
+        );
+      }
+    }
+
     let node = parseAdditive();
 
     while (true) {
@@ -486,6 +513,8 @@ function __astExprParser(source) {
         };
         continue;
       }
+
+      assertNoPrefixedNotForPostfixPredicates();
 
       if (matchKeyword('IS')) {
         const isNot = matchKeyword('NOT');
