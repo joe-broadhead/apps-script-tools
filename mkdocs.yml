@@ -156,4 +156,10 @@ nav:
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md
   - Development:
+    - Architecture Decisions:
+      - Overview: decisions/index.md
+      - ADR Template: decisions/adr-template.md
+      - ADR-0001 AST Namespace and Global Binding: decisions/0001-ast-namespace-and-global-binding.md
+      - ADR-0002 Dual Test Harness: decisions/0002-dual-test-harness.md
+      - ADR-0003 Runtime Config Precedence: decisions/0003-runtime-config-precedence.md
     - Release: development/release.md
