@@ -144,3 +144,35 @@ test('loadManifest uses runtime incremental path for source loads and honors for
   assert.equal(forced.indexBuild.applied, false);
   assert.equal(forced.indexBuild.reason, 'force_full_rebuild');
 });
+
+test('astDbtBuildManifestIndexesIncremental refreshes lineage when only parent_map/child_map changed', () => {
+  const context = createGasContext();
+  loadDbtScripts(context, { includeStorage: false });
+
+  const manifestA = createManifestFixture();
+  const manifestB = createManifestFixture({
+    parent_map: {
+      'model.demo.orders': [],
+      'model.demo.customers': []
+    },
+    child_map: {
+      'model.demo.orders': [],
+      'model.demo.customers': []
+    }
+  });
+
+  const previous = context.astDbtBuildManifestIndexes(manifestA);
+  const incremental = context.astDbtBuildManifestIndexesIncremental(manifestB, previous);
+
+  assert.equal(incremental.incremental.applied, true);
+  assert.equal(incremental.incremental.reused, true);
+  assert.equal(incremental.incremental.changedCount, 0);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(incremental.index.lineage.parentMap)),
+    JSON.parse(JSON.stringify(manifestB.parent_map))
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(incremental.index.lineage.childMap)),
+    JSON.parse(JSON.stringify(manifestB.child_map))
+  );
+});

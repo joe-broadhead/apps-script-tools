@@ -257,6 +257,24 @@ function astDbtBuildChildMapFromParentMap(parentMap) {
   return childMap;
 }
 
+function astDbtResolveLineageForEntities(manifest, entities) {
+  let parentMap = astDbtNormalizeLineageMap(manifest.parent_map);
+  let childMap = astDbtNormalizeLineageMap(manifest.child_map);
+
+  if (Object.keys(parentMap).length === 0) {
+    parentMap = astDbtBuildLineageFromDependsOn(entities);
+  }
+
+  if (Object.keys(childMap).length === 0) {
+    childMap = astDbtBuildChildMapFromParentMap(parentMap);
+  }
+
+  return {
+    parentMap,
+    childMap
+  };
+}
+
 function astDbtBuildEntitySignature(entity, section, mapKey, disabled) {
   const payload = {
     section: astDbtNormalizeString(section, ''),
@@ -447,16 +465,7 @@ function astDbtBuildManifestIndexFromEntityRecords(manifest, entities, entitySig
     columnsByUniqueId[entity.uniqueIdLower] = columnIndex;
   });
 
-  let parentMap = astDbtNormalizeLineageMap(manifest.parent_map);
-  let childMap = astDbtNormalizeLineageMap(manifest.child_map);
-
-  if (Object.keys(parentMap).length === 0) {
-    parentMap = astDbtBuildLineageFromDependsOn(entities);
-  }
-
-  if (Object.keys(childMap).length === 0) {
-    childMap = astDbtBuildChildMapFromParentMap(parentMap);
-  }
+  const lineage = astDbtResolveLineageForEntities(manifest, entities);
 
   const sectionCounts = {};
   Object.keys(bySection).forEach(section => {
@@ -483,10 +492,7 @@ function astDbtBuildManifestIndexFromEntityRecords(manifest, entities, entitySig
       entities: astDbtFinalizeTokenMap(entityTokenMap),
       columns: astDbtFinalizeTokenMap(columnTokenMap)
     },
-    lineage: {
-      parentMap,
-      childMap
-    }
+    lineage
   };
 }
 
@@ -587,9 +593,15 @@ function astDbtBuildManifestIndexesIncremental(manifest = {}, previousIndex = {}
   }
 
   if (changedCount === 0) {
+    const lineage = astDbtResolveLineageForEntities(
+      manifest,
+      Array.isArray(previousIndex.entities) ? previousIndex.entities : []
+    );
+
     const reused = Object.assign({}, previousIndex, {
       generatedAt: new Date().toISOString(),
-      entitySignatures: Object.assign({}, nextSignatures)
+      entitySignatures: Object.assign({}, nextSignatures),
+      lineage
     });
 
     return {
