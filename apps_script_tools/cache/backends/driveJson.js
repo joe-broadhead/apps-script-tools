@@ -102,6 +102,25 @@ function astCacheDriveWriteText(file, content) {
 function astCacheDriveUtf8ByteLength(value) {
   const normalized = String(value == null ? '' : value);
 
+  let isAscii = true;
+  for (let idx = 0; idx < normalized.length; idx += 1) {
+    if (normalized.charCodeAt(idx) > 127) {
+      isAscii = false;
+      break;
+    }
+  }
+  if (isAscii) {
+    return normalized.length;
+  }
+
+  try {
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(normalized).length;
+    }
+  } catch (_error) {
+    // Fall through to Apps Script fallback.
+  }
+
   try {
     if (
       typeof Utilities !== 'undefined' &&
@@ -114,18 +133,16 @@ function astCacheDriveUtf8ByteLength(value) {
     // Fall through to deterministic JavaScript fallback.
   }
 
-  try {
-    if (typeof TextEncoder !== 'undefined') {
-      return new TextEncoder().encode(normalized).length;
-    }
-  } catch (_error) {
-    // Fall through to deterministic JavaScript fallback.
-  }
-
   return unescape(encodeURIComponent(normalized)).length;
 }
 
 function astCacheDriveEmitNamespaceSizeWarning(config, details) {
+  const warningKey = `${astCacheNormalizeString(config.namespace, 'ast_cache')}::${astCacheNormalizeString(config.driveFileName, 'ast-cache.json')}`;
+  if (AST_CACHE_DRIVE_NAMESPACE_WARNED[warningKey] === true) {
+    return;
+  }
+  AST_CACHE_DRIVE_NAMESPACE_WARNED[warningKey] = true;
+
   const message = `Cache drive_json namespace '${config.namespace}' size warning: ${details.bytes} bytes exceeds ${details.warnBytes} bytes`;
   if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
     console.warn(message);
@@ -491,3 +508,4 @@ function astCacheDriveClearNamespace(config) {
     return removed;
   });
 }
+let AST_CACHE_DRIVE_NAMESPACE_WARNED = {};
