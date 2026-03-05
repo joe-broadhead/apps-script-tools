@@ -364,6 +364,16 @@ function __astExprEvaluateAst(astNode, row, options = {}) {
       return __astExprEvaluateBinary(astNode.operator, leftValue, rightValue);
     }
     case 'call': {
+      const callName = String(astNode.name || '').toLowerCase();
+      if (callName === 'iff') {
+        if (!Array.isArray(astNode.args) || astNode.args.length !== 3) {
+          throw __astExprBuildRuntimeError('iff requires exactly 3 arguments');
+        }
+        const condition = __astExprEvaluateAst(astNode.args[0], row, options);
+        const branchIndex = __astExprToBoolean(condition) ? 1 : 2;
+        return __astExprEvaluateAst(astNode.args[branchIndex], row, options);
+      }
+
       const args = astNode.args.map(argument => __astExprEvaluateAst(argument, row, options));
       return __astExprCallFunction(astNode.name, args);
     }

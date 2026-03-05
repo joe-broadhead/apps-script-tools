@@ -139,6 +139,18 @@ test('LIKE escaped characters are matched as literals', () => {
   assert.equal(plan.evaluate({ value: '9abc' }), false);
 });
 
+test('iff short-circuits unselected branches', () => {
+  const context = createContext();
+
+  const safeTrue = context.__astExprCompile('iff(true, 1, 1 / 0)', { cachePlan: false });
+  const safeFalse = context.__astExprCompile('iff(false, 1 / 0, 2)', { cachePlan: false });
+  const unknownColumn = context.__astExprCompile('iff(true, 10, missing_column + 1)', { cachePlan: false });
+
+  assert.equal(safeTrue.evaluate({}), 1);
+  assert.equal(safeFalse.evaluate({}), 2);
+  assert.equal(unknownColumn.evaluate({}, { strict: true }), 10);
+});
+
 test('DataFrame.selectExprDsl strict=true rejects unknown columns at compile time', () => {
   const context = createContext();
   const df = context.DataFrame.fromRecords([{ id: 1 }]);
