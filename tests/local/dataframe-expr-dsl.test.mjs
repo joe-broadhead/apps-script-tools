@@ -108,6 +108,37 @@ test('DataFrame.selectExprDsl evaluates new SQL-like functions/operators', () =>
   assert.equal(JSON.stringify(projected.not_like_code.array), JSON.stringify([true, false]));
 });
 
+test('DataFrame.selectExprDsl keeps contextual operator words usable as identifiers', () => {
+  const context = createContext();
+
+  const df = context.DataFrame.fromRecords([
+    { in: 1, like: 2, between: 3, is: 4 },
+    { in: 10, like: 20, between: 30, is: 40 }
+  ]);
+
+  const projected = df.selectExprDsl({
+    total: 'in + like + between + is',
+    in_value: 'in',
+    like_value: 'like',
+    between_value: 'between',
+    is_value: 'is'
+  });
+
+  assert.equal(JSON.stringify(projected.total.array), JSON.stringify([10, 100]));
+  assert.equal(JSON.stringify(projected.in_value.array), JSON.stringify([1, 10]));
+  assert.equal(JSON.stringify(projected.like_value.array), JSON.stringify([2, 20]));
+  assert.equal(JSON.stringify(projected.between_value.array), JSON.stringify([3, 30]));
+  assert.equal(JSON.stringify(projected.is_value.array), JSON.stringify([4, 40]));
+});
+
+test('LIKE escaped characters are matched as literals', () => {
+  const context = createContext();
+
+  const plan = context.__astExprCompile("value LIKE '\\\\d%'", { cachePlan: false });
+  assert.equal(plan.evaluate({ value: 'dabc' }), true);
+  assert.equal(plan.evaluate({ value: '9abc' }), false);
+});
+
 test('DataFrame.selectExprDsl strict=true rejects unknown columns at compile time', () => {
   const context = createContext();
   const df = context.DataFrame.fromRecords([{ id: 1 }]);

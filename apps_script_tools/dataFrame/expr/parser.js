@@ -2,10 +2,6 @@ const AST_DATAFRAME_EXPR_KEYWORDS = Object.freeze(new Set([
   'AND',
   'OR',
   'NOT',
-  'IS',
-  'IN',
-  'BETWEEN',
-  'LIKE',
   'CASE',
   'WHEN',
   'THEN',
@@ -14,6 +10,13 @@ const AST_DATAFRAME_EXPR_KEYWORDS = Object.freeze(new Set([
   'TRUE',
   'FALSE',
   'NULL'
+]));
+
+const AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS = Object.freeze(new Set([
+  'IS',
+  'IN',
+  'BETWEEN',
+  'LIKE'
 ]));
 
 const AST_DATAFRAME_EXPR_MULTI_CHAR_OPERATORS = Object.freeze(new Set([
@@ -271,6 +274,15 @@ function __astExprParser(source) {
   function matchKeyword(keyword) {
     const token = peek(0);
     if (token.type === 'keyword' && token.value === keyword) {
+      consume();
+      return true;
+    }
+
+    if (
+      token.type === 'identifier'
+      && AST_DATAFRAME_EXPR_CONTEXTUAL_KEYWORDS.has(keyword)
+      && String(token.value || '').toUpperCase() === keyword
+    ) {
       consume();
       return true;
     }

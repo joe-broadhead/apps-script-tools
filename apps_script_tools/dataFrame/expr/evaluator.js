@@ -54,6 +54,10 @@ function __astExprValuesEqual(leftValue, rightValue) {
   return leftValue === rightValue;
 }
 
+function __astExprEscapeRegexChar(char) {
+  return String(char).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function __astExprBuildLikeRegex(pattern) {
   const raw = String(pattern);
   let regexSource = '';
@@ -64,7 +68,7 @@ function __astExprBuildLikeRegex(pattern) {
       if (typeof next === 'undefined') {
         regexSource += '\\\\';
       } else {
-        regexSource += `\\${next}`;
+        regexSource += __astExprEscapeRegexChar(next);
         idx += 1;
       }
       continue;
@@ -77,7 +81,7 @@ function __astExprBuildLikeRegex(pattern) {
       regexSource += '.';
       continue;
     }
-    regexSource += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    regexSource += __astExprEscapeRegexChar(char);
   }
   return new RegExp(`^${regexSource}$`, 's');
 }
