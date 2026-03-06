@@ -160,6 +160,7 @@
 
 ### Changed
 
+- `AST.Cache.setMany(...)` stale/lease cleanup now preserves immediate per-key cleanup semantics while reducing cleanup overhead by using `deleteManyByKeyHashes([stale, lease])` when supported by the backend adapter.
 - Module error base classes now implement `toJSON()` for stable serialized error envelopes (`name`, `message`, `details`, and nested `cause`) across `AST.AI`, `AST.Cache`, `AST.Chat`, `AST.Config`, `AST.DBT`, `AST.GitHub`, `AST.Http`, `AST.Jobs`, `AST.Messaging`, `AST.RAG`, `AST.Runtime`, `AST.Secrets`, `AST.Storage`, `AST.Telemetry`, and `AST.Triggers`.
 - Workspace helper functions now enforce typed validation and typed error mapping:
   - `openSpreadsheetById`, `openSpreadsheetByUrl`, `readFileFromDrive`, `createFileInDrive`
@@ -212,6 +213,7 @@
   - `README.md` development gates include lint, local coverage, perf, security, docs, and Apps Script integration checks
   - `CONTRIBUTING.md` quality gates include `test:perf:check` and `test:security`
   - `docs/development/release.md` pre-release checks include `test:security`
+  - MkDocs nav now includes docs-site pages for contributing workflow and security policy
   - `docs/api/quick-reference.md` and `docs/api/tools.md` now include DataFrame/Series parity finishers (`stack`, `unstack`, `resample`, `rank`, `clip`, `rolling`, `expanding`, `ewm`)
 
 ### Docs / Changelog sync

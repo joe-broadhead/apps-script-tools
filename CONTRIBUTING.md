@@ -2,7 +2,8 @@
 
 ## Branching
 
-- Use `feature/` branch prefixes for implementation branches.
+- Use `codex/` branch prefixes for Codex-assisted implementation branches.
+- `feature/` prefixes are also acceptable for manual feature branches.
 - Keep PRs focused by scope (API/security, correctness, tests/CI, docs, release).
 
 ## Quality Gates
@@ -38,6 +39,16 @@ Override for local experimentation via:
 - Prefer explicit validation for public request objects.
 - Keep Apps Script service usage least-privilege and documented.
 
+## Documentation Sync Requirements
+
+When a PR changes public behavior, contracts, defaults, or configuration:
+
+1. Update the relevant API/getting-started docs under `docs/`.
+2. Update `docs/api/quick-reference.md` and/or `docs/api/tools.md` when surface area changes.
+3. Update `README.md` when top-level module coverage or setup guidance changes.
+4. Update `CHANGELOG.md` `v0.0.5 (unreleased)` with user-facing additions/changes/fixes.
+5. Update `mkdocs.yml` nav when adding new documentation pages.
+
 ## Naming Convention (Top-Level Functions)
 
 - Public top-level functions must be explicitly exposed:
@@ -59,3 +70,11 @@ Override for local experimentation via:
 
 - Use clear, descriptive commit messages.
 - Do not bundle unrelated refactors with behavior changes.
+
+## Pull Request Checklist
+
+Before requesting review:
+
+- all quality gates pass locally
+- docs are updated for any public-surface change
+- changelog entry is added/updated under `v0.0.5 (unreleased)`
