@@ -942,7 +942,7 @@ function astCacheGetValueWithContext(context, normalizedKey, keyHash, includeMet
   return value;
 }
 
-function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, operationOptions = {}) {
+function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, operationOptions = {}, cleanupMode = 'immediate') {
   const resolvedKeyHash = typeof keyHash === 'string' && keyHash.length > 0
     ? keyHash
     : astCacheHashKey(normalizedKey);
@@ -965,9 +965,13 @@ function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, ope
   });
 
   const saved = context.adapter.set(entry);
-  astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
-  astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
-  return {
+  const shouldDeferCleanup = cleanupMode === 'defer';
+  if (!shouldDeferCleanup) {
+    astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
+    astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
+  }
+
+  const output = {
     backend: context.config.backend,
     namespace: context.config.namespace,
     keyHash: saved.keyHash,
@@ -975,6 +979,12 @@ function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, ope
     tags: saved.tags.slice(),
     expiresAt: typeof saved.expiresAtMs === 'number' ? new Date(saved.expiresAtMs).toISOString() : null
   };
+
+  if (shouldDeferCleanup) {
+    output.cleanupKeyHashes = [staleKeyHash, leaseKeyHash];
+  }
+
+  return output;
 }
 
 function astCacheDeleteValueWithContext(context, normalizedKey, keyHash) {
@@ -1221,26 +1231,46 @@ function astCacheSetManyValues(entries, options = {}) {
   const context = astCacheBuildResolvedContext(options);
   const normalizedEntries = astCacheNormalizeBatchEntries(entries);
   const items = [];
+  const deferredCleanupKeyHashes = [];
 
-  for (let idx = 0; idx < normalizedEntries.length; idx += 1) {
-    const entry = normalizedEntries[idx];
-    const entryOptions = Object.assign({}, context.options, entry.options);
-    const saved = astCacheSetValueWithContext(
-      context,
-      entry.normalizedKey,
-      entry.keyHash,
-      entry.value,
-      entryOptions
-    );
+  try {
+    for (let idx = 0; idx < normalizedEntries.length; idx += 1) {
+      const entry = normalizedEntries[idx];
+      const entryOptions = Object.assign({}, context.options, entry.options);
+      const saved = astCacheSetValueWithContext(
+        context,
+        entry.normalizedKey,
+        entry.keyHash,
+        entry.value,
+        entryOptions,
+        'defer'
+      );
 
-    items.push({
-      key: entry.key,
-      keyHash: saved.keyHash,
-      status: 'set',
-      ttlSec: saved.ttlSec,
-      tags: saved.tags.slice(),
-      expiresAt: saved.expiresAt
-    });
+      if (Array.isArray(saved.cleanupKeyHashes)) {
+        deferredCleanupKeyHashes.push(...saved.cleanupKeyHashes);
+      }
+
+      items.push({
+        key: entry.key,
+        keyHash: saved.keyHash,
+        status: 'set',
+        ttlSec: saved.ttlSec,
+        tags: saved.tags.slice(),
+        expiresAt: saved.expiresAt
+      });
+    }
+  } finally {
+    if (deferredCleanupKeyHashes.length > 0) {
+      const uniqueCleanupKeyHashes = Array.from(new Set(deferredCleanupKeyHashes));
+      if (typeof context.adapter.deleteManyByKeyHashes === 'function') {
+        astCacheTryOrFallback(() => context.adapter.deleteManyByKeyHashes(uniqueCleanupKeyHashes), 0);
+      } else {
+        for (let idx = 0; idx < uniqueCleanupKeyHashes.length; idx += 1) {
+          const cleanupKeyHash = uniqueCleanupKeyHashes[idx];
+          astCacheTryOrFallback(() => context.adapter.delete(cleanupKeyHash), false);
+        }
+      }
+    }
   }
 
   return {
