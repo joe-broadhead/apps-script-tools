@@ -965,9 +965,17 @@ function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, ope
   });
 
   const saved = context.adapter.set(entry);
-  astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
-  astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
-  return {
+  if (typeof context.adapter.deleteManyByKeyHashes === 'function') {
+    astCacheTryOrFallback(
+      () => context.adapter.deleteManyByKeyHashes([staleKeyHash, leaseKeyHash]),
+      0
+    );
+  } else {
+    astCacheTryOrFallback(() => context.adapter.delete(staleKeyHash), false);
+    astCacheTryOrFallback(() => context.adapter.delete(leaseKeyHash), false);
+  }
+
+  const output = {
     backend: context.config.backend,
     namespace: context.config.namespace,
     keyHash: saved.keyHash,
@@ -975,6 +983,8 @@ function astCacheSetValueWithContext(context, normalizedKey, keyHash, value, ope
     tags: saved.tags.slice(),
     expiresAt: typeof saved.expiresAtMs === 'number' ? new Date(saved.expiresAtMs).toISOString() : null
   };
+
+  return output;
 }
 
 function astCacheDeleteValueWithContext(context, normalizedKey, keyHash) {
