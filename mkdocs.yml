@@ -146,6 +146,7 @@ nav:
     - Benchmarks: performance/benchmarks.md
     - Optimization Playbook: performance/optimization-playbook.md
   - Operations:
+    - Security Policy: operations/security-policy.md
     - Telemetry: operations/telemetry.md
     - AI Security: operations/ai-security.md
     - RAG Indexing: operations/rag-indexing.md
@@ -156,6 +157,7 @@ nav:
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md
   - Development:
+    - Contributing: development/contributing.md
     - Architecture Decisions:
       - Overview: decisions/index.md
       - ADR Template: decisions/adr-template.md

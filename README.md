@@ -94,6 +94,16 @@ Module quickstarts:
 - Chat: <https://joe-broadhead.github.io/apps-script-tools/getting-started/chat-quickstart/>
 - Messaging: <https://joe-broadhead.github.io/apps-script-tools/getting-started/messaging-quickstart/>
 - Telemetry: <https://joe-broadhead.github.io/apps-script-tools/getting-started/telemetry-quickstart/>
+- Contributing guide: `CONTRIBUTING.md`
+- Release process: `RELEASE.md`
+- Security policy: `SECURITY.md`
+
+## Documentation standards
+
+- `README.md` stays overview-focused (what the library provides, how to install/use it quickly).
+- Detailed API contracts and operation behavior live in `docs/` (published via MkDocs).
+- Every user-facing change should be recorded under `CHANGELOG.md` in `v0.0.5 (unreleased)` until release.
+- When adding docs pages, include them in `mkdocs.yml` navigation.
 
 ## Cookbooks
 
@@ -114,6 +124,11 @@ Notes:
 - Keep project app code in `cookbooks/<project>/src/`.
 - Keep reusable logic in the library (`apps_script_tools/`).
 - `.clasp.json` and credentials stay local-only and untracked.
+
+Global structures note:
+
+- Structure classes are global constructors, not namespaced properties.
+- Use `new Queue()` (or `new Trie()`, etc.), not `new ASTX.Queue()`.
 
 ## Development
 
