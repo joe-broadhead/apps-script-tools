@@ -716,6 +716,7 @@ function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options =
   try {
     const loaded = astCacheStorageReadStatsDocument(config, runtimeOptions);
     const nextStats = astCacheStorageNormalizeStatsDocument(loaded.stats);
+    const appliedCounters = {};
 
     const keys = Object.keys(state.counters);
     for (let idx = 0; idx < keys.length; idx += 1) {
@@ -725,10 +726,25 @@ function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options =
         continue;
       }
       nextStats[key] = Number(nextStats[key] || 0) + increment;
-      state.counters[key] = 0;
+      appliedCounters[key] = increment;
     }
 
-    return astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+    const written = astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+
+    const appliedKeys = Object.keys(appliedCounters);
+    for (let idx = 0; idx < appliedKeys.length; idx += 1) {
+      const key = appliedKeys[idx];
+      const applied = Number(appliedCounters[key] || 0);
+      if (!Number.isFinite(applied) || applied === 0) {
+        continue;
+      }
+
+      const current = Number(state.counters[key] || 0);
+      const remaining = current - applied;
+      state.counters[key] = Math.abs(remaining) < 1e-9 ? 0 : remaining;
+    }
+
+    return written;
   } catch (error) {
     if (options.strict === true) {
       throw error;

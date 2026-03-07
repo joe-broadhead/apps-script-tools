@@ -1782,6 +1782,37 @@ test('storage_json backend persists mutation stats and buffers read stats update
   assert.equal(statsIoAfterRead.length > statsIoAfterSingleGet.length, true);
 });
 
+test('storage_json backend preserves pending mutation stats when stats write fails', () => {
+  const storage = createStorageRunnerMock();
+  let statsWriteFailuresRemaining = 1;
+  const context = createGasContext({
+    astRunStorageRequest: request => {
+      const operation = String(request && request.operation || '').toLowerCase();
+      const uri = String(request && request.uri || '');
+      const isStatsWrite = operation === 'write' && /\/meta\/stats\.json$/.test(uri);
+      if (isStatsWrite && statsWriteFailuresRemaining > 0) {
+        statsWriteFailuresRemaining -= 1;
+        throw new Error('transient stats write failure');
+      }
+      return storage.astRunStorageRequest(request);
+    }
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    namespace: 'storage_stats_retry',
+    storageUri: 'gcs://cache-bucket/stats-retry/cache.json'
+  });
+
+  context.AST.Cache.set('a', { id: 'a' });
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.backend, 'storage_json');
+  assert.equal(stats.stats.sets >= 1, true);
+});
+
 test('storage_json backend isolates collision-prone namespace names', () => {
   const storage = createStorageRunnerMock();
   const context = createGasContext({
