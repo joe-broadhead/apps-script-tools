@@ -31,11 +31,12 @@ function astRagParseStorageUri(uri) {
     }
   }
 
-  const gcs = normalized.match(/^gcs:\/\/([^/]+)(?:\/(.*))?$/i);
+  const gcs = normalized.match(/^(?:gcs|gs):\/\/([^/]+)(?:\/(.*))?$/i);
   if (gcs) {
+    const normalizedUri = normalized.replace(/^gs:\/\//i, 'gcs://');
     return {
       provider: 'gcs',
-      uri: normalized,
+      uri: normalizedUri,
       location: {
         bucket: gcs[1],
         key: astRagNormalizeString(gcs[2], '')
@@ -65,7 +66,7 @@ function astRagParseStorageUri(uri) {
     };
   }
 
-  throw new AstRagValidationError('storage uri must start with gcs://, s3://, or dbfs:/', {
+  throw new AstRagValidationError('storage uri must start with gcs://, gs://, s3://, or dbfs:/', {
     uri: normalized
   });
 }

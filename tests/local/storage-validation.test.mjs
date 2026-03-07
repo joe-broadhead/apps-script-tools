@@ -44,6 +44,21 @@ test('astValidateStorageRequest normalizes URI provider and location', () => {
   assert.equal(request.uri, 'gcs://bucket-a/path/to/file.json');
 });
 
+test('astValidateStorageRequest accepts gs:// URIs and canonicalizes to gcs://', () => {
+  const context = createGasContext();
+  loadStorageScripts(context);
+
+  const request = context.astValidateStorageRequest({
+    uri: 'gs://bucket-a/path/to/file.json',
+    operation: 'head'
+  });
+
+  assert.equal(request.provider, 'gcs');
+  assert.equal(request.location.bucket, 'bucket-a');
+  assert.equal(request.location.key, 'path/to/file.json');
+  assert.equal(request.uri, 'gcs://bucket-a/path/to/file.json');
+});
+
 test('astValidateStorageRequest rejects traversal-like storage location inputs', () => {
   const context = createGasContext();
   loadStorageScripts(context);

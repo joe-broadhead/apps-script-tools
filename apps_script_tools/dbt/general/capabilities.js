@@ -41,7 +41,7 @@ const AST_DBT_PROVIDER_CAPABILITIES = Object.freeze({
   }),
   gcs: Object.freeze({
     provider: 'gcs',
-    uriSchemes: ['gcs://bucket/path/to/manifest.json'],
+    uriSchemes: ['gcs://bucket/path/to/manifest.json', 'gs://bucket/path/to/manifest.json'],
     operations: ['read_manifest', 'read_artifact'],
     auth: ['oauth', 'service_account']
   }),

@@ -1743,6 +1743,40 @@ test('storage_json backend supports persistence through AST.Storage providers', 
   assert.equal(persistedUris.some(uri => /cache--[^/]+\.json$/.test(uri)), false);
 });
 
+test('storage_json backend buffers stats writes until flush threshold or stats() call', () => {
+  const storage = createStorageRunnerMock();
+  const context = createGasContext({
+    astRunStorageRequest: storage.astRunStorageRequest
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    namespace: 'storage_stats_buffered',
+    storageUri: 'gcs://cache-bucket/stats/cache.json'
+  });
+
+  context.AST.Cache.set('a', { id: 'a' });
+  context.AST.Cache.set('b', { id: 'b' });
+  context.AST.Cache.invalidateByTag('missing-tag');
+
+  const statsIoBeforeRead = storage.requests.filter(request =>
+    /\/meta\/stats\.json$/.test(String(request && request.uri || ''))
+  );
+  assert.equal(statsIoBeforeRead.length, 0);
+
+  const stats = context.AST.Cache.stats();
+  assert.equal(stats.backend, 'storage_json');
+  assert.equal(stats.stats.sets >= 2, true);
+
+  const statsIoAfterRead = storage.requests.filter(request =>
+    /\/meta\/stats\.json$/.test(String(request && request.uri || ''))
+  );
+  assert.equal(statsIoAfterRead.length >= 2, true);
+});
+
 test('storage_json backend isolates collision-prone namespace names', () => {
   const storage = createStorageRunnerMock();
   const context = createGasContext({
@@ -1781,6 +1815,33 @@ test('storage_json backend isolates collision-prone namespace names', () => {
   );
   const namespaceRoots = new Set(entryUris.map(uri => uri.split('/entries/')[0]));
   assert.equal(namespaceRoots.size, 2);
+});
+
+test('storage_json backend accepts gs:// uri alias and normalizes writes to gcs://', () => {
+  const storage = createStorageRunnerMock();
+  const context = createGasContext({
+    astRunStorageRequest: storage.astRunStorageRequest
+  });
+
+  loadCacheScripts(context, { includeAst: true });
+
+  context.AST.Cache.clearConfig();
+  context.AST.Cache.configure({
+    backend: 'storage_json',
+    storageUri: 'gs://cache-bucket/shared/cache.json'
+  });
+
+  context.AST.Cache.set('shared-key', { ok: true });
+
+  const persistedUris = Object.keys(storage.objects);
+  assert.equal(
+    persistedUris.some(uri => uri.startsWith('gcs://cache-bucket/shared/cache--')),
+    true
+  );
+  assert.equal(
+    persistedUris.some(uri => uri.startsWith('gs://')),
+    false
+  );
 });
 
 test('storage_json trim probe is not capped at 50k and uses tag mutation lock path', () => {
