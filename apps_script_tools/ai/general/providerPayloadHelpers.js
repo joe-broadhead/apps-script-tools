@@ -130,6 +130,40 @@ function astAiBuildOpenAiContent(content) {
   });
 }
 
+function astAiIsEmptyOpenAiContent(content) {
+  if (content == null) {
+    return true;
+  }
+
+  if (typeof content === 'string') {
+    return content.length === 0;
+  }
+
+  if (!Array.isArray(content)) {
+    return false;
+  }
+
+  if (content.length === 0) {
+    return true;
+  }
+
+  return content.every(part => {
+    if (typeof part === 'string') {
+      return part.length === 0;
+    }
+
+    if (!part || typeof part !== 'object') {
+      return true;
+    }
+
+    if (part.type === 'text') {
+      return typeof part.text !== 'string' || part.text.length === 0;
+    }
+
+    return false;
+  });
+}
+
 function astAiBuildOpenAiMessages(messages) {
   return messages.map((message, index) => {
     const role = message.role || 'user';
@@ -148,9 +182,10 @@ function astAiBuildOpenAiMessages(messages) {
       return toolMessage;
     }
 
+    const normalizedContent = astAiBuildOpenAiContent(message.content);
     const output = {
       role,
-      content: astAiBuildOpenAiContent(message.content)
+      content: normalizedContent
     };
 
     if (role === 'assistant' && Array.isArray(message.toolCalls) && message.toolCalls.length > 0) {
@@ -164,6 +199,10 @@ function astAiBuildOpenAiMessages(messages) {
             : JSON.stringify(toolCall.arguments || {})
         }
       }));
+
+      if (astAiIsEmptyOpenAiContent(normalizedContent)) {
+        output.content = null;
+      }
     }
 
     return output;

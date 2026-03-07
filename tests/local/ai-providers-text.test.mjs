@@ -366,3 +366,75 @@ test('astAiBuildOpenAiMessages omits empty tool message name', () => {
   assert.equal(messages[0].tool_call_id, 'tool_call_1');
   assert.equal(Object.prototype.hasOwnProperty.call(messages[0], 'name'), false);
 });
+
+test('astAiBuildOpenAiMessages normalizes empty assistant tool-call content to null', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const messages = context.astAiBuildOpenAiMessages([
+    {
+      role: 'assistant',
+      content: '',
+      toolCalls: [{
+        id: 'tool_call_1',
+        name: 'lookup',
+        arguments: { id: 42 }
+      }]
+    }
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, 'assistant');
+  assert.equal(messages[0].content, null);
+  assert.equal(messages[0].tool_calls.length, 1);
+  assert.equal(messages[0].tool_calls[0].function.name, 'lookup');
+  assert.equal(messages[0].tool_calls[0].function.arguments, '{"id":42}');
+});
+
+test('astAiBuildOpenAiMessages normalizes empty text-part assistant content to null for tool calls', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const messages = context.astAiBuildOpenAiMessages([
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: '' }],
+      toolCalls: [{
+        id: 'tool_call_1',
+        name: 'lookup',
+        arguments: { id: 42 }
+      }]
+    }
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, 'assistant');
+  assert.equal(messages[0].content, null);
+  assert.equal(messages[0].tool_calls.length, 1);
+  assert.equal(messages[0].tool_calls[0].function.name, 'lookup');
+  assert.equal(messages[0].tool_calls[0].function.arguments, '{"id":42}');
+});
+
+test('astAiBuildOpenAiMessages preserves non-empty whitespace assistant content for tool calls', () => {
+  const context = createGasContext();
+  loadAiScripts(context);
+
+  const messages = context.astAiBuildOpenAiMessages([
+    {
+      role: 'assistant',
+      content: '   ',
+      toolCalls: [{
+        id: 'tool_call_1',
+        name: 'lookup',
+        arguments: { id: 42 }
+      }]
+    }
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, 'assistant');
+  assert.equal(messages[0].content, '   ');
+  assert.equal(messages[0].tool_calls.length, 1);
+  assert.equal(messages[0].tool_calls[0].function.name, 'lookup');
+  assert.equal(messages[0].tool_calls[0].function.arguments, '{"id":42}');
+});
