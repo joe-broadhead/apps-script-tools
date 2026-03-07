@@ -759,8 +759,18 @@ function astCacheStorageMaybeFlushPendingStats(config, runtimeOptions = {}, opti
 }
 
 function astCacheStorageUpdateStats(config, runtimeOptions = {}, patch = {}, options = {}) {
-  astCacheStorageBumpPendingStats(config, patch);
-  return astCacheStorageMaybeFlushPendingStats(config, runtimeOptions, options);
+  const state = astCacheStorageBumpPendingStats(config, patch);
+  if (astCacheStoragePendingStatsTotal(state.counters) === 0) {
+    return null;
+  }
+
+  if (options.buffered === true) {
+    return astCacheStorageMaybeFlushPendingStats(config, runtimeOptions, options);
+  }
+
+  return astCacheStorageFlushPendingStats(config, runtimeOptions, {
+    strict: options.strict === true
+  });
 }
 
 function astCacheStorageReadEntry(config, keyHash, runtimeOptions = {}) {

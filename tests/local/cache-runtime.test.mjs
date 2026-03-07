@@ -1743,7 +1743,7 @@ test('storage_json backend supports persistence through AST.Storage providers', 
   assert.equal(persistedUris.some(uri => /cache--[^/]+\.json$/.test(uri)), false);
 });
 
-test('storage_json backend buffers stats writes until flush threshold or stats() call', () => {
+test('storage_json backend persists mutation stats and buffers read stats updates', () => {
   const storage = createStorageRunnerMock();
   const context = createGasContext({
     astRunStorageRequest: storage.astRunStorageRequest
@@ -1755,26 +1755,31 @@ test('storage_json backend buffers stats writes until flush threshold or stats()
   context.AST.Cache.configure({
     backend: 'storage_json',
     namespace: 'storage_stats_buffered',
-    storageUri: 'gcs://cache-bucket/stats/cache.json'
+    storageUri: 'gcs://cache-bucket/stats/cache.json',
+    updateStatsOnGet: true
   });
 
   context.AST.Cache.set('a', { id: 'a' });
-  context.AST.Cache.set('b', { id: 'b' });
-  context.AST.Cache.invalidateByTag('missing-tag');
-
-  const statsIoBeforeRead = storage.requests.filter(request =>
+  const statsIoAfterSet = storage.requests.filter(request =>
     /\/meta\/stats\.json$/.test(String(request && request.uri || ''))
   );
-  assert.equal(statsIoBeforeRead.length, 0);
+  assert.equal(statsIoAfterSet.length >= 2, true);
+
+  context.AST.Cache.get('a');
+  const statsIoAfterSingleGet = storage.requests.filter(request =>
+    /\/meta\/stats\.json$/.test(String(request && request.uri || ''))
+  );
+  assert.equal(statsIoAfterSingleGet.length, statsIoAfterSet.length);
 
   const stats = context.AST.Cache.stats();
   assert.equal(stats.backend, 'storage_json');
-  assert.equal(stats.stats.sets >= 2, true);
+  assert.equal(stats.stats.sets >= 1, true);
+  assert.equal(stats.stats.hits >= 1, true);
 
   const statsIoAfterRead = storage.requests.filter(request =>
     /\/meta\/stats\.json$/.test(String(request && request.uri || ''))
   );
-  assert.equal(statsIoAfterRead.length >= 2, true);
+  assert.equal(statsIoAfterRead.length > statsIoAfterSingleGet.length, true);
 });
 
 test('storage_json backend isolates collision-prone namespace names', () => {
