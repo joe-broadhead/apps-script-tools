@@ -14,14 +14,16 @@ function astTelemetryStorageNormalizeBaseUri(storageUri) {
     );
   }
 
-  if (!/^gcs:\/\/|^s3:\/\/|^dbfs:\//i.test(normalized)) {
+  const canonical = normalized.replace(/^gs:\/\//i, 'gcs://');
+
+  if (!/^gcs:\/\/|^s3:\/\/|^dbfs:\//i.test(canonical)) {
     throw new AstTelemetryCapabilityError(
-      'Telemetry storageUri must use gcs://, s3://, or dbfs:/',
+      'Telemetry storageUri must use gcs://, gs://, s3://, or dbfs:/',
       { storageUri: normalized }
     );
   }
 
-  return normalized.replace(/\/+$/, '');
+  return canonical.replace(/\/+$/, '');
 }
 
 function astTelemetryStorageJoinUri(baseUri, segments = []) {

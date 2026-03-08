@@ -62,7 +62,7 @@ function astCacheStorageResolveNamespaceRootUri(config) {
   const namespaceHash = astCacheStorageNamespaceHash(config.namespace);
   const lowerUri = baseUri.toLowerCase();
 
-  if (lowerUri.startsWith('gcs://') || lowerUri.startsWith('s3://')) {
+  if (lowerUri.startsWith('gcs://') || lowerUri.startsWith('gs://') || lowerUri.startsWith('s3://')) {
     const match = baseUri.match(/^([a-zA-Z0-9_]+):\/\/([^\/]+)\/(.+)$/);
     if (!match) {
       throw new AstCacheValidationError('Cache storage_json uri must include bucket and object path', {
@@ -70,7 +70,8 @@ function astCacheStorageResolveNamespaceRootUri(config) {
       });
     }
 
-    const scheme = match[1].toLowerCase();
+    const rawScheme = match[1].toLowerCase();
+    const scheme = rawScheme === 'gs' ? 'gcs' : rawScheme;
     const bucket = match[2];
     const objectPath = astCacheStorageAppendNamespaceSuffix(match[3], namespaceHash);
     return `${scheme}://${bucket}/${objectPath}`;
@@ -83,7 +84,7 @@ function astCacheStorageResolveNamespaceRootUri(config) {
   }
 
   throw new AstCacheValidationError(
-    'Cache storage_json uri scheme must be one of: gcs://, s3://, dbfs:/',
+    'Cache storage_json uri scheme must be one of: gcs://, gs://, s3://, dbfs:/',
     { uri: baseUri }
   );
 }
@@ -715,6 +716,7 @@ function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options =
   try {
     const loaded = astCacheStorageReadStatsDocument(config, runtimeOptions);
     const nextStats = astCacheStorageNormalizeStatsDocument(loaded.stats);
+    const appliedCounters = {};
 
     const keys = Object.keys(state.counters);
     for (let idx = 0; idx < keys.length; idx += 1) {
@@ -724,10 +726,25 @@ function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options =
         continue;
       }
       nextStats[key] = Number(nextStats[key] || 0) + increment;
-      state.counters[key] = 0;
+      appliedCounters[key] = increment;
     }
 
-    return astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+    const written = astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+
+    const appliedKeys = Object.keys(appliedCounters);
+    for (let idx = 0; idx < appliedKeys.length; idx += 1) {
+      const key = appliedKeys[idx];
+      const applied = Number(appliedCounters[key] || 0);
+      if (!Number.isFinite(applied) || applied === 0) {
+        continue;
+      }
+
+      const current = Number(state.counters[key] || 0);
+      const remaining = current - applied;
+      state.counters[key] = Math.abs(remaining) < 1e-9 ? 0 : remaining;
+    }
+
+    return written;
   } catch (error) {
     if (options.strict === true) {
       throw error;
@@ -737,23 +754,39 @@ function astCacheStorageFlushPendingStats(config, runtimeOptions = {}, options =
   }
 }
 
-function astCacheStorageUpdateStats(config, runtimeOptions = {}, patch = {}) {
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+function astCacheStorageMaybeFlushPendingStats(config, runtimeOptions = {}, options = {}) {
+  const state = astCacheStoragePendingStatsState(config);
+  const flushThreshold = astCacheNormalizePositiveInt(
+    runtimeOptions.storageStatsFlushThreshold,
+    AST_CACHE_STORAGE_STATS_FLUSH_THRESHOLD,
+    1,
+    100000
+  );
+  const shouldFlush = options.force === true
+    || astCacheStoragePendingStatsTotal(state.counters) >= flushThreshold;
 
-  const loaded = astCacheStorageReadStatsDocument(config, runtimeOptions);
-  const nextStats = astCacheStorageNormalizeStatsDocument(loaded.stats);
-
-  const keys = Object.keys(patch || {});
-  for (let idx = 0; idx < keys.length; idx += 1) {
-    const key = keys[idx];
-    const increment = Number(patch[key]);
-    if (!Number.isFinite(increment) || increment === 0) {
-      continue;
-    }
-    nextStats[key] = Number(nextStats[key] || 0) + increment;
+  if (!shouldFlush) {
+    return null;
   }
 
-  return astCacheStorageWriteStatsDocument(loaded.uri, nextStats, runtimeOptions);
+  return astCacheStorageFlushPendingStats(config, runtimeOptions, {
+    strict: options.strict === true
+  });
+}
+
+function astCacheStorageUpdateStats(config, runtimeOptions = {}, patch = {}, options = {}) {
+  const state = astCacheStorageBumpPendingStats(config, patch);
+  if (astCacheStoragePendingStatsTotal(state.counters) === 0) {
+    return null;
+  }
+
+  if (options.buffered === true) {
+    return astCacheStorageMaybeFlushPendingStats(config, runtimeOptions, options);
+  }
+
+  return astCacheStorageFlushPendingStats(config, runtimeOptions, {
+    strict: options.strict === true
+  });
 }
 
 function astCacheStorageReadEntry(config, keyHash, runtimeOptions = {}) {
@@ -997,12 +1030,7 @@ function astCacheStorageTrimToMaxEntries(config, runtimeOptions = {}) {
 }
 
 function astCacheStorageMaybeFlushPendingGetStats(config, runtimeOptions = {}) {
-  const state = astCacheStoragePendingStatsState(config);
-  if (astCacheStoragePendingStatsTotal(state.counters) < AST_CACHE_STORAGE_STATS_FLUSH_THRESHOLD) {
-    return;
-  }
-
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
+  astCacheStorageMaybeFlushPendingStats(config, runtimeOptions, { strict: false });
 }
 
 function astCacheStorageGet(keyHash, config, runtimeOptions = {}) {
@@ -1040,8 +1068,6 @@ function astCacheStorageGet(keyHash, config, runtimeOptions = {}) {
 }
 
 function astCacheStorageSet(entry, config, runtimeOptions = {}) {
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
-
   const nowMs = astCacheNowMs();
   const nextEntry = astCacheTouchEntry(entry, nowMs);
   const previousEntry = astCacheStorageReadEntry(config, nextEntry.keyHash, runtimeOptions);
@@ -1064,8 +1090,6 @@ function astCacheStorageSet(entry, config, runtimeOptions = {}) {
 }
 
 function astCacheStorageDelete(keyHash, config, runtimeOptions = {}) {
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
-
   const previousEntry = astCacheStorageReadEntry(config, keyHash, runtimeOptions);
   if (!previousEntry) {
     return false;
@@ -1118,8 +1142,6 @@ function astCacheStorageInvalidateByTag(tag, config, runtimeOptions = {}) {
   if (!normalizedTag) {
     throw new AstCacheValidationError('Cache invalidateByTag tag must be a non-empty string');
   }
-
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
 
   const loaded = astCacheStorageReadTagDocument(config, normalizedTag, runtimeOptions);
   const keyHashes = Array.isArray(loaded.document.keyHashes)
@@ -1209,8 +1231,6 @@ function astCacheStorageStats(config, runtimeOptions = {}) {
 }
 
 function astCacheStorageClearNamespace(config, runtimeOptions = {}) {
-  astCacheStorageFlushPendingStats(config, runtimeOptions, { strict: false });
-
   const entryUris = astCacheStorageListEntryUris(config, runtimeOptions);
   let removed = 0;
   for (let idx = 0; idx < entryUris.length; idx += 1) {

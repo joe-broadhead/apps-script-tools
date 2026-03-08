@@ -77,7 +77,7 @@ test('loadManifest reads manifest from drive://path/<folderId>/<fileName>', () =
   assert.equal(out.source.location.folderId, 'folder-1');
 });
 
-test('loadManifest reads manifest via AST.Storage contract for gcs/s3/dbfs', () => {
+test('loadManifest reads manifest via AST.Storage contract for gcs/gs/s3/dbfs', () => {
   const fixture = createManifestFixture();
 
   const context = createGasContext();
@@ -99,11 +99,12 @@ test('loadManifest reads manifest via AST.Storage contract for gcs/s3/dbfs', () 
   };
 
   const out = context.AST.DBT.loadManifest({
-    uri: 'gcs://bucket/path/manifest.json'
+    uri: 'gs://bucket/path/manifest.json'
   });
 
   assert.equal(out.status, 'ok');
   assert.equal(out.source.provider, 'gcs');
+  assert.equal(out.source.uri, 'gcs://bucket/path/manifest.json');
 });
 
 test('loadManifest supports gzip payloads when allowGzip=true', () => {

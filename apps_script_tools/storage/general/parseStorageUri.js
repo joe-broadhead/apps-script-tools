@@ -166,7 +166,7 @@ function astParseStorageUri(uri) {
     return null;
   }
 
-  const gcsMatch = raw.match(/^gcs:\/\/([^/]+)(?:\/(.*))?$/i);
+  const gcsMatch = raw.match(/^(?:gcs|gs):\/\/([^/]+)(?:\/(.*))?$/i);
   if (gcsMatch) {
     return {
       provider: 'gcs',
@@ -207,7 +207,7 @@ function astParseStorageUri(uri) {
     };
   }
 
-  throw new AstStorageValidationError('uri must use one of: gcs://, s3://, dbfs:/', {
+  throw new AstStorageValidationError('uri must use one of: gcs://, gs://, s3://, dbfs:/', {
     uri: raw
   });
 }

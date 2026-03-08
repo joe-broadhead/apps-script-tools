@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createGasContext } from './helpers.mjs';
 import { loadStorageScripts } from './storage-helpers.mjs';
 
-test('astParseStorageUri parses gcs, s3, and dbfs URIs', () => {
+test('astParseStorageUri parses gcs/gs, s3, and dbfs URIs', () => {
   const context = createGasContext();
   loadStorageScripts(context);
 
@@ -12,6 +12,13 @@ test('astParseStorageUri parses gcs, s3, and dbfs URIs', () => {
   assert.equal(gcs.provider, 'gcs');
   assert.equal(gcs.location.bucket, 'my-bucket');
   assert.equal(gcs.location.key, 'path/to/file.txt');
+  assert.equal(gcs.uri, 'gcs://my-bucket/path/to/file.txt');
+
+  const gs = context.astParseStorageUri('gs://my-bucket/path/to/file.txt');
+  assert.equal(gs.provider, 'gcs');
+  assert.equal(gs.location.bucket, 'my-bucket');
+  assert.equal(gs.location.key, 'path/to/file.txt');
+  assert.equal(gs.uri, 'gcs://my-bucket/path/to/file.txt');
 
   const s3 = context.astParseStorageUri('s3://bucket-a/data.csv');
   assert.equal(s3.provider, 's3');
@@ -29,7 +36,7 @@ test('astParseStorageUri rejects unsupported URI schemes', () => {
 
   assert.throws(
     () => context.astParseStorageUri('azure://x/y'),
-    /must use one of: gcs:\/\/, s3:\/\/, dbfs:\//
+    /must use one of: gcs:\/\/, gs:\/\/, s3:\/\/, dbfs:\//
   );
 });
 

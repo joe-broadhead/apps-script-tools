@@ -60,12 +60,17 @@ function astRagNormalizeStorageUri(value, fieldPath) {
   const lower = normalized.toLowerCase();
   if (
     lower.indexOf('gcs://') !== 0
+    && lower.indexOf('gs://') !== 0
     && lower.indexOf('s3://') !== 0
     && lower.indexOf('dbfs:/') !== 0
   ) {
-    throw new AstRagValidationError(`${fieldPath} must start with one of: gcs://, s3://, dbfs:/`, {
+    throw new AstRagValidationError(`${fieldPath} must start with one of: gcs://, gs://, s3://, dbfs:/`, {
       value: normalized
     });
+  }
+
+  if (lower.indexOf('gs://') === 0) {
+    return normalized.replace(/^gs:\/\//i, 'gcs://');
   }
 
   return normalized;

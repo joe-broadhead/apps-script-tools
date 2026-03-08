@@ -691,7 +691,7 @@ function astDbtResolveSourceFingerprint(source, options = {}) {
 function astDbtBuildPersistentCacheArtifactUris(cacheUri, cacheKey, compression) {
   const parsed = astDbtParseUri(cacheUri);
   if (!parsed || ['gcs', 's3', 'dbfs'].indexOf(parsed.provider) === -1) {
-    throw new AstDbtValidationError('persistentCacheUri must use gcs://, s3://, or dbfs:/', {
+    throw new AstDbtValidationError('persistentCacheUri must use gcs://, gs://, s3://, or dbfs:/', {
       persistentCacheUri: cacheUri
     });
   }

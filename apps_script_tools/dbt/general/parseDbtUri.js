@@ -161,7 +161,7 @@ function astDbtParseDriveUri(uri) {
 function astDbtParseStorageLikeUri(uri) {
   const raw = astDbtNormalizeString(uri, '');
 
-  const gcsMatch = raw.match(/^gcs:\/\/([^/]+)(?:\/(.*))?$/i);
+  const gcsMatch = raw.match(/^(?:gcs|gs):\/\/([^/]+)(?:\/(.*))?$/i);
   if (gcsMatch) {
     const bucket = astDbtNormalizeBucket(gcsMatch[1]);
     const key = astDbtNormalizeStorageKey(gcsMatch[2] || '');
@@ -212,7 +212,7 @@ function astDbtParseUri(uri) {
   }
 
   throw new AstDbtValidationError(
-    'uri must use one of: drive://file/<id>, drive://path/<folderId>/<fileName>, gcs://, s3://, dbfs:/',
+    'uri must use one of: drive://file/<id>, drive://path/<folderId>/<fileName>, gcs://, gs://, s3://, dbfs:/',
     { uri: raw }
   );
 }
