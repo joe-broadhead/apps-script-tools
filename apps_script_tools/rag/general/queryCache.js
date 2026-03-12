@@ -253,6 +253,15 @@ function astRagBuildSearchCacheKey(indexFileId, versionToken, query, retrieval) 
 }
 
 function astRagBuildAnswerCacheKey(indexFileId, versionToken, question, history, retrieval, generation, options) {
+  const normalizedGeneration = astRagIsPlainObject(generation)
+    ? Object.assign({}, generation, {
+      // Ensure cache identity includes generation options/providerOptions even when omitted,
+      // and avoids collisions when callers rely on defaults.
+      options: astRagIsPlainObject(generation.options) ? generation.options : {},
+      providerOptions: astRagIsPlainObject(generation.providerOptions) ? generation.providerOptions : {}
+    })
+    : generation;
+
   return astRagBuildCacheKey({
     kind: 'answer',
     indexFileId,
@@ -260,7 +269,7 @@ function astRagBuildAnswerCacheKey(indexFileId, versionToken, question, history,
     question,
     history,
     retrieval,
-    generation,
+    generation: normalizedGeneration,
     options
   });
 }
