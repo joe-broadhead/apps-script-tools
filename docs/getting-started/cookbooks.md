@@ -90,7 +90,7 @@ Put reusable logic back into the library (`apps_script_tools/`) only when it is 
 - `config_cache_patterns`: runtime composition cookbook for `AST.Config`, `AST.Runtime`, `AST.Secrets`, and `AST.Cache`.
 - `data_workflows_starter`: end-to-end `Series`/`DataFrame`/`GroupBy` + Drive/Sheets/SQL workflow example.
 - `storage_ops`: practical `AST.Storage` cookbook covering object CRUD plus `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
-- `github_issue_digest`: query open issues/PRs via `AST.GitHub` and log a digest.
+- `github_issue_digest`: template-v2 GitHub automation cookbook for issues, PRs, checks, Actions, GraphQL, Projects v2, and dry-run mutation planning via `AST.GitHub`.
 - `dbt_manifest_summary`: template-v2 DBT artifact explorer covering manifest load/search, lineage, governance, and artifact comparison via `AST.DBT`.
 - `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
 

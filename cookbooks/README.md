@@ -84,7 +84,7 @@ The template README documents:
 - `config_cache_patterns`: runtime composition cookbook for `AST.Config`, `AST.Runtime`, `AST.Secrets`, and `AST.Cache`.
 - `data_workflows_starter`: core data workflow example using `Series`, `DataFrame`, `GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, and `AST.Utils`.
 - `storage_ops`: practical `AST.Storage` example covering object CRUD, `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
-- `github_issue_digest`: fetch open issues/PRs via `AST.GitHub` and emit a digest.
+- `github_issue_digest`: template-v2 GitHub automation cookbook for issues, PRs, checks, Actions, GraphQL, Projects v2, and dry-run mutation planning via `AST.GitHub`.
 - `dbt_manifest_summary`: template-v2 DBT artifact explorer for manifest search, lineage, governance, and artifact comparison via `AST.DBT`.
 - `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
 
