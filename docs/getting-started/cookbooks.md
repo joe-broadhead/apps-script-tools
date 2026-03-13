@@ -91,7 +91,7 @@ Put reusable logic back into the library (`apps_script_tools/`) only when it is 
 - `data_workflows_starter`: end-to-end `Series`/`DataFrame`/`GroupBy` + Drive/Sheets/SQL workflow example.
 - `storage_ops`: practical `AST.Storage` cookbook covering object CRUD plus `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
 - `github_issue_digest`: query open issues/PRs via `AST.GitHub` and log a digest.
-- `dbt_manifest_summary`: load dbt `manifest.json` from Drive and summarize entities via `AST.DBT`.
+- `dbt_manifest_summary`: template-v2 DBT artifact explorer covering manifest load/search, lineage, governance, and artifact comparison via `AST.DBT`.
 - `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
 
 ## Example validation
