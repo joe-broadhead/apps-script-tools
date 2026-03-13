@@ -281,6 +281,9 @@ function validateCookbookConfig(options) {
 
     if (!hasStoredValue) {
       warnings.push(`Using cookbook default for ${field.key}.`);
+      if (field.required) {
+        errors.push(`Missing required cookbook config key ${field.key}.`);
+      }
     }
 
     if (field.allowedValues && field.allowedValues.indexOf(normalizedValue) === -1) {
