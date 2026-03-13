@@ -17,13 +17,22 @@ cookbooks/
     README.md
     src/
       appsscript.json
-      main.gs
+      00_Config.gs
+      10_EntryPoints.gs
+      20_Smoke.gs
+      30_Examples.gs
+      99_DevTools.gs
   my-project/
     .clasp.json          # local only (ignored)
     .claspignore
+    README.md
     src/
       appsscript.json
-      main.gs
+      00_Config.gs
+      10_EntryPoints.gs
+      20_Smoke.gs
+      30_Examples.gs
+      99_DevTools.gs
 ```
 
 ## Create a New Cookbook Project
@@ -45,9 +54,32 @@ Then push:
 clasp push
 ```
 
+Run the template bootstrap in Apps Script:
+
+1. `seedCookbookConfig()`
+2. `runCookbookAll()`
+
+## Template v2 contract
+
+All new cookbooks should start from `cookbooks/_template` and keep these required entrypoints:
+
+- `seedCookbookConfig()`
+- `validateCookbookConfig()`
+- `runCookbookSmoke()`
+- `runCookbookDemo()`
+- `runCookbookAll()`
+
+The template README documents:
+
+- script properties and defaults
+- expected smoke/demo outputs
+- least-privilege scope guidance
+- deployment checklist
+- troubleshooting notes
+
 ## Available examples
 
-- `_template`: minimal starter project scaffold.
+- `_template`: cookbook template v2 contract and starter scaffold.
 - `github_issue_digest`: fetch open issues/PRs via `AST.GitHub` and emit a digest.
 - `dbt_manifest_summary`: load Drive manifest and summarize models via `AST.DBT`.
 - `storage_cache_warmer`: warm persisted cache keys using `AST.Cache` + `storage_json`.
@@ -66,3 +98,4 @@ Recommended smoke order:
 - Do not place cookbook code under `apps_script_tools/`.
 - Do not commit `.clasp.json`, `.clasprc.json`, or credentials.
 - Use `const ASTX = ASTLib.AST || ASTLib;` inside cookbook scripts.
+- Keep cookbook code on public AST APIs only; do not reach into library internals.

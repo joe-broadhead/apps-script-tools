@@ -16,9 +16,14 @@ cookbooks/
   my-project/
     .clasp.json          # local-only
     .claspignore
+    README.md
     src/
       appsscript.json
-      main.gs
+      00_Config.gs
+      10_EntryPoints.gs
+      20_Smoke.gs
+      30_Examples.gs
+      99_DevTools.gs
 ```
 
 ## Create a cookbook project
@@ -40,6 +45,11 @@ Then push:
 clasp push
 ```
 
+Then run:
+
+1. `seedCookbookConfig()`
+2. `runCookbookAll()`
+
 ## Use the library in cookbook code
 
 ```javascript
@@ -48,6 +58,26 @@ function runCookbook() {
   Logger.log(ASTX.VERSION);
 }
 ```
+
+## Template contract
+
+The template at `cookbooks/_template` is the canonical contract for new cookbook projects.
+
+Required entrypoints:
+
+- `seedCookbookConfig()`
+- `validateCookbookConfig()`
+- `runCookbookSmoke()`
+- `runCookbookDemo()`
+- `runCookbookAll()`
+
+Each cookbook should:
+
+- use only public `AST` APIs
+- document Script Properties and expected outputs
+- include a deterministic smoke entrypoint
+- include least-privilege OAuth scope guidance
+- explain common failure modes and setup steps
 
 ## Scope guidance
 
