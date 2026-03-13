@@ -282,6 +282,12 @@ function validateCookbookConfig(options) {
     if (!hasStoredValue) {
       warnings.push(`Using cookbook default for ${field.key}.`);
     }
+
+    if (field.allowedValues && field.allowedValues.indexOf(normalizedValue) === -1) {
+      errors.push(
+        `${field.key} must be one of: ${field.allowedValues.join(', ')}. Received: ${normalizedValue}`
+      );
+    }
   }
 
   if (resolved.CONFIG_CACHE_PATTERNS_TIMEOUT_MS < 1000) {
