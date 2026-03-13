@@ -52,8 +52,8 @@ function runCookbookDemoInternal_(ASTX, config) {
     durationMs: Date.now() - startedAtMs,
     provider: primaryProvider,
     estimate: {
-      inputTokens: estimate.inputTokens,
-      outputTokens: estimate.outputTokens,
+      inputTokens: estimate.input ? estimate.input.tokens : null,
+      outputTokens: estimate.output ? estimate.output.reservedTokens : null,
       totalTokens: estimate.totalTokens,
       exceedsBudget: estimate.budget ? estimate.budget.exceedsBudget : false
     },
