@@ -25,7 +25,7 @@ function runCookbookDemoInternal_(ASTX, config) {
         module: 'http',
         cookbook: cookbookName_(),
         userAgent: config.HTTP_COOKBOOK_USER_AGENT,
-        successUrl: config.HTTP_COOKBOOK_SUCCESS_URL
+        successUrl: cookbookRedactQueryString_(config.HTTP_COOKBOOK_SUCCESS_URL)
       })
     : null;
 
