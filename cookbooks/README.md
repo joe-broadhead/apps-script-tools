@@ -81,9 +81,10 @@ The template README documents:
 
 - `_template`: cookbook template v2 contract and starter scaffold.
 - `data_workflows_starter`: core data workflow example using `Series`, `DataFrame`, `GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, and `AST.Utils`.
+- `storage_ops`: practical `AST.Storage` example covering object CRUD, `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
 - `github_issue_digest`: fetch open issues/PRs via `AST.GitHub` and emit a digest.
 - `dbt_manifest_summary`: load Drive manifest and summarize models via `AST.DBT`.
-- `storage_cache_warmer`: warm persisted cache keys using `AST.Cache` + `storage_json`.
+- `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
 
 ## Smoke instructions
 
