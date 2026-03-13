@@ -80,6 +80,7 @@ The template README documents:
 ## Available examples
 
 - `_template`: cookbook template v2 contract and starter scaffold.
+- `ai_playground`: practical `AST.AI` cookbook covering text, structured output, tool calls, stream callbacks, and optional provider routing/fallback.
 - `config_cache_patterns`: runtime composition cookbook for `AST.Config`, `AST.Runtime`, `AST.Secrets`, and `AST.Cache`.
 - `data_workflows_starter`: core data workflow example using `Series`, `DataFrame`, `GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, and `AST.Utils`.
 - `storage_ops`: practical `AST.Storage` example covering object CRUD, `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.

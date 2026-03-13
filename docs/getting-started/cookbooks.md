@@ -86,6 +86,7 @@ Put reusable logic back into the library (`apps_script_tools/`) only when it is 
 ## Available cookbook examples
 
 - `_template`: baseline scaffold for new cookbook projects.
+- `ai_playground`: `AST.AI` cookbook for text, structured output, tools, stream callbacks, and optional routing/fallback.
 - `config_cache_patterns`: runtime composition cookbook for `AST.Config`, `AST.Runtime`, `AST.Secrets`, and `AST.Cache`.
 - `data_workflows_starter`: end-to-end `Series`/`DataFrame`/`GroupBy` + Drive/Sheets/SQL workflow example.
 - `storage_ops`: practical `AST.Storage` cookbook covering object CRUD plus `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
