@@ -24,8 +24,10 @@ function runCookbookAll() {
 
 function cleanupCookbookArtifacts() {
   const validation = cookbookRequireValidConfig_();
+  const ASTX = cookbookAst_();
+  cookbookConfigureRuntimes_(ASTX, validation.config);
   return cookbookLogResult_(
     'cleanupCookbookArtifacts',
-    cookbookCleanupState_(cookbookAst_(), validation.config)
+    cookbookCleanupState_(ASTX, validation.config)
   );
 }
