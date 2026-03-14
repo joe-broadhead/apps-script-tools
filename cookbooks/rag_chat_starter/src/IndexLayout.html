@@ -1,0 +1,72 @@
+<div class="grain" aria-hidden="true"></div>
+
+<div class="viewport">
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-wrap" aria-hidden="true">
+          <img id="brandLogo" class="brand-logo hidden" alt="Company logo" />
+          <span class="logo-fallback" id="brandLogoFallback">AST</span>
+        </div>
+        <div class="titles">
+          <div class="appname" id="appName">AST RAG Chat Starter</div>
+          <div class="subline" id="appTagline">Grounded answers from your Drive knowledge base</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="control-pill control-toggle" title="Deep answers (slower, more detailed)">
+          <span class="toggle-label">Deep</span>
+          <span class="switch">
+            <input id="modeDeepToggle" type="checkbox" />
+            <span class="slider"></span>
+          </span>
+        </label>
+
+        <div id="indexMeta" class="control-pill control-meta">Index: loading...</div>
+
+        <button id="newThreadBtn" class="control-link" type="button">New chat</button>
+        <button id="syncIndexBtn" class="control-link" type="button">Sync</button>
+        <button id="rebuildIndexBtn" class="control-link" type="button">Rebuild</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="side-head">
+        <div class="side-title">Chats</div>
+        <div id="threadCountBadge" class="side-count">0</div>
+      </div>
+      <div id="threadList" class="thread-list"></div>
+      <div class="side-foot">Recent chats are stored for your account.</div>
+    </aside>
+
+    <main class="main">
+      <section id="chatView" class="thread">
+        <div class="thread-inner">
+          <div id="welcomeCard" class="welcome-card">
+            <h2>Welcome</h2>
+            <p>This sample app uses <code>AST.RAG</code>, <code>AST.AI</code>, and <code>AST.Cache</code>.</p>
+            <p>Use Fast mode for quick answers and Deep mode for higher-detail grounded responses.</p>
+          </div>
+
+          <div id="messages" class="messages" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="composer-wrap">
+        <form id="chatForm" class="composer" autocomplete="off">
+          <textarea
+            id="chatInput"
+            rows="2"
+            placeholder="Ask a question about your indexed files..."
+            aria-label="Ask a question"></textarea>
+          <button id="sendBtn" class="send" type="submit">Send</button>
+        </form>
+      </section>
+
+      <section class="statusbar">
+        <div id="statusLine" class="status-line">Ready.</div>
+      </section>
+    </main>
+  </div>
+</div>

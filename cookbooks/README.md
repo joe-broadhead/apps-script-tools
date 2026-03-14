@@ -22,6 +22,11 @@ cookbooks/
       20_Smoke.gs
       30_Examples.gs
       99_DevTools.gs
+      # optional HtmlService assets for webapp cookbooks:
+      # Index.html
+      # IndexLayout.html
+      # IndexStyles.html
+      # IndexScript.html
   my-project/
     .clasp.json          # local only (ignored)
     .claspignore
@@ -86,6 +91,7 @@ The template README documents:
 - `storage_ops`: practical `AST.Storage` example covering object CRUD, `walk`, `transfer`, `copyPrefix`, `deletePrefix`, and `sync`.
 - `github_issue_digest`: template-v2 GitHub automation cookbook for issues, PRs, checks, Actions, GraphQL, Projects v2, and dry-run mutation planning via `AST.GitHub`.
 - `http_ingestion_pipeline`: template-v2 `AST.Http` cookbook for resilient request flows, batch error handling, safe redaction, and optional cache/telemetry composition.
+- `rag_chat_starter`: template-v2 webapp starter for grounded `AST.RAG` chat with `AST.Chat` thread persistence, linked citations, and configurable branding.
 - `dbt_manifest_summary`: template-v2 DBT artifact explorer for manifest search, lineage, governance, and artifact comparison via `AST.DBT`.
 - `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
 
