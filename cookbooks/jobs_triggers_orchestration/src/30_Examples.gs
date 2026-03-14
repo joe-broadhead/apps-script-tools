@@ -71,21 +71,56 @@ function cookbookCollectManagedTriggerIds_(ASTX, config) {
   return Object.keys(ids).sort();
 }
 
-function cookbookCollectKnownJobIds_(ASTX, config) {
-  const names = cookbookJobNames_(config);
+function cookbookTryParseObject_(rawValue) {
+  if (typeof rawValue !== 'string' || rawValue.length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function cookbookCollectKnownJobIds_(entries, config) {
   const ids = {};
+  const source = entries && typeof entries === 'object' ? entries : {};
+  const jobPrefix = config.JOBS_TRIGGERS_JOB_PREFIX;
+  const dlqPrefix = jobPrefix + 'DLQ_';
+  const keys = Object.keys(source);
 
-  Object.keys(names).forEach(function (key) {
-    const jobs = ASTX.Jobs.list({
-      name: names[key],
-      limit: 100
-    });
-    for (let idx = 0; idx < jobs.length; idx += 1) {
-      ids[jobs[idx].id] = true;
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    if (key.indexOf(jobPrefix) !== 0 && key.indexOf(dlqPrefix) !== 0) {
+      continue;
     }
-  });
 
-  return Object.keys(ids);
+    const parsed = cookbookTryParseObject_(source[key]);
+    if (!parsed) {
+      continue;
+    }
+
+    if (typeof parsed.id === 'string' && parsed.id.length > 0) {
+      ids[parsed.id] = true;
+    }
+
+    if (typeof parsed.jobId === 'string' && parsed.jobId.length > 0) {
+      ids[parsed.jobId] = true;
+    }
+
+    if (parsed.items && typeof parsed.items === 'object') {
+      const itemIds = Object.keys(parsed.items);
+      for (let itemIdx = 0; itemIdx < itemIds.length; itemIdx += 1) {
+        if (itemIds[itemIdx]) {
+          ids[itemIds[itemIdx]] = true;
+        }
+      }
+    }
+  }
+
+  return Object.keys(ids).sort();
 }
 
 function cookbookCleanupState_(ASTX, config, options) {
@@ -119,7 +154,7 @@ function cookbookCleanupState_(ASTX, config, options) {
     }
   });
 
-  const jobIds = cookbookCollectKnownJobIds_(ASTX, config);
+  const jobIds = cookbookCollectKnownJobIds_(entries, config);
   for (let idx = 0; idx < jobIds.length; idx += 1) {
     keysToDelete['AST_JOBS_LOCATOR_' + jobIds[idx]] = true;
     keysToDelete['AST_JOBS_DLQ_LOCATOR_' + jobIds[idx]] = true;
