@@ -48,23 +48,14 @@ function cookbookCollectKnownJobIds_(ASTX, config) {
 function cookbookCleanupState_(ASTX, config, options) {
   const runtimeOptions = options && typeof options === 'object' ? options : {};
   const props = cookbookScriptProperties_();
-  const deletedTriggerIds = [];
-  const triggerIds = cookbookTriggerIds_(config);
-
-  for (let idx = 0; idx < triggerIds.length; idx += 1) {
-    try {
-      const response = ASTX.Triggers.delete({
-        id: triggerIds[idx]
-      });
-      if (response && response.deleted > 0) {
-        deletedTriggerIds.push(triggerIds[idx]);
-      }
-    } catch (error) {
-      if (!error || !error.message || String(error.message).toLowerCase().indexOf('not found') === -1) {
-        throw error;
-      }
+  const deleteAllResponse = ASTX.Triggers.delete({
+    options: {
+      all: true
     }
-  }
+  });
+  const deletedTriggerIds = Array.isArray(deleteAllResponse && deleteAllResponse.items)
+    ? deleteAllResponse.items.map(function (item) { return item.id; })
+    : [];
 
   const entries = typeof props.getProperties === 'function' ? props.getProperties() : {};
   const keysToDelete = {};
