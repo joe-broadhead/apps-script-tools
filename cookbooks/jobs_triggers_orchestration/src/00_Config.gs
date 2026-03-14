@@ -131,10 +131,10 @@ function cookbookNormalizeInteger_(value) {
     return null;
   }
   const normalized = Number(String(value).trim());
-  if (!Number.isFinite(normalized)) {
+  if (!Number.isFinite(normalized) || !Number.isInteger(normalized)) {
     return null;
   }
-  return Math.floor(normalized);
+  return normalized;
 }
 
 function cookbookNormalizeConfigValue_(field, rawValue) {
