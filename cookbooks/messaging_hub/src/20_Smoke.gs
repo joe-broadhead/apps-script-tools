@@ -52,24 +52,29 @@ function runCookbookSmokeInternal_(config) {
     }
   });
 
-  const slackFixture = cookbookBuildSlackFixture_(config, {
-    eventId: 'evt_messaging_hub_smoke',
+  const slackVerifyFixture = cookbookBuildSlackFixture_(config, {
+    eventId: 'evt_messaging_hub_verify',
+    text: 'verify this inbound slack message'
+  });
+
+  const slackRouteFixture = cookbookBuildSlackFixture_(config, {
+    eventId: 'evt_messaging_hub_route',
     text: 'route this inbound slack message'
   });
 
   const slackVerified = ASTX.Messaging.verifyInbound({
     body: {
       provider: 'slack',
-      rawBody: slackFixture.rawBody,
-      headers: slackFixture.headers
+      rawBody: slackVerifyFixture.rawBody,
+      headers: slackVerifyFixture.headers
     }
   });
 
   const slackRouted = ASTX.Messaging.routeInbound({
     body: {
       provider: 'slack',
-      rawBody: slackFixture.rawBody,
-      headers: slackFixture.headers,
+      rawBody: slackRouteFixture.rawBody,
+      headers: slackRouteFixture.headers,
       routes: {
         'slack:message': routeContext => ({
           ok: true,
