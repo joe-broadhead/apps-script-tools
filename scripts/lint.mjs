@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { runCookbookChecks } from './check-cookbooks.mjs';
 
 const ROOT = process.cwd();
 const APPS_DIR = path.join(ROOT, 'apps_script_tools');
@@ -148,6 +149,8 @@ function isInternalNameCompliant(name) {
 
 const jsFiles = walk(APPS_DIR).filter(file => file.endsWith('.js'));
 const findings = [];
+
+findings.push(...runCookbookChecks(ROOT));
 
 for (const file of jsFiles) {
   const text = readText(file);

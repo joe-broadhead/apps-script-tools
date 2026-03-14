@@ -46,6 +46,17 @@ CI workflow config:
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
 - Keep the pinned clasp version in `.github/actions/setup-clasp/action.yml` (`clasp-version`) current; bump it intentionally and validate CI before release.
 
+Cookbook validation:
+
+```bash
+npm run check:cookbooks
+```
+
+- Treat `docs/getting-started/cookbooks.md` as the source of truth for the manual cookbook smoke matrix.
+- Run every changed cookbook's smoke entrypoint before release.
+- For shared module changes, also run the cookbook rows that depend on those modules even if the cookbook itself did not change.
+- Keep `cookbooks/README.md` and `docs/getting-started/cookbooks.md` aligned with the published cookbook set.
+
 Consumer validation (recommended):
 
 - install library in a clean Apps Script project
