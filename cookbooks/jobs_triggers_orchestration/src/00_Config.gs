@@ -52,7 +52,7 @@ function cookbookConfigFields_() {
       defaultValue: 6,
       type: 'integer',
       min: 1,
-      max: 24,
+      max: 23,
       description: 'Hourly interval used by the scheduled trigger example.'
     },
     {

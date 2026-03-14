@@ -75,7 +75,7 @@ cookbooks/jobs_triggers_orchestration/
 | `JOBS_TRIGGERS_TRIGGER_PROPERTY_PREFIX` | Yes | `AST_TRIGGERS_COOKBOOK_` | Trigger definition prefix used for deterministic cleanup. |
 | `JOBS_TRIGGERS_TRIGGER_BASE_ID` | Yes | `ast_jobs_cookbook` | Base id used for created trigger definitions. |
 | `JOBS_TRIGGERS_TIMEZONE` | Yes | `Etc/UTC` | Time zone used for scheduled trigger examples. |
-| `JOBS_TRIGGERS_SCHEDULE_HOURS` | Yes | `6` | `every_hours` interval used by trigger examples. |
+| `JOBS_TRIGGERS_SCHEDULE_HOURS` | Yes | `6` | `every_hours` interval used by trigger examples. Must be between `1` and `23`. |
 | `JOBS_TRIGGERS_MAX_RETRIES` | Yes | `1` | Default retry budget for cookbook jobs. |
 | `JOBS_TRIGGERS_MAX_RUNTIME_MS` | Yes | `30000` | Default runtime budget for cookbook jobs. |
 | `JOBS_TRIGGERS_MAX_CONCURRENCY` | Yes | `2` | Bounded width for `enqueueMany(...)` and `mapReduce(...)`. |

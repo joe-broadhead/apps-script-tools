@@ -45,7 +45,8 @@ function cookbookCollectKnownJobIds_(ASTX, config) {
   return Object.keys(ids);
 }
 
-function cookbookCleanupState_(ASTX, config) {
+function cookbookCleanupState_(ASTX, config, options) {
+  const runtimeOptions = options && typeof options === 'object' ? options : {};
   const props = cookbookScriptProperties_();
   const deletedTriggerIds = [];
   const triggerIds = cookbookTriggerIds_(config);
@@ -93,8 +94,10 @@ function cookbookCleanupState_(ASTX, config) {
     props.deleteProperty(deletedKeys[idx]);
   }
 
-  ASTX.Jobs.clearConfig();
-  ASTX.Triggers.clearConfig();
+  if (runtimeOptions.preserveRuntimeConfig !== true) {
+    ASTX.Jobs.clearConfig();
+    ASTX.Triggers.clearConfig();
+  }
 
   return {
     status: 'ok',
@@ -185,8 +188,10 @@ function cookbookJobsDlqReplayHandler() {
 
 function runCookbookDemoInternal_(config) {
   const ASTX = cookbookAst_();
-  const startCleanup = cookbookCleanupState_(ASTX, config);
   cookbookConfigureRuntimes_(ASTX, config);
+  const startCleanup = cookbookCleanupState_(ASTX, config, {
+    preserveRuntimeConfig: true
+  });
 
   const names = cookbookJobNames_(config);
   const scheduledTriggerId = cookbookScheduledTriggerId_(config);

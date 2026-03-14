@@ -1,7 +1,9 @@
 function runCookbookSmokeInternal_(config) {
   const ASTX = cookbookAst_();
-  const startCleanup = cookbookCleanupState_(ASTX, config);
   cookbookConfigureRuntimes_(ASTX, config);
+  const startCleanup = cookbookCleanupState_(ASTX, config, {
+    preserveRuntimeConfig: true
+  });
 
   const smokeJobName = cookbookJobNames_(config).smokeRetry;
   const directTriggerId = cookbookDirectTriggerId_(config);
