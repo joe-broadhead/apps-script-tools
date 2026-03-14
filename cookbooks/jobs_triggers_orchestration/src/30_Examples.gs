@@ -28,6 +28,49 @@ function cookbookConfigureRuntimes_(ASTX, config) {
   });
 }
 
+function cookbookIsCookbookTriggerItem_(item, config) {
+  const currentIds = cookbookTriggerIds_(config);
+  for (let idx = 0; idx < currentIds.length; idx += 1) {
+    if (item && item.id === currentIds[idx]) {
+      return true;
+    }
+  }
+
+  const definition = item && item.definition ? item.definition : null;
+  const metadata = definition && definition.metadata ? definition.metadata : null;
+  return Boolean(metadata && metadata.cookbook === cookbookName_());
+}
+
+function cookbookCollectManagedTriggerIds_(ASTX, config) {
+  const ids = {};
+  let offset = 0;
+  const limit = 100;
+
+  while (true) {
+    const response = ASTX.Triggers.list({
+      options: {
+        limit: limit,
+        offset: offset,
+        includeRaw: true
+      }
+    });
+    const items = Array.isArray(response && response.items) ? response.items : [];
+
+    for (let idx = 0; idx < items.length; idx += 1) {
+      if (cookbookIsCookbookTriggerItem_(items[idx], config)) {
+        ids[items[idx].id] = true;
+      }
+    }
+
+    if (!response || !response.page || response.page.hasMore !== true) {
+      break;
+    }
+    offset += limit;
+  }
+
+  return Object.keys(ids).sort();
+}
+
 function cookbookCollectKnownJobIds_(ASTX, config) {
   const names = cookbookJobNames_(config);
   const ids = {};
@@ -48,14 +91,17 @@ function cookbookCollectKnownJobIds_(ASTX, config) {
 function cookbookCleanupState_(ASTX, config, options) {
   const runtimeOptions = options && typeof options === 'object' ? options : {};
   const props = cookbookScriptProperties_();
-  const deleteAllResponse = ASTX.Triggers.delete({
-    options: {
-      all: true
+  const managedTriggerIds = cookbookCollectManagedTriggerIds_(ASTX, config);
+  const deletedTriggerIds = [];
+
+  for (let idx = 0; idx < managedTriggerIds.length; idx += 1) {
+    const response = ASTX.Triggers.delete({
+      id: managedTriggerIds[idx]
+    });
+    if (response && response.deleted > 0) {
+      deletedTriggerIds.push(managedTriggerIds[idx]);
     }
-  });
-  const deletedTriggerIds = Array.isArray(deleteAllResponse && deleteAllResponse.items)
-    ? deleteAllResponse.items.map(function (item) { return item.id; })
-    : [];
+  }
 
   const entries = typeof props.getProperties === 'function' ? props.getProperties() : {};
   const keysToDelete = {};
@@ -67,7 +113,6 @@ function cookbookCleanupState_(ASTX, config, options) {
   Object.keys(entries).forEach(function (key) {
     if (
       key.indexOf(config.JOBS_TRIGGERS_JOB_PREFIX) === 0 ||
-      key.indexOf(config.JOBS_TRIGGERS_TRIGGER_PROPERTY_PREFIX) === 0 ||
       protectedMarkers.indexOf(key) !== -1
     ) {
       keysToDelete[key] = true;
