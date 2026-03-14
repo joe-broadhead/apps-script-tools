@@ -164,6 +164,14 @@ function chatTurnWeb(request) {
 
   threadId = threadState.activeThread.threadId;
 
+  const historyState = store.buildHistory(userContext, {
+    threadId: threadId,
+    maxPairs: config.RAG_CHAT_HISTORY_MAX_PAIRS,
+    includeToolTurns: false,
+    includeSystemTurns: false,
+    systemMessage: cookbookBuildSystemMessage_(config, deep)
+  });
+
   store.appendTurn(userContext, {
     threadId: threadId,
     turn: {
@@ -173,14 +181,6 @@ function chatTurnWeb(request) {
         mode: deep ? 'deep' : 'fast'
       }
     }
-  });
-
-  const historyState = store.buildHistory(userContext, {
-    threadId: threadId,
-    maxPairs: config.RAG_CHAT_HISTORY_MAX_PAIRS,
-    includeToolTurns: false,
-    includeSystemTurns: false,
-    systemMessage: cookbookBuildSystemMessage_(config, deep)
   });
 
   const answer = cookbookAnswerQuestion_(ASTX, config, {
@@ -424,7 +424,7 @@ function cookbookInspectIndex_(ASTX, indexFileId) {
   if (!indexFileId) {
     return null;
   }
-  return ASTX.RAG.inspectIndex(indexFileId);
+  return ASTX.RAG.inspectIndex({ indexFileId: indexFileId });
 }
 
 function cookbookGetIndexState_(ASTX, config, options) {
