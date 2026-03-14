@@ -92,6 +92,7 @@ The template README documents:
 - `github_issue_digest`: template-v2 GitHub automation cookbook for issues, PRs, checks, Actions, GraphQL, Projects v2, and dry-run mutation planning via `AST.GitHub`.
 - `http_ingestion_pipeline`: template-v2 `AST.Http` cookbook for resilient request flows, batch error handling, safe redaction, and optional cache/telemetry composition.
 - `jobs_triggers_orchestration`: template-v2 orchestration cookbook for `AST.Jobs` and `AST.Triggers`, including retry/resume flows, schedule bridge, and DLQ lifecycle.
+- `telemetry_alerting`: template-v2 observability cookbook for `AST.Telemetry` and `AST.TelemetryHelpers`, including redaction checks, grouped metrics, alert rules, and dry-run notifications.
 - `rag_chat_starter`: template-v2 webapp starter for grounded `AST.RAG` chat with `AST.Chat` thread persistence, linked citations, and configurable branding.
 - `dbt_manifest_summary`: template-v2 DBT artifact explorer for manifest search, lineage, governance, and artifact comparison via `AST.DBT`.
 - `storage_cache_warmer`: focused `AST.Cache` example for warming persisted `storage_json` cache entries.
