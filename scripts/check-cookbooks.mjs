@@ -13,6 +13,7 @@ const COOKBOOKS = Object.freeze([
   { id: 'jobs_triggers_orchestration', structure: 'template_v2' },
   { id: 'messaging_hub', structure: 'template_v2' },
   { id: 'rag_chat_starter', structure: 'template_v2' },
+  { id: 'sql_execution_patterns', structure: 'template_v2' },
   { id: 'storage_cache_warmer', structure: 'focused_single_file' },
   { id: 'storage_ops', structure: 'template_v2' },
   { id: 'telemetry_alerting', structure: 'template_v2' }

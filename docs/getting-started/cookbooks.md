@@ -36,7 +36,7 @@ Use these tiers to decide how much setup is required before you run a cookbook.
 | --- | --- | --- |
 | `Tier 0` | Local/editor-only validation; no external credentials required beyond the AST library binding | `_template`, `data_workflows_starter` |
 | `Tier 1` | Script Properties required; may use Drive, cache, or durable state but defaults stay local/dry-run | `config_cache_patterns`, `jobs_triggers_orchestration`, `messaging_hub`, `storage_cache_warmer`, `storage_ops`, `telemetry_alerting` |
-| `Tier 2` | External API/provider credentials required for realistic runs | `ai_playground`, `dbt_manifest_summary`, `github_issue_digest`, `http_ingestion_pipeline` |
+| `Tier 2` | External API/provider credentials required for realistic runs | `ai_playground`, `dbt_manifest_summary`, `github_issue_digest`, `http_ingestion_pipeline`, `sql_execution_patterns` |
 | `Tier 3` | Deployable webapp or richer app shell with UI/session/index configuration | `rag_chat_starter` |
 
 ## Published cookbook index
@@ -53,6 +53,7 @@ Use these tiers to decide how much setup is required before you run a cookbook.
 | `jobs_triggers_orchestration` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/jobs_triggers_orchestration/README.md) | `AST.Jobs`, `AST.Triggers` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `messaging_hub` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/messaging_hub/README.md) | `AST.Messaging` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `rag_chat_starter` | Webapp | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/rag_chat_starter/README.md) | `AST.RAG`, `AST.Chat`, `AST.AI`, `AST.Cache` | `runCookbookSmoke()` | `runCookbookDemo()` |
+| `sql_execution_patterns` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/sql_execution_patterns/README.md) | `AST.Sql`, optional `AST.DataFrame` write path | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `storage_cache_warmer` | Focused script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/storage_cache_warmer/README.md) | `AST.Cache`, `AST.Storage` | `runStorageCacheWarmerSmoke()` | n/a |
 | `storage_ops` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/storage_ops/README.md) | `AST.Storage` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `telemetry_alerting` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/telemetry_alerting/README.md) | `AST.Telemetry`, `AST.TelemetryHelpers` | `runCookbookSmoke()` | `runCookbookDemo()` |
@@ -73,6 +74,7 @@ Use this matrix for cookbook release-readiness checks.
 | `jobs_triggers_orchestration` | seed `JOBS_TRIGGERS_*` | `runCookbookAll()` then `cleanupCookbookArtifacts()` | job, trigger, and DLQ flows succeed; cleanup removes cookbook-owned state |
 | `messaging_hub` | seed `MESSAGING_HUB_*` (defaults are safe) | `runCookbookAll()` | dry-run email/chat plans, template render, tracking logs, and inbound fixture routing succeed |
 | `rag_chat_starter` | configure index, provider, cache, and branding settings | `runCookbookSmoke()` + deploy webapp if needed | smoke confirms index/chat setup; webapp loads and grounded responses cite sources |
+| `sql_execution_patterns` | seed `SQL_COOKBOOK_*`; provide Databricks or BigQuery config only when live execution is enabled | `runCookbookAll()` | smoke returns provider/prepared summaries; demo returns direct/prepared/status/write plans or live execution summaries |
 | `storage_cache_warmer` | set `STORAGE_CACHE_URI` and provider auth | `runStorageCacheWarmerSmoke()` | cache object warms successfully and persisted backend responds |
 | `storage_ops` | seed `STORAGE_OPS_*` and provider auth | `runCookbookAll()` | CRUD/list/walk/sync summaries match the configured provider |
 | `telemetry_alerting` | seed `TELEMETRY_COOKBOOK_*`; keep sink `logger` for easiest run | `runCookbookAll()` | grouped metrics, redaction preview, alert evaluation, and dry-run notifications succeed |
