@@ -90,6 +90,7 @@ The template README documents:
 | `_template` | Template v2 scaffold | `AST.DataFrame`, `AST.Cache` sample usage only | `COOKBOOK_*` | `seedCookbookConfig`, `validateCookbookConfig`, `runCookbookSmoke`, `runCookbookDemo`, `runCookbookAll` |
 | `ai_playground` | Script-run | `AST.AI` | `AI_PLAYGROUND_*` plus provider auth as needed | standard template-v2 entrypoints |
 | `config_cache_patterns` | Script-run | `AST.Config`, `AST.Runtime`, `AST.Secrets`, `AST.Cache` | `CONFIG_CACHE_*` plus backend-specific cache secrets/URIs | standard template-v2 entrypoints |
+| `dataframe_series_advanced` | Script-run | `AST.DataFrame`, `AST.Series` advanced transforms only | `DF_ADV_*` | standard template-v2 entrypoints |
 | `data_workflows_starter` | Script-run | `AST.Series`, `AST.DataFrame`, `AST.GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, `AST.Utils` | `DATA_WORKFLOWS_*` plus optional Drive/Sheets/SQL config | standard template-v2 entrypoints |
 | `dbt_manifest_summary` | Script-run | `AST.DBT` | `DBT_*` / cookbook DBT source and cache properties | standard template-v2 entrypoints |
 | `github_issue_digest` | Script-run | `AST.GitHub` | `GITHUB_*` / cookbook GitHub defaults and token | standard template-v2 entrypoints |
