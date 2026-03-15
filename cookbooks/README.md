@@ -98,6 +98,7 @@ The template README documents:
 | `messaging_hub` | Script-run | `AST.Messaging` | `MESSAGING_HUB_*` plus optional live webhook/mail settings | standard template-v2 entrypoints |
 | `rag_chat_starter` | Webapp | `AST.RAG`, `AST.Chat`, `AST.AI`, `AST.Cache` | `RAG_CHAT_*` plus provider/index/cache settings | standard template-v2 entrypoints + HtmlService webapp |
 | `storage_cache_warmer` | Focused script-run | `AST.Cache`, `AST.Storage` | `STORAGE_CACHE_URI`, optional `STORAGE_CACHE_NAMESPACE`, provider auth | `runStorageCacheWarmerSmoke` |
+| `sql_execution_patterns` | Script-run | `AST.Sql`, optional `AST.DataFrame` write path | `SQL_COOKBOOK_*` plus provider credentials when live execution is enabled | standard template-v2 entrypoints |
 | `storage_ops` | Script-run | `AST.Storage` | `STORAGE_OPS_*` plus provider auth/URIs | standard template-v2 entrypoints |
 | `telemetry_alerting` | Script-run | `AST.Telemetry`, `AST.TelemetryHelpers` | `TELEMETRY_COOKBOOK_*` | standard template-v2 entrypoints |
 
