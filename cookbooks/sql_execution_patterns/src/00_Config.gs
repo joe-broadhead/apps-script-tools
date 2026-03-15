@@ -188,7 +188,7 @@ function cookbookValidationSummary_(result) {
     optionalKeys: result.optionalKeys,
     warnings: result.warnings,
     errors: result.errors,
-    config: result.config
+    config: cookbookPublicConfig_(result.config)
   };
 }
 
@@ -322,6 +322,23 @@ function cookbookRedactSecrets_(value) {
     return '';
   }
   return '***redacted***';
+}
+
+function cookbookPublicConfig_(config) {
+  const resolved = config && typeof config === 'object' ? config : {};
+  const publicConfig = {};
+  const keys = Object.keys(resolved);
+
+  for (let idx = 0; idx < keys.length; idx += 1) {
+    const key = keys[idx];
+    publicConfig[key] = resolved[key];
+  }
+
+  if (Object.prototype.hasOwnProperty.call(publicConfig, 'SQL_COOKBOOK_DATABRICKS_TOKEN')) {
+    publicConfig.SQL_COOKBOOK_DATABRICKS_TOKEN = cookbookRedactSecrets_(publicConfig.SQL_COOKBOOK_DATABRICKS_TOKEN);
+  }
+
+  return publicConfig;
 }
 
 function cookbookBuildSqlParameters_(config, provider) {

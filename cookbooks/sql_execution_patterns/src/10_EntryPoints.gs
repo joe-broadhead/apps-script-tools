@@ -14,7 +14,7 @@ function runCookbookAll() {
     status: 'ok',
     templateVersion: cookbookTemplateVersion_(),
     cookbook: cookbookName_(),
-    config: validation.config,
+    config: cookbookPublicConfig_(validation.config),
     smoke: runCookbookSmokeInternal_(validation.config),
     demo: runCookbookDemoInternal_(validation.config),
     completedAt: new Date().toISOString()
