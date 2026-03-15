@@ -4,6 +4,7 @@
   "version": "0.0.5",
   "description": "Google Apps Script data toolkit",
   "scripts": {
+    "check:cookbooks": "node scripts/check-cookbooks.mjs",
     "lint": "node scripts/lint.mjs",
     "test:local": "node --test tests/local/*.test.mjs",
     "test:local:coverage": "node scripts/run-local-coverage.mjs",
