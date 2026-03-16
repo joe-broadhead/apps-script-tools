@@ -83,6 +83,10 @@ The template README documents:
 - deployment checklist
 - troubleshooting notes
 
+One published cookbook is intentionally narrower than template-v2:
+
+- `storage_cache_warmer` is a focused legacy smoke example with a single entrypoint, kept because it is the smallest persisted-cache validation recipe in the repo.
+
 ## Published cookbook catalog
 
 | Cookbook | Type | AST modules covered | Required script properties | Entrypoints |
@@ -92,13 +96,13 @@ The template README documents:
 | `config_cache_patterns` | Script-run | `AST.Config`, `AST.Runtime`, `AST.Secrets`, `AST.Cache` | `CONFIG_CACHE_*` plus backend-specific cache secrets/URIs | standard template-v2 entrypoints |
 | `dataframe_series_advanced` | Script-run | `AST.DataFrame`, `AST.Series` advanced transforms only | `DF_ADV_*` | standard template-v2 entrypoints |
 | `data_workflows_starter` | Script-run | `AST.Series`, `AST.DataFrame`, `AST.GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, `AST.Utils` | `DATA_WORKFLOWS_*` plus optional Drive/Sheets/SQL config | standard template-v2 entrypoints |
-| `dbt_manifest_summary` | Script-run | `AST.DBT` | `DBT_*` / cookbook DBT source and cache properties | standard template-v2 entrypoints |
+| `dbt_manifest_summary` | Script-run | `AST.DBT` | `DBT_ARTIFACT_EXPLORER_*` | standard template-v2 entrypoints |
 | `github_issue_digest` | Script-run | `AST.GitHub` | `GITHUB_*` / cookbook GitHub defaults and token | standard template-v2 entrypoints |
 | `http_ingestion_pipeline` | Script-run | `AST.Http`, optional `AST.Cache`, `AST.Telemetry` | `HTTP_INGESTION_*` plus target API config | standard template-v2 entrypoints |
 | `jobs_triggers_orchestration` | Script-run | `AST.Jobs`, `AST.Triggers` | `JOBS_TRIGGERS_*` | standard template-v2 entrypoints |
 | `messaging_hub` | Script-run | `AST.Messaging` | `MESSAGING_HUB_*` plus optional live webhook/mail settings | standard template-v2 entrypoints |
 | `rag_chat_starter` | Webapp | `AST.RAG`, `AST.Chat`, `AST.AI`, `AST.Cache` | `RAG_CHAT_*` plus provider/index/cache settings | standard template-v2 entrypoints + HtmlService webapp |
-| `storage_cache_warmer` | Focused script-run | `AST.Cache`, `AST.Storage` | `STORAGE_CACHE_URI`, optional `STORAGE_CACHE_NAMESPACE`, provider auth | `runStorageCacheWarmerSmoke` |
+| `storage_cache_warmer` | Focused script-run | `AST.Cache`, `AST.Storage` | `STORAGE_CACHE_URI`, optional `STORAGE_CACHE_NAMESPACE`, provider auth for `gcs://|gs://|s3://|dbfs:/` | `runStorageCacheWarmerSmoke` |
 | `sql_execution_patterns` | Script-run | `AST.Sql`, optional `AST.DataFrame` write path | `SQL_COOKBOOK_*` plus provider credentials when live execution is enabled | standard template-v2 entrypoints |
 | `storage_ops` | Script-run | `AST.Storage` | `STORAGE_OPS_*` plus provider auth/URIs | standard template-v2 entrypoints |
 | `telemetry_alerting` | Script-run | `AST.Telemetry`, `AST.TelemetryHelpers` | `TELEMETRY_COOKBOOK_*` | standard template-v2 entrypoints |
