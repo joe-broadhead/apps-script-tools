@@ -28,6 +28,10 @@ Each cookbook should:
 - include least-privilege OAuth scope guidance
 - explain common failure modes and setup steps
 
+One published cookbook is intentionally smaller than template-v2:
+
+- `storage_cache_warmer` keeps a single smoke entrypoint because it exists as the narrowest possible persisted-cache validation example.
+
 ## Setup tiers
 
 Use these tiers to decide how much setup is required before you run a cookbook.
@@ -77,7 +81,7 @@ Use this matrix for cookbook release-readiness checks.
 | `messaging_hub` | seed `MESSAGING_HUB_*` (defaults are safe) | `runCookbookAll()` | dry-run email/chat plans, template render, tracking logs, and inbound fixture routing succeed |
 | `rag_chat_starter` | configure index, provider, cache, and branding settings | `runCookbookSmoke()` + deploy webapp if needed | smoke confirms index/chat setup; webapp loads and grounded responses cite sources |
 | `sql_execution_patterns` | seed `SQL_COOKBOOK_*`; provide Databricks or BigQuery config only when live execution is enabled | `runCookbookAll()` | smoke returns provider/prepared summaries; demo returns direct/prepared/status/write plans or live execution summaries |
-| `storage_cache_warmer` | set `STORAGE_CACHE_URI` and provider auth | `runStorageCacheWarmerSmoke()` | cache object warms successfully and persisted backend responds |
+| `storage_cache_warmer` | set `STORAGE_CACHE_URI`, optional namespace, and provider auth for `gcs://`, `gs://`, `s3://`, or `dbfs:/` | `runStorageCacheWarmerSmoke()` | cache object warms successfully and persisted backend responds |
 | `storage_ops` | seed `STORAGE_OPS_*` and provider auth | `runCookbookAll()` | CRUD/list/walk/sync summaries match the configured provider |
 | `telemetry_alerting` | seed `TELEMETRY_COOKBOOK_*`; keep sink `logger` for easiest run | `runCookbookAll()` | grouped metrics, redaction preview, alert evaluation, and dry-run notifications succeed |
 
