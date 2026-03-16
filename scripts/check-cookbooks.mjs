@@ -6,6 +6,7 @@ const COOKBOOKS = Object.freeze([
   { id: '_template', structure: 'template_v2' },
   { id: 'ai_playground', structure: 'template_v2' },
   { id: 'config_cache_patterns', structure: 'template_v2' },
+  { id: 'dataframe_series_advanced', structure: 'template_v2' },
   { id: 'data_workflows_starter', structure: 'template_v2' },
   { id: 'dbt_manifest_summary', structure: 'template_v2' },
   { id: 'github_issue_digest', structure: 'template_v2' },

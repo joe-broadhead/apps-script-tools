@@ -34,7 +34,7 @@ Use these tiers to decide how much setup is required before you run a cookbook.
 
 | Tier | Meaning | Cookbooks |
 | --- | --- | --- |
-| `Tier 0` | Local/editor-only validation; no external credentials required beyond the AST library binding | `_template`, `data_workflows_starter` |
+| `Tier 0` | Local/editor-only validation; no external credentials required beyond the AST library binding | `_template`, `data_workflows_starter`, `dataframe_series_advanced` |
 | `Tier 1` | Script Properties required; may use Drive, cache, or durable state but defaults stay local/dry-run | `config_cache_patterns`, `jobs_triggers_orchestration`, `messaging_hub`, `storage_cache_warmer`, `storage_ops`, `telemetry_alerting` |
 | `Tier 2` | External API/provider credentials required for realistic runs | `ai_playground`, `dbt_manifest_summary`, `github_issue_digest`, `http_ingestion_pipeline`, `sql_execution_patterns` |
 | `Tier 3` | Deployable webapp or richer app shell with UI/session/index configuration | `rag_chat_starter` |
@@ -46,6 +46,7 @@ Use these tiers to decide how much setup is required before you run a cookbook.
 | `_template` | Template v2 scaffold | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/_template/README.md) | `AST.DataFrame`, `AST.Cache` sample usage | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `ai_playground` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/ai_playground/README.md) | `AST.AI` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `config_cache_patterns` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/config_cache_patterns/README.md) | `AST.Config`, `AST.Runtime`, `AST.Secrets`, `AST.Cache` | `runCookbookSmoke()` | `runCookbookDemo()` |
+| `dataframe_series_advanced` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/dataframe_series_advanced/README.md) | `AST.DataFrame`, `AST.Series` advanced transforms | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `data_workflows_starter` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/data_workflows_starter/README.md) | `AST.Series`, `AST.DataFrame`, `AST.GroupBy`, `AST.Drive`, `AST.Sheets`, `AST.Sql`, `AST.Utils` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `dbt_manifest_summary` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/dbt_manifest_summary/README.md) | `AST.DBT` | `runCookbookSmoke()` | `runCookbookDemo()` |
 | `github_issue_digest` | Script-run | [README](https://github.com/joe-broadhead/apps-script-tools/blob/master/cookbooks/github_issue_digest/README.md) | `AST.GitHub` | `runCookbookSmoke()` | `runCookbookDemo()` |
@@ -67,6 +68,7 @@ Use this matrix for cookbook release-readiness checks.
 | `_template` | set library version, run `seedCookbookConfig()` | `runCookbookAll()` | validation is `ok`; smoke/demo both return structured summaries |
 | `ai_playground` | seed `AI_PLAYGROUND_*`; configure one provider | `runCookbookAll()` | text/structured/tools paths return deterministic summaries or dry-run plans |
 | `config_cache_patterns` | seed `CONFIG_CACHE_*`; choose a cache backend | `runCookbookAll()` | runtime/config precedence and cache round-trips succeed |
+| `dataframe_series_advanced` | seed `DF_ADV_*` | `runCookbookAll()` | advanced expression/window/reshape/statistical examples return deterministic summaries |
 | `data_workflows_starter` | seed `DATA_WORKFLOWS_*`; optional Drive/Sheets/SQL config | `runCookbookAll()` | frame summaries and sample outputs render without external failures |
 | `dbt_manifest_summary` | provide manifest source/cache config | `runCookbookAll()` | manifest load, inspect, search, and lineage summaries are populated |
 | `github_issue_digest` | provide `GITHUB_TOKEN` / cookbook GitHub defaults | `runCookbookAll()` | read flows succeed; mutation examples return dry-run plans |
