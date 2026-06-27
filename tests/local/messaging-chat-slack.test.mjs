@@ -21,7 +21,9 @@ test('chat slack webhook send/sendBatch use configured webhook and JSON payload'
 
   loadMessagingScripts(context, { includeAst: true });
   context.AST.Messaging.configure({
-    MESSAGING_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/XXX'
+    MESSAGING_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/XXX',
+    MESSAGING_LOG_BACKEND: 'memory',
+    MESSAGING_LOG_NAMESPACE: 'ast_messaging_slack_redaction'
   });
 
   const single = context.AST.Messaging.chat.send({
@@ -35,6 +37,10 @@ test('chat slack webhook send/sendBatch use configured webhook and JSON payload'
 
   assert.equal(single.status, 'ok');
   assert.equal(single.transport, 'slack_webhook');
+  assert.equal(single.data.request.webhookUrl, '[REDACTED]');
+
+  const log = context.AST.Messaging.logs.get({ body: { eventId: single.log.eventId } });
+  assert.equal(log.data.item.payload.result.request.webhookUrl, '[REDACTED]');
 
   const batch = context.AST.Messaging.chat.sendBatch({
     body: {
@@ -120,4 +126,55 @@ test('chat slack api send/sendBatch set bearer auth and handles Slack ok=false e
     }),
     error => error.name === 'AstMessagingProviderError' && /Slack API rejected/.test(error.message)
   );
+});
+
+test('chat slack api redacts sensitive provider echoes from response and raw output', () => {
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => ({
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({
+          ok: true,
+          ts: '123.456',
+          token: 'provider-token',
+          text: 'provider Authorization: Bearer provider-bearer client_secret=s3'
+        }),
+        getAllHeaders: () => ({
+          'X-Webhook-Token': 'raw-provider-token',
+          Location: 'https://example.com/webhook/secret?token=x'
+        })
+      })
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+  context.AST.Messaging.configure({
+    MESSAGING_SLACK_BOT_TOKEN: 'xoxb-secret-token',
+    MESSAGING_SLACK_CHANNEL: 'C123'
+  });
+
+  const sent = context.AST.Messaging.chat.send({
+    body: {
+      transport: 'slack_api',
+      message: {
+        text: 'hello slack api'
+      }
+    },
+    options: {
+      includeRaw: true
+    }
+  });
+
+  const serialized = JSON.stringify(sent);
+  assert.equal(sent.status, 'ok');
+  assert.equal(sent.data.response.token, '[REDACTED]');
+  assert.equal(sent.data.raw.headers['X-Webhook-Token'], '[REDACTED]');
+  assert.equal(sent.raw.headers['X-Webhook-Token'], '[REDACTED]');
+  assert.equal(sent.raw.headers.Location, 'https://example.com/[REDACTED]');
+  assert.equal(serialized.includes('provider-token'), false);
+  assert.equal(serialized.includes('provider-bearer'), false);
+  assert.equal(serialized.includes('client_secret=s3'), false);
+  assert.equal(serialized.includes('/webhook/secret'), false);
+  assert.equal(serialized.includes('raw-provider-token'), false);
+  assert.equal(serialized.includes('xoxb-secret-token'), false);
 });

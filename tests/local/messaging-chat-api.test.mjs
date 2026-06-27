@@ -20,7 +20,7 @@ test('chat api send/get/list use bearer token and normalized payloads', () => {
         if (isList) {
           return {
             getResponseCode: () => 200,
-            getContentText: () => JSON.stringify({ messages: [{ name: 'spaces/abc/messages/1' }], nextPageToken: 'tok' }),
+            getContentText: () => JSON.stringify({ messages: [{ name: 'spaces/abc/messages/1', token: 'provider-token' }], nextPageToken: 'tok' }),
             getAllHeaders: () => ({})
           };
         }
@@ -28,7 +28,7 @@ test('chat api send/get/list use bearer token and normalized payloads', () => {
         if (isGet) {
           return {
             getResponseCode: () => 200,
-            getContentText: () => JSON.stringify({ name: 'spaces/abc/messages/1', text: 'hello' }),
+            getContentText: () => JSON.stringify({ name: 'spaces/abc/messages/1', text: 'hello', token: 'provider-token' }),
             getAllHeaders: () => ({})
           };
         }
@@ -67,6 +67,7 @@ test('chat api send/get/list use bearer token and normalized payloads', () => {
     }
   });
   assert.equal(got.data.item.name, 'spaces/abc/messages/1');
+  assert.equal(got.data.item.token, '[REDACTED]');
 
   const listed = context.AST.Messaging.chat.listMessages({
     body: {
@@ -75,12 +76,65 @@ test('chat api send/get/list use bearer token and normalized payloads', () => {
     }
   });
   assert.equal(listed.data.items.length, 1);
+  assert.equal(listed.data.items[0].token, '[REDACTED]');
   assert.equal(listed.data.nextPageToken, 'tok');
 
   assert.equal(calls.length, 3);
   calls.forEach(call => {
     assert.equal(call.options.headers.Authorization, 'Bearer oauth-token-123');
   });
+});
+
+test('chat api send redacts sensitive provider echoes from response and raw output', () => {
+  const context = createGasContext({
+    ScriptApp: {
+      getOAuthToken: () => 'oauth-token-secret'
+    },
+    UrlFetchApp: {
+      fetch: () => ({
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({
+          name: 'spaces/abc/messages/new',
+          text: 'provider Authorization: Bearer provider-bearer client_secret=s3',
+          token: 'provider-token',
+          callback: 'https://example.com/webhook/secret?token=x'
+        }),
+        getAllHeaders: () => ({
+          'X-Webhook-Token': 'raw-provider-token',
+          Location: 'https://example.com/webhook/secret?token=x'
+        })
+      })
+    }
+  });
+
+  loadMessagingScripts(context, { includeAst: true });
+
+  const sent = context.AST.Messaging.chat.send({
+    body: {
+      transport: 'chat_api',
+      space: 'spaces/abc',
+      message: {
+        text: 'hello api'
+      }
+    },
+    options: {
+      includeRaw: true
+    }
+  });
+
+  const serialized = JSON.stringify(sent);
+  assert.equal(sent.status, 'ok');
+  assert.equal(sent.data.response.token, '[REDACTED]');
+  assert.equal(sent.data.response.callback, 'https://example.com/[REDACTED]');
+  assert.equal(sent.data.raw.headers['X-Webhook-Token'], '[REDACTED]');
+  assert.equal(sent.raw.headers['X-Webhook-Token'], '[REDACTED]');
+  assert.equal(sent.raw.headers.Location, 'https://example.com/[REDACTED]');
+  assert.equal(serialized.includes('provider-token'), false);
+  assert.equal(serialized.includes('provider-bearer'), false);
+  assert.equal(serialized.includes('client_secret=s3'), false);
+  assert.equal(serialized.includes('/webhook/secret'), false);
+  assert.equal(serialized.includes('raw-provider-token'), false);
+  assert.equal(serialized.includes('oauth-token-secret'), false);
 });
 
 test('chat read operations stay on chat_api when non-chat transports are configured', () => {

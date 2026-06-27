@@ -41,13 +41,179 @@ function astMessagingHttpRedactHeaders(headers = {}) {
   const output = {};
   Object.keys(headers || {}).forEach(key => {
     const lower = key.toLowerCase();
-    if (['authorization', 'proxy-authorization', 'x-api-key', 'cookie', 'set-cookie'].includes(lower)) {
+    if (
+      ['authorization', 'proxy-authorization', 'x-api-key', 'cookie', 'set-cookie'].includes(lower)
+      || (typeof astMessagingShouldRedactKey === 'function' && astMessagingShouldRedactKey(key))
+    ) {
       output[key] = '<redacted>';
       return;
     }
-    output[key] = headers[key];
+    output[key] = typeof headers[key] === 'string'
+      ? astMessagingRedactString(headers[key])
+      : astMessagingRedactValue(headers[key]);
   });
   return output;
+}
+
+function astMessagingHttpRedactUrl(url) {
+  if (typeof astMessagingRedactEndpointUrl === 'function') {
+    return astMessagingRedactEndpointUrl(url);
+  }
+  return '[REDACTED]';
+}
+
+function astMessagingHttpSanitizeErrorMessage(error, rawUrl) {
+  const fallback = 'Messaging provider request failed';
+  const message = error && typeof error.message !== 'undefined'
+    ? String(error.message)
+    : String(error || fallback);
+  const exactRawUrl = astMessagingHttpNormalizeString(rawUrl, '');
+  const redactedUrl = astMessagingHttpRedactUrl(exactRawUrl) || '[REDACTED]';
+  let output = exactRawUrl ? message.split(exactRawUrl).join(redactedUrl) : message;
+  if (exactRawUrl) {
+    const escapedRawUrl = exactRawUrl.replace(/\//g, '\\/');
+    if (escapedRawUrl !== exactRawUrl) {
+      output = output.split(escapedRawUrl).join(redactedUrl);
+    }
+    output = astMessagingHttpRedactRelativeRequestEchoes(output, exactRawUrl, redactedUrl);
+  }
+
+  output = output.replace(/https?:\\\/\\\/[^\s'"<>]+/g, match => {
+    return astMessagingHttpRedactMessageUrl(match, exactRawUrl);
+  });
+
+  output = output.replace(/https?:\/\/[^\s'"<>]+/g, match => {
+    return astMessagingHttpRedactMessageUrl(match, exactRawUrl);
+  });
+
+  return astMessagingRedactString(output) || fallback;
+}
+
+function astMessagingHttpParseUrlParts(value) {
+  const normalized = astMessagingHttpNormalizeString(value, '');
+  const match = normalized.match(/^([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    scheme: match[1].toLowerCase(),
+    authority: match[2].toLowerCase(),
+    path: match[3] || '',
+    query: match[4] || '',
+    fragment: match[5] || ''
+  };
+}
+
+function astMessagingHttpEscapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function astMessagingHttpReplaceRelativeEcho(message, variant, redactedUrl) {
+  const pattern = new RegExp(`(^|[^A-Za-z0-9.])${astMessagingHttpEscapeRegExp(variant)}`, 'g');
+  return String(message || '').replace(pattern, (match, prefix) => `${prefix}${redactedUrl}`);
+}
+
+function astMessagingHttpRedactRelativeRequestEchoes(message, requestUrl, redactedUrl) {
+  const request = astMessagingHttpParseUrlParts(requestUrl);
+  if (!request) {
+    return message;
+  }
+
+  const pathAndQuery = `${request.path || ''}${request.query || ''}`;
+  const pathOnly = request.path || '';
+  const variants = [];
+  if (pathAndQuery && pathAndQuery !== '/') {
+    variants.push(pathAndQuery);
+  }
+  if (pathOnly && pathOnly !== '/' && pathOnly !== pathAndQuery) {
+    variants.push(pathOnly);
+  }
+
+  let output = message;
+  variants.forEach(variant => {
+    output = astMessagingHttpReplaceRelativeEcho(output, variant, redactedUrl);
+    const escapedVariant = variant.replace(/\//g, '\\/');
+    if (escapedVariant !== variant) {
+      output = astMessagingHttpReplaceRelativeEcho(output, escapedVariant, redactedUrl);
+    }
+  });
+  return output;
+}
+
+function astMessagingHttpNormalizePathForCompare(path) {
+  const normalized = String(path || '').replace(/\/+$/g, '');
+  return normalized || '/';
+}
+
+function astMessagingHttpIsSameRequestEndpoint(candidateUrl, requestUrl) {
+  const candidate = astMessagingHttpParseUrlParts(candidateUrl);
+  const request = astMessagingHttpParseUrlParts(requestUrl);
+  if (!candidate || !request) {
+    return false;
+  }
+  if (candidate.scheme !== request.scheme || candidate.authority !== request.authority) {
+    return false;
+  }
+
+  const candidatePath = astMessagingHttpNormalizePathForCompare(candidate.path);
+  const requestPath = astMessagingHttpNormalizePathForCompare(request.path);
+  return candidatePath === requestPath
+    || candidatePath.startsWith(`${requestPath}/`)
+    || requestPath.startsWith(`${candidatePath}/`);
+}
+
+function astMessagingHttpRedactMessageUrl(value, requestUrl) {
+  const normalized = String(value || '').replace(/\\\//g, '/');
+  if (requestUrl && astMessagingHttpIsSameRequestEndpoint(normalized, requestUrl)) {
+    return astMessagingHttpRedactUrl(requestUrl);
+  }
+  if (typeof astTelemetryRedactUrl === 'function') {
+    return astTelemetryRedactUrl(normalized);
+  }
+  return '[REDACTED]';
+}
+
+function astMessagingHttpIsMessagingError(error) {
+  return error instanceof AstMessagingError;
+}
+
+function astMessagingHttpWrapTransportError(error, requestContext = {}) {
+  const sanitizedMessage = astMessagingHttpSanitizeErrorMessage(error, requestContext.url);
+  const sanitizedCause = error
+    ? {
+        name: error.name || 'Error',
+        message: sanitizedMessage
+      }
+    : null;
+
+  return new AstMessagingProviderError('Messaging provider request failed', {
+    method: requestContext.method,
+    url: astMessagingHttpRedactUrl(requestContext.url),
+    headers: astMessagingHttpRedactHeaders(requestContext.headers || {}),
+    message: sanitizedMessage,
+    classification: 'transport'
+  }, sanitizedCause);
+}
+
+function astMessagingHttpRedactResponseText(text, requestUrl) {
+  const source = typeof text === 'undefined' || text === null ? '' : String(text);
+  if (!source) {
+    return '';
+  }
+
+  const sanitized = astMessagingHttpSanitizeErrorMessage({ message: source }, requestUrl);
+  const parsed = astMessagingHttpParseJson(sanitized);
+  if (parsed && typeof parsed === 'object') {
+    try {
+      return JSON.stringify(astMessagingRedactValue(parsed));
+    } catch (_error) {
+      return astMessagingRedactString(sanitized);
+    }
+  }
+  if (typeof parsed === 'string') {
+    return astMessagingRedactString(parsed);
+  }
+  return astMessagingRedactString(sanitized);
 }
 
 function astMessagingHttpParseJson(text) {
@@ -72,9 +238,9 @@ function astMessagingHttpThrowForStatus(response, requestContext = {}) {
   const details = {
     statusCode,
     method: requestContext.method,
-    url: requestContext.url,
+    url: astMessagingHttpRedactUrl(requestContext.url),
     headers: astMessagingHttpRedactHeaders(requestContext.headers || {}),
-    responseText: response.text || ''
+    responseText: astMessagingHttpRedactResponseText(response.text || '', requestContext.url)
   };
 
   if (statusCode === 401 || statusCode === 403) {
@@ -116,7 +282,7 @@ function astMessagingHttpCanRetryError(error) {
 function astMessagingHttpThrowTimeout(requestContext = {}, timeoutMs = null, startedAtMs = 0) {
   throw new AstMessagingProviderError('Messaging provider request timed out', {
     method: requestContext.method,
-    url: requestContext.url,
+    url: astMessagingHttpRedactUrl(requestContext.url),
     headers: astMessagingHttpRedactHeaders(requestContext.headers || {}),
     timeoutMs,
     elapsedMs: astMessagingHttpElapsedMs(startedAtMs),
@@ -228,13 +394,21 @@ function astMessagingHttpRequest(url, requestOptions = {}, executionOptions = {}
         astMessagingHttpSleepBackoff(attempt);
         continue;
       }
+      if (!astMessagingHttpIsMessagingError(error)) {
+        throw astMessagingHttpWrapTransportError(error, {
+          method: method.toUpperCase(),
+          url: normalizedUrl,
+          headers
+        });
+      }
       throw error;
     }
   }
 
   throw new AstMessagingProviderError('Messaging provider request failed', {
-    url: normalizedUrl,
+    url: astMessagingHttpRedactUrl(normalizedUrl),
     method: method.toUpperCase(),
-    message: lastError ? String(lastError.message || lastError) : 'unknown error'
-  }, lastError);
+    message: astMessagingHttpSanitizeErrorMessage(lastError, normalizedUrl),
+    classification: 'transport'
+  });
 }
