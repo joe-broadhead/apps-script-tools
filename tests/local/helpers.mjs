@@ -252,6 +252,8 @@ export function loadCoreDataContext(context) {
     ...dataFrameSchemaFiles,
     ...dataFrameExprFiles,
     'apps_script_tools/dataFrame/_DataFrameInternals.js',
+    'apps_script_tools/dataFrame/_DataFrameConstructors.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/dataFrame/DataFrame.js'
   ];
 
