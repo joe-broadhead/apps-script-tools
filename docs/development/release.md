@@ -18,7 +18,7 @@
 npm run verify:release
 ```
 
-`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, cookbook catalog checks, strict docs build, and performance thresholds.
+`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, the lockfile-backed dependency audit, cookbook catalog checks, strict docs build, and performance thresholds.
 
 Apps Script runtime validation:
 
@@ -45,6 +45,7 @@ CI workflow config:
 
 - Set repository variable `GAS_SCRIPT_ID` for the production library project and `GAS_TEST_SCRIPT_ID` for GitHub Actions integration/live-smoke workflows.
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
+- Keep `package-lock.json` committed. CI installs with `npm ci --ignore-scripts`, and `npm run test:dependencies` runs `npm audit --audit-level=high --omit=dev` against the committed lockfile.
 - Keep `CLASP_*` secrets out of workflow job-level `env`; inject them only into the dedicated clasp-auth step after checkout, Node dependency installation, and clasp installation have finished.
 - Keep live-smoke provider tokens scoped to the exact step that needs them; do not expose them to checkout, dependency installation, clasp installation, or unrelated push/test steps.
 - The GitHub live-smoke workflow passes the token as an explicit runtime parameter and does not write script properties. The legacy `seedGitHubLiveSmokeToken(...)` helper writes only `GITHUB_TOKEN`; `cleanupGitHubLiveSmokeToken()` deletes that property and the workflow runs it with `if: always()` for success, failure, and cancellation cleanup.

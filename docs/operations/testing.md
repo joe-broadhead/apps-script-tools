@@ -24,7 +24,7 @@ Canonical local release gate:
 npm run verify:release
 ```
 
-`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, cookbook catalog checks, strict docs build, and performance thresholds.
+`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, lockfile-backed dependency audit, cookbook catalog checks, strict docs build, and performance thresholds.
 
 Local coverage report (uses Node test coverage, writes artifacts to `coverage/`):
 
@@ -188,6 +188,7 @@ Pull requests should pass:
   - `codeql-analyze`
   - `dependency-review`
   - `secret-scan` (`npm run test:security`)
+  - dependency review / fallback dependency audit (`npm run test:dependencies`)
 
 `perf-report` remains informational and publishes benchmark artifacts.
 

@@ -68,6 +68,12 @@ Local equivalent for deterministic secret scanning:
 npm run test:security
 ```
 
+Local equivalent for lockfile-backed dependency auditing:
+
+```bash
+npm run test:dependencies
+```
+
 Allowlisted test fixtures are declared in:
 
 - `.security/secret-scan-allowlist.json`
@@ -77,7 +83,8 @@ Keep this allowlist minimal and scoped to non-production fixture values only.
 Dependency review behavior:
 
 - Uses GitHub dependency review when Dependency Graph is enabled.
-- Falls back to deterministic `npm audit --audit-level=high` when Dependency Graph is disabled.
+- Falls back to deterministic `npm run test:dependencies` when Dependency Graph is disabled.
+- The repository commits `package-lock.json` and shared CI setup installs with `npm ci --ignore-scripts`; missing lockfiles fail CI instead of falling back to `npm install`.
 
 ## OAuth scopes
 

@@ -17,6 +17,8 @@ Use semantic tags:
 7. production project only, after the test deployment guard passes: `clasp push`
 8. validate library from a clean consumer Apps Script project
 
+`npm run verify:release` includes the lockfile-backed dependency audit (`npm run test:dependencies`). Keep `package-lock.json` committed; CI installs with `npm ci --ignore-scripts` and does not fall back to `npm install`.
+
 ## `v0.0.5` Release Prep Notes
 
 - Confirm `CHANGELOG.md` `v0.0.5 (unreleased)` includes:

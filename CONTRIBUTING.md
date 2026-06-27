@@ -31,6 +31,12 @@ Override for local experimentation via:
 - `COVERAGE_MIN_FILES`
 - `COVERAGE_ENFORCE` (`true`/`false`)
 
+Dependency policy:
+
+- Commit `package-lock.json` with any npm dependency changes.
+- CI installs with `npm ci --ignore-scripts`; missing lockfiles fail the shared Node setup action.
+- `npm run test:dependencies` runs the lockfile-backed high-severity production dependency audit.
+
 ## Code Standards
 
 - Keep public APIs under the `AST` namespace.

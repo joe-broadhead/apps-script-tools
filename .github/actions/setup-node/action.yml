@@ -1,5 +1,5 @@
 name: Setup Node and install dependencies
-description: Configure Node.js and install project dependencies with lockfile-aware behavior.
+description: Configure Node.js and install project dependencies from the committed npm lockfile.
 
 inputs:
   node-version:
@@ -19,13 +19,13 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    - name: Install Node dependencies (lockfile-aware)
+    - name: Install Node dependencies
       if: ${{ inputs.install-deps == 'true' }}
       shell: bash
       run: |
         set -euo pipefail
-        if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-          npm ci --ignore-scripts
-        else
-          npm install --ignore-scripts --no-audit --no-fund
+        if [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+          echo "Missing npm lockfile. Commit package-lock.json or npm-shrinkwrap.json before CI can install dependencies deterministically."
+          exit 1
         fi
+        npm ci --ignore-scripts

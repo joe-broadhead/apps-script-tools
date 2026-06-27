@@ -140,6 +140,7 @@ Global structures note:
 - Local coverage gate: `npm run test:local:coverage`
 - Perf gate: `npm run test:perf:check`
 - Security gate: `npm run test:security`
+- Dependency audit gate: `npm run test:dependencies`
 - Docs gate: `mkdocs build --strict`
 - Apps Script integration gate (when configured against a test script project): `npm run check:clasp:production && GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push && clasp run runAllTests`
 - Full contributor guide: `CONTRIBUTING.md`

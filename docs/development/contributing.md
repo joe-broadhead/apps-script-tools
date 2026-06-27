@@ -20,6 +20,12 @@ npm run verify:release
 
 For inner-loop work, `npm test` runs the fast local gate only (`lint` + local Node tests). It does not enforce coverage, security, docs, or perf thresholds.
 
+Dependency policy:
+
+- Commit `package-lock.json` with any npm dependency changes.
+- CI installs with `npm ci --ignore-scripts`; missing lockfiles fail the shared Node setup action.
+- `npm run test:dependencies` runs the lockfile-backed high-severity production dependency audit.
+
 Apps Script integration checks when credentials are configured:
 
 ```bash
