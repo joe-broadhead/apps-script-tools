@@ -330,6 +330,7 @@ ASTX.Messaging.operations()
 ASTX.Messaging.capabilities(operationOrGroup)
 ASTX.Messaging.configure(config, options)
 ASTX.Messaging.getConfig()
+ASTX.Messaging.getResolvedConfig(request)
 ASTX.Messaging.clearConfig()
 ```
 

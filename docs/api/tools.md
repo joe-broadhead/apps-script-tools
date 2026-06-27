@@ -803,7 +803,7 @@ Primary methods:
 - `ASTX.Messaging.templates.*` plus `registerTemplate/getTemplate/renderTemplate/sendTemplate` for reusable typed templates.
 - `ASTX.Messaging.inbound.*` plus `verifyInbound/parseInbound/routeInbound` for Google Chat/Slack/Teams webhook verification and routing.
 - `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
-- `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.clearConfig()`.
+- `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.getResolvedConfig()` / `ASTX.Messaging.clearConfig()`.
 
 High-signal behavior:
 
@@ -884,6 +884,8 @@ const routed = ASTX.Messaging.routeInbound({
 
 Logger.log(JSON.stringify(routed.data.route, null, 2));
 ```
+
+Idempotency and inbound replay default to durable `script_properties` records. Use `storage_json` with `CACHE_STORAGE_URI` for high-volume shared deployments. `memory` backends are execution-local and require explicit dev/test opt-in via `MESSAGING_IDEMPOTENCY_ALLOW_MEMORY=true` or `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY=true`. `getResolvedConfig()` returns a redacted effective config view.
 
 ## `ASTX.GitHub`
 

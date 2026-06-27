@@ -73,3 +73,25 @@ test('messaging resolves tracking allowed domains from runtime config only', () 
 
   assert.deepEqual(Array.from(requestResolved.tracking.allowedDomains), ['example.com', '.sub.example.com']);
 });
+
+test('messaging resolved config output redacts secret-bearing fields', () => {
+  const context = createGasContext();
+  loadMessagingScripts(context, { includeAst: true });
+
+  context.AST.Messaging.clearConfig();
+  context.AST.Messaging.configure({
+    MESSAGING_CHAT_WEBHOOK_URL: 'https://chat.googleapis.com/v1/spaces/abc/messages?key=x&token=y',
+    MESSAGING_SLACK_BOT_TOKEN: 'xoxb-secret-token',
+    MESSAGING_TRACKING_SIGNING_SECRET: 'tracking-secret',
+    MESSAGING_INBOUND_SLACK_SIGNING_SECRET: 'inbound-secret'
+  });
+
+  const resolved = context.AST.Messaging.getResolvedConfig();
+
+  assert.equal(resolved.chat.webhookUrl, '[REDACTED]');
+  assert.equal(resolved.chat.slackBotToken, '[REDACTED]');
+  assert.equal(resolved.tracking.signingSecret, '[REDACTED]');
+  assert.equal(resolved.inbound.slack.signingSecret, '[REDACTED]');
+  assert.equal(resolved.idempotency.backend, 'script_properties');
+  assert.equal(resolved.idempotency.durable, true);
+});

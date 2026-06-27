@@ -14,6 +14,13 @@ function astMessagingGetConfig() {
   return astMessagingGetRuntimeConfig();
 }
 
+function astMessagingGetResolvedConfig(request = {}) {
+  const normalizedRequest = request && typeof request === 'object' && !Array.isArray(request)
+    ? request
+    : {};
+  return astMessagingRedactValue(astMessagingResolveConfig(normalizedRequest));
+}
+
 function astMessagingClearConfig() {
   return astMessagingClearRuntimeConfig();
 }
@@ -79,5 +86,6 @@ const AST_MESSAGING = Object.freeze({
   capabilities: operationOrGroup => astMessagingGetCapabilities(operationOrGroup),
   configure: astMessagingConfigure,
   getConfig: astMessagingGetConfig,
+  getResolvedConfig: astMessagingGetResolvedConfig,
   clearConfig: astMessagingClearConfig
 });

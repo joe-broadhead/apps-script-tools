@@ -299,7 +299,11 @@ function astRunMessagingRequest(request = {}) {
     });
 
     if (idempotencyKey) {
-      astMessagingIdempotencySet(idempotencyKey, response, resolvedConfig);
+      try {
+        astMessagingIdempotencySet(idempotencyKey, response, resolvedConfig);
+      } catch (_idempotencyError) {
+        response.warnings = response.warnings.concat(['idempotencyWriteFailed=true']);
+      }
     }
 
     astMessagingTelemetryEnd(span, response, null);

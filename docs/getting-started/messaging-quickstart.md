@@ -30,17 +30,22 @@ function configureMessaging() {
     MESSAGING_LOG_BACKEND: 'drive_json',
     MESSAGING_LOG_NAMESPACE: 'ast_messaging',
     MESSAGING_LOG_DRIVE_FILE_NAME: 'ast_messaging_logs.json',
+    MESSAGING_IDEMPOTENCY_BACKEND: 'script_properties',
+    MESSAGING_IDEMPOTENCY_NAMESPACE: 'ast_messaging_idempotency',
+    MESSAGING_IDEMPOTENCY_TTL_SEC: '900',
     MESSAGING_TEMPLATE_BACKEND: 'drive_json',
     MESSAGING_TEMPLATE_NAMESPACE: 'ast_messaging_templates',
     MESSAGING_TEMPLATE_DRIVE_FILE_NAME: 'ast_messaging_templates.json',
     MESSAGING_INBOUND_SLACK_SIGNING_SECRET: 'replace-me',
     MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN: 'replace-me',
-    MESSAGING_INBOUND_REPLAY_BACKEND: 'memory',
+    MESSAGING_INBOUND_REPLAY_BACKEND: 'script_properties',
     MESSAGING_INBOUND_REPLAY_NAMESPACE: 'ast_messaging_inbound_replay',
     MESSAGING_INBOUND_REPLAY_TTL_SEC: '600'
   });
 }
 ```
+
+`script_properties` is the low-volume durable default for idempotency and inbound replay records. Use `storage_json` plus `CACHE_STORAGE_URI` for shared high-volume workloads. `memory` is execution-local and requires `MESSAGING_IDEMPOTENCY_ALLOW_MEMORY=true` or `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY=true`; keep that for dev/test only.
 
 ## Send email
 

@@ -43,6 +43,7 @@ ASTX.Messaging.operations()
 ASTX.Messaging.capabilities(operationOrGroup)
 ASTX.Messaging.configure(config, options)
 ASTX.Messaging.getConfig()
+ASTX.Messaging.getResolvedConfig(request)
 ASTX.Messaging.clearConfig()
 ```
 
@@ -121,6 +122,12 @@ ASTX.Messaging.clearConfig()
 - `template_send` also supports idempotent replay behavior.
 - Optional override: `options.idempotencyKey`.
 - Replay responses include warning: `idempotentReplay=true`.
+- The default idempotency backend is `script_properties` with namespace `ast_messaging_idempotency` and TTL `900` seconds.
+- Durable backends are `drive_json`, `script_properties`, and `storage_json`; configure `CACHE_STORAGE_URI` before using `storage_json`.
+- Durable read/config failures throw `AstMessagingCapabilityError` before sending and do not fall back to memory.
+- If the durable idempotency write fails after a provider send has completed, the response stays `ok` and includes `idempotencyWriteFailed=true` in `warnings`.
+- `MESSAGING_IDEMPOTENCY_BACKEND=memory` is execution-local and requires `MESSAGING_IDEMPOTENCY_ALLOW_MEMORY=true` for explicit dev/test mode.
+- `ASTX.Messaging.getResolvedConfig().idempotency` includes `backend`, `namespace`, `ttlSec`, `allowMemory`, `durable`, and `memoryOnly`.
 
 ## Template request notes
 
@@ -135,7 +142,12 @@ ASTX.Messaging.clearConfig()
 - `inbound_parse` normalizes inbound payloads into a deterministic event envelope (`provider`, `eventType`, `eventId`, `timestampMs`, `payload`).
 - `inbound_route` selects handlers in this order: `provider:eventType`, `eventType`, `provider`, `default`.
 - Signature-based verification requires raw request bytes via `body.rawBody` / `body.payloadRaw`.
-- Replay protection uses cache/memory keys and throws deterministic `AstMessagingAuthError` on duplicates.
+- Replay protection uses `ASTX.Cache` with default backend `script_properties`, namespace `ast_messaging_inbound_replay`, and TTL `600` seconds.
+- Duplicate replay keys throw deterministic `AstMessagingAuthError`.
+- Durable replay-store read/write failures throw `AstMessagingCapabilityError` and do not fall back to memory.
+- `MESSAGING_INBOUND_REPLAY_BACKEND=memory` is execution-local and requires `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY=true`, or per-request `body.verify.replayAllowMemory=true`, for explicit dev/test mode.
+- `ASTX.Messaging.getResolvedConfig().inbound` includes `replayBackend`, `replayNamespace`, `replayTtlSec`, `replayAllowMemory`, `replayDurable`, and `replayMemoryOnly`.
+- `ASTX.Messaging.capabilities().stores` distinguishes durable backends from memory-only backends for idempotency and inbound replay.
 
 ## Config precedence
 
@@ -143,3 +155,5 @@ ASTX.Messaging.clearConfig()
 2. Runtime config via `ASTX.Messaging.configure(...)`
 3. Script Properties
 4. Built-in defaults
+
+`ASTX.Messaging.getConfig()` returns runtime overrides only. Use `ASTX.Messaging.getResolvedConfig(request)` to inspect a redacted effective config view with defaults, Script Properties, request-level values, and durable/memory store metadata.

@@ -365,20 +365,60 @@ function astMessagingInboundResolveReplayConfig(resolvedConfig = {}, body = {}) 
     ? resolvedConfig.inbound
     : {};
   const verify = astMessagingInboundIsPlainObject(body.verify) ? body.verify : {};
-  return {
+  const config = {
     enabled: astMessagingInboundNormalizeBoolean(
       verify.replayProtection,
       astMessagingInboundNormalizeBoolean(inbound.replayProtection, true)
     ),
-    backend: astMessagingInboundNormalizeString(inbound.replayBackend, 'memory'),
+    backend: astMessagingInboundNormalizeString(inbound.replayBackend, 'script_properties'),
     namespace: astMessagingInboundNormalizeString(inbound.replayNamespace, 'ast_messaging_inbound_replay'),
     ttlSec: astMessagingInboundNormalizeInteger(
       verify.replayTtlSec,
       astMessagingInboundNormalizeInteger(inbound.replayTtlSec, 600, 1, 86400),
       1,
       86400
+    ),
+    allowMemory: astMessagingInboundNormalizeBoolean(
+      verify.replayAllowMemory,
+      astMessagingInboundNormalizeBoolean(
+        verify.allowMemoryReplay,
+        astMessagingInboundNormalizeBoolean(inbound.replayAllowMemory, false)
+      )
     )
   };
+  config.backend = String(config.backend || 'script_properties').toLowerCase();
+  config.memoryOnly = config.backend === 'memory';
+  config.durable = config.memoryOnly !== true;
+  return config;
+}
+
+function astMessagingInboundAssertReplayStore(replayConfig = {}) {
+  if (!replayConfig || replayConfig.enabled !== true) {
+    return;
+  }
+
+  if (replayConfig.backend === 'memory') {
+    if (replayConfig.allowMemory === true) {
+      return;
+    }
+    throw new AstMessagingValidationError('Inbound replay memory backend requires explicit dev/test opt-in', {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace,
+      configKey: 'MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY'
+    });
+  }
+
+  if (
+    typeof AST_CACHE === 'undefined' ||
+    !AST_CACHE ||
+    typeof AST_CACHE.get !== 'function' ||
+    typeof AST_CACHE.set !== 'function'
+  ) {
+    throw new AstMessagingCapabilityError('Inbound replay backend requires AST_CACHE durable storage', {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace
+    });
+  }
 }
 
 function astMessagingInboundReplayMemoryGet(key) {
@@ -407,23 +447,24 @@ function astMessagingInboundReplayGet(key, replayConfig = {}) {
     return null;
   }
 
+  astMessagingInboundAssertReplayStore(replayConfig);
   if (replayConfig.backend === 'memory') {
     return astMessagingInboundReplayMemoryGet(key);
   }
 
-  if (typeof AST_CACHE !== 'undefined' && AST_CACHE && typeof AST_CACHE.get === 'function') {
-    try {
-      return AST_CACHE.get(`inbound_replay:${key}`, {
-        backend: replayConfig.backend,
-        namespace: replayConfig.namespace,
-        ttlSec: replayConfig.ttlSec
-      });
-    } catch (_error) {
-      return astMessagingInboundReplayMemoryGet(key);
-    }
+  try {
+    return AST_CACHE.get(`inbound_replay:${key}`, {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace,
+      ttlSec: replayConfig.ttlSec
+    });
+  } catch (error) {
+    throw new AstMessagingCapabilityError('Inbound replay durable store read failed', {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace,
+      replayKey: key
+    }, error);
   }
-
-  return astMessagingInboundReplayMemoryGet(key);
 }
 
 function astMessagingInboundReplaySet(key, replayValue, replayConfig = {}) {
@@ -431,25 +472,25 @@ function astMessagingInboundReplaySet(key, replayValue, replayConfig = {}) {
     return;
   }
 
+  astMessagingInboundAssertReplayStore(replayConfig);
   if (replayConfig.backend === 'memory') {
     astMessagingInboundReplayMemorySet(key, replayValue, replayConfig.ttlSec);
     return;
   }
 
-  if (typeof AST_CACHE !== 'undefined' && AST_CACHE && typeof AST_CACHE.set === 'function') {
-    try {
-      AST_CACHE.set(`inbound_replay:${key}`, replayValue, {
-        backend: replayConfig.backend,
-        namespace: replayConfig.namespace,
-        ttlSec: replayConfig.ttlSec
-      });
-      return;
-    } catch (_error) {
-      // Fallback below.
-    }
+  try {
+    AST_CACHE.set(`inbound_replay:${key}`, replayValue, {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace,
+      ttlSec: replayConfig.ttlSec
+    });
+  } catch (error) {
+    throw new AstMessagingCapabilityError('Inbound replay durable store write failed', {
+      backend: replayConfig.backend,
+      namespace: replayConfig.namespace,
+      replayKey: key
+    }, error);
   }
-
-  astMessagingInboundReplayMemorySet(key, replayValue, replayConfig.ttlSec);
 }
 
 function astMessagingInboundBuildReplayKey(provider, eventId, timestampMs, signature, payloadRaw) {

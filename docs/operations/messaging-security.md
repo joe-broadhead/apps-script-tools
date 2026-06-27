@@ -12,9 +12,21 @@
 
 - Enforce signature/token validation with `ASTX.Messaging.inbound.verify(...)` or `routeInbound(...)`.
 - Configure bounded skew (`MESSAGING_INBOUND_MAX_SKEW_SEC`) to reject stale requests.
-- Keep replay protection enabled and backed by shared cache for multi-instance deployments.
+- Keep replay protection enabled and backed by durable cache. The default backend is `script_properties`; prefer `storage_json` with `CACHE_STORAGE_URI` for high-volume shared deployments.
 - For Slack/Teams and Google Chat signature mode, pass exact request bytes via `body.rawBody`.
 - Never disable replay protection in production unless upstream already enforces one-time delivery IDs.
+- Do not set `MESSAGING_INBOUND_REPLAY_BACKEND=memory` in production. Memory replay protection is execution-local and requires explicit dev/test opt-in with `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY=true`.
+
+## Replay and idempotency durability
+
+- Inbound replay and send idempotency records use `ASTX.Cache` backends with TTL pruning.
+- `script_properties` is durable across Apps Script executions but is best for low-volume records because Apps Script properties have size and throughput limits.
+- `storage_json` is the production scale-out option; configure the cache storage URI with `CACHE_STORAGE_URI`.
+- Durable inbound replay read/write failures throw `AstMessagingCapabilityError`; they do not fall back to memory.
+- Durable idempotency read/config failures throw before send. A post-send idempotency write failure returns `status='ok'` with warning `idempotencyWriteFailed=true`, because the provider side effect has already completed.
+- Memory mode is execution-local, not shared across invocations, and is visible via `ASTX.Messaging.capabilities()` and `ASTX.Messaging.getResolvedConfig()`.
+- Keep `MESSAGING_IDEMPOTENCY_TTL_SEC` long enough to cover provider retry windows and client retry loops.
+- Keep `MESSAGING_INBOUND_REPLAY_TTL_SEC` long enough to cover provider retry/replay windows, while limiting stale replay-key retention.
 
 ## Tracking safety
 
@@ -56,11 +68,16 @@ Recommended keys:
 - `MESSAGING_TRACKING_SIGNING_SECRET`
 - `MESSAGING_LOG_BACKEND`
 - `MESSAGING_LOG_STORAGE_URI` (if `storage_json`)
+- `MESSAGING_IDEMPOTENCY_BACKEND`
+- `MESSAGING_IDEMPOTENCY_NAMESPACE`
+- `MESSAGING_IDEMPOTENCY_TTL_SEC`
+- `MESSAGING_IDEMPOTENCY_ALLOW_MEMORY` (dev/test only)
 - `MESSAGING_INBOUND_MAX_SKEW_SEC`
 - `MESSAGING_INBOUND_REPLAY_ENABLED`
 - `MESSAGING_INBOUND_REPLAY_BACKEND`
 - `MESSAGING_INBOUND_REPLAY_NAMESPACE`
 - `MESSAGING_INBOUND_REPLAY_TTL_SEC`
+- `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY` (dev/test only)
 - `MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET`
 - `MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN`
 - `MESSAGING_INBOUND_SLACK_SIGNING_SECRET`
