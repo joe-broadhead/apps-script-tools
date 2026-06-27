@@ -8,19 +8,14 @@ Use semantic tags:
 
 ## Pre-Release Checklist
 
-1. `npm run lint`
-2. `npm run test:local:coverage`
-3. `npm run test:perf:check`
-4. `npm run test:security`
-5. `mkdocs build --strict`
-6. `npm run check:cookbooks`
-7. `npm run check:clasp:production`
-8. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
-9. production project only, after the test deployment guard passes: `clasp push`
-10. `clasp run runAllTests`
-11. `clasp run runPerformanceBenchmarks`
-12. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
-13. validate library from a clean consumer Apps Script project
+1. `npm run verify:release`
+2. `npm run check:clasp:production`
+3. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
+4. test project only, after the test push: `clasp run runAllTests`
+5. test project only: `clasp run runPerformanceBenchmarks`
+6. test project only, optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+7. production project only, after the test deployment guard passes: `clasp push`
+8. validate library from a clean consumer Apps Script project
 
 ## `v0.0.5` Release Prep Notes
 

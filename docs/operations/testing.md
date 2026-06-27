@@ -10,10 +10,21 @@ The project uses three complementary test layers:
 
 ## Local correctness checks
 
+Fast local gate:
+
 ```bash
-npm run lint
-npm run test:local
+npm test
 ```
+
+`npm test` is an alias for `npm run test:fast` and intentionally covers lint plus local Node tests only.
+
+Canonical local release gate:
+
+```bash
+npm run verify:release
+```
+
+`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, cookbook catalog checks, strict docs build, and performance thresholds.
 
 Local coverage report (uses Node test coverage, writes artifacts to `coverage/`):
 
@@ -169,6 +180,7 @@ Pull requests should pass:
   - `lint-and-local-tests`
     - includes `npm run test:local:coverage`
     - uploads `local-coverage` artifact with raw output + JSON/Markdown summary
+  - `security-gate` (`npm run test:security`)
   - `perf-gate` (`npm run test:perf:check`)
   - `docs-build`
   - `gas-functional` (Apps Script runtime functional suite for internal PRs, when clasp secrets are available)
@@ -181,8 +193,5 @@ Pull requests should pass:
 
 Release validation requires:
 
-- lint
-- local tests
-- deterministic secret scan (`npm run test:security`)
-- performance threshold check (`npm run test:perf:check`)
-- docs strict build
+- local deterministic release gate (`npm run verify:release`)
+- remote Apps Script functional/perf suites when clasp credentials are configured

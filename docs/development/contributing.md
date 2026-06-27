@@ -15,12 +15,10 @@ Source of truth: [`CONTRIBUTING.md`](https://github.com/joe-broadhead/apps-scrip
 Run before opening a PR:
 
 ```bash
-npm run lint
-npm run test:local:coverage
-npm run test:perf:check
-npm run test:security
-mkdocs build --strict
+npm run verify:release
 ```
+
+For inner-loop work, `npm test` runs the fast local gate only (`lint` + local Node tests). It does not enforce coverage, security, docs, or perf thresholds.
 
 Apps Script integration checks when credentials are configured:
 

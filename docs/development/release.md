@@ -15,13 +15,10 @@
 ## Pre-release checks
 
 ```bash
-npm run lint
-npm run test:local:coverage
-npm run test:perf:check
-npm run test:security
-npm run check:cookbooks
-mkdocs build --strict
+npm run verify:release
 ```
+
+`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, cookbook catalog checks, strict docs build, and performance thresholds.
 
 Apps Script runtime validation:
 

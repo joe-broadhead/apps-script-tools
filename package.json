@@ -14,6 +14,8 @@
     "test:perf": "node tests/perf/run-perf.mjs --mode report",
     "test:perf:check": "node tests/perf/run-perf.mjs --mode check",
     "test:perf:baseline": "node tests/perf/run-perf.mjs --mode baseline --out benchmarks/baselines/node20.json",
-    "test": "npm run lint && npm run test:local"
+    "test:fast": "npm run lint && npm run test:local",
+    "test": "npm run test:fast",
+    "verify:release": "npm run lint && npm run test:local:coverage && npm run test:security && npm run check:cookbooks && mkdocs build --strict && npm run test:perf:check"
   }
 }

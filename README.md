@@ -134,6 +134,8 @@ Global structures note:
 
 ## Development
 
+- Fast local check: `npm test` (alias for `npm run test:fast`; lint + local Node tests only)
+- Canonical local release gate: `npm run verify:release`
 - Lint gate: `npm run lint`
 - Local coverage gate: `npm run test:local:coverage`
 - Perf gate: `npm run test:perf:check`
