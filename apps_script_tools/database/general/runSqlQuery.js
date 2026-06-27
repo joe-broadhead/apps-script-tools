@@ -2,6 +2,18 @@ const AST_SQL_PREPARED_STATEMENTS = {};
 const AST_SQL_PREPARED_ORDER = [];
 let AST_SQL_PREPARED_ORDER_HEAD = 0;
 const AST_SQL_PREPARED_STATEMENT_MAX = 500;
+const AST_SQL_PREPARED_STATEMENT_DEFAULT_TTL_SEC = 900;
+const AST_SQL_PREPARED_STATEMENT_MAX_TTL_SEC = 3600;
+const AST_SQL_PREPARED_STATEMENT_LIFECYCLE = Object.freeze({
+  storage: 'runtime_memory',
+  durable: false,
+  crossExecution: false,
+  scope: 'invocation_local',
+  cleanup: 'ttl_or_max_entries',
+  defaultTtlSec: AST_SQL_PREPARED_STATEMENT_DEFAULT_TTL_SEC,
+  maxTtlSec: AST_SQL_PREPARED_STATEMENT_MAX_TTL_SEC,
+  maxEntries: AST_SQL_PREPARED_STATEMENT_MAX
+});
 const AST_SQL_ALLOWED_PARAM_TYPES = Object.freeze([
   'string',
   'number',
@@ -35,8 +47,103 @@ function astSqlNormalizeString(value, fallback = '') {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function astSqlNowMs() {
+  return Date.now();
+}
+
 function astSqlEscapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function astSqlNormalizePreparedTtlSec(value, fallback = AST_SQL_PREPARED_STATEMENT_DEFAULT_TTL_SEC) {
+  if (typeof value === 'undefined' || value === null || value === '') {
+    return fallback;
+  }
+
+  const numeric = Number(value);
+  if (
+    !Number.isInteger(numeric) ||
+    numeric < 1 ||
+    numeric > AST_SQL_PREPARED_STATEMENT_MAX_TTL_SEC
+  ) {
+    throw astSqlBuildRuntimeError(
+      'SqlPreparedStatementError',
+      `prepare ttlSec must be an integer between 1 and ${AST_SQL_PREPARED_STATEMENT_MAX_TTL_SEC}`,
+      {
+        ttlSec: value,
+        minTtlSec: 1,
+        maxTtlSec: AST_SQL_PREPARED_STATEMENT_MAX_TTL_SEC
+      }
+    );
+  }
+
+  return numeric;
+}
+
+function astSqlValidatePreparedStatementId(statementId) {
+  if (!/^sqlprep_[a-f0-9]{24}$/.test(statementId)) {
+    throw astSqlBuildRuntimeError(
+      'SqlPreparedStatementError',
+      'executePrepared statementId is invalid',
+      {
+        statementId,
+        expectedPattern: 'sqlprep_<24 hex characters>'
+      }
+    );
+  }
+}
+
+function astSqlIsPreparedStatementExpired(prepared, nowMs = astSqlNowMs()) {
+  return Boolean(
+    prepared &&
+    typeof prepared.expiresAtMs === 'number' &&
+    prepared.expiresAtMs <= nowMs
+  );
+}
+
+function astSqlDeletePreparedStatement(statementId) {
+  if (statementId && AST_SQL_PREPARED_STATEMENTS[statementId]) {
+    delete AST_SQL_PREPARED_STATEMENTS[statementId];
+  }
+}
+
+function astSqlCompactPreparedOrder() {
+  const liveIds = [];
+  for (let idx = AST_SQL_PREPARED_ORDER_HEAD; idx < AST_SQL_PREPARED_ORDER.length; idx += 1) {
+    const statementId = AST_SQL_PREPARED_ORDER[idx];
+    if (statementId && AST_SQL_PREPARED_STATEMENTS[statementId]) {
+      liveIds.push(statementId);
+    }
+  }
+  AST_SQL_PREPARED_ORDER.splice(0, AST_SQL_PREPARED_ORDER.length, ...liveIds);
+  AST_SQL_PREPARED_ORDER_HEAD = 0;
+}
+
+function astSqlBuildPreparedMissingError(statementId) {
+  return astSqlBuildRuntimeError(
+    'SqlPreparedStatementError',
+    `Prepared statement '${statementId}' is invocation-local and was not found in the current runtime cache`,
+    {
+      statementId,
+      lifecycle: AST_SQL_PREPARED_STATEMENT_LIFECYCLE.scope,
+      durable: false,
+      crossExecution: false
+    }
+  );
+}
+
+function astSqlBuildPreparedExpiredError(statementId, prepared) {
+  return astSqlBuildRuntimeError(
+    'SqlPreparedStatementError',
+    `Prepared statement '${statementId}' expired from the invocation-local runtime cache`,
+    {
+      statementId,
+      lifecycle: AST_SQL_PREPARED_STATEMENT_LIFECYCLE.scope,
+      durable: false,
+      ttlSec: prepared && prepared.ttlSec || null,
+      expiresAt: prepared && prepared.expiresAt || null
+    }
+  );
 }
 
 function astSqlDigestHex(value) {
@@ -315,6 +422,14 @@ function astSqlRenderPreparedSql(prepared, resolvedParams, options = {}) {
 }
 
 function astSqlPrunePreparedStatements() {
+  const nowMs = astSqlNowMs();
+  Object.keys(AST_SQL_PREPARED_STATEMENTS).forEach(statementId => {
+    if (astSqlIsPreparedStatementExpired(AST_SQL_PREPARED_STATEMENTS[statementId], nowMs)) {
+      astSqlDeletePreparedStatement(statementId);
+    }
+  });
+  astSqlCompactPreparedOrder();
+
   while ((AST_SQL_PREPARED_ORDER.length - AST_SQL_PREPARED_ORDER_HEAD) > AST_SQL_PREPARED_STATEMENT_MAX) {
     const oldestId = AST_SQL_PREPARED_ORDER[AST_SQL_PREPARED_ORDER_HEAD];
     AST_SQL_PREPARED_ORDER[AST_SQL_PREPARED_ORDER_HEAD] = undefined;
@@ -401,7 +516,11 @@ function astSqlPrepare(request = {}) {
 
   const templateParams = astSqlExtractTemplateParams(sqlTemplate);
   const paramSchema = astSqlNormalizeParamSchema(request.paramsSchema || {}, templateParams);
-  const createdAt = new Date().toISOString();
+  const ttlSec = astSqlNormalizePreparedTtlSec(request.ttlSec, AST_SQL_PREPARED_STATEMENT_DEFAULT_TTL_SEC);
+  const createdAtMs = astSqlNowMs();
+  const expiresAtMs = createdAtMs + (ttlSec * 1000);
+  const createdAt = new Date(createdAtMs).toISOString();
+  const expiresAt = new Date(expiresAtMs).toISOString();
   const statementId = `sqlprep_${astSqlDigestHex(
     `${provider}|${sqlTemplate}|${JSON.stringify(paramSchema)}|${createdAt}|${Math.random()}`
   ).slice(0, 24)}`;
@@ -414,7 +533,12 @@ function astSqlPrepare(request = {}) {
     paramSchema,
     defaultParameters: astSqlIsPlainObject(request.parameters) ? Object.assign({}, request.parameters) : {},
     defaultOptions: astSqlIsPlainObject(request.options) ? Object.assign({}, request.options) : {},
-    createdAt
+    createdAt,
+    createdAtMs,
+    ttlSec,
+    expiresAt,
+    expiresAtMs,
+    lifecycle: AST_SQL_PREPARED_STATEMENT_LIFECYCLE.scope
   };
   AST_SQL_PREPARED_ORDER.push(statementId);
   astSqlPrunePreparedStatements();
@@ -424,6 +548,11 @@ function astSqlPrepare(request = {}) {
     provider,
     templateParams: templateParams.slice(),
     createdAt,
+    ttlSec,
+    expiresAt,
+    lifecycle: AST_SQL_PREPARED_STATEMENT_LIFECYCLE.scope,
+    durable: false,
+    crossExecution: false,
     paramSchema: JSON.parse(JSON.stringify(paramSchema))
   };
 }
@@ -440,14 +569,17 @@ function astSqlExecutePrepared(request = {}) {
       'executePrepared request requires a non-empty statementId'
     );
   }
+  astSqlValidatePreparedStatementId(statementId);
 
   const prepared = AST_SQL_PREPARED_STATEMENTS[statementId];
   if (!prepared) {
-    throw astSqlBuildRuntimeError(
-      'SqlPreparedStatementError',
-      `Prepared statement '${statementId}' was not found in runtime cache`
-    );
+    throw astSqlBuildPreparedMissingError(statementId);
   }
+  if (astSqlIsPreparedStatementExpired(prepared)) {
+    astSqlDeletePreparedStatement(statementId);
+    throw astSqlBuildPreparedExpiredError(statementId, prepared);
+  }
+  astSqlPrunePreparedStatements();
 
   const mergedOptions = Object.assign(
     {},

@@ -75,6 +75,11 @@ test('astSqlPrepare + astSqlExecutePrepared binds typed params and executes prov
 
   assert.equal(typeof prepared.statementId, 'string');
   assert.equal(prepared.provider, 'bigquery');
+  assert.equal(prepared.lifecycle, 'invocation_local');
+  assert.equal(prepared.durable, false);
+  assert.equal(prepared.crossExecution, false);
+  assert.equal(prepared.ttlSec, 900);
+  assert.equal(typeof prepared.expiresAt, 'string');
   assert.equal(captured.parameters.projectId, 'proj-default');
   assert.equal(captured.placeholders && Object.keys(captured.placeholders).length, 0);
   assert.match(captured.sql, /id = 7/);
@@ -105,6 +110,162 @@ test('astSqlExecutePrepared falls back to executeQuery when detailed provider he
 
   assert.equal(result.dataFrame.kind, 'fallback-df');
   assert.equal(result.execution, null);
+});
+
+test('astSqlExecutePrepared reports invocation-local miss across simulated executions', () => {
+  const firstContext = createGasContext({
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+  loadSqlRuntime(firstContext);
+
+  const prepared = firstContext.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select {{n}} as n',
+    paramsSchema: { n: 'integer' },
+    parameters: { projectId: 'proj-1' }
+  });
+
+  const secondContext = createGasContext({
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+  loadSqlRuntime(secondContext);
+
+  assert.throws(
+    () => secondContext.astSqlExecutePrepared({
+      statementId: prepared.statementId,
+      params: { n: 3 }
+    }),
+    error => {
+      assert.equal(error.name, 'SqlPreparedStatementError');
+      assert.match(error.message, /invocation-local/);
+      assert.equal(error.details.statementId, prepared.statementId);
+      assert.equal(error.details.durable, false);
+      assert.equal(error.details.crossExecution, false);
+      return true;
+    }
+  );
+});
+
+test('astSqlExecutePrepared rejects expired and invalid prepared IDs', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    constructor(value) {
+      super(typeof value === 'undefined' ? nowMs : value);
+    }
+
+    static now() {
+      return nowMs;
+    }
+  }
+
+  const context = createGasContext({
+    Date: FakeDate,
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+  loadSqlRuntime(context);
+
+  const prepared = context.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select {{n}} as n',
+    paramsSchema: { n: 'integer' },
+    parameters: { projectId: 'proj-1' },
+    ttlSec: 1
+  });
+
+  assert.equal(prepared.ttlSec, 1);
+  nowMs += 1_001;
+
+  assert.throws(
+    () => context.astSqlExecutePrepared({
+      statementId: prepared.statementId,
+      params: { n: 3 }
+    }),
+    error => {
+      assert.equal(error.name, 'SqlPreparedStatementError');
+      assert.match(error.message, /expired/);
+      assert.equal(error.details.ttlSec, 1);
+      assert.equal(error.details.lifecycle, 'invocation_local');
+      return true;
+    }
+  );
+
+  assert.throws(
+    () => context.astSqlExecutePrepared({
+      statementId: 'not-a-prepared-id',
+      params: { n: 3 }
+    }),
+    /statementId is invalid/
+  );
+});
+
+test('astSqlPrepare compacts expired IDs before enforcing max prepared cache size', () => {
+  let nowMs = 1_000;
+  class FakeDate extends Date {
+    constructor(value) {
+      super(typeof value === 'undefined' ? nowMs : value);
+    }
+
+    static now() {
+      return nowMs;
+    }
+  }
+
+  let capturedSql = '';
+  const context = createGasContext({
+    Date: FakeDate,
+    astExecuteBigQuerySqlDetailed: sql => {
+      capturedSql = sql;
+      return {
+        dataFrame: { kind: 'df' },
+        execution: {
+          provider: 'bigquery',
+          executionId: 'job-live',
+          state: 'SUCCEEDED'
+        }
+      };
+    },
+    astRunBigQuerySql: () => ({ kind: 'unused' }),
+    astRunDatabricksSql: () => ({ kind: 'unused' })
+  });
+  loadSqlRuntime(context);
+
+  const longLived = context.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select {{n}} as n',
+    paramsSchema: { n: 'integer' },
+    parameters: { projectId: 'proj-1' },
+    ttlSec: 3600
+  });
+
+  for (let idx = 0; idx < 499; idx += 1) {
+    context.astSqlPrepare({
+      provider: 'bigquery',
+      sql: `select {{n}} as n_${idx}`,
+      paramsSchema: { n: 'integer' },
+      parameters: { projectId: 'proj-1' },
+      ttlSec: 1
+    });
+  }
+
+  nowMs += 1_001;
+  context.astSqlPrepare({
+    provider: 'bigquery',
+    sql: 'select {{n}} as fresh_n',
+    paramsSchema: { n: 'integer' },
+    parameters: { projectId: 'proj-1' },
+    ttlSec: 3600
+  });
+
+  const result = context.astSqlExecutePrepared({
+    statementId: longLived.statementId,
+    params: { n: 42 }
+  });
+
+  assert.equal(result.execution.executionId, 'job-live');
+  assert.match(capturedSql, /select 42 as n/);
 });
 
 test('astSqlExecutePrepared throws for missing required prepared params', () => {

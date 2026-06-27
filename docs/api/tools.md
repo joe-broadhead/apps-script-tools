@@ -197,6 +197,7 @@ High-signal behavior:
 - legacy helper `astReplacePlaceHoldersInQuery(...)` is deprecated and now emits a one-time runtime warning.
 - `prepare(...)` compiles `{{param}}` template placeholders and returns a runtime `statementId`.
 - `executePrepared(...)` safely serializes typed params and returns `{ dataFrame, execution }`.
+- prepared statements are invocation-local runtime-memory entries, not durable across Apps Script executions; inspect `capabilities(provider).preparedStatementLifecycle`.
 - `status(...)` and `cancel(...)` call provider-specific execution-control helpers.
 
 See [SQL Contracts](sql-contracts.md) for provider-specific request details.

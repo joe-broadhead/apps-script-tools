@@ -9,6 +9,19 @@ function astBuildSqlProviderValidationError(message, details = {}, cause = null)
   return error;
 }
 
+function astSqlBuildPreparedLifecycleCapabilities() {
+  return {
+    storage: 'runtime_memory',
+    durable: false,
+    crossExecution: false,
+    scope: 'invocation_local',
+    cleanup: 'ttl_or_max_entries',
+    defaultTtlSec: 900,
+    maxTtlSec: 3600,
+    maxEntries: 500
+  };
+}
+
 function astCreateBigQuerySqlAdapter() {
   return {
     provider: 'bigquery',
@@ -17,6 +30,7 @@ function astCreateBigQuerySqlAdapter() {
       supportsTimeoutOptions: true,
       supportsTableLoad: true,
       supportsPreparedStatements: true,
+      preparedStatementLifecycle: astSqlBuildPreparedLifecycleCapabilities(),
       supportsStatus: true,
       supportsCancel: true
     },
@@ -85,6 +99,7 @@ function astCreateDatabricksSqlAdapter() {
       supportsTimeoutOptions: true,
       supportsTableLoad: true,
       supportsPreparedStatements: true,
+      preparedStatementLifecycle: astSqlBuildPreparedLifecycleCapabilities(),
       supportsStatus: true,
       supportsCancel: true
     },
@@ -170,7 +185,11 @@ function astListSqlProviders() {
   return Object.keys(AST_SQL_PROVIDER_ADAPTERS);
 }
 
+function astSqlCloneProviderCapabilities(capabilities = {}) {
+  return JSON.parse(JSON.stringify(capabilities || {}));
+}
+
 function astGetSqlProviderCapabilities(provider) {
   const adapter = astGetSqlProviderAdapter(provider);
-  return Object.assign({}, adapter.capabilities);
+  return astSqlCloneProviderCapabilities(adapter.capabilities);
 }

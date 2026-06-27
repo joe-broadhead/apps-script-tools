@@ -91,10 +91,32 @@ test('astGetSqlProviderCapabilities exposes execution-control support', () => {
   const databricks = context.astGetSqlProviderCapabilities('databricks');
 
   assert.equal(bigquery.supportsPreparedStatements, true);
+  assert.equal(bigquery.preparedStatementLifecycle.storage, 'runtime_memory');
+  assert.equal(bigquery.preparedStatementLifecycle.durable, false);
+  assert.equal(bigquery.preparedStatementLifecycle.crossExecution, false);
+  assert.equal(bigquery.preparedStatementLifecycle.scope, 'invocation_local');
+  assert.equal(bigquery.preparedStatementLifecycle.defaultTtlSec, 900);
   assert.equal(bigquery.supportsStatus, true);
   assert.equal(bigquery.supportsCancel, true);
 
   assert.equal(databricks.supportsPreparedStatements, true);
+  assert.equal(databricks.preparedStatementLifecycle.storage, 'runtime_memory');
+  assert.equal(databricks.preparedStatementLifecycle.durable, false);
+  assert.equal(databricks.preparedStatementLifecycle.crossExecution, false);
   assert.equal(databricks.supportsStatus, true);
   assert.equal(databricks.supportsCancel, true);
+});
+
+test('astGetSqlProviderCapabilities returns isolated lifecycle metadata objects', () => {
+  const context = createContext();
+
+  loadScripts(context, [
+    'apps_script_tools/database/general/sqlProviderAdapters.js'
+  ]);
+
+  const first = context.astGetSqlProviderCapabilities('bigquery');
+  first.preparedStatementLifecycle.maxTtlSec = 1;
+
+  const second = context.astGetSqlProviderCapabilities('bigquery');
+  assert.equal(second.preparedStatementLifecycle.maxTtlSec, 3600);
 });

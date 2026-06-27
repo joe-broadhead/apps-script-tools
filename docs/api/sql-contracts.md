@@ -13,6 +13,7 @@ Capabilities currently expose:
 - `supportsTimeoutOptions`
 - `supportsTableLoad`
 - `supportsPreparedStatements`
+- `preparedStatementLifecycle`
 - `supportsStatus`
 - `supportsCancel`
 
@@ -55,6 +56,7 @@ Prepared statement compilation contract:
     id: 'integer',
     region: { type: 'string', required: true }
   },
+  ttlSec: 900,      // optional, max 3600
   parameters: { ... }, // optional default provider parameters
   options: { ... }     // optional default execution options
 }
@@ -68,6 +70,11 @@ Returns:
   provider: 'bigquery',
   templateParams: ['id', 'region'],
   createdAt: 'ISO-8601',
+  ttlSec: 900,
+  expiresAt: 'ISO-8601',
+  lifecycle: 'invocation_local',
+  durable: false,
+  crossExecution: false,
   paramSchema: { ...normalized schema... }
 }
 ```
@@ -77,7 +84,10 @@ Notes:
 - Placeholder tokens for prepared mode are `{{paramName}}`.
 - Parameter schema supports types:
   - `string`, `number`, `integer`, `boolean`, `date`, `timestamp`, `json`, `raw`.
-- Prepared statements are cached in runtime memory (in-process), keyed by `statementId`.
+- Prepared statements are invocation-local runtime-memory entries keyed by `statementId`.
+- They are not durable and are not valid across Apps Script executions, cold starts, or separate VM contexts.
+- Entries expire by TTL (`ttlSec`, default `900`, max `3600`) or by runtime cache pressure (`500` entries).
+- `ASTX.Sql.capabilities(provider).preparedStatementLifecycle` exposes storage, durability, cross-execution, TTL, and cleanup metadata.
 - Legacy interpolation helper `astReplacePlaceHoldersInQuery(...)` is deprecated; prefer `ASTX.Sql.prepare(...)` and `ASTX.Sql.executePrepared(...)`.
 
 ## `ASTX.Sql.executePrepared(request)`
@@ -228,7 +238,9 @@ Use `toTable` to write dataframe rows to provider tables.
 - Invalid provider: throws.
 - Empty SQL string: throws.
 - Unsafe placeholders without explicit opt-in: throws.
-- Unknown `statementId` for `executePrepared`: throws `SqlPreparedStatementError`.
+- Invalid `statementId` shape for `executePrepared`: throws `SqlPreparedStatementError`.
+- Unknown invocation-local `statementId` for `executePrepared`: throws `SqlPreparedStatementError`.
+- Expired `statementId` for `executePrepared`: throws `SqlPreparedStatementError`.
 - Missing or type-invalid prepared params: throws `SqlPreparedStatementError`.
 - Missing provider execution IDs (`jobId`/`statementId`) for `status`/`cancel`: throws `SqlExecutionControlError`.
 - `toTable` with missing `config.tableSchema`: throws.
