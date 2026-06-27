@@ -22,10 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
-      CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
-      CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
-      CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
-      LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,22 +31,38 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup clasp auth and binding
+      - name: Setup clasp CLI and binding
         uses: ./.github/actions/setup-clasp
         with:
           script-id: ${{ env.SCRIPT_ID }}
           root-dir: apps_script_tools
-          clasp-client-id: ${{ env.CLASP_CLIENT_ID }}
-          clasp-client-secret: ${{ env.CLASP_CLIENT_SECRET }}
-          clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
-      - name: Push and execute GitHub live smoke
+      - name: Configure clasp auth
+        uses: ./.github/actions/configure-clasp-auth
+        with:
+          clasp-client-id: ${{ secrets.CLASP_CLIENT_ID }}
+          clasp-client-secret: ${{ secrets.CLASP_CLIENT_SECRET }}
+          clasp-refresh-token: ${{ secrets.CLASP_REFRESH_TOKEN }}
+
+      - name: Push Apps Script project
+        run: |
+          set -euo pipefail
+          clasp status
+          clasp push
+
+      - name: Seed GitHub live-smoke token
+        env:
+          LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          GITHUB_TOKEN_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.LIVE_GITHUB_TOKEN || '']))")"
+          clasp run seedGitHubLiveSmokeToken --params "$GITHUB_TOKEN_PARAMS"
+
+      - name: Execute GitHub live smoke
         env:
           INPUT_OWNER: ${{ inputs.owner }}
           INPUT_REPO: ${{ inputs.repo }}
         run: |
-          clasp status
-          clasp push
-          clasp run seedGitHubLiveSmokeToken --params "[\"${LIVE_GITHUB_TOKEN}\"]"
+          set -euo pipefail
           GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
           clasp run runGitHubLiveSmokeForRepo --params "$GITHUB_PARAMS"

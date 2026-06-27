@@ -44,7 +44,9 @@ CI workflow config:
 
 - Set repository variable `GAS_SCRIPT_ID` for GitHub Actions integration workflows.
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
-- Keep the pinned clasp version in `.github/actions/setup-clasp/action.yml` (`clasp-version`) current; bump it intentionally and validate CI before release.
+- Keep `CLASP_*` secrets out of workflow job-level `env`; inject them only into the dedicated clasp-auth step after checkout, Node dependency installation, and clasp installation have finished.
+- Keep live-smoke provider tokens scoped to the exact step that needs them; do not expose them to checkout, dependency installation, clasp installation, or unrelated push/test steps.
+- Keep the pinned clasp version in `.github/actions/setup-clasp/action.yml` (`clasp-version`) current; bump it intentionally and validate CI before release. The clasp install command must continue to use `--ignore-scripts --no-audit --no-fund`.
 
 Cookbook validation:
 

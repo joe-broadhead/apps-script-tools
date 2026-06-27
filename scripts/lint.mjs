@@ -88,6 +88,47 @@ function diffSets(left, right) {
   return [...left].filter(value => !right.has(value));
 }
 
+function leadingSpaces(line) {
+  const match = String(line).match(/^ */);
+  return match ? match[0].length : 0;
+}
+
+function findJobLevelEnvSecrets(relativePath, secretKeys) {
+  const fullPath = path.join(ROOT, relativePath);
+  if (!fs.existsSync(fullPath)) {
+    return [`Missing workflow file: ${relativePath}`];
+  }
+
+  const lines = readText(fullPath).split(/\r?\n/);
+  const output = [];
+  lines.forEach((line, index) => {
+    if (!/^ {4}env:\s*(?:#.*)?$/.test(line)) {
+      return;
+    }
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const candidate = lines[cursor];
+      if (candidate.trim().length === 0 || candidate.trim().startsWith('#')) {
+        continue;
+      }
+      if (leadingSpaces(candidate) <= 4) {
+        break;
+      }
+
+      secretKeys.forEach(key => {
+        const keyPattern = new RegExp(`^\\s+${escapeRegExp(key)}\\s*:`);
+        if (keyPattern.test(candidate)) {
+          output.push(
+            `${relativePath} must not expose ${key} in job-level env; scope it to the exact auth/smoke step.`
+          );
+        }
+      });
+    }
+  });
+
+  return output;
+}
+
 function extractAstUtilityNames(astText) {
   const pattern = /const\s+AST_UTILITY_NAMES\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\);/m;
   const match = astText.match(pattern);
@@ -232,6 +273,57 @@ try {
   });
 } catch (error) {
   findings.push(`Unable to verify tracked files with git ls-files: ${error.message}`);
+}
+
+const ciSecretScopeWorkflows = [
+  {
+    path: '.github/workflows/integration-gas.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN']
+  },
+  {
+    path: '.github/workflows/integration-ai-live.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN']
+  },
+  {
+    path: '.github/workflows/integration-github-live.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN', 'LIVE_GITHUB_TOKEN']
+  }
+];
+
+ciSecretScopeWorkflows.forEach(workflow => {
+  findings.push(...findJobLevelEnvSecrets(workflow.path, workflow.secretKeys));
+
+  const workflowPath = path.join(ROOT, workflow.path);
+  if (fs.existsSync(workflowPath)) {
+    const workflowText = readText(workflowPath);
+    if (!workflowText.includes('uses: ./.github/actions/configure-clasp-auth')) {
+      findings.push(`${workflow.path} must use the dedicated configure-clasp-auth action for clasp secrets.`);
+    }
+  }
+});
+
+const setupClaspActionPath = path.join(ROOT, '.github/actions/setup-clasp/action.yml');
+if (!fs.existsSync(setupClaspActionPath)) {
+  findings.push('Missing .github/actions/setup-clasp/action.yml');
+} else {
+  const setupClaspActionText = readText(setupClaspActionPath);
+  ['clasp-client-id', 'clasp-client-secret', 'clasp-refresh-token'].forEach(inputName => {
+    if (setupClaspActionText.includes(inputName)) {
+      findings.push(`setup-clasp action must not accept OAuth credential input: ${inputName}`);
+    }
+  });
+
+  const installLinePattern = /npm\s+install\s+-g\s+"@google\/clasp@\$\{CLASP_VERSION\}"(?<flags>[^\n]*)/;
+  const installLine = setupClaspActionText.match(installLinePattern);
+  if (!installLine) {
+    findings.push('setup-clasp action must install the pinned @google/clasp package.');
+  } else {
+    ['--ignore-scripts', '--no-audit', '--no-fund'].forEach(flag => {
+      if (!installLine.groups.flags.includes(flag)) {
+        findings.push(`setup-clasp clasp install must include ${flag}`);
+      }
+    });
+  }
 }
 
 const astPath = path.join(APPS_DIR, 'AST.js');

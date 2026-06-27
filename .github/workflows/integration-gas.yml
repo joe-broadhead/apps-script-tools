@@ -34,9 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
-      CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
-      CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
-      CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,14 +43,18 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup clasp auth and binding
+      - name: Setup clasp CLI and binding
         uses: ./.github/actions/setup-clasp
         with:
           script-id: ${{ env.SCRIPT_ID }}
           root-dir: apps_script_tools
-          clasp-client-id: ${{ env.CLASP_CLIENT_ID }}
-          clasp-client-secret: ${{ env.CLASP_CLIENT_SECRET }}
-          clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
+
+      - name: Configure clasp auth
+        uses: ./.github/actions/configure-clasp-auth
+        with:
+          clasp-client-id: ${{ secrets.CLASP_CLIENT_ID }}
+          clasp-client-secret: ${{ secrets.CLASP_CLIENT_SECRET }}
+          clasp-refresh-token: ${{ secrets.CLASP_REFRESH_TOKEN }}
 
       - name: Push and execute integration tests
         env:

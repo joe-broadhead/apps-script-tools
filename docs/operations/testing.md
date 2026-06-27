@@ -92,6 +92,11 @@ Required repository settings for integration workflows:
 - variable: `GAS_SCRIPT_ID`
 - secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`
 
+Secret scoping requirements:
+
+- `CLASP_*` secrets must not be set at workflow job scope. They are passed only to the dedicated clasp-auth step, after checkout, Node dependency installation, and clasp installation are complete.
+- Live-smoke provider tokens must be set only on the step that writes or uses that token.
+
 Dispatch options:
 
 - `suite=functional` -> runs `runAllTests`

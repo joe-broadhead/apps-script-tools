@@ -42,6 +42,12 @@ Do not commit credentials:
 
 Use repository or organization secrets for CI-based integration runs.
 
+CI secret scoping:
+
+- Do not place `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, or `CLASP_REFRESH_TOKEN` in workflow job-level `env`.
+- Run checkout, Node dependency installation, and global clasp installation before injecting clasp OAuth credentials.
+- Scope live-smoke tokens, such as GitHub provider smoke credentials, to only the step that writes or consumes that token.
+
 For storage workflows, use script properties/runtime config instead of inline secrets:
 
 - `GCS_SERVICE_ACCOUNT_JSON`
