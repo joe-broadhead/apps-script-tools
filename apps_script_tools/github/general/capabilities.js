@@ -1,62 +1,43 @@
-const AST_GITHUB_OPERATION_GROUPS = Object.freeze({
-  auth: Object.freeze(['auth_as_app']),
-  webhooks: Object.freeze(['verify_webhook', 'parse_webhook']),
-  identity: Object.freeze(['get_me']),
-  repositories: Object.freeze(['get_repository', 'create_repository', 'fork_repository']),
-  branches: Object.freeze(['list_branches', 'create_branch']),
-  commits: Object.freeze(['list_commits', 'get_commit']),
-  files: Object.freeze(['get_file_contents', 'create_or_update_file', 'delete_file', 'push_files']),
-  issues: Object.freeze(['list_issues', 'get_issue', 'get_issue_comments', 'create_issue', 'update_issue', 'add_issue_comment']),
-  pull_requests: Object.freeze([
-    'list_pull_requests',
-    'search_pull_requests',
-    'get_pull_request',
-    'get_pull_request_diff',
-    'get_pull_request_files',
-    'get_pull_request_comments',
-    'get_pull_request_review_comments',
-    'get_pull_request_reviews',
-    'get_pull_request_status',
-    'create_pull_request',
-    'update_pull_request',
-    'merge_pull_request',
-    'update_pull_request_branch',
-    'create_pull_request_review',
-    'submit_pending_pull_request_review',
-    'delete_pending_pull_request_review',
-    'add_comment_to_pending_review',
-    'reply_to_pull_request_comment'
-  ]),
-  releases: Object.freeze(['list_releases', 'get_latest_release', 'get_release_by_tag', 'list_tags', 'get_tag']),
-  actions: Object.freeze([
-    'list_workflows',
-    'get_workflow',
-    'list_workflow_runs',
-    'get_workflow_run',
-    'rerun_workflow_run',
-    'cancel_workflow_run',
-    'list_workflow_run_artifacts',
-    'get_workflow_run_artifact'
-  ]),
-  checks: Object.freeze([
-    'list_check_runs',
-    'get_check_run',
-    'create_check_run',
-    'update_check_run',
-    'list_commit_statuses'
-  ]),
-  search: Object.freeze(['search_repositories', 'search_users', 'search_code', 'search_issues']),
-  meta: Object.freeze(['rate_limit']),
-  graphql: Object.freeze(['graphql'])
+const AST_GITHUB_GRAPHQL_OPERATION_CAPABILITY = Object.freeze({
+  operation: 'graphql',
+  group: 'graphql',
+  method: 'GRAPHQL',
+  supported: true,
+  read: true,
+  mutation: true,
+  paginated: false,
+  graphql: true,
+  cacheable: true,
+  dryRun: true
 });
+
+function astGitHubBuildOperationGroups() {
+  const groups = {};
+  astGitHubListOperations().forEach(operation => {
+    const spec = astGitHubGetOperationSpec(operation);
+    const group = spec && spec.group ? spec.group : 'other';
+    if (!Array.isArray(groups[group])) {
+      groups[group] = [];
+    }
+    groups[group].push(operation);
+  });
+  groups.graphql = ['graphql'];
+
+  Object.keys(groups).forEach(group => {
+    groups[group] = Object.freeze(groups[group].slice().sort());
+  });
+
+  return Object.freeze(groups);
+}
 
 function astGitHubGetCapabilities(operationOrGroup) {
   const supportedOperations = Array.from(new Set(astGitHubListOperations().concat(['graphql']))).sort();
+  const operationGroups = astGitHubBuildOperationGroups();
 
   if (typeof operationOrGroup === 'undefined' || operationOrGroup === null || operationOrGroup === '') {
     return {
       operations: supportedOperations,
-      groups: Object.keys(AST_GITHUB_OPERATION_GROUPS).sort(),
+      groups: Object.keys(operationGroups).sort(),
       graphql: true,
       dryRun: true,
       cache: true,
@@ -68,27 +49,21 @@ function astGitHubGetCapabilities(operationOrGroup) {
       webhooks: {
         verify: true,
         parse: true
-      }
+      },
+      projectsV2: true
     };
   }
 
   const key = astGitHubNormalizePathString(operationOrGroup, '').toLowerCase();
   if (key === 'graphql') {
-    return {
-      operation: 'graphql',
-      supported: true,
-      read: true,
-      mutation: true,
-      cache: true,
-      dryRun: true
-    };
+    return Object.assign({}, AST_GITHUB_GRAPHQL_OPERATION_CAPABILITY, { cache: true });
   }
 
-  if (Object.prototype.hasOwnProperty.call(AST_GITHUB_OPERATION_GROUPS, key)) {
+  if (Object.prototype.hasOwnProperty.call(operationGroups, key)) {
     return {
       group: key,
-      operations: AST_GITHUB_OPERATION_GROUPS[key].slice(),
-      count: AST_GITHUB_OPERATION_GROUPS[key].length
+      operations: operationGroups[key].slice(),
+      count: operationGroups[key].length
     };
   }
 
@@ -101,11 +76,13 @@ function astGitHubGetCapabilities(operationOrGroup) {
 
   return {
     operation: key,
+    supported: true,
     method: String(spec.method || 'get').toUpperCase(),
     read: spec.read === true,
     mutation: spec.mutation === true,
     paginated: spec.paginated === true,
     group: spec.group || null,
+    graphql: spec.graphql === true,
     cacheable: spec.read === true,
     dryRun: spec.mutation === true
   };

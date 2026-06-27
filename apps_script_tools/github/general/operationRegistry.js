@@ -99,6 +99,10 @@ const AST_GITHUB_OPERATION_REGISTRY = Object.freeze({
   update_check_run: Object.freeze({ method: 'patch', path: request => astGitHubBuildCheckRunPath(request), read: false, paginated: false, group: 'checks', mutation: true }),
   list_commit_statuses: Object.freeze({ method: 'get', path: request => astGitHubBuildCommitPath(request, '/statuses'), read: true, paginated: true, group: 'checks' }),
 
+  list_projects_v2: Object.freeze({ method: 'graphql', path: () => '/graphql', read: true, paginated: true, group: 'projects_v2', graphql: true, customExecutor: 'list_projects_v2' }),
+  list_project_v2_items: Object.freeze({ method: 'graphql', path: () => '/graphql', read: true, paginated: true, group: 'projects_v2', graphql: true, customExecutor: 'list_project_v2_items' }),
+  update_project_v2_field_value: Object.freeze({ method: 'graphql', path: () => '/graphql', read: false, paginated: false, group: 'projects_v2', mutation: true, graphql: true, customExecutor: 'update_project_v2_field_value' }),
+
   search_repositories: Object.freeze({ method: 'get', path: () => '/search/repositories', read: true, paginated: true, group: 'search' }),
   search_users: Object.freeze({ method: 'get', path: () => '/search/users', read: true, paginated: true, group: 'search' }),
   search_code: Object.freeze({ method: 'get', path: () => '/search/code', read: true, paginated: true, group: 'search' }),

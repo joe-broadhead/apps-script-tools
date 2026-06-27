@@ -525,7 +525,7 @@ Primary methods:
 
 High-signal behavior:
 
-- default target modules: `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`.
+- default target modules: `Http`, `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `Chat`, `Messaging`, `GitHub`.
 - configuration merge policy is controlled by `options.merge` (default `true`).
 - supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
 - forwards `scriptProperties`/`keys`/`prefix`/`stripPrefix` and config snapshot controls (`disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.

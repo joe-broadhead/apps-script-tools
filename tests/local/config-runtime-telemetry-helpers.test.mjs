@@ -5,6 +5,7 @@ import { createGasContext, loadScripts, listScriptFiles } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 import { loadTelemetryScripts } from './telemetry-helpers.mjs';
 import { loadSecretsScripts } from './secrets-helpers.mjs';
+import { loadChatScripts } from './chat-helpers.mjs';
 
 const CONFIG_SCRIPTS = [
   ...listScriptFiles('apps_script_tools/config/general'),
@@ -14,6 +15,21 @@ const RUNTIME_SCRIPTS = [
   ...listScriptFiles('apps_script_tools/runtime/general'),
   'apps_script_tools/runtime/Runtime.js'
 ];
+const EXPECTED_RUNTIME_MODULES = Object.freeze([
+  'Http',
+  'AI',
+  'RAG',
+  'DBT',
+  'Cache',
+  'Storage',
+  'Secrets',
+  'Telemetry',
+  'Jobs',
+  'Triggers',
+  'Chat',
+  'Messaging',
+  'GitHub'
+]);
 
 test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () => {
   const context = createGasContext();
@@ -33,10 +49,10 @@ test('AST exposes Config, Runtime, and TelemetryHelpers helper namespaces', () =
   assert.equal(typeof context.AST.Runtime.modules, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.withSpan, 'function');
   assert.equal(typeof context.AST.TelemetryHelpers.startSpanSafe, 'function');
-  assert.equal(context.AST.Runtime.modules().includes('Http'), true);
-  assert.equal(context.AST.Runtime.modules().includes('Secrets'), true);
-  assert.equal(context.AST.Runtime.modules().includes('Triggers'), true);
-  assert.equal(context.AST.Runtime.modules().includes('GitHub'), true);
+  assert.equal(
+    JSON.stringify(context.AST.Runtime.modules()),
+    JSON.stringify(EXPECTED_RUNTIME_MODULES)
+  );
 });
 
 test('AST.Runtime.configureFromProps can target GitHub module', () => {
@@ -113,6 +129,64 @@ test('AST.Runtime.configureFromProps can target Http module', () => {
   assert.equal(configureCall.config.HTTP_TIMEOUT_MS, '12345');
   assert.equal(configureCall.config.HTTP_RETRIES, '3');
   assert.equal(configureCall.options.merge, true);
+});
+
+test('AST.Runtime.configureFromProps can target Chat module', () => {
+  const explicitHandle = {
+    getProperties: () => ({
+      AST_CHAT_KEY_PREFIX: 'runtime_chat',
+      AST_CHAT_DURABLE_BACKEND: 'script_properties',
+      AST_CHAT_THREAD_MAX: '7'
+    }),
+    getProperty: key => {
+      const map = {
+        AST_CHAT_KEY_PREFIX: 'runtime_chat',
+        AST_CHAT_DURABLE_BACKEND: 'script_properties',
+        AST_CHAT_THREAD_MAX: '7'
+      };
+      return map[key] || null;
+    }
+  };
+
+  const context = createGasContext({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({
+          AST_CHAT_KEY_PREFIX: 'live_chat',
+          AST_CHAT_DURABLE_BACKEND: 'drive_json',
+          AST_CHAT_THREAD_MAX: '99'
+        })
+      })
+    }
+  });
+
+  loadChatScripts(context);
+  loadScripts(context, [
+    ...CONFIG_SCRIPTS,
+    ...RUNTIME_SCRIPTS,
+    'apps_script_tools/AST.js'
+  ]);
+
+  context.AST.Chat.clearConfig();
+
+  const summary = context.AST.Runtime.configureFromProps({
+    modules: ['Chat'],
+    keys: [
+      'AST_CHAT_KEY_PREFIX',
+      'AST_CHAT_DURABLE_BACKEND',
+      'AST_CHAT_THREAD_MAX'
+    ],
+    scriptProperties: explicitHandle
+  });
+
+  assert.equal(JSON.stringify(summary.modulesRequested), JSON.stringify(['Chat']));
+  assert.equal(JSON.stringify(summary.configuredModules), JSON.stringify(['Chat']));
+  assert.equal(summary.failedModules.length, 0);
+
+  const config = context.AST.Chat.getConfig();
+  assert.equal(config.keyPrefix, 'runtime_chat');
+  assert.equal(config.durable.backend, 'script_properties');
+  assert.equal(config.limits.threadMax, 7);
 });
 
 test('AST.Runtime.configureFromProps throws typed validation error for invalid options', () => {
