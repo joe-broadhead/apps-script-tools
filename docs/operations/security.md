@@ -88,20 +88,14 @@ Dependency review behavior:
 
 ## OAuth scopes
 
-The library currently declares scopes for:
+The production library manifest intentionally declares the full scope set needed by reusable library modules. The scope-to-module inventory is maintained in [OAuth Scope Inventory](oauth-scopes.md), and `npm run lint` fails when the inventory and `apps_script_tools/appsscript.json` drift.
 
-- External requests
-- Cloud Platform (required for `vertex_gemini`)
-- Spreadsheets
-- Drive
-- BigQuery
-- Docs / Slides / Forms
-
-Only authorize consumer scripts for the surfaces you actually use.
+Cookbook and consumer manifests should stay narrower than the production manifest. Only authorize consumer scripts for the surfaces you actually use.
 
 ## Release checklist (security focus)
 
 - Confirm no secret files are tracked.
 - Confirm no dynamic SQL interpolation paths were introduced unintentionally.
 - Confirm `appsscript.json` execution API access remains non-public.
+- Confirm OAuth scope changes are reflected in [OAuth Scope Inventory](oauth-scopes.md) and have a module-level rationale.
 - Re-run integration tests after any auth/scope changes.

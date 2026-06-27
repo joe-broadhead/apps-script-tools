@@ -20,6 +20,8 @@ npm run verify:release
 
 `verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, the lockfile-backed dependency audit, cookbook catalog checks, strict docs build, and performance thresholds.
 
+OAuth scope review is part of the lint gate: [OAuth Scope Inventory](../operations/oauth-scopes.md) must match `apps_script_tools/appsscript.json`, and cookbook manifests must keep least-privilege, non-public access settings.
+
 Apps Script runtime validation:
 
 ```bash
@@ -69,6 +71,7 @@ Documentation freshness checklist:
 - [API Tools](../api/tools.md) must include the exported `Sheets` helpers/classes and public `Utils` helper list from `apps_script_tools/AST.js`.
 - Jobs docs must describe only supported checkpoint stores; current runtime support is `checkpointStore='properties'`.
 - Secrets docs must not print raw secret values in logging examples; use boolean/redacted verification output.
+- [OAuth Scope Inventory](../operations/oauth-scopes.md) must justify every production manifest scope, and any scope changes must be paired with cookbook/consumer guidance.
 
 Consumer validation (recommended):
 

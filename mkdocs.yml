@@ -153,6 +153,7 @@ nav:
     - Storage Security: operations/storage-security.md
     - GitHub Security: operations/github-security.md
     - Messaging Security: operations/messaging-security.md
+    - OAuth Scopes: operations/oauth-scopes.md
     - Security: operations/security.md
     - Testing: operations/testing.md
     - Troubleshooting: operations/troubleshooting.md

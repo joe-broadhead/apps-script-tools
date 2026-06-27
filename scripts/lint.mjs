@@ -88,6 +88,18 @@ function diffSets(left, right) {
   return [...left].filter(value => !right.has(value));
 }
 
+function findDuplicates(values) {
+  const seen = new Set();
+  const duplicates = new Set();
+  values.forEach(value => {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  });
+  return [...duplicates];
+}
+
 function leadingSpaces(line) {
   const match = String(line).match(/^ */);
   return match ? match[0].length : 0;
@@ -163,6 +175,35 @@ function findMissingDocTokens(markdown, tokens) {
   return [...tokens].filter(token => !markdown.includes(token));
 }
 
+function extractMarkedSection(markdown, startMarker, endMarker, displayPath) {
+  const startIndex = markdown.indexOf(startMarker);
+  const endIndex = markdown.indexOf(endMarker);
+  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+    throw new Error(`${displayPath} must contain ${startMarker} and ${endMarker} markers`);
+  }
+  return markdown.slice(startIndex + startMarker.length, endIndex);
+}
+
+function extractOAuthScopeInventory(markdown, displayPath) {
+  const section = extractMarkedSection(
+    markdown,
+    '<!-- oauth-scope-inventory:start -->',
+    '<!-- oauth-scope-inventory:end -->',
+    displayPath
+  );
+  const scopes = [];
+  const pattern = /^\|\s*`(https:\/\/www\.googleapis\.com\/auth\/[^`]+)`\s*\|/gm;
+  let match = pattern.exec(section);
+  while (match) {
+    scopes.push(match[1]);
+    match = pattern.exec(section);
+  }
+  if (scopes.length === 0) {
+    throw new Error(`${displayPath} OAuth scope inventory table does not contain any scope rows`);
+  }
+  return scopes;
+}
+
 function extractResolveAstBindingNames(astText) {
   const names = new Set();
   const pattern = /astResolveAstBinding\('([A-Za-z0-9_]+)'/g;
@@ -218,13 +259,62 @@ for (const file of jsFiles) {
 
 const manifestPath = path.join(APPS_DIR, 'appsscript.json');
 const manifest = JSON.parse(readText(manifestPath));
+const manifestDisplayPath = 'apps_script_tools/appsscript.json';
+const publicAccessValues = new Set(['ANYONE', 'ANYONE_ANONYMOUS']);
 
-if (manifest.executionApi?.access === 'ANYONE') {
-  findings.push('Manifest cannot expose executionApi.access=ANYONE');
+if (publicAccessValues.has(manifest.executionApi?.access)) {
+  findings.push(`Manifest cannot expose executionApi.access=${manifest.executionApi.access}`);
+}
+
+if (publicAccessValues.has(manifest.webapp?.access)) {
+  findings.push(`Manifest cannot expose webapp.access=${manifest.webapp.access}`);
+}
+
+if (manifest.webapp?.executeAs === 'USER_DEPLOYING') {
+  findings.push('Manifest cannot configure webapp.executeAs=USER_DEPLOYING');
 }
 
 if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
   findings.push('Manifest must declare explicit oauthScopes');
+} else {
+  const invalidScopes = manifest.oauthScopes.filter(scope => {
+    return typeof scope !== 'string' || scope.trim().length === 0;
+  });
+  if (invalidScopes.length > 0) {
+    findings.push('Manifest oauthScopes must contain only non-empty strings');
+  }
+
+  const duplicateScopes = findDuplicates(manifest.oauthScopes);
+  if (duplicateScopes.length > 0) {
+    findings.push(`Manifest oauthScopes contain duplicate entries: ${duplicateScopes.sort().join(', ')}`);
+  }
+
+  const inventoryDisplayPath = 'docs/operations/oauth-scopes.md';
+  const inventoryPath = path.join(ROOT, inventoryDisplayPath);
+  if (!fs.existsSync(inventoryPath)) {
+    findings.push(`${inventoryDisplayPath} is required for OAuth scope review.`);
+  } else {
+    try {
+      const inventoryScopes = extractOAuthScopeInventory(readText(inventoryPath), inventoryDisplayPath);
+      const duplicateInventoryScopes = findDuplicates(inventoryScopes);
+      if (duplicateInventoryScopes.length > 0) {
+        findings.push(`${inventoryDisplayPath} contains duplicate OAuth scope entries: ${duplicateInventoryScopes.sort().join(', ')}`);
+      }
+
+      const manifestScopeSet = new Set(manifest.oauthScopes);
+      const inventoryScopeSet = new Set(inventoryScopes);
+      const undocumentedScopes = diffSets(manifestScopeSet, inventoryScopeSet);
+      const staleInventoryScopes = diffSets(inventoryScopeSet, manifestScopeSet);
+      if (undocumentedScopes.length > 0) {
+        findings.push(`${manifestDisplayPath} declares OAuth scopes missing from ${inventoryDisplayPath}: ${undocumentedScopes.sort().join(', ')}`);
+      }
+      if (staleInventoryScopes.length > 0) {
+        findings.push(`${inventoryDisplayPath} documents OAuth scopes not declared in ${manifestDisplayPath}: ${staleInventoryScopes.sort().join(', ')}`);
+      }
+    } catch (error) {
+      findings.push(error.message);
+    }
+  }
 }
 
 const rootClaspIgnorePath = path.join(ROOT, '.claspignore');

@@ -15,9 +15,10 @@ Use semantic tags:
 5. test project only: `clasp run runPerformanceBenchmarks`
 6. test project only, optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
 7. production project only, after the test deployment guard passes: `clasp push`
-8. validate library from a clean consumer Apps Script project
+8. confirm OAuth scope inventory and cookbook manifest guardrails with `npm run lint`
+9. validate library from a clean consumer Apps Script project
 
-`npm run verify:release` includes the lockfile-backed dependency audit (`npm run test:dependencies`). Keep `package-lock.json` committed; CI installs with `npm ci --ignore-scripts` and does not fall back to `npm install`.
+`npm run verify:release` includes the lockfile-backed dependency audit (`npm run test:dependencies`). Keep `package-lock.json` committed; CI installs with `npm ci --ignore-scripts` and does not fall back to `npm install`. The lint portion also compares `apps_script_tools/appsscript.json` with the OAuth scope inventory and checks cookbook manifest access/library guardrails.
 
 ## `v0.0.5` Release Prep Notes
 
@@ -65,6 +66,8 @@ Repository guardrails (enforced by `npm run lint`):
   - `"scriptId": "<YOUR_SCRIPT_ID>"`
   - `"rootDir": "apps_script_tools"`
 - tracked secret/config files are blocked (`.clasp.json`, `.clasprc.json`, `creds.json`, `client_secret.json`).
+- `docs/operations/oauth-scopes.md` must match the production manifest OAuth scope set.
+- cookbook manifests must keep the expected AST library binding, V8 runtime settings, reviewed scope set, and non-public execution/webapp access.
 
 Publish flow:
 
