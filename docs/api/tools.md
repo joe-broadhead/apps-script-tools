@@ -238,6 +238,8 @@ Logger.log(out.output.statusCode);
 Workspace interoperability surfaces:
 
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
+- `ASTX.Sheets.EnhancedSheet`, `ASTX.Sheets.EnhancedSpreadsheet`
+- `ASTX.Sheets.numberToSheetRangeNotation`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
 ## `ASTX.Cache`
@@ -1101,7 +1103,7 @@ See:
 
 ## `ASTX.Utils`
 
-`Utils` exposes public utility helpers.
+`Utils` exposes public utility helpers. For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.
 
 Examples:
 
@@ -1109,7 +1111,82 @@ Examples:
 - `ASTX.Utils.dateAdd(new Date(), 1, 'days')`
 - `ASTX.Utils.toSnakeCase('Hello World')`
 
-For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.
+Public helpers:
+
+```javascript
+ASTX.Utils.addValues(...)
+ASTX.Utils.applySchemaToObject(...)
+ASTX.Utils.applySchemaToRecords(...)
+ASTX.Utils.applyTransformationsToObject(...)
+ASTX.Utils.applyTransformationsToRecords(...)
+ASTX.Utils.arrayApply(...)
+ASTX.Utils.arrayAstype(...)
+ASTX.Utils.arrayChunk(...)
+ASTX.Utils.arrayClip(...)
+ASTX.Utils.arrayCumsum(...)
+ASTX.Utils.arrayDifference(...)
+ASTX.Utils.arrayFromRange(...)
+ASTX.Utils.arrayIntersect(...)
+ASTX.Utils.arrayLen(...)
+ASTX.Utils.arrayMax(...)
+ASTX.Utils.arrayMean(...)
+ASTX.Utils.arrayMedian(...)
+ASTX.Utils.arrayMin(...)
+ASTX.Utils.arrayMode(...)
+ASTX.Utils.arrayNunique(...)
+ASTX.Utils.arrayProduct(...)
+ASTX.Utils.arrayRange(...)
+ASTX.Utils.arrayRank(...)
+ASTX.Utils.arrayRolling(...)
+ASTX.Utils.arraySort(...)
+ASTX.Utils.arrayStandardDeviation(...)
+ASTX.Utils.arraySum(...)
+ASTX.Utils.arrayTranspose(...)
+ASTX.Utils.arrayUnion(...)
+ASTX.Utils.arrayUnique(...)
+ASTX.Utils.arrayValueCounts(...)
+ASTX.Utils.arrayVariance(...)
+ASTX.Utils.checkRecordsAreConsistent(...)
+ASTX.Utils.clipValues(...)
+ASTX.Utils.coerceValues(...)
+ASTX.Utils.concatValues(...)
+ASTX.Utils.convertDateToUnixTimestamp(...)
+ASTX.Utils.convertIntervalToDurationInMilliseconds(...)
+ASTX.Utils.convertMillisecondsToInterval(...)
+ASTX.Utils.convertRecordsToCsvFormat(...)
+ASTX.Utils.dateAdd(...)
+ASTX.Utils.dateDiff(...)
+ASTX.Utils.dateSub(...)
+ASTX.Utils.decrypt(...)
+ASTX.Utils.divideValues(...)
+ASTX.Utils.encrypt(...)
+ASTX.Utils.flattenObject(...)
+ASTX.Utils.getValueAtPath(...)
+ASTX.Utils.groupRecordsOnKeys(...)
+ASTX.Utils.joinRecordsOnKeys(...)
+ASTX.Utils.multiplyValues(...)
+ASTX.Utils.newlineJsonToRecords(...)
+ASTX.Utils.normalizeValues(...)
+ASTX.Utils.pad(...)
+ASTX.Utils.recordsToNewlineJson(...)
+ASTX.Utils.removeDuplicatesFromRecords(...)
+ASTX.Utils.removeKeysFromObject(...)
+ASTX.Utils.renameKeysInObject(...)
+ASTX.Utils.renameKeysInRecords(...)
+ASTX.Utils.selectKeysFromObject(...)
+ASTX.Utils.sha256Hash(...)
+ASTX.Utils.standardizeArrays(...)
+ASTX.Utils.standardizeRecords(...)
+ASTX.Utils.subtractValues(...)
+ASTX.Utils.toCapitalCase(...)
+ASTX.Utils.toSnakeCase(...)
+ASTX.Utils.toTitleCase(...)
+ASTX.Utils.unzipObjectIntoArrays(...)
+ASTX.Utils.unzipRecordsIntoArrays(...)
+ASTX.Utils.zfill(...)
+ASTX.Utils.zipArraysIntoObject(...)
+ASTX.Utils.zipArraysIntoRecords(...)
+```
 
 ## `ASTX.DBT`
 

@@ -141,7 +141,7 @@ test: () => astTestRunWithAssertions(t => {
 For app workloads with concurrent users:
 
 - prefer `ASTX.Cache` backend `storage_json`
-- use `ASTX.Jobs` with `checkpointStore='storage'` and provider URI (`gcs://`, `s3://`, or `dbfs:/`)
+- use `ASTX.Jobs` with the supported `checkpointStore='properties'`; design long-running handlers to checkpoint compact, JSON-serializable state
 - keep telemetry sink on `logger` for low overhead unless a storage-backed sink is configured
 - treat `drive_json` and `script_properties` cache backends as low-scale options
 

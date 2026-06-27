@@ -33,7 +33,10 @@ function secretsGetExample() {
     key: 'OPENAI_API_KEY'
   });
 
-  Logger.log(out.value);
+  Logger.log({
+    resolved: Boolean(out.value),
+    provider: out.provider
+  });
 }
 ```
 
@@ -104,7 +107,10 @@ function secretsResolveValueExample() {
     'secret://script_properties/OPENAI_API_KEY'
   );
 
-  Logger.log(resolved);
+  Logger.log({
+    resolved: Boolean(resolved),
+    source: 'script_properties'
+  });
 }
 ```
 

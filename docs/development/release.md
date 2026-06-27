@@ -19,6 +19,7 @@ npm run lint
 npm run test:local:coverage
 npm run test:perf:check
 npm run test:security
+npm run check:cookbooks
 mkdocs build --strict
 ```
 
@@ -61,6 +62,14 @@ npm run check:cookbooks
 - Run every changed cookbook's smoke entrypoint before release.
 - For shared module changes, also run the cookbook rows that depend on those modules even if the cookbook itself did not change.
 - Keep `cookbooks/README.md` and `docs/getting-started/cookbooks.md` aligned with the published cookbook set.
+
+Documentation freshness checklist:
+
+- `README.md`, [Installation](../getting-started/installation.md), [API Quick Reference](../api/quick-reference.md), and [API Tools](../api/tools.md) must use the same recommended library identifier (`ASTLib`) and local alias (`ASTX`), with custom identifiers called out explicitly.
+- [API Quick Reference](../api/quick-reference.md) must match the exported `AST` namespace in `apps_script_tools/AST.js`; `npm run lint` enforces the namespace plus `Cache`, `Jobs`, `Sheets`, and `Utils` public-surface lists.
+- [API Tools](../api/tools.md) must include the exported `Sheets` helpers/classes and public `Utils` helper list from `apps_script_tools/AST.js`.
+- Jobs docs must describe only supported checkpoint stores; current runtime support is `checkpointStore='properties'`.
+- Secrets docs must not print raw secret values in logging examples; use boolean/redacted verification output.
 
 Consumer validation (recommended):
 

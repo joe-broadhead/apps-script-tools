@@ -9,16 +9,18 @@ Use semantic tags:
 ## Pre-Release Checklist
 
 1. `npm run lint`
-2. `npm run test:local`
+2. `npm run test:local:coverage`
 3. `npm run test:perf:check`
-4. `mkdocs build --strict`
-5. `npm run check:clasp:production`
-6. production project only: `clasp push`
-7. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
-8. `clasp run runAllTests`
-9. `clasp run runPerformanceBenchmarks`
-10. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
-11. validate library from a clean consumer Apps Script project
+4. `npm run test:security`
+5. `mkdocs build --strict`
+6. `npm run check:cookbooks`
+7. `npm run check:clasp:production`
+8. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
+9. production project only, after the test deployment guard passes: `clasp push`
+10. `clasp run runAllTests`
+11. `clasp run runPerformanceBenchmarks`
+12. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+13. validate library from a clean consumer Apps Script project
 
 ## `v0.0.5` Release Prep Notes
 
@@ -98,7 +100,7 @@ Tag push matching `v*` triggers:
 Include:
 
 - script ID
-- library identifier (`AST`)
+- recommended library identifier (`ASTLib`) or the custom identifier used by the release smoke project
 - exact mapping (`vX.Y.Z -> Apps Script version N`)
 - key changes and migration guidance
 - docs URL

@@ -147,6 +147,22 @@ function extractAstUtilityNames(astText) {
   return values;
 }
 
+function extractAstFacadeObjectKeys(astText, namespace) {
+  const pattern = new RegExp(
+    `${escapeRegExp(namespace)}:\\s*\\{\\s*get:\\s*\\(\\)\\s*=>\\s*\\(\\{([\\s\\S]*?)\\}\\),\\s*enumerable:\\s*true\\s*\\}`,
+    'm'
+  );
+  const match = astText.match(pattern);
+  if (!match) {
+    throw new Error(`Unable to locate AST.${namespace} facade object in AST.js`);
+  }
+  return extractIndentedKeys(match[1], 6);
+}
+
+function findMissingDocTokens(markdown, tokens) {
+  return [...tokens].filter(token => !markdown.includes(token));
+}
+
 function extractResolveAstBindingNames(astText) {
   const names = new Set();
   const pattern = /astResolveAstBinding\('([A-Za-z0-9_]+)'/g;
@@ -377,6 +393,7 @@ const astPath = path.join(APPS_DIR, 'AST.js');
 const cacheApiPath = path.join(APPS_DIR, 'cache', 'Cache.js');
 const jobsApiPath = path.join(APPS_DIR, 'jobs', 'Jobs.js');
 const quickReferencePath = path.join(ROOT, 'docs', 'api', 'quick-reference.md');
+const toolsReferencePath = path.join(ROOT, 'docs', 'api', 'tools.md');
 const docsIndexPath = path.join(ROOT, 'docs', 'index.md');
 const readmePath = path.join(ROOT, 'README.md');
 
@@ -385,14 +402,17 @@ try {
   const cacheApiText = readText(cacheApiPath);
   const jobsApiText = readText(jobsApiPath);
   const quickReferenceText = readText(quickReferencePath);
+  const toolsReferenceText = readText(toolsReferencePath);
 
   const runtimeNamespace = extractAstNamespaceKeys(astText);
   const runtimeCacheMethods = extractObjectFreezeKeys(cacheApiText, 'AST_CACHE');
   const runtimeJobsMethods = extractObjectFreezeKeys(jobsApiText, 'AST_JOBS');
+  const runtimeSheetsMethods = extractAstFacadeObjectKeys(astText, 'Sheets');
 
   const docNamespace = extractDocMethods(quickReferenceText, 'Namespace', 'ASTX.');
   const docCacheMethods = extractDocMethods(quickReferenceText, '`Cache` essentials', 'ASTX.Cache.');
   const docJobsMethods = extractDocMethods(quickReferenceText, '`Jobs` essentials', 'ASTX.Jobs.');
+  const docSheetsMethods = extractDocMethods(quickReferenceText, 'Workspace helpers', 'ASTX.Sheets.');
 
   const namespaceMissingInDocs = diffSets(runtimeNamespace, docNamespace);
   const namespaceMissingInRuntime = diffSets(docNamespace, runtimeNamespace);
@@ -433,6 +453,19 @@ try {
     );
   }
 
+  const sheetsMissingInDocs = diffSets(runtimeSheetsMethods, docSheetsMethods);
+  const sheetsMissingInRuntime = diffSets(docSheetsMethods, runtimeSheetsMethods);
+  if (sheetsMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Workspace helpers is missing Sheets exports: ${sheetsMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (sheetsMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Workspace helpers documents unknown Sheets exports: ${sheetsMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
   const claimSources = [
     { path: 'README.md', text: readText(readmePath) },
     { path: 'docs/index.md', text: readText(docsIndexPath) },
@@ -462,6 +495,35 @@ try {
   });
 
   const astUtilityNames = extractAstUtilityNames(astText);
+  const docUtilsMethods = extractDocMethods(quickReferenceText, '`Utils` essentials', 'ASTX.Utils.');
+  const utilsMissingInDocs = diffSets(astUtilityNames, docUtilsMethods);
+  const utilsMissingInRuntime = diffSets(docUtilsMethods, astUtilityNames);
+  if (utilsMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Utils essentials is missing utility exports: ${utilsMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (utilsMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Utils essentials documents unknown utility exports: ${utilsMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
+  const sheetDocTokens = new Set([...runtimeSheetsMethods].map(name => `ASTX.Sheets.${name}`));
+  const utilDocTokens = new Set([...astUtilityNames].map(name => `ASTX.Utils.${name}`));
+  const toolsSheetsMissing = findMissingDocTokens(toolsReferenceText, sheetDocTokens);
+  const toolsUtilsMissing = findMissingDocTokens(toolsReferenceText, utilDocTokens);
+  if (toolsSheetsMissing.length > 0) {
+    findings.push(
+      `API tools docs are missing Sheets exports: ${toolsSheetsMissing.sort().join(', ')}`
+    );
+  }
+  if (toolsUtilsMissing.length > 0) {
+    findings.push(
+      `API tools docs are missing utility exports: ${toolsUtilsMissing.sort().join(', ')}`
+    );
+  }
+
   const astBindingNames = extractResolveAstBindingNames(astText);
 
   jsFiles

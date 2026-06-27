@@ -49,7 +49,7 @@ Release notes and version details:
 1. In your Apps Script project, open **Libraries**.
 2. Add script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`.
 3. Select the latest published version.
-4. Use identifier: `AST` (or your preferred alias).
+4. Use identifier: `ASTLib` (or your preferred alias).
 
 ## Quick start
 
@@ -69,6 +69,8 @@ function demoAstLibrary() {
   Logger.log(enriched.toMarkdown());
 }
 ```
+
+If you choose a different Apps Script library identifier, replace `ASTLib` in the normalization line with that identifier. For example, identifier `AST` uses `const ASTX = AST.AST || AST;`.
 
 ## Documentation
 
