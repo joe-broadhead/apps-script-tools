@@ -89,8 +89,15 @@ PR CI runs `suite=functional` through the `gas-functional` job (internal PRs and
 
 Required repository settings for integration workflows:
 
-- variable: `GAS_SCRIPT_ID`
+- variables: `GAS_SCRIPT_ID` for the production library project, `GAS_TEST_SCRIPT_ID` for the separate test project
 - secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`
+
+Production-vs-test deployment behavior:
+
+- Production library pushes use root `.claspignore`, which excludes `apps_script_tools/testing/**` and live-smoke entrypoints.
+- Remote Apps Script tests push to the separate `GAS_TEST_SCRIPT_ID` project with `.claspignore.test` via `npm run clasp:test-push`, then run `runAllTests` or `runPerformanceBenchmarks` there. The wrapper passes `.claspignore.test` through clasp's alternate ignore-file setting and does not edit production `.claspignore`.
+- The test-push wrapper refuses to run unless local `.clasp.json` is bound to `GAS_TEST_SCRIPT_ID` and distinct from `GAS_PRODUCTION_SCRIPT_ID`/`GAS_SCRIPT_ID`; this prevents accidentally disabling the production ignore rules against the production script.
+- `npm run check:clasp:production` verifies the production push set before any test-mode push.
 
 Secret scoping requirements:
 
@@ -107,7 +114,8 @@ Or locally with configured `clasp` auth:
 
 ```bash
 clasp status
-clasp push
+npm run check:clasp:production
+GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
 ```

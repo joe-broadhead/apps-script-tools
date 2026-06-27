@@ -26,7 +26,8 @@ Apps Script runtime validation:
 
 ```bash
 clasp status
-clasp push
+npm run check:clasp:production
+GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
 clasp run runAiLiveSmoke --params '[\"openai\",\"Reply with OK\",\"\"]' # optional
@@ -37,12 +38,14 @@ clasp run runGitHubLiveSmokeForRepo --params '[\"octocat\",\"hello-world\"]' # o
 Core library vs cookbook projects:
 
 - Core library release uses repository root `.clasp.json` (local), root `.claspignore`, and `rootDir=apps_script_tools`.
+- Production pushes use `.claspignore` and exclude `apps_script_tools/testing/**`; remote runtime tests use a separate test Apps Script project plus `.claspignore.test` through `npm run clasp:test-push`.
+- `npm run clasp:test-push` refuses to run unless local `.clasp.json` is bound to `GAS_TEST_SCRIPT_ID` and distinct from `GAS_PRODUCTION_SCRIPT_ID`/`GAS_SCRIPT_ID`; do not point test deployment commands at the production library script ID.
 - Cookbook apps under `cookbooks/` should use their own local `.clasp.json` (`rootDir=src`) and isolated deployment lifecycle.
 - Keep cookbook-specific UI/workflow code out of `apps_script_tools/` unless promoting reusable library functionality.
 
 CI workflow config:
 
-- Set repository variable `GAS_SCRIPT_ID` for GitHub Actions integration workflows.
+- Set repository variable `GAS_SCRIPT_ID` for the production library project and `GAS_TEST_SCRIPT_ID` for GitHub Actions integration/live-smoke workflows.
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
 - Keep `CLASP_*` secrets out of workflow job-level `env`; inject them only into the dedicated clasp-auth step after checkout, Node dependency installation, and clasp installation have finished.
 - Keep live-smoke provider tokens scoped to the exact step that needs them; do not expose them to checkout, dependency installation, clasp installation, or unrelated push/test steps.

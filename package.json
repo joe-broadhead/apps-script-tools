@@ -5,6 +5,8 @@
   "description": "Google Apps Script data toolkit",
   "scripts": {
     "check:cookbooks": "node scripts/check-cookbooks.mjs",
+    "check:clasp:production": "node scripts/check-clasp-production-push.mjs",
+    "clasp:test-push": "node scripts/with-test-claspignore.mjs -- clasp push",
     "lint": "node scripts/lint.mjs",
     "test:local": "node --test tests/local/*.test.mjs",
     "test:local:coverage": "node scripts/run-local-coverage.mjs",

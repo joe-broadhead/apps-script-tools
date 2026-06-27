@@ -137,7 +137,7 @@ Global structures note:
 - Perf gate: `npm run test:perf:check`
 - Security gate: `npm run test:security`
 - Docs gate: `mkdocs build --strict`
-- Apps Script integration gate (when configured): `clasp push && clasp run runAllTests`
+- Apps Script integration gate (when configured against a test script project): `npm run check:clasp:production && GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push && clasp run runAllTests`
 - Full contributor guide: `CONTRIBUTING.md`
 
 ## Release

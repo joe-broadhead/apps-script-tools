@@ -12,11 +12,13 @@ Use semantic tags:
 2. `npm run test:local`
 3. `npm run test:perf:check`
 4. `mkdocs build --strict`
-5. `clasp push`
-6. `clasp run runAllTests`
-7. `clasp run runPerformanceBenchmarks`
-8. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
-9. validate library from a clean consumer Apps Script project
+5. `npm run check:clasp:production`
+6. production project only: `clasp push`
+7. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
+8. `clasp run runAllTests`
+9. `clasp run runPerformanceBenchmarks`
+10. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+11. validate library from a clean consumer Apps Script project
 
 ## `v0.0.5` Release Prep Notes
 
@@ -48,6 +50,9 @@ Use a local `.clasp.json` (not committed):
 `.claspignore` model:
 
 - for the core library publish flow, root `.claspignore` is authoritative.
+- production `.claspignore` excludes `apps_script_tools/testing/**` and live-smoke entrypoints.
+- remote runtime test flows use a separate test Apps Script project and `.claspignore.test` via `npm run clasp:test-push`.
+- test pushes refuse to run unless local `.clasp.json` is bound to `GAS_TEST_SCRIPT_ID` and distinct from `GAS_PRODUCTION_SCRIPT_ID`/`GAS_SCRIPT_ID`.
 - do not add nested `.claspignore` files under `apps_script_tools/`.
 - cookbook projects under `cookbooks/` are separate `clasp` workspaces and may include their own local `.claspignore` and `.clasp.json`.
 - keep `.clasp.json` local-only (untracked) and use `.clasp.json.example` as the committed template.
@@ -55,6 +60,7 @@ Use a local `.clasp.json` (not committed):
 Repository guardrails (enforced by `npm run lint`):
 
 - root `.claspignore` must exist.
+- `.claspignore.test` must exist and include the Apps Script runtime test harness for test deployments.
 - `apps_script_tools/.claspignore` must not exist.
 - `.clasp.json.example` must remain a valid template with:
   - `"scriptId": "<YOUR_SCRIPT_ID>"`
@@ -65,6 +71,7 @@ Publish flow:
 
 ```bash
 clasp status
+npm run check:clasp:production
 clasp push
 clasp version "vX.Y.Z"
 clasp versions

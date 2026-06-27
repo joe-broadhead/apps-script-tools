@@ -214,6 +214,27 @@ if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
 const rootClaspIgnorePath = path.join(ROOT, '.claspignore');
 if (!fs.existsSync(rootClaspIgnorePath)) {
   findings.push('Root .claspignore is required and is the only allowed clasp ignore file.');
+} else {
+  const claspIgnoreText = readText(rootClaspIgnorePath);
+  if (!/^testing\/\*\*\s*$/m.test(claspIgnoreText)) {
+    findings.push('Production .claspignore must exclude testing/**.');
+  }
+  if (!/^\.opencowork\/\*\*\s*$/m.test(claspIgnoreText)) {
+    findings.push('Production .claspignore must exclude .opencowork/** local metadata.');
+  }
+}
+
+const testClaspIgnorePath = path.join(ROOT, '.claspignore.test');
+if (!fs.existsSync(testClaspIgnorePath)) {
+  findings.push('Missing .claspignore.test for Apps Script test deployments.');
+} else {
+  const testClaspIgnoreText = readText(testClaspIgnorePath);
+  if (/^testing\/\*\*\s*$/m.test(testClaspIgnoreText)) {
+    findings.push('.claspignore.test must include apps_script_tools/testing/** for remote test deployments.');
+  }
+  if (!/^\.opencowork\/\*\*\s*$/m.test(testClaspIgnoreText)) {
+    findings.push('.claspignore.test must exclude .opencowork/** local metadata.');
+  }
 }
 
 const claspTemplatePath = path.join(ROOT, '.clasp.json.example');
@@ -299,8 +320,34 @@ ciSecretScopeWorkflows.forEach(workflow => {
     if (!workflowText.includes('uses: ./.github/actions/configure-clasp-auth')) {
       findings.push(`${workflow.path} must use the dedicated configure-clasp-auth action for clasp secrets.`);
     }
+    if (!workflowText.includes('vars.GAS_TEST_SCRIPT_ID')) {
+      findings.push(`${workflow.path} must target GAS_TEST_SCRIPT_ID, not the production script ID.`);
+    }
+    if (!workflowText.includes('GAS_PRODUCTION_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}')) {
+      findings.push(`${workflow.path} must pass GAS_SCRIPT_ID as GAS_PRODUCTION_SCRIPT_ID for test-push safety checks.`);
+    }
+    if (/script-id:\s*\$\{\{\s*env\.GAS_PRODUCTION_SCRIPT_ID\s*\}\}/.test(workflowText)) {
+      findings.push(`${workflow.path} must not bind setup-clasp to the production script ID.`);
+    }
+    if (!workflowText.includes('npm run check:clasp:production')) {
+      findings.push(`${workflow.path} must verify the production clasp push set before test deployment.`);
+    }
+    if (!workflowText.includes('npm run clasp:test-push')) {
+      findings.push(`${workflow.path} must use the test clasp ignore wrapper for remote test pushes.`);
+    }
   }
 });
+
+const ciWorkflowPath = path.join(ROOT, '.github/workflows/ci.yml');
+if (fs.existsSync(ciWorkflowPath)) {
+  const ciWorkflowText = readText(ciWorkflowPath);
+  if (!ciWorkflowText.includes('vars.GAS_TEST_SCRIPT_ID')) {
+    findings.push('CI gas-secrets-check must require GAS_TEST_SCRIPT_ID for remote Apps Script tests.');
+  }
+  if (!ciWorkflowText.includes('vars.GAS_SCRIPT_ID')) {
+    findings.push('CI gas-secrets-check must require GAS_SCRIPT_ID so test pushes can reject the production project.');
+  }
+}
 
 const setupClaspActionPath = path.join(ROOT, '.github/actions/setup-clasp/action.yml');
 if (!fs.existsSync(setupClaspActionPath)) {

@@ -113,7 +113,7 @@ jobs:
       - name: Check clasp secrets
         id: check
         run: |
-          if [ -n "${{ secrets.CLASP_CLIENT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_SECRET }}" ] && [ -n "${{ secrets.CLASP_REFRESH_TOKEN }}" ]; then
+          if [ -n "${{ vars.GAS_SCRIPT_ID }}" ] && [ -n "${{ vars.GAS_TEST_SCRIPT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_SECRET }}" ] && [ -n "${{ secrets.CLASP_REFRESH_TOKEN }}" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"

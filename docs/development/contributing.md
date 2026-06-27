@@ -25,7 +25,8 @@ mkdocs build --strict
 Apps Script integration checks when credentials are configured:
 
 ```bash
-clasp push
+npm run check:clasp:production
+GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push
 clasp run runAllTests
 ```
 

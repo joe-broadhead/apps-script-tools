@@ -33,7 +33,8 @@ jobs:
   gas-tests:
     runs-on: ubuntu-latest
     env:
-      SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
+      GAS_TEST_SCRIPT_ID: ${{ vars.GAS_TEST_SCRIPT_ID }}
+      GAS_PRODUCTION_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
       - name: Setup clasp CLI and binding
         uses: ./.github/actions/setup-clasp
         with:
-          script-id: ${{ env.SCRIPT_ID }}
+          script-id: ${{ env.GAS_TEST_SCRIPT_ID }}
           root-dir: apps_script_tools
 
       - name: Configure clasp auth
@@ -55,6 +56,9 @@ jobs:
           clasp-client-id: ${{ secrets.CLASP_CLIENT_ID }}
           clasp-client-secret: ${{ secrets.CLASP_CLIENT_SECRET }}
           clasp-refresh-token: ${{ secrets.CLASP_REFRESH_TOKEN }}
+
+      - name: Verify production clasp push set
+        run: npm run check:clasp:production
 
       - name: Push and execute integration tests
         env:
@@ -66,7 +70,7 @@ jobs:
           exec > >(tee "${LOG_FILE}") 2>&1
 
           clasp status
-          clasp push
+          npm run clasp:test-push
           if [ "${INPUT_SUITE}" = "perf" ]; then
             clasp run runPerformanceBenchmarks
           else

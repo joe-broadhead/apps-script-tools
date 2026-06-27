@@ -30,7 +30,7 @@ runs:
       run: |
         set -euo pipefail
         if [ -z "${{ inputs.script-id }}" ]; then
-          echo "Missing script-id input. Configure repository variable GAS_SCRIPT_ID."
+          echo "Missing script-id input. Configure the workflow's Apps Script project ID variable."
           exit 1
         fi
         cat > .clasp.json <<JSON
