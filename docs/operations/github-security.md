@@ -39,6 +39,13 @@
 - Webhook secrets are never included in thrown error details.
 - Avoid logging full request/response payloads containing secrets.
 
+## Live-smoke token cleanup
+
+- `.github/workflows/integration-github-live.yml` passes the GitHub token directly to `runGitHubLiveSmoke(...)`; it does not persist the token into script properties.
+- The legacy `seedGitHubLiveSmokeToken(...)` helper writes only the `GITHUB_TOKEN` script property for manual smoke runs that cannot pass a token directly.
+- `cleanupGitHubLiveSmokeToken()` deletes `GITHUB_TOKEN` and logs only key/status metadata, never the token value.
+- The GitHub live-smoke workflow runs cleanup with `if: always()` after the smoke step. For incident recovery, run `clasp run cleanupGitHubLiveSmokeToken` against the affected test Apps Script project.
+
 ## Retry and rate-limit behavior
 
 - Retries are limited to transient statuses (`429`, `502`, `503`, `504`) and secondary-rate-limit `403`.

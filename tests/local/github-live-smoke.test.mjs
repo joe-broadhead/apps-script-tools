@@ -124,6 +124,48 @@ test('seedGitHubLiveSmokeToken stores token in script properties', () => {
   assert.equal(writes[0].value, 'ghp_seedTokenValue1234567890');
 });
 
+test('cleanupGitHubLiveSmokeToken deletes token without exposing value', () => {
+  const calls = [];
+  let stored = 'ghp_existingTokenValue1234567890';
+  const context = createContextForLiveSmoke({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: key => (key === 'GITHUB_TOKEN' ? stored : ''),
+        deleteProperty: key => {
+          calls.push({ method: 'deleteProperty', key });
+          if (key === 'GITHUB_TOKEN') {
+            stored = '';
+          }
+        }
+      })
+    }
+  });
+
+  const response = context.cleanupGitHubLiveSmokeToken();
+  assert.equal(response.status, 'ok');
+  assert.equal(response.key, 'GITHUB_TOKEN');
+  assert.equal(response.deleted, true);
+  assert.equal(response.existed, true);
+  assert.deepEqual(calls, [{ method: 'deleteProperty', key: 'GITHUB_TOKEN' }]);
+  assert.equal(stored, '');
+  assert.equal(JSON.stringify(response).includes('ghp_existingTokenValue'), false);
+});
+
+test('cleanupGitHubLiveSmokeToken fails closed when deleteProperty is unavailable', () => {
+  const context = createContextForLiveSmoke({
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: () => 'ghp_existingTokenValue1234567890'
+      })
+    }
+  });
+
+  assert.throws(
+    () => context.cleanupGitHubLiveSmokeToken(),
+    /deleteProperty/
+  );
+});
+
 test('seedGitHubLiveSmokeToken rejects empty token', () => {
   const context = createContextForLiveSmoke();
   assert.throws(

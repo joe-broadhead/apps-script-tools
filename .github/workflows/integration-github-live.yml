@@ -54,19 +54,26 @@ jobs:
           clasp status
           npm run clasp:test-push
 
-      - name: Seed GitHub live-smoke token
-        env:
-          LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          GITHUB_TOKEN_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.LIVE_GITHUB_TOKEN || '']))")"
-          clasp run seedGitHubLiveSmokeToken --params "$GITHUB_TOKEN_PARAMS"
-
       - name: Execute GitHub live smoke
         env:
+          LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_OWNER: ${{ inputs.owner }}
           INPUT_REPO: ${{ inputs.repo }}
         run: |
           set -euo pipefail
-          GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
-          clasp run runGitHubLiveSmokeForRepo --params "$GITHUB_PARAMS"
+          GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.LIVE_GITHUB_TOKEN || '', process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
+          clasp run runGitHubLiveSmoke --params "$GITHUB_PARAMS"
+
+      - name: Clean up GitHub live-smoke token
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! command -v clasp >/dev/null 2>&1; then
+            echo "::warning::Skipping GitHub live-smoke cleanup because clasp is not installed."
+            exit 0
+          fi
+          if [ ! -f .clasp.json ]; then
+            echo "::warning::Skipping GitHub live-smoke cleanup because .clasp.json is unavailable."
+            exit 0
+          fi
+          clasp run cleanupGitHubLiveSmokeToken
