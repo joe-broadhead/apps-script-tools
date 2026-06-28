@@ -1,0 +1,51 @@
+name: Configure clasp auth
+description: Write clasp OAuth credentials for steps that need authenticated Apps Script commands.
+
+inputs:
+  clasp-client-id:
+    description: OAuth client ID used by clasp.
+    required: true
+  clasp-client-secret:
+    description: OAuth client secret used by clasp.
+    required: true
+  clasp-refresh-token:
+    description: OAuth refresh token used by clasp.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure clasp auth
+      shell: bash
+      env:
+        CLASP_CLIENT_ID: ${{ inputs.clasp-client-id }}
+        CLASP_CLIENT_SECRET: ${{ inputs.clasp-client-secret }}
+        CLASP_REFRESH_TOKEN: ${{ inputs.clasp-refresh-token }}
+      run: |
+        set -euo pipefail
+        if [ -z "${CLASP_CLIENT_ID}" ] || [ -z "${CLASP_CLIENT_SECRET}" ] || [ -z "${CLASP_REFRESH_TOKEN}" ]; then
+          echo "Missing clasp credentials. Set CLASP_CLIENT_ID, CLASP_CLIENT_SECRET, and CLASP_REFRESH_TOKEN secrets."
+          exit 1
+        fi
+        node <<'NODE'
+        const fs = require('node:fs');
+        const os = require('node:os');
+        const path = require('node:path');
+
+        const claspAuth = {
+          tokens: {
+            default: {
+              client_id: process.env.CLASP_CLIENT_ID,
+              client_secret: process.env.CLASP_CLIENT_SECRET,
+              type: 'authorized_user',
+              refresh_token: process.env.CLASP_REFRESH_TOKEN
+            }
+          }
+        };
+
+        fs.writeFileSync(
+          path.join(os.homedir(), '.clasprc.json'),
+          `${JSON.stringify(claspAuth, null, 2)}\n`,
+          { mode: 0o600 }
+        );
+        NODE

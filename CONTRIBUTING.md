@@ -10,12 +10,11 @@
 
 Before opening a PR:
 
-1. `npm run lint`
-2. `npm run test:local:coverage`
-3. `npm run test:perf:check`
-4. `npm run test:security`
-5. `mkdocs build --strict` (for docs changes)
-6. `clasp push && clasp run runAllTests` (when Apps Script credentials are configured)
+1. `npm run verify:release`
+2. Apps Script integration checks when credentials are configured:
+   `npm run check:clasp:production && GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push && clasp run runAllTests`
+
+For inner-loop work, `npm test` runs the fast local gate only (`lint` + local Node tests). It does not enforce coverage, security, docs, or perf thresholds.
 
 Coverage threshold defaults enforced by the local coverage runner and CI:
 
@@ -31,6 +30,12 @@ Override for local experimentation via:
 - `COVERAGE_MIN_FUNCTIONS`
 - `COVERAGE_MIN_FILES`
 - `COVERAGE_ENFORCE` (`true`/`false`)
+
+Dependency policy:
+
+- Commit `package-lock.json` with any npm dependency changes.
+- CI installs with `npm ci --ignore-scripts`; missing lockfiles fail the shared Node setup action.
+- `npm run test:dependencies` runs the lockfile-backed high-severity production dependency audit.
 
 ## Code Standards
 

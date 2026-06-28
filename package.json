@@ -5,13 +5,18 @@
   "description": "Google Apps Script data toolkit",
   "scripts": {
     "check:cookbooks": "node scripts/check-cookbooks.mjs",
+    "check:clasp:production": "node scripts/check-clasp-production-push.mjs",
+    "clasp:test-push": "node scripts/with-test-claspignore.mjs -- clasp push",
     "lint": "node scripts/lint.mjs",
     "test:local": "node --test tests/local/*.test.mjs",
     "test:local:coverage": "node scripts/run-local-coverage.mjs",
     "test:security": "node scripts/security-scan.mjs",
+    "test:dependencies": "npm audit --audit-level=high --omit=dev",
     "test:perf": "node tests/perf/run-perf.mjs --mode report",
-    "test:perf:check": "node tests/perf/run-perf.mjs --mode check",
+    "test:perf:check": "node tests/perf/run-perf.mjs --mode check --samples 3",
     "test:perf:baseline": "node tests/perf/run-perf.mjs --mode baseline --out benchmarks/baselines/node20.json",
-    "test": "npm run lint && npm run test:local"
+    "test:fast": "npm run lint && npm run test:local",
+    "test": "npm run test:fast",
+    "verify:release": "npm run lint && npm run test:local:coverage && npm run test:security && npm run test:dependencies && npm run check:cookbooks && mkdocs build --strict && npm run test:perf:check"
   }
 }

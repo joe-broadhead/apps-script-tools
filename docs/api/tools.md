@@ -197,6 +197,7 @@ High-signal behavior:
 - legacy helper `astReplacePlaceHoldersInQuery(...)` is deprecated and now emits a one-time runtime warning.
 - `prepare(...)` compiles `{{param}}` template placeholders and returns a runtime `statementId`.
 - `executePrepared(...)` safely serializes typed params and returns `{ dataFrame, execution }`.
+- prepared statements are invocation-local runtime-memory entries, not durable across Apps Script executions; inspect `capabilities(provider).preparedStatementLifecycle`.
 - `status(...)` and `cancel(...)` call provider-specific execution-control helpers.
 
 See [SQL Contracts](sql-contracts.md) for provider-specific request details.
@@ -237,6 +238,8 @@ Logger.log(out.output.statusCode);
 Workspace interoperability surfaces:
 
 - `ASTX.Sheets.openById`, `ASTX.Sheets.openByUrl`
+- `ASTX.Sheets.EnhancedSheet`, `ASTX.Sheets.EnhancedSpreadsheet`
+- `ASTX.Sheets.numberToSheetRangeNotation`
 - `ASTX.Drive.read`, `ASTX.Drive.create`
 
 ## `ASTX.Cache`
@@ -524,7 +527,7 @@ Primary methods:
 
 High-signal behavior:
 
-- default target modules: `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`.
+- default target modules: `Http`, `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `Chat`, `Messaging`, `GitHub`.
 - configuration merge policy is controlled by `options.merge` (default `true`).
 - supports scoped application with `options.modules` (for example `['AI', 'RAG']`).
 - forwards `scriptProperties`/`keys`/`prefix`/`stripPrefix` and config snapshot controls (`disableCache`, `forceRefresh`, `cacheScopeId`, `cacheDefaultHandle`) to `AST.Config.fromScriptProperties(...)`.
@@ -803,7 +806,7 @@ Primary methods:
 - `ASTX.Messaging.templates.*` plus `registerTemplate/getTemplate/renderTemplate/sendTemplate` for reusable typed templates.
 - `ASTX.Messaging.inbound.*` plus `verifyInbound/parseInbound/routeInbound` for Google Chat/Slack/Teams webhook verification and routing.
 - `ASTX.Messaging.operations()` and `ASTX.Messaging.capabilities(...)` for runtime discovery.
-- `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.clearConfig()`.
+- `ASTX.Messaging.configure(config)` / `ASTX.Messaging.getConfig()` / `ASTX.Messaging.getResolvedConfig()` / `ASTX.Messaging.clearConfig()`.
 
 High-signal behavior:
 
@@ -884,6 +887,8 @@ const routed = ASTX.Messaging.routeInbound({
 
 Logger.log(JSON.stringify(routed.data.route, null, 2));
 ```
+
+Idempotency and inbound replay default to durable `script_properties` records. Use `storage_json` with `CACHE_STORAGE_URI` for high-volume shared deployments. `memory` backends are execution-local and require explicit dev/test opt-in via `MESSAGING_IDEMPOTENCY_ALLOW_MEMORY=true` or `MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY=true`. `getResolvedConfig()` returns a redacted effective config view.
 
 ## `ASTX.GitHub`
 
@@ -1098,7 +1103,7 @@ See:
 
 ## `ASTX.Utils`
 
-`Utils` exposes public utility helpers.
+`Utils` exposes public utility helpers. For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.
 
 Examples:
 
@@ -1106,7 +1111,82 @@ Examples:
 - `ASTX.Utils.dateAdd(new Date(), 1, 'days')`
 - `ASTX.Utils.toSnakeCase('Hello World')`
 
-For release stability, call through `ASTX.Utils` rather than relying on global utility symbols.
+Public helpers:
+
+```javascript
+ASTX.Utils.addValues(...)
+ASTX.Utils.applySchemaToObject(...)
+ASTX.Utils.applySchemaToRecords(...)
+ASTX.Utils.applyTransformationsToObject(...)
+ASTX.Utils.applyTransformationsToRecords(...)
+ASTX.Utils.arrayApply(...)
+ASTX.Utils.arrayAstype(...)
+ASTX.Utils.arrayChunk(...)
+ASTX.Utils.arrayClip(...)
+ASTX.Utils.arrayCumsum(...)
+ASTX.Utils.arrayDifference(...)
+ASTX.Utils.arrayFromRange(...)
+ASTX.Utils.arrayIntersect(...)
+ASTX.Utils.arrayLen(...)
+ASTX.Utils.arrayMax(...)
+ASTX.Utils.arrayMean(...)
+ASTX.Utils.arrayMedian(...)
+ASTX.Utils.arrayMin(...)
+ASTX.Utils.arrayMode(...)
+ASTX.Utils.arrayNunique(...)
+ASTX.Utils.arrayProduct(...)
+ASTX.Utils.arrayRange(...)
+ASTX.Utils.arrayRank(...)
+ASTX.Utils.arrayRolling(...)
+ASTX.Utils.arraySort(...)
+ASTX.Utils.arrayStandardDeviation(...)
+ASTX.Utils.arraySum(...)
+ASTX.Utils.arrayTranspose(...)
+ASTX.Utils.arrayUnion(...)
+ASTX.Utils.arrayUnique(...)
+ASTX.Utils.arrayValueCounts(...)
+ASTX.Utils.arrayVariance(...)
+ASTX.Utils.checkRecordsAreConsistent(...)
+ASTX.Utils.clipValues(...)
+ASTX.Utils.coerceValues(...)
+ASTX.Utils.concatValues(...)
+ASTX.Utils.convertDateToUnixTimestamp(...)
+ASTX.Utils.convertIntervalToDurationInMilliseconds(...)
+ASTX.Utils.convertMillisecondsToInterval(...)
+ASTX.Utils.convertRecordsToCsvFormat(...)
+ASTX.Utils.dateAdd(...)
+ASTX.Utils.dateDiff(...)
+ASTX.Utils.dateSub(...)
+ASTX.Utils.decrypt(...)
+ASTX.Utils.divideValues(...)
+ASTX.Utils.encrypt(...)
+ASTX.Utils.flattenObject(...)
+ASTX.Utils.getValueAtPath(...)
+ASTX.Utils.groupRecordsOnKeys(...)
+ASTX.Utils.joinRecordsOnKeys(...)
+ASTX.Utils.multiplyValues(...)
+ASTX.Utils.newlineJsonToRecords(...)
+ASTX.Utils.normalizeValues(...)
+ASTX.Utils.pad(...)
+ASTX.Utils.recordsToNewlineJson(...)
+ASTX.Utils.removeDuplicatesFromRecords(...)
+ASTX.Utils.removeKeysFromObject(...)
+ASTX.Utils.renameKeysInObject(...)
+ASTX.Utils.renameKeysInRecords(...)
+ASTX.Utils.selectKeysFromObject(...)
+ASTX.Utils.sha256Hash(...)
+ASTX.Utils.standardizeArrays(...)
+ASTX.Utils.standardizeRecords(...)
+ASTX.Utils.subtractValues(...)
+ASTX.Utils.toCapitalCase(...)
+ASTX.Utils.toSnakeCase(...)
+ASTX.Utils.toTitleCase(...)
+ASTX.Utils.unzipObjectIntoArrays(...)
+ASTX.Utils.unzipRecordsIntoArrays(...)
+ASTX.Utils.zfill(...)
+ASTX.Utils.zipArraysIntoObject(...)
+ASTX.Utils.zipArraysIntoRecords(...)
+```
 
 ## `ASTX.DBT`
 

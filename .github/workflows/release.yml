@@ -26,13 +26,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run lint and local tests
-        run: |
-          npm run lint
-          npm run test:local
-          npm run test:security
-          npm run test:perf:check
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -43,12 +36,59 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
-      - name: Build docs
-        run: mkdocs build --strict
+      - name: Run release verification
+        run: npm run verify:release
+
+  gas-secrets-check:
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - name: Check clasp secrets
+        id: check
+        run: |
+          if [ -n "${{ vars.GAS_SCRIPT_ID }}" ] && [ -n "${{ vars.GAS_TEST_SCRIPT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_ID }}" ] && [ -n "${{ secrets.CLASP_CLIENT_SECRET }}" ] && [ -n "${{ secrets.CLASP_REFRESH_TOKEN }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  gas-functional:
+    if: ${{ needs.gas-secrets-check.outputs.available == 'true' }}
+    needs:
+      - validate
+      - gas-secrets-check
+    uses: ./.github/workflows/integration-gas.yml
+    with:
+      suite: functional
+    secrets: inherit
+
+  gas-perf:
+    if: ${{ needs.gas-secrets-check.outputs.available == 'true' }}
+    needs:
+      - validate
+      - gas-secrets-check
+      - gas-functional
+    uses: ./.github/workflows/integration-gas.yml
+    with:
+      suite: perf
+    secrets: inherit
 
   github-release:
     runs-on: ubuntu-latest
-    needs: validate
+    needs:
+      - validate
+      - gas-secrets-check
+      - gas-functional
+      - gas-perf
+    if: >-
+      ${{
+        always()
+        && needs.validate.result == 'success'
+        && needs.gas-secrets-check.result == 'success'
+        && (needs.gas-functional.result == 'success' || needs.gas-functional.result == 'skipped')
+        && (needs.gas-perf.result == 'success' || needs.gas-perf.result == 'skipped')
+      }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,7 +128,7 @@ jobs:
           generate_release_notes: true
           body: |
             Script ID: `${{ vars.GAS_SCRIPT_ID }}`
-            Library identifier: `AST`
+            Recommended library identifier: `ASTLib`
             Docs: https://joe-broadhead.github.io/apps-script-tools/
 
             Apps Script library mapping:

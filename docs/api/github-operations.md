@@ -94,7 +94,13 @@ Use `ASTX.GitHub.operations()` and `ASTX.GitHub.capabilities(groupOrOperation)` 
 - `update_check_run`
 - `list_commit_statuses`
 
-### Projects v2 (GraphQL-backed helpers)
+### Projects v2
+
+- `list_projects_v2`
+- `list_project_v2_items`
+- `update_project_v2_field_value`
+
+Convenience helpers:
 
 - `listProjectsV2(request)` lists organization/user Projects v2 boards
 - `listProjectV2Items(request)` lists items for a specific project
@@ -170,3 +176,4 @@ const verified = ASTX.GitHub.verifyWebhook({
 - `push_files` performs sequential file updates and supports dry-run planning.
 - Actions rerun/cancel operations (`rerun_workflow_run`, `cancel_workflow_run`) support dry-run planning.
 - Checks mutations (`create_check_run`, `update_check_run`) support dry-run planning.
+- Projects v2 field updates (`update_project_v2_field_value`) are GraphQL-backed and support dry-run planning.

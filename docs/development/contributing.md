@@ -15,17 +15,22 @@ Source of truth: [`CONTRIBUTING.md`](https://github.com/joe-broadhead/apps-scrip
 Run before opening a PR:
 
 ```bash
-npm run lint
-npm run test:local:coverage
-npm run test:perf:check
-npm run test:security
-mkdocs build --strict
+npm run verify:release
 ```
+
+For inner-loop work, `npm test` runs the fast local gate only (`lint` + local Node tests). It does not enforce coverage, security, docs, or perf thresholds.
+
+Dependency policy:
+
+- Commit `package-lock.json` with any npm dependency changes.
+- CI installs with `npm ci --ignore-scripts`; missing lockfiles fail the shared Node setup action.
+- `npm run test:dependencies` runs the lockfile-backed high-severity production dependency audit.
 
 Apps Script integration checks when credentials are configured:
 
 ```bash
-clasp push
+npm run check:clasp:production
+GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push
 clasp run runAllTests
 ```
 

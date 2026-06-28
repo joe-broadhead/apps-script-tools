@@ -24,6 +24,25 @@ const NON_PUBLISHED_DIRECTORIES = Object.freeze([
   'rag_chat_app'
 ]);
 
+const AST_LIBRARY_SYMBOL = 'ASTLib';
+const AST_LIBRARY_ID = '1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_';
+const AST_LIBRARY_VERSION_PLACEHOLDER = '<PUBLISHED_AST_LIBRARY_VERSION>';
+
+const COOKBOOK_ALLOWED_OAUTH_SCOPES = Object.freeze(new Set([
+  'https://www.googleapis.com/auth/bigquery',
+  'https://www.googleapis.com/auth/cloud-platform',
+  'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/forms',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/presentations',
+  'https://www.googleapis.com/auth/script.external_request',
+  'https://www.googleapis.com/auth/script.scriptapp',
+  'https://www.googleapis.com/auth/spreadsheets'
+]));
+
 const REQUIRED_FILES = Object.freeze({
   template_v2: Object.freeze([
     '.clasp.json.example',
@@ -49,8 +68,103 @@ function readText(file) {
   return fs.readFileSync(file, 'utf8');
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function cookbookDocsMention(fileText, cookbookId) {
   return fileText.includes(`\`${cookbookId}\``);
+}
+
+function readJsonFile(filePath, displayPath, findings) {
+  try {
+    return JSON.parse(readText(filePath));
+  } catch (error) {
+    findings.push(`${displayPath} must be valid JSON: ${error.message}`);
+    return null;
+  }
+}
+
+export function validateCookbookManifest(cookbookId, manifest, displayPath = `cookbooks/${cookbookId}/src/appsscript.json`) {
+  const findings = [];
+
+  if (!isPlainObject(manifest)) {
+    return [`${displayPath} must contain a JSON object manifest.`];
+  }
+
+  if (manifest.timeZone !== 'Etc/UTC') {
+    findings.push(`${displayPath} must keep timeZone="Etc/UTC".`);
+  }
+  if (manifest.exceptionLogging !== 'STACKDRIVER') {
+    findings.push(`${displayPath} must keep exceptionLogging="STACKDRIVER".`);
+  }
+  if (manifest.runtimeVersion !== 'V8') {
+    findings.push(`${displayPath} must keep runtimeVersion="V8".`);
+  }
+
+  const libraries = manifest.dependencies?.libraries;
+  if (!Array.isArray(libraries) || libraries.length !== 1 || !isPlainObject(libraries[0])) {
+    findings.push(`${displayPath} must declare exactly one AST library dependency.`);
+  } else {
+    const library = libraries[0];
+    if (library.userSymbol !== AST_LIBRARY_SYMBOL) {
+      findings.push(`${displayPath} library userSymbol must remain "${AST_LIBRARY_SYMBOL}".`);
+    }
+    if (library.libraryId !== AST_LIBRARY_ID) {
+      findings.push(`${displayPath} libraryId is stale or unexpected.`);
+    }
+    if (library.version !== AST_LIBRARY_VERSION_PLACEHOLDER) {
+      findings.push(`${displayPath} library version must remain "${AST_LIBRARY_VERSION_PLACEHOLDER}" until the consumer pins a deployed version locally.`);
+    }
+  }
+
+  if (isPlainObject(manifest.executionApi)) {
+    const access = manifest.executionApi.access;
+    if (access === 'ANYONE' || access === 'ANYONE_ANONYMOUS') {
+      findings.push(`${displayPath} must not expose executionApi.access=${access}.`);
+    }
+  }
+
+  if (isPlainObject(manifest.webapp)) {
+    const access = manifest.webapp.access;
+    if (access === 'ANYONE' || access === 'ANYONE_ANONYMOUS') {
+      findings.push(`${displayPath} must not expose webapp.access=${access}.`);
+    }
+    if (manifest.webapp.executeAs === 'USER_DEPLOYING') {
+      findings.push(`${displayPath} must not configure webapp.executeAs=USER_DEPLOYING in committed cookbook manifests.`);
+    }
+  }
+
+  if ('oauthScopes' in manifest) {
+    if (!Array.isArray(manifest.oauthScopes)) {
+      findings.push(`${displayPath} oauthScopes must be an array when declared.`);
+    } else {
+      const seen = new Set();
+      let duplicateScopeCount = 0;
+      let unexpectedScopeCount = 0;
+      manifest.oauthScopes.forEach(scope => {
+        if (typeof scope !== 'string' || scope.trim().length === 0) {
+          findings.push(`${displayPath} oauthScopes must contain only non-empty strings.`);
+          return;
+        }
+        if (seen.has(scope)) {
+          duplicateScopeCount += 1;
+        }
+        seen.add(scope);
+        if (!COOKBOOK_ALLOWED_OAUTH_SCOPES.has(scope)) {
+          unexpectedScopeCount += 1;
+        }
+      });
+      if (duplicateScopeCount > 0) {
+        findings.push(`${displayPath} duplicates ${duplicateScopeCount} OAuth scope entries.`);
+      }
+      if (unexpectedScopeCount > 0) {
+        findings.push(`${displayPath} declares ${unexpectedScopeCount} unexpected OAuth scope entries; add an explicit review before committing new cookbook scopes.`);
+      }
+    }
+  }
+
+  return findings;
 }
 
 export function runCookbookChecks(root = process.cwd()) {
@@ -98,6 +212,15 @@ export function runCookbookChecks(root = process.cwd()) {
 
     if (!cookbookDocsMention(docsCookbooks, cookbook.id)) {
       findings.push(`docs/getting-started/cookbooks.md is missing cookbook entry for ${cookbook.id}`);
+    }
+
+    const manifestRelativePath = `cookbooks/${cookbook.id}/src/appsscript.json`;
+    const manifestPath = path.join(cookbookDir, 'src', 'appsscript.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = readJsonFile(manifestPath, manifestRelativePath, findings);
+      if (manifest) {
+        findings.push(...validateCookbookManifest(cookbook.id, manifest, manifestRelativePath));
+      }
     }
   }
 

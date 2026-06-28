@@ -8,15 +8,17 @@ Use semantic tags:
 
 ## Pre-Release Checklist
 
-1. `npm run lint`
-2. `npm run test:local`
-3. `npm run test:perf:check`
-4. `mkdocs build --strict`
-5. `clasp push`
-6. `clasp run runAllTests`
-7. `clasp run runPerformanceBenchmarks`
-8. optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+1. `npm run verify:release`
+2. `npm run check:clasp:production`
+3. test project only: `GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push`
+4. test project only, after the test push: `clasp run runAllTests`
+5. test project only: `clasp run runPerformanceBenchmarks`
+6. test project only, optional live-provider AI smoke: `clasp run runAiLiveSmoke --params '["openai","Reply with OK",""]'`
+7. production project only, after the test deployment guard passes: `clasp push`
+8. confirm OAuth scope inventory and cookbook manifest guardrails with `npm run lint`
 9. validate library from a clean consumer Apps Script project
+
+`npm run verify:release` includes the lockfile-backed dependency audit (`npm run test:dependencies`). Keep `package-lock.json` committed; CI installs with `npm ci --ignore-scripts` and does not fall back to `npm install`. The lint portion also compares `apps_script_tools/appsscript.json` with the OAuth scope inventory and checks cookbook manifest access/library guardrails.
 
 ## `v0.0.5` Release Prep Notes
 
@@ -48,6 +50,9 @@ Use a local `.clasp.json` (not committed):
 `.claspignore` model:
 
 - for the core library publish flow, root `.claspignore` is authoritative.
+- production `.claspignore` excludes `apps_script_tools/testing/**` and live-smoke entrypoints.
+- remote runtime test flows use a separate test Apps Script project and `.claspignore.test` via `npm run clasp:test-push`.
+- test pushes refuse to run unless local `.clasp.json` is bound to `GAS_TEST_SCRIPT_ID` and distinct from `GAS_PRODUCTION_SCRIPT_ID`/`GAS_SCRIPT_ID`.
 - do not add nested `.claspignore` files under `apps_script_tools/`.
 - cookbook projects under `cookbooks/` are separate `clasp` workspaces and may include their own local `.claspignore` and `.clasp.json`.
 - keep `.clasp.json` local-only (untracked) and use `.clasp.json.example` as the committed template.
@@ -55,16 +60,20 @@ Use a local `.clasp.json` (not committed):
 Repository guardrails (enforced by `npm run lint`):
 
 - root `.claspignore` must exist.
+- `.claspignore.test` must exist and include the Apps Script runtime test harness for test deployments.
 - `apps_script_tools/.claspignore` must not exist.
 - `.clasp.json.example` must remain a valid template with:
   - `"scriptId": "<YOUR_SCRIPT_ID>"`
   - `"rootDir": "apps_script_tools"`
 - tracked secret/config files are blocked (`.clasp.json`, `.clasprc.json`, `creds.json`, `client_secret.json`).
+- `docs/operations/oauth-scopes.md` must match the production manifest OAuth scope set.
+- cookbook manifests must keep the expected AST library binding, V8 runtime settings, reviewed scope set, and non-public execution/webapp access.
 
 Publish flow:
 
 ```bash
 clasp status
+npm run check:clasp:production
 clasp push
 clasp version "vX.Y.Z"
 clasp versions
@@ -91,7 +100,7 @@ Tag push matching `v*` triggers:
 Include:
 
 - script ID
-- library identifier (`AST`)
+- recommended library identifier (`ASTLib`) or the custom identifier used by the release smoke project
 - exact mapping (`vX.Y.Z -> Apps Script version N`)
 - key changes and migration guidance
 - docs URL

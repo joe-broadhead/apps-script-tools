@@ -41,19 +41,17 @@ function astMessagingTeamsSendWebhook(body = {}, normalizedRequest = {}, resolve
     timeoutMs: resolvedConfig.timeoutMs,
     retries: resolvedConfig.retries
   });
+  const safeResponse = astMessagingRedactHttpResponse(response, webhookUrl);
 
   return {
     transport: 'teams_webhook',
     request: {
-      webhookUrl,
+      webhookUrl: astMessagingRedactWebhookUrl(webhookUrl),
       payload
     },
-    response: response.json || {
-      statusCode: response.statusCode,
-      text: response.text
-    },
+    response: astMessagingRedactHttpResponsePayload(response, webhookUrl),
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }
 

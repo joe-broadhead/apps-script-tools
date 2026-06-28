@@ -6,7 +6,44 @@ import zlib from 'node:zlib';
 
 const ROOT = process.cwd();
 
+export function createPropertiesServiceMock(seed = {}) {
+  const scriptPropertiesStore = { ...seed };
+  const scriptPropertiesHandle = {
+    getProperty: key => {
+      const normalized = String(key || '');
+      return Object.prototype.hasOwnProperty.call(scriptPropertiesStore, normalized)
+        ? scriptPropertiesStore[normalized]
+        : null;
+    },
+    getProperties: () => ({ ...scriptPropertiesStore }),
+    setProperty: (key, value) => {
+      scriptPropertiesStore[String(key)] = String(value);
+    },
+    setProperties: (entries = {}, deleteAllOthers = false) => {
+      if (deleteAllOthers === true) {
+        Object.keys(scriptPropertiesStore).forEach(key => delete scriptPropertiesStore[key]);
+      }
+      Object.keys(entries || {}).forEach(key => {
+        scriptPropertiesStore[String(key)] = String(entries[key]);
+      });
+    },
+    deleteProperty: key => {
+      delete scriptPropertiesStore[String(key)];
+    }
+  };
+
+  return {
+    store: scriptPropertiesStore,
+    handle: scriptPropertiesHandle,
+    service: {
+      getScriptProperties: () => scriptPropertiesHandle
+    }
+  };
+}
+
 export function createGasContext(overrides = {}) {
+  const scriptProperties = createPropertiesServiceMock();
+
   const base = {
     console,
     Date,
@@ -145,13 +182,7 @@ export function createGasContext(overrides = {}) {
       }
     },
     UrlFetchApp: { fetch: () => ({ getContentText: () => '{}' }) },
-    PropertiesService: {
-      getScriptProperties: () => ({
-        getProperty: () => null,
-        getProperties: () => ({}),
-        setProperties: () => {}
-      })
-    },
+    PropertiesService: scriptProperties.service,
     ScriptApp: {
       getOAuthToken: () => 'test-oauth-token'
     },
@@ -221,6 +252,8 @@ export function loadCoreDataContext(context) {
     ...dataFrameSchemaFiles,
     ...dataFrameExprFiles,
     'apps_script_tools/dataFrame/_DataFrameInternals.js',
+    'apps_script_tools/dataFrame/_DataFrameConstructors.js',
+    'apps_script_tools/database/general/sqlProviderAdapters.js',
     'apps_script_tools/dataFrame/DataFrame.js'
   ];
 

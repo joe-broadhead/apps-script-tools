@@ -88,7 +88,7 @@ ASTX.GitHub.clearConfig()
 
 ```javascript
 {
-  operation: 'get_me' | 'get_repository' | 'create_repository' | 'list_workflows' | 'get_workflow' | 'list_workflow_runs' | 'get_workflow_run' | 'rerun_workflow_run' | 'cancel_workflow_run' | 'list_workflow_run_artifacts' | 'get_workflow_run_artifact' | 'list_check_runs' | 'get_check_run' | 'create_check_run' | 'update_check_run' | 'list_commit_statuses' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
+  operation: 'get_me' | 'get_repository' | 'create_repository' | 'list_workflows' | 'get_workflow' | 'list_workflow_runs' | 'get_workflow_run' | 'rerun_workflow_run' | 'cancel_workflow_run' | 'list_workflow_run_artifacts' | 'get_workflow_run_artifact' | 'list_check_runs' | 'get_check_run' | 'create_check_run' | 'update_check_run' | 'list_commit_statuses' | 'list_projects_v2' | 'list_project_v2_items' | 'update_project_v2_field_value' | 'graphql' | 'auth_as_app' | 'verify_webhook' | 'parse_webhook' | ...,
   owner: 'optional',
   repo: 'optional',
   issueNumber: 123,
@@ -99,6 +99,9 @@ ASTX.GitHub.clearConfig()
   workflowId: 222 | '.github/workflows/ci.yml',
   runId: 123456789,
   artifactId: 987654321,
+  projectId: 'PVT_...',
+  itemId: 'PVTI_...',
+  fieldId: 'PVTF_...',
   path: 'file/path',
   branch: 'branch-name',
   ref: 'sha-or-ref',

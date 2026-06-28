@@ -154,6 +154,16 @@ test('Telemetry redacts sensitive keys in span context', () => {
 
   const spanId = context.AST.Telemetry.startSpan('telemetry.redaction', {
     apiKey: 'secret-value',
+    webhookUrl: 'https://chat.googleapis.com/v1/spaces/abc/messages?key=x&token=y',
+    callbackUrl: 'https://user:pass@example.com/path?access_token=abc&mode=ok#token=fragment',
+    oauthCallbackUrl: 'https://example.com/callback?client_secret=s3&credential=c1&slack_token=xoxb&mode=ok',
+    errorMessage: 'provider echoed https://hooks.slack.com/services/T000/B000/XXX?client_secret=s3',
+    genericUrlMessage: 'provider echoed https://example.com/webhook/secret?token=x',
+    authHeaderMessage: 'provider echoed Authorization: Bearer bearer-token Proxy-Authorization: Basic basic-token client_secret=s3',
+    headerMessage: 'provider echoed Cookie: sid=secret-session; theme=light',
+    responseHeaderMessage: 'provider echoed Set-Cookie: refresh=secret-refresh; HttpOnly',
+    teamsMessage: 'provider echoed https://outlook.office365.com/webhook/secret-path?sig=s1',
+    teamsLogicMessage: 'provider echoed https://logic.azure.com/workflows/secret/triggers/manual/paths/invoke?api-version=2016-10-01&sig=s1',
     nested: {
       token: 'abc123'
     },
@@ -170,10 +180,93 @@ test('Telemetry redacts sensitive keys in span context', () => {
   const trace = context.AST.Telemetry.getTrace(ended.traceId);
 
   assert.equal(trace.spans[0].context.apiKey, '[REDACTED]');
+  assert.equal(trace.spans[0].context.webhookUrl, '[REDACTED]');
+  assert.equal(
+    trace.spans[0].context.callbackUrl,
+    'https://[REDACTED]@example.com/path?access_token=[REDACTED]&mode=ok#[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.oauthCallbackUrl,
+    'https://example.com/callback?client_secret=[REDACTED]&credential=[REDACTED]&slack_token=[REDACTED]&mode=ok'
+  );
+  assert.equal(
+    trace.spans[0].context.errorMessage,
+    'provider echoed https://hooks.slack.com/[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.genericUrlMessage,
+    'provider echoed https://example.com/[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.authHeaderMessage,
+    'provider echoed Authorization: Bearer [REDACTED] Proxy-Authorization: Basic [REDACTED] client_secret=[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.headerMessage,
+    'provider echoed Cookie: [REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.responseHeaderMessage,
+    'provider echoed Set-Cookie: [REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.teamsMessage,
+    'provider echoed https://outlook.office365.com/[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.teamsLogicMessage,
+    'provider echoed https://logic.azure.com/[REDACTED]'
+  );
   assert.equal(trace.spans[0].context.nested.token, '[REDACTED]');
   assert.equal(trace.spans[0].context.safe, 'hello');
   assert.equal(trace.spans[0].result.result.password, '[REDACTED]');
   assert.ok(logger.logs.length > 0);
+});
+
+test('Telemetry redacts webhook URLs from normalized errors', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+  context.AST.Telemetry._reset();
+  context.AST.Telemetry.clearConfig();
+  context.AST.Telemetry.configure({
+    sink: 'logger',
+    redactSecrets: true
+  });
+
+  const spanId = context.AST.Telemetry.startSpan('telemetry.error.redaction', {});
+  const error = new Error('https://example.com/callback?client_secret=s3&slack_token=x failed with 500 token=provider-token Authorization: Basic basic-token Authorization: "Bearer quoted-token" client_secret=s3 json {"token":"json-token","client_secret":"json-secret","authorization":"Basic json-basic"}');
+  error.stack = 'Error: failed https:\\/\\/example.com\\/webhook\\/secret?token=y token=provider-token Authorization: Basic basic-token Authorization: "Bearer quoted-token" client_secret=s3 json {"token":"json-token","client_secret":"json-secret","authorization":"Basic json-basic"}';
+  context.AST.Telemetry.endSpan(spanId, {
+    status: 'error',
+    error
+  });
+
+  const trace = context.AST.Telemetry.query({ name: 'telemetry.error.redaction' });
+  const stored = context.AST.Telemetry.getTrace(trace.items[0].traceId);
+  assert.equal(stored.spans[0].error.message, 'https://example.com/callback?client_secret=[REDACTED]&slack_token=[REDACTED] failed with 500 token=[REDACTED] Authorization: Basic [REDACTED] Authorization: "Bearer [REDACTED]" client_secret=[REDACTED] json {"token":"[REDACTED]","client_secret":"[REDACTED]","authorization":"[REDACTED]"}');
+  assert.equal(stored.spans[0].error.stack.includes('/webhook/secret'), false);
+  assert.equal(stored.spans[0].error.stack.includes('provider-token'), false);
+  assert.equal(stored.spans[0].error.stack.includes('basic-token'), false);
+  assert.equal(stored.spans[0].error.stack.includes('quoted-token'), false);
+  assert.equal(stored.spans[0].error.stack.includes('json-token'), false);
+  assert.equal(stored.spans[0].error.stack.includes('json-secret'), false);
+  assert.equal(stored.spans[0].error.stack.includes('json-basic'), false);
+  assert.equal(stored.spans[0].error.stack.includes('client_secret=s3'), false);
+  assert.equal(JSON.stringify(stored.spans[0]).includes('token=y'), false);
+});
+
+test('Telemetry normalize error honors redactSecrets=false for message and stack', () => {
+  const context = createGasContext();
+  loadTelemetryScripts(context, { includeAst: true });
+
+  const error = new Error('failed https://example.com/webhook/secret?token=y token=provider-token');
+  error.stack = 'Error: failed https://example.com/webhook/secret?token=y token=provider-token';
+
+  const normalized = context.astTelemetryNormalizeError(error, { redactSecrets: false });
+  assert.equal(normalized.message.includes('/webhook/secret'), true);
+  assert.equal(normalized.message.includes('provider-token'), true);
+  assert.equal(normalized.stack.includes('/webhook/secret'), true);
+  assert.equal(normalized.stack.includes('provider-token'), true);
 });
 
 test('Telemetry query filters records and preserves redacted payloads', () => {

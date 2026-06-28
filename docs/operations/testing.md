@@ -10,10 +10,21 @@ The project uses three complementary test layers:
 
 ## Local correctness checks
 
+Fast local gate:
+
 ```bash
-npm run lint
-npm run test:local
+npm test
 ```
+
+`npm test` is an alias for `npm run test:fast` and intentionally covers lint plus local Node tests only.
+
+Canonical local release gate:
+
+```bash
+npm run verify:release
+```
+
+`verify:release` runs lint, coverage-enforced local tests, the deterministic secret scan, lockfile-backed dependency audit, cookbook catalog checks, strict docs build, and performance thresholds.
 
 Local coverage report (uses Node test coverage, writes artifacts to `coverage/`):
 
@@ -89,8 +100,22 @@ PR CI runs `suite=functional` through the `gas-functional` job (internal PRs and
 
 Required repository settings for integration workflows:
 
-- variable: `GAS_SCRIPT_ID`
+- variables: `GAS_SCRIPT_ID` for the production library project, `GAS_TEST_SCRIPT_ID` for the separate test project
 - secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`
+- Apps Script projects used by `GAS_SCRIPT_ID` and `GAS_TEST_SCRIPT_ID` must be linked to the same standard Google Cloud project that owns `CLASP_CLIENT_ID`; `scripts.run` returns `PERMISSION_DENIED` when the OAuth client project and script project differ.
+- Mint `CLASP_REFRESH_TOKEN` with project scopes after the manifest scopes change: `clasp login --use-project-scopes --creds client_secret.json`.
+
+Production-vs-test deployment behavior:
+
+- Production library pushes use root `.claspignore`, which excludes `apps_script_tools/testing/**` and live-smoke entrypoints.
+- Remote Apps Script tests push to the separate `GAS_TEST_SCRIPT_ID` project with `.claspignore.test` via `npm run clasp:test-push`, then run `runAllTests` or `runPerformanceBenchmarks` there. The wrapper passes `.claspignore.test` through clasp's alternate ignore-file setting and does not edit production `.claspignore`.
+- The test-push wrapper refuses to run unless local `.clasp.json` is bound to `GAS_TEST_SCRIPT_ID` and distinct from `GAS_PRODUCTION_SCRIPT_ID`/`GAS_SCRIPT_ID`; this prevents accidentally disabling the production ignore rules against the production script.
+- `npm run check:clasp:production` verifies the production push set before any test-mode push.
+
+Secret scoping requirements:
+
+- `CLASP_*` secrets must not be set at workflow job scope. They are passed only to the dedicated clasp-auth step, after checkout, Node dependency installation, and clasp installation are complete.
+- Live-smoke provider tokens must be set only on the step that writes or uses that token.
 
 Dispatch options:
 
@@ -102,7 +127,8 @@ Or locally with configured `clasp` auth:
 
 ```bash
 clasp status
-clasp push
+npm run check:clasp:production
+GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push
 clasp run runAllTests
 clasp run runPerformanceBenchmarks
 ```
@@ -128,7 +154,7 @@ test: () => astTestRunWithAssertions(t => {
 For app workloads with concurrent users:
 
 - prefer `ASTX.Cache` backend `storage_json`
-- use `ASTX.Jobs` with `checkpointStore='storage'` and provider URI (`gcs://`, `s3://`, or `dbfs:/`)
+- use `ASTX.Jobs` with the supported `checkpointStore='properties'`; design long-running handlers to checkpoint compact, JSON-serializable state
 - keep telemetry sink on `logger` for low overhead unless a storage-backed sink is configured
 - treat `drive_json` and `script_properties` cache backends as low-scale options
 
@@ -156,6 +182,7 @@ Pull requests should pass:
   - `lint-and-local-tests`
     - includes `npm run test:local:coverage`
     - uploads `local-coverage` artifact with raw output + JSON/Markdown summary
+  - `security-gate` (`npm run test:security`)
   - `perf-gate` (`npm run test:perf:check`)
   - `docs-build`
   - `gas-functional` (Apps Script runtime functional suite for internal PRs, when clasp secrets are available)
@@ -163,13 +190,11 @@ Pull requests should pass:
   - `codeql-analyze`
   - `dependency-review`
   - `secret-scan` (`npm run test:security`)
+  - dependency review / fallback dependency audit (`npm run test:dependencies`)
 
 `perf-report` remains informational and publishes benchmark artifacts.
 
 Release validation requires:
 
-- lint
-- local tests
-- deterministic secret scan (`npm run test:security`)
-- performance threshold check (`npm run test:perf:check`)
-- docs strict build
+- local deterministic release gate (`npm run verify:release`)
+- remote Apps Script functional/perf suites when clasp credentials are configured

@@ -1187,6 +1187,18 @@ function astGitHubDispatchCustomOperation(request, config, spec) {
     return astGitHubExecuteParseWebhook(request, config);
   }
 
+  if (spec.customExecutor === 'list_projects_v2') {
+    return astGitHubListProjectsV2Helper(request);
+  }
+
+  if (spec.customExecutor === 'list_project_v2_items') {
+    return astGitHubListProjectV2ItemsHelper(request);
+  }
+
+  if (spec.customExecutor === 'update_project_v2_field_value') {
+    return astGitHubUpdateProjectV2FieldValueHelper(request);
+  }
+
   throw new AstGitHubCapabilityError('Unsupported custom GitHub operation executor', {
     operation: request.operation,
     executor: spec.customExecutor

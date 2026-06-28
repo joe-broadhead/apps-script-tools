@@ -18,9 +18,9 @@ function astMessagingBuildDryRunPlan(normalizedRequest = {}, resolvedConfig = {}
       timeoutMs: resolvedConfig.timeoutMs,
       retries: resolvedConfig.retries
     },
-    body: astMessagingRuntimeClone(normalizedRequest.body),
-    auth: astMessagingRuntimeClone(normalizedRequest.auth),
-    options: astMessagingRuntimeClone(normalizedRequest.options)
+    body: astMessagingRedactValue(astMessagingRuntimeClone(normalizedRequest.body)),
+    auth: astMessagingRedactValue(astMessagingRuntimeClone(normalizedRequest.auth)),
+    options: astMessagingRedactValue(astMessagingRuntimeClone(normalizedRequest.options))
   };
 }
 
@@ -50,11 +50,12 @@ function astMessagingTelemetryEnd(span, result = {}, error = null) {
   if (typeof AST_TELEMETRY !== 'undefined' && AST_TELEMETRY && typeof AST_TELEMETRY.endSpan === 'function') {
     AST_TELEMETRY.endSpan(span.spanId || span, {
       status: error ? 'error' : 'ok',
-      result: result || {},
+      result: astMessagingRedactValue(result || {}),
       error: error
         ? {
             name: error.name || 'Error',
-            message: error.message || String(error)
+            message: error.message || String(error),
+            details: astMessagingRedactValue(error.details || {})
           }
         : null
     });
@@ -212,9 +213,9 @@ function astMessagingWriteDeliveryLog(normalizedRequest = {}, result = {}, resol
     status: 'ok',
     payload: {
       request: {
-        body: astMessagingRuntimeClone(normalizedRequest.body)
+        body: astMessagingRedactValue(astMessagingRuntimeClone(normalizedRequest.body))
       },
-      result: astMessagingRuntimeClone(result)
+      result: astMessagingRedactValue(astMessagingRuntimeClone(result))
     },
     metadata: {
       transport: astMessagingBuildTransport(result, normalizedRequest, resolvedConfig)
@@ -298,7 +299,11 @@ function astRunMessagingRequest(request = {}) {
     });
 
     if (idempotencyKey) {
-      astMessagingIdempotencySet(idempotencyKey, response, resolvedConfig);
+      try {
+        astMessagingIdempotencySet(idempotencyKey, response, resolvedConfig);
+      } catch (_idempotencyError) {
+        response.warnings = response.warnings.concat(['idempotencyWriteFailed=true']);
+      }
     }
 
     astMessagingTelemetryEnd(span, response, null);

@@ -9,14 +9,31 @@ function astBuildSqlProviderValidationError(message, details = {}, cause = null)
   return error;
 }
 
+function astSqlBuildPreparedLifecycleCapabilities() {
+  return {
+    storage: 'runtime_memory',
+    durable: false,
+    crossExecution: false,
+    scope: 'invocation_local',
+    cleanup: 'ttl_or_max_entries',
+    defaultTtlSec: 900,
+    maxTtlSec: 3600,
+    maxEntries: 500
+  };
+}
+
 function astCreateBigQuerySqlAdapter() {
   return {
     provider: 'bigquery',
+    displayName: 'BigQuery',
+    requiredParameters: ['projectId'],
+    executionIdField: 'jobId',
     capabilities: {
       supportsPlaceholders: true,
       supportsTimeoutOptions: true,
       supportsTableLoad: true,
       supportsPreparedStatements: true,
+      preparedStatementLifecycle: astSqlBuildPreparedLifecycleCapabilities(),
       supportsStatus: true,
       supportsCancel: true
     },
@@ -29,6 +46,7 @@ function astCreateBigQuerySqlAdapter() {
         request.options
       );
     },
+    loadTable: config => astLoadBigQueryTable(config),
     executePrepared: request => {
       if (typeof astExecuteBigQuerySqlDetailed === 'function') {
         return astExecuteBigQuerySqlDetailed(
@@ -80,11 +98,15 @@ function astCreateBigQuerySqlAdapter() {
 function astCreateDatabricksSqlAdapter() {
   return {
     provider: 'databricks',
+    displayName: 'Databricks',
+    requiredParameters: ['host', 'sqlWarehouseId', 'schema', 'token'],
+    executionIdField: 'statementId',
     capabilities: {
       supportsPlaceholders: true,
       supportsTimeoutOptions: true,
       supportsTableLoad: true,
       supportsPreparedStatements: true,
+      preparedStatementLifecycle: astSqlBuildPreparedLifecycleCapabilities(),
       supportsStatus: true,
       supportsCancel: true
     },
@@ -97,6 +119,7 @@ function astCreateDatabricksSqlAdapter() {
         request.options
       );
     },
+    loadTable: config => astLoadDatabricksTable(config),
     executePrepared: request => {
       if (typeof astExecuteDatabricksSqlDetailed === 'function') {
         return astExecuteDatabricksSqlDetailed(
@@ -145,20 +168,24 @@ function astCreateDatabricksSqlAdapter() {
   };
 }
 
+// Single source for SQL provider dispatch, validation metadata, and capability metadata.
 const AST_SQL_PROVIDER_ADAPTERS = {
   bigquery: astCreateBigQuerySqlAdapter(),
   databricks: astCreateDatabricksSqlAdapter()
 };
 
 function astGetSqlProviderAdapter(provider) {
-  const adapter = AST_SQL_PROVIDER_ADAPTERS[provider];
+  const adapter = Object.prototype.hasOwnProperty.call(AST_SQL_PROVIDER_ADAPTERS, provider)
+    ? AST_SQL_PROVIDER_ADAPTERS[provider]
+    : null;
 
   if (!adapter) {
+    const supportedProviders = Object.keys(AST_SQL_PROVIDER_ADAPTERS);
     throw astBuildSqlProviderValidationError(
-      'Provider must be one of: databricks, bigquery',
+      `Provider must be one of: ${supportedProviders.join(', ')}`,
       {
         provider,
-        supportedProviders: Object.keys(AST_SQL_PROVIDER_ADAPTERS)
+        supportedProviders
       }
     );
   }
@@ -170,7 +197,37 @@ function astListSqlProviders() {
   return Object.keys(AST_SQL_PROVIDER_ADAPTERS);
 }
 
+function astGetSqlProviderValidationSpec(provider) {
+  const adapter = astGetSqlProviderAdapter(provider);
+  return {
+    provider: adapter.provider,
+    displayName: adapter.displayName || adapter.provider,
+    requiredParameters: Array.isArray(adapter.requiredParameters) ? adapter.requiredParameters.slice() : [],
+    executionIdField: adapter.executionIdField || null
+  };
+}
+
+function astSqlCloneProviderCapabilities(capabilities = {}) {
+  return JSON.parse(JSON.stringify(capabilities || {}));
+}
+
 function astGetSqlProviderCapabilities(provider) {
   const adapter = astGetSqlProviderAdapter(provider);
-  return Object.assign({}, adapter.capabilities);
+  const capabilities = astSqlCloneProviderCapabilities(adapter.capabilities);
+  capabilities.requiredParameters = Array.isArray(adapter.requiredParameters)
+    ? adapter.requiredParameters.slice()
+    : [];
+  capabilities.executionIdField = adapter.executionIdField || null;
+  return capabilities;
+}
+
+function astLoadSqlProviderTable(provider, config) {
+  const adapter = astGetSqlProviderAdapter(provider);
+  if (adapter.capabilities?.supportsTableLoad !== true || typeof adapter.loadTable !== 'function') {
+    throw astBuildSqlProviderValidationError(
+      `Provider '${provider}' does not support table loads`,
+      { provider }
+    );
+  }
+  return adapter.loadTable(config);
 }

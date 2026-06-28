@@ -147,6 +147,52 @@ test('listProjectV2Items sends project node query and normalizes response', () =
   assert.equal(response.page.hasMore, true);
 });
 
+test('run dispatches Projects v2 item listing and preserves project identifiers', () => {
+  const calls = [];
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: (_url, options) => {
+        calls.push(options);
+        return createResponse(200, {
+          data: {
+            node: {
+              __typename: 'ProjectV2',
+              id: 'PVT_2',
+              number: 8,
+              title: 'Execution',
+              shortDescription: '',
+              closed: false,
+              url: 'https://github.com/orgs/acme/projects/8',
+              items: {
+                nodes: [{ id: 'PVTI_2', type: 'ISSUE' }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+                totalCount: 1
+              }
+            }
+          }
+        });
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.run({
+    operation: 'list_project_v2_items',
+    projectId: 'PVT_2',
+    options: { perPage: 5, pageToken: 'CUR_NEXT' }
+  });
+
+  assert.equal(calls.length, 1);
+  const payload = parsePayload(calls[0]);
+  assert.equal(payload.variables.projectId, 'PVT_2');
+  assert.equal(payload.variables.first, 5);
+  assert.equal(payload.variables.after, 'CUR_NEXT');
+  assert.equal(response.operation, 'list_project_v2_items');
+  assert.equal(response.data.project.id, 'PVT_2');
+});
+
 test('updateProjectV2FieldValue validates value object shape', () => {
   const context = createGasContext();
   loadGitHubScripts(context, { includeAst: true });
@@ -187,6 +233,38 @@ test('updateProjectV2FieldValue supports dryRun without network call', () => {
   context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
 
   const response = context.AST.GitHub.updateProjectV2FieldValue({
+    projectId: 'PVT_1',
+    itemId: 'PVTI_1',
+    fieldId: 'PVTF_1',
+    body: {
+      value: { text: 'Ready' }
+    },
+    options: {
+      dryRun: true
+    }
+  });
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(response.operation, 'update_project_v2_field_value');
+  assert.equal(response.dryRun.enabled, true);
+});
+
+test('run dispatches Projects v2 field update dryRun without network call', () => {
+  let fetchCalls = 0;
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => {
+        fetchCalls += 1;
+        throw new Error('should not fetch in dryRun');
+      }
+    }
+  });
+
+  loadGitHubScripts(context, { includeAst: true });
+  context.AST.GitHub.configure({ GITHUB_TOKEN: 'token' });
+
+  const response = context.AST.GitHub.run({
+    operation: 'update_project_v2_field_value',
     projectId: 'PVT_1',
     itemId: 'PVTI_1',
     fieldId: 'PVTF_1',

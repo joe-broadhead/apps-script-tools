@@ -330,6 +330,7 @@ ASTX.Messaging.operations()
 ASTX.Messaging.capabilities(operationOrGroup)
 ASTX.Messaging.configure(config, options)
 ASTX.Messaging.getConfig()
+ASTX.Messaging.getResolvedConfig(request)
 ASTX.Messaging.clearConfig()
 ```
 
@@ -369,8 +370,88 @@ ASTX.AI.configure({
 ```javascript
 ASTX.Sheets.openById(spreadsheetId)
 ASTX.Sheets.openByUrl(spreadsheetUrl)
+ASTX.Sheets.EnhancedSheet
+ASTX.Sheets.EnhancedSpreadsheet
+ASTX.Sheets.numberToSheetRangeNotation(columnNumber)
 ASTX.Drive.read(fileId, fileType, options)
 ASTX.Drive.create(fileType, fileName, options)
+```
+
+## `Utils` essentials
+
+```javascript
+ASTX.Utils.addValues(left, right)
+ASTX.Utils.applySchemaToObject(record, schema, options)
+ASTX.Utils.applySchemaToRecords(records, schema, options)
+ASTX.Utils.applyTransformationsToObject(record, transformations)
+ASTX.Utils.applyTransformationsToRecords(records, transformations)
+ASTX.Utils.arrayApply(values, fn)
+ASTX.Utils.arrayAstype(values, type)
+ASTX.Utils.arrayChunk(values, size)
+ASTX.Utils.arrayClip(values, min, max)
+ASTX.Utils.arrayCumsum(values)
+ASTX.Utils.arrayDifference(left, right)
+ASTX.Utils.arrayFromRange(range)
+ASTX.Utils.arrayIntersect(left, right)
+ASTX.Utils.arrayLen(values)
+ASTX.Utils.arrayMax(values)
+ASTX.Utils.arrayMean(values)
+ASTX.Utils.arrayMedian(values)
+ASTX.Utils.arrayMin(values)
+ASTX.Utils.arrayMode(values)
+ASTX.Utils.arrayNunique(values)
+ASTX.Utils.arrayProduct(values)
+ASTX.Utils.arrayRange(start, end, step)
+ASTX.Utils.arrayRank(values)
+ASTX.Utils.arrayRolling(values, windowSize, reducer)
+ASTX.Utils.arraySort(values)
+ASTX.Utils.arrayStandardDeviation(values)
+ASTX.Utils.arraySum(values)
+ASTX.Utils.arrayTranspose(values)
+ASTX.Utils.arrayUnion(left, right)
+ASTX.Utils.arrayUnique(values)
+ASTX.Utils.arrayValueCounts(values)
+ASTX.Utils.arrayVariance(values)
+ASTX.Utils.checkRecordsAreConsistent(records)
+ASTX.Utils.clipValues(values, min, max)
+ASTX.Utils.coerceValues(values, type)
+ASTX.Utils.concatValues(left, right)
+ASTX.Utils.convertDateToUnixTimestamp(date)
+ASTX.Utils.convertIntervalToDurationInMilliseconds(interval)
+ASTX.Utils.convertMillisecondsToInterval(milliseconds)
+ASTX.Utils.convertRecordsToCsvFormat(records)
+ASTX.Utils.dateAdd(date, amount, unit)
+ASTX.Utils.dateDiff(left, right, unit)
+ASTX.Utils.dateSub(date, amount, unit)
+ASTX.Utils.decrypt(value, key)
+ASTX.Utils.divideValues(left, right)
+ASTX.Utils.encrypt(value, key)
+ASTX.Utils.flattenObject(object)
+ASTX.Utils.getValueAtPath(object, path)
+ASTX.Utils.groupRecordsOnKeys(records, keys)
+ASTX.Utils.joinRecordsOnKeys(left, right, keys, options)
+ASTX.Utils.multiplyValues(left, right)
+ASTX.Utils.newlineJsonToRecords(text)
+ASTX.Utils.normalizeValues(values)
+ASTX.Utils.pad(value, width, fill)
+ASTX.Utils.recordsToNewlineJson(records)
+ASTX.Utils.removeDuplicatesFromRecords(records, keys)
+ASTX.Utils.removeKeysFromObject(object, keys)
+ASTX.Utils.renameKeysInObject(object, mapping)
+ASTX.Utils.renameKeysInRecords(records, mapping)
+ASTX.Utils.selectKeysFromObject(object, keys)
+ASTX.Utils.sha256Hash(value)
+ASTX.Utils.standardizeArrays(arrays)
+ASTX.Utils.standardizeRecords(records)
+ASTX.Utils.subtractValues(left, right)
+ASTX.Utils.toCapitalCase(value)
+ASTX.Utils.toSnakeCase(value)
+ASTX.Utils.toTitleCase(value)
+ASTX.Utils.unzipObjectIntoArrays(object)
+ASTX.Utils.unzipRecordsIntoArrays(records)
+ASTX.Utils.zfill(value, width)
+ASTX.Utils.zipArraysIntoObject(keys, values)
+ASTX.Utils.zipArraysIntoRecords(keys, rows)
 ```
 
 ## `Storage` essentials
@@ -634,7 +715,7 @@ ASTX.GitHub.clearConfig()
 - `validateSchema` reports missing/extra/type/nullability violations; set `strict: true` to throw.
 - `enforceSchema` can coerce schema columns and optionally drop non-schema columns.
 - `Sql.run` validates provider/request shape before execution.
-- `Sql.prepare` stores compiled prepared statements in runtime memory and returns `statementId`.
+- `Sql.prepare` stores invocation-local compiled statements in runtime memory and returns `statementId`; they are not durable across Apps Script executions.
 - `Sql.executePrepared` returns `{ dataFrame, execution }` for provider detailed paths.
 - `Sql.status` and `Sql.cancel` route through provider-specific execution control helpers.
 - placeholder interpolation is blocked unless explicitly enabled.
@@ -697,7 +778,7 @@ ASTX.GitHub.clearConfig()
 - `ASTX.Config.fromScriptProperties(...)` supports `keys`, `prefix`, and `stripPrefix` for deterministic property snapshots.
 - `ASTX.Config.schema(...)` / `ASTX.Config.bind(...)` provide typed config coercion (`string|int|float|bool|enum|json|secret-ref`) with default precedence `request > runtime > script_properties`.
 - `ASTX.Config.resolveProfile(...)` adds profile-aware precedence `request > profile > runtime > script_properties` with profile selection from request, runtime `setProfile(...)`, or `AST_CONFIG_PROFILE`.
-- `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `GitHub`).
+- `ASTX.Runtime.configureFromProps(...)` applies script/runtime config to selected modules (`Http`, `AI`, `RAG`, `DBT`, `Cache`, `Storage`, `Secrets`, `Telemetry`, `Jobs`, `Triggers`, `Chat`, `Messaging`, `GitHub`).
 - `ASTX.TelemetryHelpers.withSpan(...)` safely closes spans on success/error and rethrows task errors.
 - Jobs step handlers must be globally resolvable named functions and return JSON-serializable values.
 - Jobs checkpoint storage currently supports `checkpointStore='properties'` only.

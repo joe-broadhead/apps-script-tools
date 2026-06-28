@@ -79,6 +79,7 @@ function astMessagingChatApiSend(body = {}, normalizedRequest = {}, resolvedConf
     timeoutMs: resolvedConfig.timeoutMs,
     retries: resolvedConfig.retries
   });
+  const safeResponse = astMessagingRedactHttpResponse(response, url);
 
   return {
     transport: 'chat_api',
@@ -86,12 +87,9 @@ function astMessagingChatApiSend(body = {}, normalizedRequest = {}, resolvedConf
       url,
       payload
     },
-    response: response.json || {
-      statusCode: response.statusCode,
-      text: response.text
-    },
+    response: astMessagingRedactHttpResponsePayload(response, url),
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }
 
@@ -131,12 +129,13 @@ function astMessagingChatApiGetMessage(body = {}, normalizedRequest = {}, resolv
     timeoutMs: resolvedConfig.timeoutMs,
     retries: resolvedConfig.retries
   });
+  const safeResponse = astMessagingRedactHttpResponse(response, url);
 
   return {
     transport: 'chat_api',
-    item: response.json || null,
+    item: safeResponse.json || null,
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }
 
@@ -168,11 +167,13 @@ function astMessagingChatApiListMessages(body = {}, normalizedRequest = {}, reso
   });
 
   const json = response.json || {};
+  const safeResponse = astMessagingRedactHttpResponse(response, url);
+  const safeJson = safeResponse.json || {};
   return {
     transport: 'chat_api',
-    items: Array.isArray(json.messages) ? json.messages : [],
+    items: Array.isArray(safeJson.messages) ? safeJson.messages : [],
     nextPageToken: typeof json.nextPageToken === 'string' ? json.nextPageToken : null,
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }

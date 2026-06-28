@@ -187,5 +187,7 @@ const AST_AI = Object.freeze({
   configure: astAiConfigure,
   getConfig: astAiGetConfig,
   clearConfig: astAiClearConfig,
-  OutputRepair: astAiGetOutputRepairSurface()
+  get OutputRepair() {
+    return astAiGetOutputRepairSurface();
+  }
 });

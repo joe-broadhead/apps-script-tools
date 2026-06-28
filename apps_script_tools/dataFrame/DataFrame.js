@@ -94,49 +94,7 @@ var DataFrame = class DataFrame {
 
   static fromColumns(columns, options = {}) {
     __astIncrementDataFrameCounter('fromColumns');
-
-    if (columns == null || typeof columns !== 'object' || Array.isArray(columns)) {
-      throw new Error('fromColumns requires an object mapping of column names to arrays or Series');
-    }
-
-    const {
-      index = null,
-      copy = true,
-      typeMap = {}
-    } = options;
-
-    const columnEntries = Object.entries(columns);
-    if (columnEntries.length === 0) {
-      return new DataFrame({}, index || []);
-    }
-
-    let expectedLength = null;
-    const seriesObject = {};
-
-    for (let idx = 0; idx < columnEntries.length; idx++) {
-      const [columnName, columnValue] = columnEntries[idx];
-      let columnSeries;
-
-      if (columnValue instanceof Series) {
-        columnSeries = columnValue;
-      } else if (Array.isArray(columnValue)) {
-        const arrayValue = copy ? [...columnValue] : columnValue;
-        const columnType = Object.prototype.hasOwnProperty.call(typeMap, columnName) ? typeMap[columnName] : null;
-        columnSeries = new Series(arrayValue, columnName, columnType, null, { allowComplexValues: true });
-      } else {
-        throw new Error(`Column '${columnName}' must be an array or Series`);
-      }
-
-      if (expectedLength == null) {
-        expectedLength = columnSeries.len();
-      } else if (columnSeries.len() !== expectedLength) {
-        throw new Error(`All columns must have the same length. Expected ${expectedLength}, got ${columnSeries.len()} for column '${columnName}'`);
-      }
-
-      seriesObject[columnName] = columnSeries;
-    }
-
-    return new DataFrame(seriesObject, index);
+    return astDataFrameFromColumns(DataFrame, columns, options);
   }
 
   /**
@@ -148,52 +106,23 @@ var DataFrame = class DataFrame {
    */
   static fromRecords(records) {
     __astIncrementDataFrameCounter('fromRecords');
-
-    const standardized = standardizeRecords(records);
-    if (standardized.length === 0) {
-      return new DataFrame({});
-    }
-
-    const columnNames = Object.keys(standardized[0]);
-    const rowCount = standardized.length;
-    const columnData = {};
-
-    for (let colIdx = 0; colIdx < columnNames.length; colIdx++) {
-      columnData[columnNames[colIdx]] = new Array(rowCount);
-    }
-
-    for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-      const record = standardized[rowIdx];
-
-      for (let colIdx = 0; colIdx < columnNames.length; colIdx++) {
-        const column = columnNames[colIdx];
-        columnData[column][rowIdx] = record[column];
-      }
-    }
-
-    return DataFrame.fromColumns(columnData, { copy: false });
+    return astDataFrameFromRecords(DataFrame, records);
   }
 
   static fromArrays(arrays, options = {}) {
-    const { headerRow = 0, standardize = false, defaultValue = null, targetLength = null } = options;
-
-    const standardizedArrays = standardize ? standardizeArrays(arrays, { defaultValue, targetLength }) : arrays;
-
-    const records = zipArraysIntoRecords(standardizedArrays, headerRow);
-    return DataFrame.fromRecords(records);
+    return astDataFrameFromArrays(DataFrame, arrays, options);
   }
 
   static fromSheet(sheet, headerRow = 0) {
-    return new EnhancedSheet(sheet).toDataFrame({ headerRow });
+    return astDataFrameFromSheet(DataFrame, sheet, headerRow);
   }
 
   static fromDriveFile(fileId, fileType, options = {}) {
-    const records = readFileFromDrive(fileId, fileType, options);
-    return DataFrame.fromRecords(records);
+    return astDataFrameFromDriveFile(DataFrame, fileId, fileType, options);
   }
 
   static fromQuery(request = {}) {
-    return runSqlQuery(request);
+    return astDataFrameFromQuery(request);
   }
 
   static concat(dataFrames, distinct = false) {
@@ -2665,16 +2594,8 @@ var DataFrame = class DataFrame {
     const arrays = this.toArrays(columnOrder);
     const tableConfig = { ...config, arrays };
 
-    switch (provider) {
-      case 'databricks':
-        astLoadDatabricksTable(tableConfig);
-        return this;
-      case 'bigquery':
-        astLoadBigQueryTable(tableConfig);
-        return this;
-      default:
-        throw new Error('Provider must be one of: databricks, bigquery');
-    }
+    astLoadSqlProviderTable(provider, tableConfig);
+    return this;
   }
 
   toJson({ indent = 4, multiline = false } = {}) {

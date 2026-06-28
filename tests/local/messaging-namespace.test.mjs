@@ -14,6 +14,7 @@ test('AST exposes Messaging namespace with expected public surface', () => {
   assert.equal(typeof context.AST.Messaging.capabilities, 'function');
   assert.equal(typeof context.AST.Messaging.configure, 'function');
   assert.equal(typeof context.AST.Messaging.getConfig, 'function');
+  assert.equal(typeof context.AST.Messaging.getResolvedConfig, 'function');
   assert.equal(typeof context.AST.Messaging.clearConfig, 'function');
   assert.equal(typeof context.AST.Messaging.registerTemplate, 'function');
   assert.equal(typeof context.AST.Messaging.getTemplate, 'function');
@@ -70,8 +71,22 @@ test('AST exposes Messaging namespace with expected public surface', () => {
   assert.equal(capabilities.transports.chat.includes('slack_api'), true);
   assert.equal(capabilities.transports.chat.includes('teams_webhook'), true);
   assert.equal(capabilities.templates.registry, true);
+  assert.equal(capabilities.stores.idempotency.defaultBackend, 'script_properties');
+  assert.equal(capabilities.stores.idempotency.backends.memory.memoryOnly, true);
+  assert.equal(capabilities.stores.idempotency.backends.script_properties.durable, true);
+  assert.equal(capabilities.stores.inboundReplay.defaultBackend, 'script_properties');
+  assert.equal(capabilities.stores.inboundReplay.allowMemoryConfigKey, 'MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY');
   assert.equal(Array.isArray(capabilities.inbound.providers), true);
   assert.equal(capabilities.inbound.providers.includes('slack'), true);
   assert.equal(capabilities.inbound.providers.includes('google_chat'), true);
   assert.equal(capabilities.inbound.providers.includes('teams'), true);
+  assert.equal(capabilities.inbound.replayProtection.defaultBackend, 'script_properties');
+
+  const resolvedConfig = context.AST.Messaging.getResolvedConfig();
+  assert.equal(resolvedConfig.idempotency.backend, 'script_properties');
+  assert.equal(resolvedConfig.idempotency.durable, true);
+  assert.equal(resolvedConfig.idempotency.memoryOnly, false);
+  assert.equal(resolvedConfig.inbound.replayBackend, 'script_properties');
+  assert.equal(resolvedConfig.inbound.replayDurable, true);
+  assert.equal(resolvedConfig.inbound.replayMemoryOnly, false);
 });

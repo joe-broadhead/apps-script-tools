@@ -21,11 +21,8 @@ jobs:
   live-github-smoke:
     runs-on: ubuntu-latest
     env:
-      SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
-      CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
-      CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
-      CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
-      LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GAS_TEST_SCRIPT_ID: ${{ vars.GAS_TEST_SCRIPT_ID }}
+      GAS_PRODUCTION_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,22 +32,48 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup clasp auth and binding
+      - name: Setup clasp CLI and binding
         uses: ./.github/actions/setup-clasp
         with:
-          script-id: ${{ env.SCRIPT_ID }}
+          script-id: ${{ env.GAS_TEST_SCRIPT_ID }}
           root-dir: apps_script_tools
-          clasp-client-id: ${{ env.CLASP_CLIENT_ID }}
-          clasp-client-secret: ${{ env.CLASP_CLIENT_SECRET }}
-          clasp-refresh-token: ${{ env.CLASP_REFRESH_TOKEN }}
 
-      - name: Push and execute GitHub live smoke
+      - name: Configure clasp auth
+        uses: ./.github/actions/configure-clasp-auth
+        with:
+          clasp-client-id: ${{ secrets.CLASP_CLIENT_ID }}
+          clasp-client-secret: ${{ secrets.CLASP_CLIENT_SECRET }}
+          clasp-refresh-token: ${{ secrets.CLASP_REFRESH_TOKEN }}
+
+      - name: Verify production clasp push set
+        run: npm run check:clasp:production
+
+      - name: Push Apps Script project
+        run: |
+          set -euo pipefail
+          clasp status
+          npm run clasp:test-push
+
+      - name: Execute GitHub live smoke
         env:
+          LIVE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_OWNER: ${{ inputs.owner }}
           INPUT_REPO: ${{ inputs.repo }}
         run: |
-          clasp status
-          clasp push
-          clasp run seedGitHubLiveSmokeToken --params "[\"${LIVE_GITHUB_TOKEN}\"]"
-          GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
-          clasp run runGitHubLiveSmokeForRepo --params "$GITHUB_PARAMS"
+          set -euo pipefail
+          GITHUB_PARAMS="$(node -e "process.stdout.write(JSON.stringify([process.env.LIVE_GITHUB_TOKEN || '', process.env.INPUT_OWNER || '', process.env.INPUT_REPO || '']))")"
+          clasp run runGitHubLiveSmoke --params "$GITHUB_PARAMS"
+
+      - name: Clean up GitHub live-smoke token
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! command -v clasp >/dev/null 2>&1; then
+            echo "::warning::Skipping GitHub live-smoke cleanup because clasp is not installed."
+            exit 0
+          fi
+          if [ ! -f .clasp.json ]; then
+            echo "::warning::Skipping GitHub live-smoke cleanup because .clasp.json is unavailable."
+            exit 0
+          fi
+          clasp run cleanupGitHubLiveSmokeToken

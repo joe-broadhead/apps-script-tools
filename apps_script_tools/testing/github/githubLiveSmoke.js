@@ -1,22 +1,39 @@
+const AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_ = 'GITHUB_TOKEN';
+
+function astGetGitHubLiveSmokeScriptProperties_(caller) {
+  if (
+    typeof PropertiesService === 'undefined' ||
+    !PropertiesService ||
+    typeof PropertiesService.getScriptProperties !== 'function'
+  ) {
+    throw new Error(`${caller} requires PropertiesService.getScriptProperties`);
+  }
+
+  const scriptProperties = PropertiesService.getScriptProperties();
+  if (!scriptProperties) {
+    throw new Error(`${caller} could not access script property store`);
+  }
+
+  return scriptProperties;
+}
+
 function astGetGitHubLiveSmokeToken_(explicitToken) {
   const direct = typeof explicitToken === 'string' ? explicitToken.trim() : '';
   if (direct) {
     return direct;
   }
 
-  if (
-    typeof PropertiesService !== 'undefined' &&
-    PropertiesService &&
-    typeof PropertiesService.getScriptProperties === 'function'
-  ) {
-    const scriptProperties = PropertiesService.getScriptProperties();
+  try {
+    const scriptProperties = astGetGitHubLiveSmokeScriptProperties_('runGitHubLiveSmoke');
     if (scriptProperties && typeof scriptProperties.getProperty === 'function') {
-      const fromScriptProps = scriptProperties.getProperty('GITHUB_TOKEN');
+      const fromScriptProps = scriptProperties.getProperty(AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_);
       const normalized = typeof fromScriptProps === 'string' ? fromScriptProps.trim() : '';
       if (normalized) {
         return normalized;
       }
     }
+  } catch (_error) {
+    // Explicit-token smoke runs should not require script properties.
   }
 
   return '';
@@ -104,25 +121,42 @@ function seedGitHubLiveSmokeToken(token) {
     throw new Error("seedGitHubLiveSmokeToken requires a non-empty token argument");
   }
 
-  if (
-    typeof PropertiesService === 'undefined' ||
-    !PropertiesService ||
-    typeof PropertiesService.getScriptProperties !== 'function'
-  ) {
-    throw new Error('seedGitHubLiveSmokeToken requires PropertiesService.getScriptProperties');
-  }
-
-  const scriptProperties = PropertiesService.getScriptProperties();
+  const scriptProperties = astGetGitHubLiveSmokeScriptProperties_('seedGitHubLiveSmokeToken');
   if (!scriptProperties || typeof scriptProperties.setProperty !== 'function') {
     throw new Error('seedGitHubLiveSmokeToken could not access script property store');
   }
 
-  scriptProperties.setProperty('GITHUB_TOKEN', normalized);
+  scriptProperties.setProperty(AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_, normalized);
 
   const response = {
     status: 'ok',
-    key: 'GITHUB_TOKEN',
+    key: AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_,
     updatedAt: new Date().toISOString()
+  };
+  Logger.log(JSON.stringify(response, null, 2));
+  return response;
+}
+
+function cleanupGitHubLiveSmokeToken() {
+  const scriptProperties = astGetGitHubLiveSmokeScriptProperties_('cleanupGitHubLiveSmokeToken');
+  if (typeof scriptProperties.deleteProperty !== 'function') {
+    throw new Error('cleanupGitHubLiveSmokeToken requires scriptProperties.deleteProperty');
+  }
+
+  let existed = null;
+  if (typeof scriptProperties.getProperty === 'function') {
+    const existing = scriptProperties.getProperty(AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_);
+    existed = typeof existing === 'string' && existing.length > 0;
+  }
+
+  scriptProperties.deleteProperty(AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_);
+
+  const response = {
+    status: 'ok',
+    key: AST_GITHUB_LIVE_SMOKE_TOKEN_PROPERTY_,
+    deleted: true,
+    existed,
+    cleanedAt: new Date().toISOString()
   };
   Logger.log(JSON.stringify(response, null, 2));
   return response;

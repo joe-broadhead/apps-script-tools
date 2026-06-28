@@ -104,6 +104,38 @@ function astMessagingIsMutationOperation(operation) {
   return Boolean(spec && spec.mutation === true);
 }
 
+function astMessagingBuildStorageCapability(defaultBackend, allowMemoryConfigKey, ttlConfigKey) {
+  return {
+    defaultBackend,
+    ttlConfigKey,
+    allowMemoryConfigKey,
+    durableBackends: ['drive_json', 'script_properties', 'storage_json'],
+    memoryOnlyBackends: ['memory'],
+    backends: {
+      memory: {
+        durable: false,
+        memoryOnly: true,
+        recommendedUse: 'explicit_dev_test_only'
+      },
+      drive_json: {
+        durable: true,
+        memoryOnly: false,
+        recommendedUse: 'low_volume_shared'
+      },
+      script_properties: {
+        durable: true,
+        memoryOnly: false,
+        recommendedUse: 'low_volume_apps_script'
+      },
+      storage_json: {
+        durable: true,
+        memoryOnly: false,
+        recommendedUse: 'shared_production'
+      }
+    }
+  };
+}
+
 function astMessagingGetCapabilities(operationOrGroup) {
   if (typeof operationOrGroup === 'undefined' || operationOrGroup === null || operationOrGroup === '') {
     return {
@@ -126,11 +158,28 @@ function astMessagingGetCapabilities(operationOrGroup) {
         render: true,
         send: true
       },
+      stores: {
+        idempotency: astMessagingBuildStorageCapability(
+          'script_properties',
+          'MESSAGING_IDEMPOTENCY_ALLOW_MEMORY',
+          'MESSAGING_IDEMPOTENCY_TTL_SEC'
+        ),
+        inboundReplay: astMessagingBuildStorageCapability(
+          'script_properties',
+          'MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY',
+          'MESSAGING_INBOUND_REPLAY_TTL_SEC'
+        )
+      },
       inbound: {
         verify: true,
         parse: true,
         route: true,
-        providers: ['google_chat', 'slack', 'teams']
+        providers: ['google_chat', 'slack', 'teams'],
+        replayProtection: {
+          defaultEnabled: true,
+          defaultBackend: 'script_properties',
+          allowMemoryConfigKey: 'MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY'
+        }
       }
     };
   }

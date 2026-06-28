@@ -49,7 +49,7 @@ Release notes and version details:
 1. In your Apps Script project, open **Libraries**.
 2. Add script ID: `1gZ_6DiLeDhh-a4qcezluTFDshw4OEhTXbeD3wthl_UdHEAFkXf6i6Ho_`.
 3. Select the latest published version.
-4. Use identifier: `AST` (or your preferred alias).
+4. Use identifier: `ASTLib` (or your preferred alias).
 
 ## Quick start
 
@@ -69,6 +69,8 @@ function demoAstLibrary() {
   Logger.log(enriched.toMarkdown());
 }
 ```
+
+If you choose a different Apps Script library identifier, replace `ASTLib` in the normalization line with that identifier. For example, identifier `AST` uses `const ASTX = AST.AST || AST;`.
 
 ## Documentation
 
@@ -132,12 +134,15 @@ Global structures note:
 
 ## Development
 
+- Fast local check: `npm test` (alias for `npm run test:fast`; lint + local Node tests only)
+- Canonical local release gate: `npm run verify:release`
 - Lint gate: `npm run lint`
 - Local coverage gate: `npm run test:local:coverage`
 - Perf gate: `npm run test:perf:check`
 - Security gate: `npm run test:security`
+- Dependency audit gate: `npm run test:dependencies`
 - Docs gate: `mkdocs build --strict`
-- Apps Script integration gate (when configured): `clasp push && clasp run runAllTests`
+- Apps Script integration gate (when configured against a test script project): `npm run check:clasp:production && GAS_PRODUCTION_SCRIPT_ID=<production_script_id> GAS_TEST_SCRIPT_ID=<test_script_id> npm run clasp:test-push && clasp run runAllTests`
 - Full contributor guide: `CONTRIBUTING.md`
 
 ## Release

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createGasContext } from './helpers.mjs';
+import { createGasContext, loadScripts } from './helpers.mjs';
 import { loadAiScripts } from './ai-helpers.mjs';
 
 function normalizedTextResponse(context, text, finishReason = null) {
@@ -15,6 +15,65 @@ function normalizedTextResponse(context, text, finishReason = null) {
     }
   });
 }
+
+function loadOutputRepairFacadeOrder(context, order) {
+  const common = [
+    'apps_script_tools/ai/general/errors.js'
+  ];
+  const outputRepair = 'apps_script_tools/ai/general/outputRepair.js';
+  const aiFacade = 'apps_script_tools/ai/AI.js';
+  const astFacade = 'apps_script_tools/AST.js';
+
+  if (order === 'implementation-first') {
+    loadScripts(context, [...common, outputRepair, aiFacade, astFacade]);
+    return context;
+  }
+
+  loadScripts(context, [...common, aiFacade, astFacade]);
+  return context;
+}
+
+function assertOutputRepairUsesImplementation(context) {
+  const result = context.AST.AI.OutputRepair.continueIfTruncated({
+    provider: 'openai',
+    model: 'gpt-4.1-mini',
+    partial: 'This answer is already complete.',
+    auth: { apiKey: 'test-key' }
+  });
+
+  assert.equal(result.continued, false);
+  assert.equal(result.likelyTruncated, false);
+  assert.equal(result.text, 'This answer is already complete.');
+}
+
+test('AST.AI.OutputRepair resolves when implementation loads before AI facade', () => {
+  const context = createGasContext();
+  loadOutputRepairFacadeOrder(context, 'implementation-first');
+
+  assertOutputRepairUsesImplementation(context);
+});
+
+test('AST.AI.OutputRepair resolves when implementation loads after AI facade', () => {
+  const context = createGasContext();
+  loadOutputRepairFacadeOrder(context, 'facade-first');
+
+  assert.throws(
+    () => context.AST.AI.OutputRepair.continueIfTruncated({
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      partial: 'This answer is already complete.',
+      auth: { apiKey: 'test-key' }
+    }),
+    error => {
+      assert.equal(error.name, 'AstAiValidationError');
+      assert.match(error.message, /OutputRepair runtime is not available/);
+      return true;
+    }
+  );
+
+  loadScripts(context, ['apps_script_tools/ai/general/outputRepair.js']);
+  assertOutputRepairUsesImplementation(context);
+});
 
 test('OutputRepair.continueIfTruncated returns unchanged text when not truncated', () => {
   const context = createGasContext();

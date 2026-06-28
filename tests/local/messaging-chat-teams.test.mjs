@@ -21,7 +21,9 @@ test('chat teams webhook send/sendBatch use configured webhook and payload', () 
 
   loadMessagingScripts(context, { includeAst: true });
   context.AST.Messaging.configure({
-    MESSAGING_TEAMS_WEBHOOK_URL: 'https://outlook.office.com/webhook/test'
+    MESSAGING_TEAMS_WEBHOOK_URL: 'https://outlook.office.com/webhook/test',
+    MESSAGING_LOG_BACKEND: 'memory',
+    MESSAGING_LOG_NAMESPACE: 'ast_messaging_teams_redaction'
   });
 
   const sent = context.AST.Messaging.chat.send({
@@ -35,6 +37,10 @@ test('chat teams webhook send/sendBatch use configured webhook and payload', () 
 
   assert.equal(sent.status, 'ok');
   assert.equal(sent.transport, 'teams_webhook');
+  assert.equal(sent.data.request.webhookUrl, '[REDACTED]');
+
+  const log = context.AST.Messaging.logs.get({ body: { eventId: sent.log.eventId } });
+  assert.equal(log.data.item.payload.result.request.webhookUrl, '[REDACTED]');
 
   const batch = context.AST.Messaging.chat.sendBatch({
     body: {
@@ -71,4 +77,5 @@ test('chat teams aliases normalize and route to teams_webhook', () => {
 
   assert.equal(out.status, 'ok');
   assert.equal(out.transport, 'teams_webhook');
+  assert.equal(out.data.request.webhookUrl, '[REDACTED]');
 });

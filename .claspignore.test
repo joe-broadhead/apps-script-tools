@@ -4,13 +4,11 @@ client_secret.json
 .clasp.json
 .clasprc.json
 .claspignore
+.claspignore.test
 
 # Local-only
 local_testing/**
 .opencowork/**
-
-# Test harnesses and live-smoke entrypoints (use .claspignore.test for test deployments)
-testing/**
 node_modules/**
 
 # Tooling/docs (not part of Apps Script source)

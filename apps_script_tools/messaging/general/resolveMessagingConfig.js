@@ -29,6 +29,7 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_IDEMPOTENCY_BACKEND',
   'MESSAGING_IDEMPOTENCY_NAMESPACE',
   'MESSAGING_IDEMPOTENCY_TTL_SEC',
+  'MESSAGING_IDEMPOTENCY_ALLOW_MEMORY',
   'MESSAGING_TEMPLATE_BACKEND',
   'MESSAGING_TEMPLATE_NAMESPACE',
   'MESSAGING_TEMPLATE_DRIVE_FOLDER_ID',
@@ -40,6 +41,7 @@ const AST_MESSAGING_CONFIG_KEYS = Object.freeze([
   'MESSAGING_INBOUND_REPLAY_BACKEND',
   'MESSAGING_INBOUND_REPLAY_NAMESPACE',
   'MESSAGING_INBOUND_REPLAY_TTL_SEC',
+  'MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY',
   'MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET',
   'MESSAGING_INBOUND_GOOGLE_CHAT_VERIFICATION_TOKEN',
   'MESSAGING_INBOUND_SLACK_SIGNING_SECRET',
@@ -87,9 +89,10 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
     queue: 'jobs'
   }),
   idempotency: Object.freeze({
-    backend: 'memory',
+    backend: 'script_properties',
     namespace: 'ast_messaging_idempotency',
-    ttlSec: 900
+    ttlSec: 900,
+    allowMemory: false
   }),
   templates: Object.freeze({
     backend: 'memory',
@@ -102,9 +105,10 @@ const AST_MESSAGING_DEFAULTS = Object.freeze({
   inbound: Object.freeze({
     maxSkewSec: 300,
     replayProtection: true,
-    replayBackend: 'memory',
+    replayBackend: 'script_properties',
     replayNamespace: 'ast_messaging_inbound_replay',
     replayTtlSec: 600,
+    replayAllowMemory: false,
     googleChat: Object.freeze({
       signingSecret: '',
       verificationToken: ''
@@ -511,8 +515,15 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
       astMessagingConfigNormalizeInteger(scriptConfig.MESSAGING_IDEMPOTENCY_TTL_SEC, AST_MESSAGING_DEFAULTS.idempotency.ttlSec, 1, 86400),
       1,
       86400
+    ),
+    allowMemory: astMessagingConfigNormalizeBoolean(
+      runtimeConfig.MESSAGING_IDEMPOTENCY_ALLOW_MEMORY,
+      astMessagingConfigNormalizeBoolean(scriptConfig.MESSAGING_IDEMPOTENCY_ALLOW_MEMORY, AST_MESSAGING_DEFAULTS.idempotency.allowMemory)
     )
   };
+  idempotency.backend = String(idempotency.backend || AST_MESSAGING_DEFAULTS.idempotency.backend).toLowerCase();
+  idempotency.memoryOnly = idempotency.backend === 'memory';
+  idempotency.durable = idempotency.memoryOnly !== true;
 
   const transport = astMessagingResolveFirstString(
     [normalizedRequest.providerOptions && normalizedRequest.providerOptions.transport, normalizedRequest.body && normalizedRequest.body.transport],
@@ -573,6 +584,10 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
       1,
       86400
     ),
+    replayAllowMemory: astMessagingConfigNormalizeBoolean(
+      runtimeConfig.MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY,
+      astMessagingConfigNormalizeBoolean(scriptConfig.MESSAGING_INBOUND_REPLAY_ALLOW_MEMORY, AST_MESSAGING_DEFAULTS.inbound.replayAllowMemory)
+    ),
     googleChat: {
       signingSecret: astMessagingResolveFirstString(
         [normalizedRequest.auth && normalizedRequest.auth.googleChatSigningSecret, runtimeConfig.MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET, scriptConfig.MESSAGING_INBOUND_GOOGLE_CHAT_SIGNING_SECRET],
@@ -596,6 +611,9 @@ function astMessagingResolveBaseConfig(normalizedRequest = {}) {
       )
     }
   };
+  inbound.replayBackend = String(inbound.replayBackend || AST_MESSAGING_DEFAULTS.inbound.replayBackend).toLowerCase();
+  inbound.replayMemoryOnly = inbound.replayBackend === 'memory';
+  inbound.replayDurable = inbound.replayMemoryOnly !== true;
 
   return {
     timeoutMs,

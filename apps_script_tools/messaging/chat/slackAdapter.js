@@ -84,19 +84,17 @@ function astMessagingSlackSendWebhook(body = {}, normalizedRequest = {}, resolve
     timeoutMs: resolvedConfig.timeoutMs,
     retries: resolvedConfig.retries
   });
+  const safeResponse = astMessagingRedactHttpResponse(response, webhookUrl);
 
   return {
     transport: 'slack_webhook',
     request: {
-      webhookUrl,
+      webhookUrl: astMessagingRedactWebhookUrl(webhookUrl),
       payload
     },
-    response: response.json || {
-      statusCode: response.statusCode,
-      text: response.text
-    },
+    response: astMessagingRedactHttpResponsePayload(response, webhookUrl),
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }
 
@@ -135,6 +133,7 @@ function astMessagingSlackSendApi(body = {}, normalizedRequest = {}, resolvedCon
       error: json.error || null
     });
   }
+  const safeResponse = astMessagingRedactHttpResponse(response, url);
 
   return {
     transport: 'slack_api',
@@ -142,12 +141,9 @@ function astMessagingSlackSendApi(body = {}, normalizedRequest = {}, resolvedCon
       url,
       payload
     },
-    response: json || {
-      statusCode: response.statusCode,
-      text: response.text
-    },
+    response: astMessagingRedactHttpResponsePayload(response, url),
     statusCode: response.statusCode,
-    raw: response
+    raw: safeResponse
   };
 }
 

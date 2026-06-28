@@ -178,6 +178,7 @@ function astGitHubNormalizeOptions(options = {}) {
   const retries = astGitHubNormalizeOptionalInteger(options.retries, 'options.retries', 0);
   const page = astGitHubNormalizeInteger(options.page, 'options.page', 1, 1);
   const perPage = astGitHubNormalizeInteger(options.perPage, 'options.perPage', 30, 1);
+  const pageToken = astGitHubNormalizeString(options.pageToken, null);
 
   const cacheInput = astGitHubValidateIsPlainObject(options.cache) ? options.cache : {};
   const cache = {
@@ -204,6 +205,7 @@ function astGitHubNormalizeOptions(options = {}) {
     retries,
     page,
     perPage,
+    pageToken,
     cache
   };
 }
@@ -263,6 +265,18 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     'artifactId',
     null,
     1
+  );
+  const projectId = astGitHubNormalizeString(
+    typeof request.projectId !== 'undefined' ? request.projectId : request.project_id,
+    null
+  );
+  const itemId = astGitHubNormalizeString(
+    typeof request.itemId !== 'undefined' ? request.itemId : request.item_id,
+    null
+  );
+  const fieldId = astGitHubNormalizeString(
+    typeof request.fieldId !== 'undefined' ? request.fieldId : request.field_id,
+    null
   );
 
   const body = typeof request.body === 'undefined'
@@ -343,6 +357,9 @@ function astGitHubValidateRequest(request = {}, forcedOperation = null) {
     workflowId,
     runId,
     artifactId,
+    projectId,
+    itemId,
+    fieldId,
     path,
     branch,
     ref,

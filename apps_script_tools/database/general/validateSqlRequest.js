@@ -3,7 +3,7 @@
  * @description Validates and normalizes a SQL request object used by `runSqlQuery`.
  *              Placeholder interpolation is disabled by default for security.
  * @param {Object} request - SQL execution request.
- * @param {String} request.provider - One of: databricks, bigquery.
+ * @param {String} request.provider - One of the providers from `astListSqlProviders()`.
  * @param {String} request.sql - SQL statement to execute.
  * @param {Object} request.parameters - Provider-specific connection parameters.
  * @param {Object} [request.placeholders={}] - Placeholder values for interpolation.
@@ -26,9 +26,7 @@ function astValidateSqlRequest(request = {}) {
     options = {}
   } = request;
 
-  if (!['databricks', 'bigquery'].includes(provider)) {
-    throw new Error('Provider must be one of: databricks, bigquery');
-  }
+  const providerSpec = astGetSqlProviderValidationSpec(provider);
 
   if (typeof sql !== 'string' || sql.trim().length === 0) {
     throw new Error('SQL request must include a non-empty sql string');
@@ -75,25 +73,14 @@ function astValidateSqlRequest(request = {}) {
     );
   }
 
-  if (provider === 'bigquery') {
-    const projectId = parameters.projectId;
-    if (typeof projectId !== 'string' || projectId.trim().length === 0) {
-      throw new Error('BigQuery requests require parameters.projectId as a non-empty string');
-    }
-  }
-
-  if (provider === 'databricks') {
-    const requiredDatabricksParameters = ['host', 'sqlWarehouseId', 'schema', 'token'];
-    const missingDatabricksParameters = requiredDatabricksParameters.filter(key => {
-      const value = parameters[key];
-      return typeof value !== 'string' || value.trim().length === 0;
-    });
-
-    if (missingDatabricksParameters.length > 0) {
-      throw new Error(
-        `Databricks requests require parameters.${missingDatabricksParameters.join(', parameters.')}`
-      );
-    }
+  const missingProviderParameters = providerSpec.requiredParameters.filter(key => {
+    const value = parameters[key];
+    return typeof value !== 'string' || value.trim().length === 0;
+  });
+  if (missingProviderParameters.length > 0) {
+    throw new Error(
+      `${providerSpec.displayName} requests require parameters.${missingProviderParameters.join(', parameters.')}`
+    );
   }
 
   return {

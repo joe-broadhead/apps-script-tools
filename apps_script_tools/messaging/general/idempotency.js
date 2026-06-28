@@ -145,12 +145,41 @@ function astMessagingBuildIdempotencyKey(normalizedRequest = {}, resolvedConfig 
 
 function astMessagingResolveIdempotencyCacheOptions(resolvedConfig = {}) {
   const options = {
-    backend: astMessagingIdempotencyNormalizeString(resolvedConfig.idempotency && resolvedConfig.idempotency.backend, 'memory'),
+    backend: astMessagingIdempotencyNormalizeString(resolvedConfig.idempotency && resolvedConfig.idempotency.backend, 'script_properties'),
     namespace: astMessagingIdempotencyNormalizeString(resolvedConfig.idempotency && resolvedConfig.idempotency.namespace, 'ast_messaging_idempotency'),
-    ttlSec: Number(resolvedConfig.idempotency && resolvedConfig.idempotency.ttlSec) || 900
+    ttlSec: Number(resolvedConfig.idempotency && resolvedConfig.idempotency.ttlSec) || 900,
+    allowMemory: resolvedConfig.idempotency && resolvedConfig.idempotency.allowMemory === true
   };
+  options.backend = String(options.backend || 'script_properties').toLowerCase();
+  options.memoryOnly = options.backend === 'memory';
+  options.durable = options.memoryOnly !== true;
 
   return options;
+}
+
+function astMessagingAssertIdempotencyCacheOptions(options = {}) {
+  if (options.backend === 'memory') {
+    if (options.allowMemory === true) {
+      return;
+    }
+    throw new AstMessagingValidationError('Messaging idempotency memory backend requires explicit dev/test opt-in', {
+      backend: options.backend,
+      namespace: options.namespace,
+      configKey: 'MESSAGING_IDEMPOTENCY_ALLOW_MEMORY'
+    });
+  }
+
+  if (
+    typeof AST_CACHE === 'undefined' ||
+    !AST_CACHE ||
+    typeof AST_CACHE.get !== 'function' ||
+    typeof AST_CACHE.set !== 'function'
+  ) {
+    throw new AstMessagingCapabilityError('Messaging idempotency backend requires AST_CACHE durable storage', {
+      backend: options.backend,
+      namespace: options.namespace
+    });
+  }
 }
 
 function astMessagingIdempotencyCacheGet(cacheKey, options = {}) {
@@ -191,19 +220,20 @@ function astMessagingIdempotencyGet(cacheKey, resolvedConfig = {}) {
   }
 
   const cacheOptions = astMessagingResolveIdempotencyCacheOptions(resolvedConfig);
+  astMessagingAssertIdempotencyCacheOptions(cacheOptions);
   if (cacheOptions.backend === 'memory') {
     return astMessagingIdempotencyCacheGet(cacheKey, cacheOptions);
   }
 
-  if (typeof AST_CACHE !== 'undefined' && AST_CACHE && typeof AST_CACHE.get === 'function') {
-    try {
-      return AST_CACHE.get(`idempotency:${cacheKey}`, cacheOptions);
-    } catch (_error) {
-      return astMessagingIdempotencyCacheGet(cacheKey, cacheOptions);
-    }
+  try {
+    return AST_CACHE.get(`idempotency:${cacheKey}`, cacheOptions);
+  } catch (error) {
+    throw new AstMessagingCapabilityError('Messaging idempotency durable store read failed', {
+      backend: cacheOptions.backend,
+      namespace: cacheOptions.namespace,
+      cacheKey
+    }, error);
   }
-
-  return astMessagingIdempotencyCacheGet(cacheKey, cacheOptions);
 }
 
 function astMessagingIdempotencySet(cacheKey, value, resolvedConfig = {}) {
@@ -212,19 +242,19 @@ function astMessagingIdempotencySet(cacheKey, value, resolvedConfig = {}) {
   }
 
   const cacheOptions = astMessagingResolveIdempotencyCacheOptions(resolvedConfig);
+  astMessagingAssertIdempotencyCacheOptions(cacheOptions);
   if (cacheOptions.backend === 'memory') {
     astMessagingIdempotencyCacheSet(cacheKey, value, cacheOptions);
     return;
   }
 
-  if (typeof AST_CACHE !== 'undefined' && AST_CACHE && typeof AST_CACHE.set === 'function') {
-    try {
-      AST_CACHE.set(`idempotency:${cacheKey}`, value, cacheOptions);
-      return;
-    } catch (_error) {
-      // Fallback below.
-    }
+  try {
+    AST_CACHE.set(`idempotency:${cacheKey}`, value, cacheOptions);
+  } catch (error) {
+    throw new AstMessagingCapabilityError('Messaging idempotency durable store write failed', {
+      backend: cacheOptions.backend,
+      namespace: cacheOptions.namespace,
+      cacheKey
+    }, error);
   }
-
-  astMessagingIdempotencyCacheSet(cacheKey, value, cacheOptions);
 }

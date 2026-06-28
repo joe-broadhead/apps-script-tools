@@ -41,6 +41,44 @@ const AST_CHAT_CONFIG_KEYS = Object.freeze([
 
 let AST_CHAT_RUNTIME_CONFIG = {};
 
+function astChatApplyFlatConfigValue(target, sectionName, fieldName, value) {
+  if (value == null) {
+    return;
+  }
+
+  target[sectionName] = astChatIsPlainObject(target[sectionName])
+    ? Object.assign({}, target[sectionName])
+    : {};
+
+  if (target[sectionName][fieldName] == null) {
+    target[sectionName][fieldName] = value;
+  }
+}
+
+function astChatNormalizeConfigInput(config = {}) {
+  if (!astChatIsPlainObject(config)) {
+    return {};
+  }
+
+  const normalized = Object.assign({}, config);
+
+  if (config.AST_CHAT_KEY_PREFIX != null && normalized.keyPrefix == null) {
+    normalized.keyPrefix = config.AST_CHAT_KEY_PREFIX;
+  }
+
+  astChatApplyFlatConfigValue(normalized, 'durable', 'backend', config.AST_CHAT_DURABLE_BACKEND);
+  astChatApplyFlatConfigValue(normalized, 'durable', 'driveFolderId', config.AST_CHAT_DRIVE_FOLDER_ID);
+  astChatApplyFlatConfigValue(normalized, 'durable', 'driveFileName', config.AST_CHAT_DRIVE_FILE_NAME);
+  astChatApplyFlatConfigValue(normalized, 'durable', 'storageUri', config.AST_CHAT_STORAGE_URI);
+  astChatApplyFlatConfigValue(normalized, 'limits', 'threadMax', config.AST_CHAT_THREAD_MAX);
+  astChatApplyFlatConfigValue(normalized, 'limits', 'turnsMax', config.AST_CHAT_TURNS_MAX);
+  astChatApplyFlatConfigValue(normalized, 'lock', 'lockScope', config.AST_CHAT_LOCK_SCOPE);
+  astChatApplyFlatConfigValue(normalized, 'lock', 'lockTimeoutMs', config.AST_CHAT_LOCK_TIMEOUT_MS);
+  astChatApplyFlatConfigValue(normalized, 'lock', 'allowLockFallback', config.AST_CHAT_ALLOW_LOCK_FALLBACK);
+
+  return normalized;
+}
+
 function astChatInvalidateScriptPropertiesSnapshotCache() {
   if (typeof astConfigInvalidateScriptPropertiesSnapshotMemoized === 'function') {
     astConfigInvalidateScriptPropertiesSnapshotMemoized();
@@ -212,9 +250,10 @@ function astChatResolveConfig(overrides = {}) {
   if (!astChatIsPlainObject(overrides)) {
     overrides = {};
   }
+  overrides = astChatNormalizeConfigInput(overrides);
 
   const scriptProps = astChatGetScriptPropertiesSnapshot();
-  const runtime = astChatIsPlainObject(AST_CHAT_RUNTIME_CONFIG) ? AST_CHAT_RUNTIME_CONFIG : {};
+  const runtime = astChatNormalizeConfigInput(AST_CHAT_RUNTIME_CONFIG);
 
   const keyPrefix = astChatResolveConfigString(
     [

@@ -88,6 +88,59 @@ function diffSets(left, right) {
   return [...left].filter(value => !right.has(value));
 }
 
+function findDuplicates(values) {
+  const seen = new Set();
+  const duplicates = new Set();
+  values.forEach(value => {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  });
+  return [...duplicates];
+}
+
+function leadingSpaces(line) {
+  const match = String(line).match(/^ */);
+  return match ? match[0].length : 0;
+}
+
+function findJobLevelEnvSecrets(relativePath, secretKeys) {
+  const fullPath = path.join(ROOT, relativePath);
+  if (!fs.existsSync(fullPath)) {
+    return [`Missing workflow file: ${relativePath}`];
+  }
+
+  const lines = readText(fullPath).split(/\r?\n/);
+  const output = [];
+  lines.forEach((line, index) => {
+    if (!/^ {4}env:\s*(?:#.*)?$/.test(line)) {
+      return;
+    }
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const candidate = lines[cursor];
+      if (candidate.trim().length === 0 || candidate.trim().startsWith('#')) {
+        continue;
+      }
+      if (leadingSpaces(candidate) <= 4) {
+        break;
+      }
+
+      secretKeys.forEach(key => {
+        const keyPattern = new RegExp(`^\\s+${escapeRegExp(key)}\\s*:`);
+        if (keyPattern.test(candidate)) {
+          output.push(
+            `${relativePath} must not expose ${key} in job-level env; scope it to the exact auth/smoke step.`
+          );
+        }
+      });
+    }
+  });
+
+  return output;
+}
+
 function extractAstUtilityNames(astText) {
   const pattern = /const\s+AST_UTILITY_NAMES\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\);/m;
   const match = astText.match(pattern);
@@ -104,6 +157,51 @@ function extractAstUtilityNames(astText) {
   }
 
   return values;
+}
+
+function extractAstFacadeObjectKeys(astText, namespace) {
+  const pattern = new RegExp(
+    `${escapeRegExp(namespace)}:\\s*\\{\\s*get:\\s*\\(\\)\\s*=>\\s*\\(\\{([\\s\\S]*?)\\}\\),\\s*enumerable:\\s*true\\s*\\}`,
+    'm'
+  );
+  const match = astText.match(pattern);
+  if (!match) {
+    throw new Error(`Unable to locate AST.${namespace} facade object in AST.js`);
+  }
+  return extractIndentedKeys(match[1], 6);
+}
+
+function findMissingDocTokens(markdown, tokens) {
+  return [...tokens].filter(token => !markdown.includes(token));
+}
+
+function extractMarkedSection(markdown, startMarker, endMarker, displayPath) {
+  const startIndex = markdown.indexOf(startMarker);
+  const endIndex = markdown.indexOf(endMarker);
+  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+    throw new Error(`${displayPath} must contain ${startMarker} and ${endMarker} markers`);
+  }
+  return markdown.slice(startIndex + startMarker.length, endIndex);
+}
+
+function extractOAuthScopeInventory(markdown, displayPath) {
+  const section = extractMarkedSection(
+    markdown,
+    '<!-- oauth-scope-inventory:start -->',
+    '<!-- oauth-scope-inventory:end -->',
+    displayPath
+  );
+  const scopes = [];
+  const pattern = /^\|\s*`(https:\/\/www\.googleapis\.com\/auth\/[^`]+)`\s*\|/gm;
+  let match = pattern.exec(section);
+  while (match) {
+    scopes.push(match[1]);
+    match = pattern.exec(section);
+  }
+  if (scopes.length === 0) {
+    throw new Error(`${displayPath} OAuth scope inventory table does not contain any scope rows`);
+  }
+  return scopes;
 }
 
 function extractResolveAstBindingNames(astText) {
@@ -161,18 +259,88 @@ for (const file of jsFiles) {
 
 const manifestPath = path.join(APPS_DIR, 'appsscript.json');
 const manifest = JSON.parse(readText(manifestPath));
+const manifestDisplayPath = 'apps_script_tools/appsscript.json';
+const publicAccessValues = new Set(['ANYONE', 'ANYONE_ANONYMOUS']);
 
-if (manifest.executionApi?.access === 'ANYONE') {
-  findings.push('Manifest cannot expose executionApi.access=ANYONE');
+if (publicAccessValues.has(manifest.executionApi?.access)) {
+  findings.push(`Manifest cannot expose executionApi.access=${manifest.executionApi.access}`);
+}
+
+if (publicAccessValues.has(manifest.webapp?.access)) {
+  findings.push(`Manifest cannot expose webapp.access=${manifest.webapp.access}`);
+}
+
+if (manifest.webapp?.executeAs === 'USER_DEPLOYING') {
+  findings.push('Manifest cannot configure webapp.executeAs=USER_DEPLOYING');
 }
 
 if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
   findings.push('Manifest must declare explicit oauthScopes');
+} else {
+  const invalidScopes = manifest.oauthScopes.filter(scope => {
+    return typeof scope !== 'string' || scope.trim().length === 0;
+  });
+  if (invalidScopes.length > 0) {
+    findings.push('Manifest oauthScopes must contain only non-empty strings');
+  }
+
+  const duplicateScopes = findDuplicates(manifest.oauthScopes);
+  if (duplicateScopes.length > 0) {
+    findings.push(`Manifest oauthScopes contain ${duplicateScopes.length} duplicate entries`);
+  }
+
+  const inventoryDisplayPath = 'docs/operations/oauth-scopes.md';
+  const inventoryPath = path.join(ROOT, inventoryDisplayPath);
+  if (!fs.existsSync(inventoryPath)) {
+    findings.push(`${inventoryDisplayPath} is required for OAuth scope review.`);
+  } else {
+    try {
+      const inventoryScopes = extractOAuthScopeInventory(readText(inventoryPath), inventoryDisplayPath);
+      const duplicateInventoryScopes = findDuplicates(inventoryScopes);
+      if (duplicateInventoryScopes.length > 0) {
+        findings.push(`${inventoryDisplayPath} contains ${duplicateInventoryScopes.length} duplicate OAuth scope entries`);
+      }
+
+      const manifestScopeSet = new Set(manifest.oauthScopes);
+      const inventoryScopeSet = new Set(inventoryScopes);
+      const undocumentedScopes = diffSets(manifestScopeSet, inventoryScopeSet);
+      const staleInventoryScopes = diffSets(inventoryScopeSet, manifestScopeSet);
+      if (undocumentedScopes.length > 0) {
+        findings.push(`${manifestDisplayPath} declares ${undocumentedScopes.length} OAuth scopes missing from ${inventoryDisplayPath}`);
+      }
+      if (staleInventoryScopes.length > 0) {
+        findings.push(`${inventoryDisplayPath} documents ${staleInventoryScopes.length} OAuth scopes not declared in ${manifestDisplayPath}`);
+      }
+    } catch (error) {
+      findings.push(error.message);
+    }
+  }
 }
 
 const rootClaspIgnorePath = path.join(ROOT, '.claspignore');
 if (!fs.existsSync(rootClaspIgnorePath)) {
   findings.push('Root .claspignore is required and is the only allowed clasp ignore file.');
+} else {
+  const claspIgnoreText = readText(rootClaspIgnorePath);
+  if (!/^testing\/\*\*\s*$/m.test(claspIgnoreText)) {
+    findings.push('Production .claspignore must exclude testing/**.');
+  }
+  if (!/^\.opencowork\/\*\*\s*$/m.test(claspIgnoreText)) {
+    findings.push('Production .claspignore must exclude .opencowork/** local metadata.');
+  }
+}
+
+const testClaspIgnorePath = path.join(ROOT, '.claspignore.test');
+if (!fs.existsSync(testClaspIgnorePath)) {
+  findings.push('Missing .claspignore.test for Apps Script test deployments.');
+} else {
+  const testClaspIgnoreText = readText(testClaspIgnorePath);
+  if (/^testing\/\*\*\s*$/m.test(testClaspIgnoreText)) {
+    findings.push('.claspignore.test must include apps_script_tools/testing/** for remote test deployments.');
+  }
+  if (!/^\.opencowork\/\*\*\s*$/m.test(testClaspIgnoreText)) {
+    findings.push('.claspignore.test must exclude .opencowork/** local metadata.');
+  }
 }
 
 const claspTemplatePath = path.join(ROOT, '.clasp.json.example');
@@ -234,10 +402,88 @@ try {
   findings.push(`Unable to verify tracked files with git ls-files: ${error.message}`);
 }
 
+const ciSecretScopeWorkflows = [
+  {
+    path: '.github/workflows/integration-gas.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN']
+  },
+  {
+    path: '.github/workflows/integration-ai-live.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN']
+  },
+  {
+    path: '.github/workflows/integration-github-live.yml',
+    secretKeys: ['CLASP_CLIENT_ID', 'CLASP_CLIENT_SECRET', 'CLASP_REFRESH_TOKEN', 'LIVE_GITHUB_TOKEN']
+  }
+];
+
+ciSecretScopeWorkflows.forEach(workflow => {
+  findings.push(...findJobLevelEnvSecrets(workflow.path, workflow.secretKeys));
+
+  const workflowPath = path.join(ROOT, workflow.path);
+  if (fs.existsSync(workflowPath)) {
+    const workflowText = readText(workflowPath);
+    if (!workflowText.includes('uses: ./.github/actions/configure-clasp-auth')) {
+      findings.push(`${workflow.path} must use the dedicated configure-clasp-auth action for clasp secrets.`);
+    }
+    if (!workflowText.includes('vars.GAS_TEST_SCRIPT_ID')) {
+      findings.push(`${workflow.path} must target GAS_TEST_SCRIPT_ID, not the production script ID.`);
+    }
+    if (!workflowText.includes('GAS_PRODUCTION_SCRIPT_ID: ${{ vars.GAS_SCRIPT_ID }}')) {
+      findings.push(`${workflow.path} must pass GAS_SCRIPT_ID as GAS_PRODUCTION_SCRIPT_ID for test-push safety checks.`);
+    }
+    if (/script-id:\s*\$\{\{\s*env\.GAS_PRODUCTION_SCRIPT_ID\s*\}\}/.test(workflowText)) {
+      findings.push(`${workflow.path} must not bind setup-clasp to the production script ID.`);
+    }
+    if (!workflowText.includes('npm run check:clasp:production')) {
+      findings.push(`${workflow.path} must verify the production clasp push set before test deployment.`);
+    }
+    if (!workflowText.includes('npm run clasp:test-push')) {
+      findings.push(`${workflow.path} must use the test clasp ignore wrapper for remote test pushes.`);
+    }
+  }
+});
+
+const ciWorkflowPath = path.join(ROOT, '.github/workflows/ci.yml');
+if (fs.existsSync(ciWorkflowPath)) {
+  const ciWorkflowText = readText(ciWorkflowPath);
+  if (!ciWorkflowText.includes('vars.GAS_TEST_SCRIPT_ID')) {
+    findings.push('CI gas-secrets-check must require GAS_TEST_SCRIPT_ID for remote Apps Script tests.');
+  }
+  if (!ciWorkflowText.includes('vars.GAS_SCRIPT_ID')) {
+    findings.push('CI gas-secrets-check must require GAS_SCRIPT_ID so test pushes can reject the production project.');
+  }
+}
+
+const setupClaspActionPath = path.join(ROOT, '.github/actions/setup-clasp/action.yml');
+if (!fs.existsSync(setupClaspActionPath)) {
+  findings.push('Missing .github/actions/setup-clasp/action.yml');
+} else {
+  const setupClaspActionText = readText(setupClaspActionPath);
+  ['clasp-client-id', 'clasp-client-secret', 'clasp-refresh-token'].forEach(inputName => {
+    if (setupClaspActionText.includes(inputName)) {
+      findings.push(`setup-clasp action must not accept OAuth credential input: ${inputName}`);
+    }
+  });
+
+  const installLinePattern = /npm\s+install\s+-g\s+"@google\/clasp@\$\{CLASP_VERSION\}"(?<flags>[^\n]*)/;
+  const installLine = setupClaspActionText.match(installLinePattern);
+  if (!installLine) {
+    findings.push('setup-clasp action must install the pinned @google/clasp package.');
+  } else {
+    ['--ignore-scripts', '--no-audit', '--no-fund'].forEach(flag => {
+      if (!installLine.groups.flags.includes(flag)) {
+        findings.push(`setup-clasp clasp install must include ${flag}`);
+      }
+    });
+  }
+}
+
 const astPath = path.join(APPS_DIR, 'AST.js');
 const cacheApiPath = path.join(APPS_DIR, 'cache', 'Cache.js');
 const jobsApiPath = path.join(APPS_DIR, 'jobs', 'Jobs.js');
 const quickReferencePath = path.join(ROOT, 'docs', 'api', 'quick-reference.md');
+const toolsReferencePath = path.join(ROOT, 'docs', 'api', 'tools.md');
 const docsIndexPath = path.join(ROOT, 'docs', 'index.md');
 const readmePath = path.join(ROOT, 'README.md');
 
@@ -246,14 +492,17 @@ try {
   const cacheApiText = readText(cacheApiPath);
   const jobsApiText = readText(jobsApiPath);
   const quickReferenceText = readText(quickReferencePath);
+  const toolsReferenceText = readText(toolsReferencePath);
 
   const runtimeNamespace = extractAstNamespaceKeys(astText);
   const runtimeCacheMethods = extractObjectFreezeKeys(cacheApiText, 'AST_CACHE');
   const runtimeJobsMethods = extractObjectFreezeKeys(jobsApiText, 'AST_JOBS');
+  const runtimeSheetsMethods = extractAstFacadeObjectKeys(astText, 'Sheets');
 
   const docNamespace = extractDocMethods(quickReferenceText, 'Namespace', 'ASTX.');
   const docCacheMethods = extractDocMethods(quickReferenceText, '`Cache` essentials', 'ASTX.Cache.');
   const docJobsMethods = extractDocMethods(quickReferenceText, '`Jobs` essentials', 'ASTX.Jobs.');
+  const docSheetsMethods = extractDocMethods(quickReferenceText, 'Workspace helpers', 'ASTX.Sheets.');
 
   const namespaceMissingInDocs = diffSets(runtimeNamespace, docNamespace);
   const namespaceMissingInRuntime = diffSets(docNamespace, runtimeNamespace);
@@ -294,6 +543,19 @@ try {
     );
   }
 
+  const sheetsMissingInDocs = diffSets(runtimeSheetsMethods, docSheetsMethods);
+  const sheetsMissingInRuntime = diffSets(docSheetsMethods, runtimeSheetsMethods);
+  if (sheetsMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Workspace helpers is missing Sheets exports: ${sheetsMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (sheetsMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Workspace helpers documents unknown Sheets exports: ${sheetsMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
   const claimSources = [
     { path: 'README.md', text: readText(readmePath) },
     { path: 'docs/index.md', text: readText(docsIndexPath) },
@@ -323,6 +585,35 @@ try {
   });
 
   const astUtilityNames = extractAstUtilityNames(astText);
+  const docUtilsMethods = extractDocMethods(quickReferenceText, '`Utils` essentials', 'ASTX.Utils.');
+  const utilsMissingInDocs = diffSets(astUtilityNames, docUtilsMethods);
+  const utilsMissingInRuntime = diffSets(docUtilsMethods, astUtilityNames);
+  if (utilsMissingInDocs.length > 0) {
+    findings.push(
+      `Quick reference Utils essentials is missing utility exports: ${utilsMissingInDocs.sort().join(', ')}`
+    );
+  }
+  if (utilsMissingInRuntime.length > 0) {
+    findings.push(
+      `Quick reference Utils essentials documents unknown utility exports: ${utilsMissingInRuntime.sort().join(', ')}`
+    );
+  }
+
+  const sheetDocTokens = new Set([...runtimeSheetsMethods].map(name => `ASTX.Sheets.${name}`));
+  const utilDocTokens = new Set([...astUtilityNames].map(name => `ASTX.Utils.${name}`));
+  const toolsSheetsMissing = findMissingDocTokens(toolsReferenceText, sheetDocTokens);
+  const toolsUtilsMissing = findMissingDocTokens(toolsReferenceText, utilDocTokens);
+  if (toolsSheetsMissing.length > 0) {
+    findings.push(
+      `API tools docs are missing Sheets exports: ${toolsSheetsMissing.sort().join(', ')}`
+    );
+  }
+  if (toolsUtilsMissing.length > 0) {
+    findings.push(
+      `API tools docs are missing utility exports: ${toolsUtilsMissing.sort().join(', ')}`
+    );
+  }
+
   const astBindingNames = extractResolveAstBindingNames(astText);
 
   jsFiles
