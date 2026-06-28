@@ -13,7 +13,7 @@
     "test:security": "node scripts/security-scan.mjs",
     "test:dependencies": "npm audit --audit-level=high --omit=dev",
     "test:perf": "node tests/perf/run-perf.mjs --mode report",
-    "test:perf:check": "node tests/perf/run-perf.mjs --mode check",
+    "test:perf:check": "node tests/perf/run-perf.mjs --mode check --samples 3",
     "test:perf:baseline": "node tests/perf/run-perf.mjs --mode baseline --out benchmarks/baselines/node20.json",
     "test:fast": "npm run lint && npm run test:local",
     "test": "npm run test:fast",

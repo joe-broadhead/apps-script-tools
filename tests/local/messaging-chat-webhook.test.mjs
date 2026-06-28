@@ -62,13 +62,27 @@ test('chat webhook send and sendBatch call UrlFetchApp with JSON payload', () =>
   assert.equal(single.data.response.echo.webhookUrl, '[REDACTED]');
   assert.equal(single.data.response.echo.callback, 'https://example.com/callback?client_secret=[REDACTED]');
   assert.equal(single.data.response.echo.token, '[REDACTED]');
-  assert.equal(single.data.raw.text.includes('chat.googleapis.com'), false);
+  assert.deepEqual(JSON.parse(single.data.raw.text), {
+    name: 'spaces/abc/messages/1',
+    echo: {
+      webhookUrl: '[REDACTED]',
+      callback: 'https://example.com/callback?client_secret=[REDACTED]',
+      token: '[REDACTED]'
+    }
+  });
   assert.equal(single.data.raw.text.includes('provider-token'), false);
 
   const log = context.AST.Messaging.logs.get({ body: { eventId: single.log.eventId } });
   assert.equal(log.data.item.payload.request.body.webhookUrl, '[REDACTED]');
   assert.equal(log.data.item.payload.result.request.webhookUrl, '[REDACTED]');
-  assert.equal(log.data.item.payload.result.raw.text.includes('chat.googleapis.com'), false);
+  assert.deepEqual(JSON.parse(log.data.item.payload.result.raw.text), {
+    name: 'spaces/abc/messages/1',
+    echo: {
+      webhookUrl: '[REDACTED]',
+      callback: 'https://example.com/callback?client_secret=[REDACTED]',
+      token: '[REDACTED]'
+    }
+  });
   assert.equal(log.data.item.payload.result.raw.text.includes('client_secret=s3'), false);
   assert.equal(log.data.item.payload.result.raw.text.includes('provider-token'), false);
 
@@ -79,7 +93,14 @@ test('chat webhook send and sendBatch call UrlFetchApp with JSON payload', () =>
   assert.equal(telemetry.page.returned, 1);
   const trace = context.AST.Telemetry.getTrace(telemetry.items[0].traceId);
   assert.equal(trace.spans[0].result.result.data.request.webhookUrl, '[REDACTED]');
-  assert.equal(trace.spans[0].result.result.data.raw.text.includes('chat.googleapis.com'), false);
+  assert.deepEqual(JSON.parse(trace.spans[0].result.result.data.raw.text), {
+    name: 'spaces/abc/messages/1',
+    echo: {
+      webhookUrl: '[REDACTED]',
+      callback: 'https://example.com/callback?client_secret=[REDACTED]',
+      token: '[REDACTED]'
+    }
+  });
   assert.equal(trace.spans[0].result.result.data.raw.text.includes('provider-token'), false);
 
   const batch = context.AST.Messaging.chat.sendBatch({

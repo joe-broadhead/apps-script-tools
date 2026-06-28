@@ -62,6 +62,50 @@ function astMessagingHttpRedactUrl(url) {
   return '[REDACTED]';
 }
 
+function astMessagingHttpEscapeForwardSlashes(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\//g, '\\/');
+}
+
+function astMessagingHttpEncodeVariant(value, encoder) {
+  try {
+    const encoded = encoder(String(value || ''));
+    return encoded && encoded !== value ? encoded : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function astMessagingHttpBuildRedactionVariants(value) {
+  const source = String(value || '');
+  if (!source) {
+    return [];
+  }
+
+  const variants = [
+    source,
+    astMessagingHttpEscapeForwardSlashes(source),
+    astMessagingHttpEncodeVariant(source, encodeURI),
+    astMessagingHttpEncodeVariant(source, encodeURIComponent)
+  ];
+  const unique = [];
+  variants.forEach(variant => {
+    if (variant && unique.indexOf(variant) === -1) {
+      unique.push(variant);
+    }
+  });
+  return unique;
+}
+
+function astMessagingHttpReplaceVariants(message, variants, redactedUrl) {
+  let output = String(message || '');
+  variants.forEach(variant => {
+    output = output.split(variant).join(redactedUrl);
+  });
+  return output;
+}
+
 function astMessagingHttpSanitizeErrorMessage(error, rawUrl) {
   const fallback = 'Messaging provider request failed';
   const message = error && typeof error.message !== 'undefined'
@@ -69,12 +113,10 @@ function astMessagingHttpSanitizeErrorMessage(error, rawUrl) {
     : String(error || fallback);
   const exactRawUrl = astMessagingHttpNormalizeString(rawUrl, '');
   const redactedUrl = astMessagingHttpRedactUrl(exactRawUrl) || '[REDACTED]';
-  let output = exactRawUrl ? message.split(exactRawUrl).join(redactedUrl) : message;
+  let output = exactRawUrl
+    ? astMessagingHttpReplaceVariants(message, astMessagingHttpBuildRedactionVariants(exactRawUrl), redactedUrl)
+    : message;
   if (exactRawUrl) {
-    const escapedRawUrl = exactRawUrl.replace(/\//g, '\\/');
-    if (escapedRawUrl !== exactRawUrl) {
-      output = output.split(escapedRawUrl).join(redactedUrl);
-    }
     output = astMessagingHttpRedactRelativeRequestEchoes(output, exactRawUrl, redactedUrl);
   }
 
@@ -132,10 +174,11 @@ function astMessagingHttpRedactRelativeRequestEchoes(message, requestUrl, redact
   let output = message;
   variants.forEach(variant => {
     output = astMessagingHttpReplaceRelativeEcho(output, variant, redactedUrl);
-    const escapedVariant = variant.replace(/\//g, '\\/');
-    if (escapedVariant !== variant) {
-      output = astMessagingHttpReplaceRelativeEcho(output, escapedVariant, redactedUrl);
-    }
+    astMessagingHttpBuildRedactionVariants(variant).forEach(encodedVariant => {
+      if (encodedVariant !== variant) {
+        output = astMessagingHttpReplaceRelativeEcho(output, encodedVariant, redactedUrl);
+      }
+    });
   });
   return output;
 }

@@ -140,19 +140,27 @@ export function validateCookbookManifest(cookbookId, manifest, displayPath = `co
       findings.push(`${displayPath} oauthScopes must be an array when declared.`);
     } else {
       const seen = new Set();
+      let duplicateScopeCount = 0;
+      let unexpectedScopeCount = 0;
       manifest.oauthScopes.forEach(scope => {
         if (typeof scope !== 'string' || scope.trim().length === 0) {
           findings.push(`${displayPath} oauthScopes must contain only non-empty strings.`);
           return;
         }
         if (seen.has(scope)) {
-          findings.push(`${displayPath} duplicates OAuth scope ${scope}.`);
+          duplicateScopeCount += 1;
         }
         seen.add(scope);
         if (!COOKBOOK_ALLOWED_OAUTH_SCOPES.has(scope)) {
-          findings.push(`${displayPath} declares unexpected OAuth scope ${scope}; add an explicit review before committing new cookbook scopes.`);
+          unexpectedScopeCount += 1;
         }
       });
+      if (duplicateScopeCount > 0) {
+        findings.push(`${displayPath} duplicates ${duplicateScopeCount} OAuth scope entries.`);
+      }
+      if (unexpectedScopeCount > 0) {
+        findings.push(`${displayPath} declares ${unexpectedScopeCount} unexpected OAuth scope entries; add an explicit review before committing new cookbook scopes.`);
+      }
     }
   }
 

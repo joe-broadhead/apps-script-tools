@@ -130,7 +130,7 @@ function astTelemetryRedactUrl(value) {
 
 function astTelemetryRedactPlainTextSecrets(value) {
   let output = String(value);
-  const secretKeySource = '(?:x[-_])?api[-_]?key|access[-_]?token|auth[-_]?token|id[-_]?token|refresh[-_]?token|token|secret|client[-_]?secret|credential|credentials|password|signature|sig|private[-_]?key|service[-_]?account|authorization|proxy[-_]?authorization';
+  const secretKeySource = '(?:x[-_])?api[-_]?key|access[-_]?token|auth[-_]?token|id[-_]?token|refresh[-_]?token|token|secret|client[-_]?secret|credential|credentials|password|signature|sig|private[-_]?key|service[-_]?account|authorization|proxy[-_]?authorization|cookie|set[-_]?cookie';
   const quotedSecretKeyPattern = new RegExp(`(["'])(${secretKeySource})\\1(\\s*:\\s*)(["'])([^"']*)\\4`, 'gi');
 
   output = output.replace(
@@ -163,12 +163,22 @@ function astTelemetryRedactPlainTextSecrets(value) {
     (_match, key, separator) => `${key}${separator}${AST_TELEMETRY_REDACTED_TOKEN}`
   );
 
+  output = output.replace(
+    /\b(cookie|set-cookie)\b(\s*:\s*)(["'])([^"']*)\3/gi,
+    (_match, key, separator, quote) => `${key}${separator}${quote}${AST_TELEMETRY_REDACTED_TOKEN}${quote}`
+  );
+
+  output = output.replace(
+    /\b(cookie|set-cookie)\b(\s*:\s*)(?!["'])([^\r\n]*)/gi,
+    (_match, key, separator) => `${key}${separator}${AST_TELEMETRY_REDACTED_TOKEN}`
+  );
+
   output = output.replace(/\b(bearer)\s+[A-Za-z0-9._~+/=-]+/gi, (_match, scheme) => {
     return `${scheme} ${AST_TELEMETRY_REDACTED_TOKEN}`;
   });
 
   return output.replace(
-    /\b((?:x[-_])?api[-_]?key|access[-_]?token|auth[-_]?token|id[-_]?token|refresh[-_]?token|token|secret|client[-_]?secret|credential|credentials|password|signature|sig|private[-_]?key|service[-_]?account)\b(\s*[:=]\s*)(["']?)([^\s'"`,;&<>()\[\]{}]+)/gi,
+    /\b((?:x[-_])?api[-_]?key|access[-_]?token|auth[-_]?token|id[-_]?token|refresh[-_]?token|token|secret|client[-_]?secret|credential|credentials|password|signature|sig|private[-_]?key|service[-_]?account|cookie|set[-_]?cookie)\b(\s*[:=]\s*)(["']?)([^\s'"`,;&<>()\[\]{}]+)/gi,
     (_match, key, separator, quote) => `${key}${separator}${quote}${AST_TELEMETRY_REDACTED_TOKEN}`
   );
 }

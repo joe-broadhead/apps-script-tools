@@ -33,19 +33,14 @@ runs:
         const path = require('node:path');
 
         const claspAuth = {
-          token: {
-            access_token: '',
-            refresh_token: process.env.CLASP_REFRESH_TOKEN,
-            scope: 'https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform',
-            token_type: 'Bearer',
-            expiry_date: 0
-          },
-          oauth2ClientSettings: {
-            clientId: process.env.CLASP_CLIENT_ID,
-            clientSecret: process.env.CLASP_CLIENT_SECRET,
-            redirectUri: 'http://localhost'
-          },
-          isLocalCreds: false
+          tokens: {
+            default: {
+              client_id: process.env.CLASP_CLIENT_ID,
+              client_secret: process.env.CLASP_CLIENT_SECRET,
+              type: 'authorized_user',
+              refresh_token: process.env.CLASP_REFRESH_TOKEN
+            }
+          }
         };
 
         fs.writeFileSync(

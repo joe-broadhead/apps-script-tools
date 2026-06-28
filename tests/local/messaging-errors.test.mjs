@@ -284,6 +284,37 @@ test('http request redacts escaped webhook URLs in plain-text response bodies', 
   );
 });
 
+test('http request redacts percent-encoded webhook URL echoes', () => {
+  const requestUrl = 'https://chat.googleapis.com/v1/spaces/abc/messages?key=x&token=y';
+  const context = createGasContext({
+    UrlFetchApp: {
+      fetch: () => ({
+        getResponseCode: () => 500,
+        getContentText: () => `provider echoed ${encodeURIComponent(requestUrl)}`,
+        getAllHeaders: () => ({})
+      })
+    }
+  });
+
+  loadMessagingScripts(context);
+
+  assert.throws(
+    () => context.astMessagingHttpRequest(
+      requestUrl,
+      { method: 'post' },
+      { retries: 0 }
+    ),
+    error => {
+      assert.equal(error.name, 'AstMessagingProviderError');
+      assert.equal(error.details.responseText, 'provider echoed https://chat.googleapis.com');
+      assert.equal(error.details.responseText.includes('spaces/abc'), false);
+      assert.equal(error.details.responseText.includes('token%3Dy'), false);
+      assert.equal(error.details.responseText.includes('key%3Dx'), false);
+      return true;
+    }
+  );
+});
+
 test('http request redacts labeled relative webhook path echoes', () => {
   const requestUrl = 'https://example.com/webhook/secret?token=x';
   const context = createGasContext({

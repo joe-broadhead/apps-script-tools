@@ -160,6 +160,8 @@ test('Telemetry redacts sensitive keys in span context', () => {
     errorMessage: 'provider echoed https://hooks.slack.com/services/T000/B000/XXX?client_secret=s3',
     genericUrlMessage: 'provider echoed https://example.com/webhook/secret?token=x',
     authHeaderMessage: 'provider echoed Authorization: Bearer bearer-token Proxy-Authorization: Basic basic-token client_secret=s3',
+    headerMessage: 'provider echoed Cookie: sid=secret-session; theme=light',
+    responseHeaderMessage: 'provider echoed Set-Cookie: refresh=secret-refresh; HttpOnly',
     teamsMessage: 'provider echoed https://outlook.office365.com/webhook/secret-path?sig=s1',
     teamsLogicMessage: 'provider echoed https://logic.azure.com/workflows/secret/triggers/manual/paths/invoke?api-version=2016-10-01&sig=s1',
     nested: {
@@ -198,6 +200,14 @@ test('Telemetry redacts sensitive keys in span context', () => {
   assert.equal(
     trace.spans[0].context.authHeaderMessage,
     'provider echoed Authorization: Bearer [REDACTED] Proxy-Authorization: Basic [REDACTED] client_secret=[REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.headerMessage,
+    'provider echoed Cookie: [REDACTED]'
+  );
+  assert.equal(
+    trace.spans[0].context.responseHeaderMessage,
+    'provider echoed Set-Cookie: [REDACTED]'
   );
   assert.equal(
     trace.spans[0].context.teamsMessage,

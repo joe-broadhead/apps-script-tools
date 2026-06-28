@@ -286,7 +286,7 @@ if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
 
   const duplicateScopes = findDuplicates(manifest.oauthScopes);
   if (duplicateScopes.length > 0) {
-    findings.push(`Manifest oauthScopes contain duplicate entries: ${duplicateScopes.sort().join(', ')}`);
+    findings.push(`Manifest oauthScopes contain ${duplicateScopes.length} duplicate entries`);
   }
 
   const inventoryDisplayPath = 'docs/operations/oauth-scopes.md';
@@ -298,7 +298,7 @@ if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
       const inventoryScopes = extractOAuthScopeInventory(readText(inventoryPath), inventoryDisplayPath);
       const duplicateInventoryScopes = findDuplicates(inventoryScopes);
       if (duplicateInventoryScopes.length > 0) {
-        findings.push(`${inventoryDisplayPath} contains duplicate OAuth scope entries: ${duplicateInventoryScopes.sort().join(', ')}`);
+        findings.push(`${inventoryDisplayPath} contains ${duplicateInventoryScopes.length} duplicate OAuth scope entries`);
       }
 
       const manifestScopeSet = new Set(manifest.oauthScopes);
@@ -306,10 +306,10 @@ if (!Array.isArray(manifest.oauthScopes) || manifest.oauthScopes.length === 0) {
       const undocumentedScopes = diffSets(manifestScopeSet, inventoryScopeSet);
       const staleInventoryScopes = diffSets(inventoryScopeSet, manifestScopeSet);
       if (undocumentedScopes.length > 0) {
-        findings.push(`${manifestDisplayPath} declares OAuth scopes missing from ${inventoryDisplayPath}: ${undocumentedScopes.sort().join(', ')}`);
+        findings.push(`${manifestDisplayPath} declares ${undocumentedScopes.length} OAuth scopes missing from ${inventoryDisplayPath}`);
       }
       if (staleInventoryScopes.length > 0) {
-        findings.push(`${inventoryDisplayPath} documents OAuth scopes not declared in ${manifestDisplayPath}: ${staleInventoryScopes.sort().join(', ')}`);
+        findings.push(`${inventoryDisplayPath} documents ${staleInventoryScopes.length} OAuth scopes not declared in ${manifestDisplayPath}`);
       }
     } catch (error) {
       findings.push(error.message);

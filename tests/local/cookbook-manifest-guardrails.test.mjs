@@ -79,6 +79,7 @@ test('validateCookbookManifest rejects stale AST library bindings and unexpected
   assert.match(findings.join('\n'), /userSymbol/);
   assert.match(findings.join('\n'), /libraryId/);
   assert.match(findings.join('\n'), /library version/);
-  assert.match(findings.join('\n'), /duplicates OAuth scope/);
+  assert.match(findings.join('\n'), /duplicates 1 OAuth scope/);
   assert.match(findings.join('\n'), /unexpected OAuth scope/);
+  assert.equal(findings.join('\n').includes('admin.directory.user'), false);
 });
