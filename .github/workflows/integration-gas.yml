@@ -82,6 +82,9 @@ jobs:
             if [ "${run_status}" -ne 0 ]; then
               exit "${run_status}"
             fi
+            if printf '%s\n' "${output}" | grep -Eiq 'Unable to run script function|permission'; then
+              echo "clasp run ${function_name} could not execute the remote script. Verify GAS_TEST_SCRIPT_ID is linked to the same standard Google Cloud project as CLASP_CLIENT_ID, the Apps Script API is enabled there, and CLASP_REFRESH_TOKEN was minted with clasp login --use-project-scopes."
+            fi
             if printf '%s\n' "${output}" | grep -Eiq 'Script function not found|Unable to run script function|Please make sure|Exception|Error:'; then
               echo "clasp run ${function_name} reported an execution error."
               exit 1

@@ -102,6 +102,8 @@ Required repository settings for integration workflows:
 
 - variables: `GAS_SCRIPT_ID` for the production library project, `GAS_TEST_SCRIPT_ID` for the separate test project
 - secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`
+- Apps Script projects used by `GAS_SCRIPT_ID` and `GAS_TEST_SCRIPT_ID` must be linked to the same standard Google Cloud project that owns `CLASP_CLIENT_ID`; `scripts.run` returns `PERMISSION_DENIED` when the OAuth client project and script project differ.
+- Mint `CLASP_REFRESH_TOKEN` with project scopes after the manifest scopes change: `clasp login --use-project-scopes --creds client_secret.json`.
 
 Production-vs-test deployment behavior:
 

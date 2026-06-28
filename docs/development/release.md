@@ -47,6 +47,8 @@ CI workflow config:
 
 - Set repository variable `GAS_SCRIPT_ID` for the production library project and `GAS_TEST_SCRIPT_ID` for GitHub Actions integration/live-smoke workflows.
 - Set repository secrets: `CLASP_CLIENT_ID`, `CLASP_CLIENT_SECRET`, `CLASP_REFRESH_TOKEN`.
+- Link both Apps Script projects to the same standard Google Cloud project that owns `CLASP_CLIENT_ID`; the Apps Script Execution API rejects `clasp run` when the OAuth client project and script project differ.
+- Refresh `CLASP_REFRESH_TOKEN` with `clasp login --use-project-scopes --creds client_secret.json` whenever manifest OAuth scopes change.
 - Keep `package-lock.json` committed. CI installs with `npm ci --ignore-scripts`, and `npm run test:dependencies` runs `npm audit --audit-level=high --omit=dev` against the committed lockfile.
 - Keep `CLASP_*` secrets out of workflow job-level `env`; inject them only into the dedicated clasp-auth step after checkout, Node dependency installation, and clasp installation have finished.
 - Keep live-smoke provider tokens scoped to the exact step that needs them; do not expose them to checkout, dependency installation, clasp installation, or unrelated push/test steps.
